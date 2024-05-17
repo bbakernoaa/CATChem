@@ -1,15 +1,21 @@
-!> \\file test_main.F90
+!> \\file read_species_database.F90
 
 
-program testmain
+program read_species_database
 
   use QfYaml_Mod
 !  use ErrCode_Mod
   implicit none
 
 
+  CHARACTER(LEN=20), PARAMETER :: SpecFileName ='species_database.yml'
   CHARACTER(LEN=18), PARAMETER :: configFile ='CATChem_config.yml'
+  CHARACTER(LEN=19), PARAMETER :: configFile2 ='CATChem_config2.yml'
   TYPE(QFYAML_t)     :: Config, ConfigAnchored
+  TYPE(QFYAML_t)     :: SpecConfig
+  TYPE(OptInput), INTENT(INOUT) :: Input_Opt   ! Input options
+  TYPE(GrdState), INTENT(INOUT) :: State_Grid  ! Grid State object
+
 
 !  CHARACTER(LEN=255) :: thisLoc
   CHARACTER(LEN=512) :: errMsg
@@ -38,8 +44,15 @@ program testmain
 ! Read the YAML file into the Config object
 !========================================================================
 
-    print *, 'QFYAML_Init(', configFile, 'Config, ConfigAnchored, RC  )'
+!    print *, 'QFYAML_Init(', configFile, 'Config, ConfigAnchored, RC  )'
     CALL QFYAML_Init( configFile, Config, ConfigAnchored, RC )
+
+    CALL QFYAML_Init( SpecFileName, SpecConfig, ConfigAnchored, RC )
+    CALL QFYAML_Print( SpecConfig, RC, SpecFileName)
+
+
+!    CALL QFYAML_Init( configFile, Config, ConfigAnchored, RC )
+!    CALL QFYAML_Print( Config, RC, configFile2)
 
 
 !    print *, "configFile = ", configFile
@@ -52,14 +65,15 @@ program testmain
         errMsg = 'Error reading configuration file: ' // TRIM( configFile )
 !        CALL GC_Error( errMsg, RC, thisLoc )
 !        RETURN
-    print *, errMsg
+!    print *, errMsg
     ENDIF
 
 
 
 
 
-end program testmain
+end program read_species_database
+
 
 
 
