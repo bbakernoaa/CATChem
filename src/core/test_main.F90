@@ -1,78 +1,103 @@
-!> \\file read_species_database.F90
+!> \\file test_main.F90
 
 
-program read_species_database
+program test_main
+
 
   use QfYaml_Mod
-!  use ErrCode_Mod
+  use GridState_Mod
+  use Error_Mod
+  use Input_Mod
+  use Input_Opt_Mod, ONLY : OptInput
+  use State_Grid_Mod
   implicit none
 
 
   CHARACTER(LEN=20), PARAMETER :: SpecFileName ='species_database.yml'
   CHARACTER(LEN=18), PARAMETER :: configFile ='CATChem_config.yml'
-  CHARACTER(LEN=19), PARAMETER :: configFile2 ='CATChem_config2.yml'
   TYPE(QFYAML_t)     :: Config, ConfigAnchored
   TYPE(QFYAML_t)     :: SpecConfig
-  TYPE(OptInput), INTENT(INOUT) :: Input_Opt   ! Input options
-  TYPE(GrdState), INTENT(INOUT) :: State_Grid  ! Grid State object
-
-
-!  CHARACTER(LEN=255) :: thisLoc
+  CHARACTER(LEN=255)          :: thisLoc
+  TYPE(OptInput)    ::  Input_Opt
+  TYPE(GrdState)    ::  State_Grid
   CHARACTER(LEN=512) :: errMsg
-
-!  INTEGER :: GC_SUCCESS=1
-
-
-!  INTEGER, PARAMETER :: GC_SUCCESS =  0   ! Routine returns success
-!  INTEGER, PUBLIC, PARAMETER :: GC_FAILURE = -1   ! Routine returns failure
 
   INTEGER         :: RC=1          ! Success or failure
 
-
-         WRITE( 6, '(a  )' ) REPEAT( '=', 79 )
-         WRITE( 6, 100   ) TRIM( configFile )
+       WRITE( 6, '(a  )' ) REPEAT( '=', 79 )
+       WRITE( 6, '(a,x,a)'   ) "CONFIGFILE: ", TRIM( configFile )
 
 100    FORMAT( 'READ_INPUT_FILE: Opening ', a )
 
 
-
-! Assume success
-!    RC      = GC_SUCCESS
-!    errMsg  = ''
-!    thisLoc = ' -> at Read_Input_File (in module GeosCore/input_mod.F90)'
-!========================================================================
-! Read the YAML file into the Config object
 !========================================================================
 
-!    print *, 'QFYAML_Init(', configFile, 'Config, ConfigAnchored, RC  )'
+! LDH:  This pulls from the configFile, refer to qfyaml.F90
     CALL QFYAML_Init( configFile, Config, ConfigAnchored, RC )
 
-    CALL QFYAML_Init( SpecFileName, SpecConfig, ConfigAnchored, RC )
-    CALL QFYAML_Print( SpecConfig, RC, SpecFileName)
+         WRITE( 6, '(a  )' ) REPEAT( '=', 79 )
+         WRITE( 6, 100   ) TRIM( configFile )
+         WRITE( 6, '(a  )' )  ' '
 
 
-!    CALL QFYAML_Init( configFile, Config, ConfigAnchored, RC )
-!    CALL QFYAML_Print( Config, RC, configFile2)
-
-
-!    print *, "configFile = ", configFile
-!    print *, "Config = ", config
-!    print *, "configAnchored = ", ConfigAnchored
-!    print *, 'RC = ',  RC
-
-
-    IF ( RC /= 0 ) THEN
-        errMsg = 'Error reading configuration file: ' // TRIM( configFile )
-!        CALL GC_Error( errMsg, RC, thisLoc )
-!        RETURN
-!    print *, errMsg
+    CALL Config_Simulation( Config, Input_Opt, RC )    
+! LDH: for possible settings, refer to input_mod.F90
+    IF ( RC /= CC_SUCCESS ) THEN
+       errMsg = 'Error in "Config_Simulation"!'
+       CALL CC_Error( errMsg, RC, thisLoc  )
+       CALL QFYAML_CleanUp( Config         )
+       CALL QFYAML_CleanUp( ConfigAnchored )
+       RETURN
     ENDIF
 
+       WRITE( 6, '(a  )' ) " -- Simulation Settings --"
+       WRITE( 6, '(a,x,a)' ) "Simulation Type:  ", Input_Opt%SimulationName
+       WRITE( 6, '(a,x,a)' ) "Data dir:  ", Input_Opt%data_dir
+       WRITE( 6, '(a,x,a)' ) "Met Field:  ", Input_Opt%metfield
+       WRITE( 6, '(a,x,a)' ) "Species Database file:  ", Input_Opt%spcdatabasefile
+       WRITE( 6, '(a  )' )  ' '
+
+! LDH: for possible settings, refer to input_mod.F90
+    CALL Config_Grid( Config, Input_Opt, State_Grid, RC )
+    IF ( RC /= CC_SUCCESS ) THEN
+       errMsg = 'Error in "Config_Grid"!'
+       CALL CC_Error( errMsg, RC, thisLoc  )
+       CALL QFYAML_CleanUp( Config         )
+       RETURN
+    ENDIF
+! LDH:  The grid specifications require recasting in input_mod.F90
+         WRITE( 6, '(a  )' ) " -- Resolution Settings --"
+         WRITE( 6, '(a,x,a)' ) "Resolution:  ", State_Grid%GridRes
+         WRITE( 6, '(a,x,f7.3)' ) "DX:  ", State_Grid%DX
+         WRITE( 6, '(a,x,f7.3)' ) "DY:  ", State_Grid%DY
+         WRITE( 6, '(a,x,i4)' ) "NUMLEVELS:  ", State_Grid%NZ
+         WRITE( 6, '(a,x,f9.4,x,f9.4)' ) "Lon Range:  ", State_Grid%Xmin, State_Grid%Xmax
+         WRITE( 6, '(a,x,f9.4,x,f9.4)' ) "Lat Range:  ", State_Grid%Ymin, State_Grid%Ymax
+         WRITE( 6, '(a  )' )  ' '
+
+! LDH:  This pulls from the config_aerosol subroutine in input_mod.F90
+    CALL Config_Aerosol( Config, Input_Opt, RC )
+    IF ( RC /= CC_SUCCESS ) THEN
+       errMsg = 'Error in "Config_Aerosol"!'
+       CALL CC_Error( errMsg, RC, thisLoc  )
+       CALL QFYAML_CleanUp( Config         )
+       RETURN
+    ENDIF
+         WRITE( 6, '(a  )' ) " -- Aerosol Settings --"
+         WRITE( 6, '(a,t30,l)' ) "Run Dust Aerosols?:  ", Input_Opt%ldust
+         WRITE( 6, '(a,t30,l)' ) "Run Sea Salt Aerosols?:  ", Input_Opt%lssalt
+         WRITE( 6, '(a  )' )  ' '
+         WRITE( 6, '(a  )' ) REPEAT( '=', 79 )
 
 
 
+! LDH:  Next - Define additional types and Allocate Arrays???
+! LDH:       - Add additional relevant modules and checks as needed
 
-end program read_species_database
+
+
+end program test_main
+
 
 
 
