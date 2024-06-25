@@ -9,7 +9,6 @@
 !!!>
 module CCPr_SeaSalt_Common_Mod
    use precision_mod, Only : fp, ZERO, f8
-   use Error_Mod, ONLY : CC_SUCCESS, CC_Error, CC_FAILURE
    implicit none
 
    private
@@ -58,11 +57,12 @@ module CCPr_SeaSalt_Common_Mod
       REAL(fp), ALLOCATABLE           :: UpperBinRadius(:)      !< Upper bin radius        [m]
       REAL(fp), ALLOCATABLE           :: EffectiveRadius(:)     !< Effective radius        [m]
       REAL(fp), ALLOCATABLE           :: SeaSaltDensity(:)      !< SeaSalt density         [kg m-3]
-      REAL(fp), ALLOCATABLE           :: TotalEmission          !< Total emission          [ug m-2 s-1]
-      REAL(fp), ALLOCATABLE           :: TotalNumberEmission    !< Total Number Emitted    [# m-2 s-1]
+
       REAL(fp), ALLOCATABLE           :: EmissionPerSpecies(:)  !< Emission per species    [ug m-2 s-1]
       REAL(fp), ALLOCATABLE           :: NumberEmissionBin(:)   !< Particle Number emission per species [# m-2 s-1]
-      REAL(fp), ALLOCATABLE           :: SeaSaltScaleFactor     !< SeaSalt Tuning Parameter [-]
+      REAL(fp)                        :: SeaSaltScaleFactor     !< SeaSalt Tuning Parameter [-]
+      REAL(fp)                        :: TotalEmission          !< Total emission          [ug m-2 s-1]
+      REAL(fp)                        :: TotalNumberEmission    !< Total Number Emitted    [# m-2 s-1]
 
       !=================================================================
       ! Module specific variables/arrays/data pointers come below
@@ -135,7 +135,7 @@ contains
       !EOP
       !-------------------------------------------------------------------------
       !  Begin...
-      RC = CC_FAILURE
+      RC = -1 ! Error code
       fsstemis = 1.0_fp
 
       fsstemis = ZERO
@@ -153,7 +153,7 @@ contains
          fsstemis = min(7.0_fp, fsstemis)
       endif
 
-      RC = CC_SUCCESS
+      RC = 0
    end subroutine jeagleSSTcorrection
 
    !>
@@ -195,7 +195,7 @@ contains
       ! Initialize
       errMsg = ''
       thisLoc = ' -> at weibullDistribution (in util/metutils_mod.F90)'
-      RC = CC_SUCCESS
+      RC = 0
       gweibull = 1.0_fp
 
       wt = 4.d0
@@ -212,11 +212,6 @@ contains
          endif
       endif
 
-      if (RC /= CC_SUCCESS) then
-         errMsg = 'Error Calculating Weibull Distribution'
-         call CC_Error(errMsg, RC, thisLoc)
-         return
-      endif
 
    end subroutine weibullDistribution
 
@@ -242,13 +237,13 @@ contains
       ! LOCAL VARIABLE
       DOUBLE PRECISION :: XAM, GIN,  S, R, T0
       INTEGER K
-      rc = CC_SUCCESS
+      rc = 0
 
       XAM=-X+A*LOG(X)
       IF (XAM.GT.700.0.OR.A.GT.170.0) THEN
          WRITE(*,*)'IGAMMA: a and/or x too large, X = ', X
          WRITE(*,*) 'A = ', A
-         rc = CC_FAILURE
+         rc = -1
          return
       ENDIF
 

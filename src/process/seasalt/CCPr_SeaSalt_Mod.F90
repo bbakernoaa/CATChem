@@ -243,19 +243,63 @@ CONTAINS
          ! Run the SeaSalt Scheme
          !--------------------
          if (SeaSaltState%SchemeOpt == 1) then ! Gong2003
-            call CCPr_Scheme_Gong03( MetState, DiagState, SeaSaltState, RC )
+            call CCPr_Scheme_Gong03(MetState%FROCEAN,                 &
+               MetState%FRSEAICE,                &
+               MetState%U10M,                    &
+               MetState%V10M,                    &
+               MetState%SST,                     &
+               SeaSaltState%WeibullFlag,         &
+               SeaSaltState%SeaSaltScaleFactor,  &
+               SeaSaltState%UpperBinRadius,      &
+               SeaSaltState%LowerBinRadius,      &
+               SeaSaltState%EffectiveRadius,     &
+               SeaSaltState%SeaSaltDensity,      &
+               SeaSaltState%EmissionPerSpecies,  &
+               SeaSaltState%NumberEmissionBin,   &
+               SeaSaltState%TotalEmission,       &
+               SeaSaltState%TotalNumberEmission, &
+               RC)
             if (RC /= CC_SUCCESS) then
                errMsg = 'Error in CCPr_Scheme_Gong03'
                CALL CC_Error( errMsg, RC, thisLoc )
             endif
          else if (SeaSaltState%SchemeOpt == 2) then ! Gong1997
-            call CCPr_Scheme_Gong97( MetState, DiagState, SeaSaltState, RC )
+            ! call CCPr_Scheme_Gong97( MetState, DiagState, SeaSaltState, RC )
+            call CCPr_Scheme_Gong97(MetState%FROCEAN,                 &
+               MetState%FRSEAICE,                &
+               MetState%U10M,                    &
+               MetState%V10M,                    &
+               MetState%SST,                     &
+               SeaSaltState%WeibullFlag,         &
+               SeaSaltState%SeaSaltScaleFactor,  &
+               SeaSaltState%UpperBinRadius,      &
+               SeaSaltState%LowerBinRadius,      &
+               SeaSaltState%EffectiveRadius,     &
+               SeaSaltState%SeaSaltDensity,      &
+               SeaSaltState%EmissionPerSpecies,  &
+               SeaSaltState%NumberEmissionBin,   &
+               SeaSaltState%TotalEmission,       &
+               SeaSaltState%TotalNumberEmission, &
+               RC)
             if (RC /= CC_SUCCESS) then
                errMsg = 'Error in CCPr_Scheme_Gong97'
                CALL CC_Error( errMsg, RC, thisLoc )
             endif
          else if (SeaSaltState%SchemeOpt == 3) then ! GEOS2012
-            call CCPr_Scheme_GEOS12( MetState, DiagState, SeaSaltState, RC )
+            call CCPr_Scheme_GEOS12(MetState%FROCEAN,                 &
+               MetState%FRSEAICE,                &
+               MetState%USTAR,                   &
+               MetState%SST,                     &
+               SeaSaltState%SeaSaltScaleFactor,  &
+               SeaSaltState%UpperBinRadius,      &
+               SeaSaltState%LowerBinRadius,      &
+               SeaSaltState%EffectiveRadius,     &
+               SeaSaltState%SeaSaltDensity,      &
+               SeaSaltState%EmissionPerSpecies,  &
+               SeaSaltState%NumberEmissionBin,   &
+               SeaSaltState%TotalEmission,       &
+               SeaSaltState%TotalNumberEmission, &
+               RC)
             if (RC /= CC_SUCCESS) then
                errMsg = 'Error in CCPr_Scheme_GEOS12'
                CALL CC_Error( errMsg, RC, thisLoc )

@@ -237,13 +237,53 @@ CONTAINS
          ! Run the Dust Scheme
          !--------------------
          if (DustState%SchemeOpt == 1) then ! FENGSHA
-            call CCPr_Scheme_Fengsha( MetState, DiagState, DustState, RC )
+            call CCPr_Scheme_Fengsha(DustState%nDustSpecies,          &
+               MetState%DSOILTYPE,              &
+               MetState%SSM,                    &
+               MetState%RDRAG,                  &
+               MetState%TSKIN,                  &
+               MetState%USTAR,                  &
+               MetState%USTAR_THRESHOLD,        &
+               MetState%GWETTOP,                &
+               MetState%z0,                     &
+               MetState%CLAYFRAC,               &
+               MetSTate%SANDFRAC,               &
+               MetState%AIRDEN(1),              &
+               MetState%FROCEAN,                &
+               MetState%FRLANDIC,               &
+               MetState%FRSNO,                  &
+               DustState%AlphaScaleFactor,      &
+               DustState%BetaScaleFactor,       &
+               DustState%EffectiveRadius,       &
+               DustState%LowerBinRadius,        &
+               DustState%UpperBinRadius,        &
+               DustState%TotalEmission,         &
+               DustState%EmissionPerSpecies,    &
+               RC,                              &
+               MoistOpt=DustState%MoistOpt,     &
+               DragOpt=DustState%DragOpt,       &
+               HorizFluxOpt=DustState%HorizFluxOpt)
+
             if (RC /= CC_SUCCESS) then
                errMsg = 'Error in CCPr_Scheme_Fengsha'
                CALL CC_Error( errMsg, RC, thisLoc )
             endif
          else if (DustState%SchemeOpt == 2) then ! GINOUX
-            call CCPr_Scheme_Ginoux( MetState, DiagState, DustState, RC )
+            call CCPr_Scheme_Ginoux(MetState%DSOILTYPE,            &
+               MetState%SSM,                  &
+               MetState%TSKIN,                &
+               MetState%FROCEAN,              &
+               MetState%FRSNO,                &
+               MetState%AIRDEN,            &
+               MetState%U10M,                 &
+               MetState%V10M,                 &
+               MetState%GWETTOP,              &
+               DustState%AlphaScaleFactor,    &
+               DustState%EffectiveRadius,     &
+               DustState%DustDensity,         &
+               DustState%TotalEmission,       &
+               DustState%EmissionPerSpecies,  &
+               RC)
             if (RC /= CC_SUCCESS) then
                errMsg = 'Error in CCPr_Scheme_Ginoux'
                CALL CC_Error( errMsg, RC, thisLoc )
@@ -256,7 +296,8 @@ CONTAINS
          endif
       endif
 
-
+      ! Fill Diagnostic States
+      DiagState%dust_total_flux = DustState%TotalEmission
 
    END SUBROUTINE CCPr_Dust_Run
 

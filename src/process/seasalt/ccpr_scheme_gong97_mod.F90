@@ -19,44 +19,83 @@ module CCPr_Scheme_Gong97_Mod
 
 contains
 
-   !> \brief Run the Ginoux windblown dust emission scheme
+   !> \brief Run the Gong97 Sea Salt Emission scheme
    !!
-   !! \param [IN] MetState The MetState object
-   !! \param [INOUT] DiagState The DiagState object
-   !! \param [INOUT] ChemState The ChemState object
-   !! \param [INOUT] DustState The DustState object
-   !! \param [OUT] RC Return code
+   !! \param [IN] FROCEAN
+   !! \param [IN] FRSEAICE
+   !! \param [IN] U10M
+   !! \param [IN] V10M
+   !! \param [IN] SST
+   !! \param [IN] WeibullFlag
+   !! \param [IN] SeaSaltScaleFactor
+   !! \param [IN] UpperBinRadius
+   !! \param [IN] LowerBinRadius
+   !! \param [IN] EffectiveRadius
+   !! \param [IN] SeaSaltDensity
+   !! \param [IN] EmissionBin
+   !! \param [IN] NumberEmissionBin
+   !! \param [IN] TotalEmission
+   !! \param [IN] TotalNumberEmission
+   !! \param [OUT] RC
    !!
    !! \ingroup catchem_seasalt_process
    !!!>
-   subroutine CCPr_Scheme_Gong97(MetState, DiagState, SeaSaltState, RC)
+   subroutine CCPr_Scheme_Gong97(FROCEAN,              &
+      FRSEAICE,             &
+      U10M,                 &
+      V10M,                 &
+      SST,                  &
+      WeibullFlag,          &
+      SeaSaltScaleFactor,   &
+      UpperBinRadius,       &
+      LowerBinRadius,       &
+      EffectiveRadius,      &
+      SeaSaltDensity,       &
+      EmissionBin,          &
+      NumberEmissionBin,    &
+      TotalEmission,        &
+      TotalNumberEmission,  &
+      RC)
 
       ! Uses
       Use CCPr_SeaSalt_Common_Mod
       use precision_mod, only : fp, ZERO, ONE, f8
       use constants,     only : PI
-      Use MetState_Mod,  Only : MetStateType
-      Use DiagState_Mod, Only : DiagStateType
-      Use Error_Mod,     Only : CC_SUCCESS, CC_FAILURE, CC_Error
-      Use CCPr_SeaSalt_Common_Mod, Only : SeaSaltStateType
+
 
       implicit none
 
       ! Arguments
-      type(MetStateType),     intent(in)    :: MetState   !< Meteorological Variables
-      type(DiagStateType),    intent(inout) :: DiagState  !< Diagnostic Variables
-      type(SeaSaltStateType), intent(inout) :: SeaSaltState  !< Dust Variables
-      integer, intent(out) :: RC
+      !----------
+      ! Inputs
+      real(fp), intent(in) :: FROCEAN                                  !< Ocean Fraction
+      real(fp), intent(in) :: FRSEAICE                                 !< SeaIce Fraction
+      real(fp), intent(in) :: U10M                                     !< U-Component of 10m wind speed
+      real(fp), intent(in) :: V10M                                     !< V-Component of 10m wind speed
+      real(fp), intent(in) :: SST                                      !< Sea surface temperature
+      logical,  intent(in) :: WeibullFlag                              !< Weibull Flag
+      real(fp), intent(in) :: SeaSaltScaleFactor                       !< SeaSalt Tuning Parameter [-]
+      real(fp), dimension(:), intent(in) :: UpperBinRadius             !< SeaSalt Upper Bin Radius [m]
+      real(fp), dimension(:), intent(in) :: LowerBinRadius             !< SeaSalt Lower Bin Radius [m]
+      real(fp), dimension(:), intent(in) :: EffectiveRadius            !< SeaSalt Effective Radius [m]
+      real(fp), dimension(:), intent(in) :: SeaSaltDensity             !< SeaSalt Density [kg/m^3]
+
+      ! Inputs/Outputs
+      real(fp), dimension(:), intent(inout) :: EmissionBin             !< Emission Rate per Bin [ug/m2/s]
+      real(fp), dimension(:), intent(inout) :: NumberEmissionBin       !< Number of particles emitted per bin [#/m2/s]
+      real(fp), intent(inout)               :: TotalEmission           !< Total SeaSalt Emission [ug m-2 s-1]
+      real(fp), intent(inout)               :: TotalNumberEmission     !< Total Number Emitted    [# m-2 s-1]
+
+      ! Outputs
+      integer, intent(out) :: RC                                 !< return code
 
       ! Local Variables
-      character(len=256) :: errMsg
-      character(len=256) :: thisLoc
       logical :: do_seasalt                            !< Enable Dust Calculation Flag
       integer :: n, ir                                 !< Loop counter
       integer :: nbins                                 !< number of SeaSalt bins
       real(f8) :: w10m                                 !< 10m wind speed [m/s]
-      real(fp), allocatable :: EmissionBin(:)          !< Emission Rate per Bin [kg/m2/s]
-      real(fp), allocatable :: NumberEmissionBin(:)    !< Number of particles emitted per bin [#/m2/s]
+      ! real(fp), allocatable :: EmissionBin(:)          !< Emission Rate per Bin [kg/m2/s]
+      ! real(fp), allocatable :: NumberEmissionBin(:)    !< Number of particles emitted per bin [#/m2/s]
       integer, parameter :: nr = 10                    !< Number of (linear) sub-size bins
       real, parameter    :: r80fac = 1.65              !< ratio of radius(RH=0.8)/radius(RH=0.) [Gerber]
       real(fp) :: DryRadius                            !< sub-bin radius         (dry, um)
@@ -77,31 +116,16 @@ contains
       real(fp) :: scale
 
       ! Initialize
-      errMsg = ''
-      thisLoc = ' -> at CCPr_Scheme_Gong97 (in ccpr_scheme_Gong97_mod.F90)'
-      RC = CC_FAILURE
-
-      nbins = size(SeaSaltState%EffectiveRadius)
-      ALLOCATE(EmissionBin(nbins), STAT=RC)
-      if (RC /= CC_SUCCESS) then
-         errMsg = 'Error Allocating EmissionBin'
-         call CC_Error(errMsg, RC, thisLoc)
-         return
-      endif
-
-      ALLOCATE(NumberEmissionBin(nbins), STAT=RC)
-      if (RC /= CC_SUCCESS) then
-         errMsg = 'Error Allocating EmissionBin'
-         call CC_Error(errMsg, RC, thisLoc)
-         return
-      endif
-
-      SeaSaltState%EmissionPerSpecies = ZERO
+      RC = -1
+      EmissionBin = ZERO
       MassEmissions = ZERO
       NumberEmissions = ZERO
       gweibull = ONE
       fsstemis = ONE
       fhoppel = ONE
+
+      nbins = size(EffectiveRadius)
+
       !--------------------------------------------------------------------
       ! Don't do Sea Salt over certain criteria
       !--------------------------------------------------------------------
@@ -109,7 +133,7 @@ contains
 
       ! Don't do Sea Salt over land
       !----------------------------------------------------------------
-      scale = MetState%FROCEAN - MetState%FRSEAICE
+      scale = FROCEAN - FRSEAICE
       if (scale .eq. 0) then
          do_seasalt = .False.
       endif
@@ -118,7 +142,7 @@ contains
 
          ! get 10m mean wind speed
          !------------------------
-         w10m = sqrt(MetState%U10M ** 2 + MetState%V10M ** 2)
+         w10m = sqrt(U10M ** 2 + V10M ** 2)
 
          ! Gong 1997 Params
          !-----------------
@@ -127,29 +151,39 @@ contains
          exppow   = 1.19_fp
          wpow     = 3.41_fp
 
-         ! Weibull Distribution following Fan and Toon 2011 if SeaSaltState%WeibullFlag
+         ! Weibull Distribution following Fan and Toon 2011 if WeibullFlag
          !----------------------------------------------------------------------------
-         call weibullDistribution(gweibull, SeaSaltState%WeibullFlag, w10m, RC)
+         call weibullDistribution(gweibull, WeibullFlag, w10m, RC)
+         if (RC /= 0) then
+            RC = -1
+            print *, 'Error in weibullDistribution'
+            return
+         endif
 
          ! Get Jeagle SST Correction
-         call jeagleSSTcorrection(fsstemis, MetState%SST,1, RC)
+         call jeagleSSTcorrection(fsstemis, SST,1, RC)
+         if (RC /= 0) then
+            RC = -1
+            print *, 'Error in jeagleSSTcorrection'
+            return
+         endif
 
-         scale = scale * gweibull * fsstemis * SeaSaltState%SeaSaltScaleFactor
+         scale = scale * gweibull * fsstemis * SeaSaltScaleFactor
 
          do n = 1, nbins
 
             ! delta dry radius
             !-----------------
-            DeltaDryRadius = (SeaSaltState%UpperBinRadius(n) - SeaSaltState%LowerBinRadius(n) )/ nr
+            DeltaDryRadius = (UpperBinRadius(n) - LowerBinRadius(n) )/ nr
 
             ! Dry Radius Substep
             !-------------------
-            DryRadius = SeaSaltState%LowerBinRadius(n) + 0.5 * DeltaDryRadius
+            DryRadius = LowerBinRadius(n) + 0.5 * DeltaDryRadius
 
             do ir = 1, nr ! SubSteps
 
                ! Mass scale fcator
-               MassScaleFac = scalefac * 4._fp/3._fp*PI*SeaSaltState%SeaSaltDensity(n)*(DryRadius**3._fp) * 1.e-18_fp
+               MassScaleFac = scalefac * 4._fp/3._fp*PI*SeaSaltDensity(n)*(DryRadius**3._fp) * 1.e-18_fp
 
                ! Effective Wet Radius in Sub Step
                rwet  = r80fac * DryRadius
@@ -172,21 +206,20 @@ contains
 
             enddo
 
-            SeaSaltState%EmissionPerSpecies(n) = MassEmissions * scale * 1.0e9_fp ! Convert to kg/m2/s from ug/m2/s
-            SeaSaltState%NumberEmissionBin(n) = NumberEmissions * scale
+            EmissionBin(n) = MassEmissions * scale * 1.0e9_fp ! Convert to kg/m2/s from ug/m2/s
+            NumberEmissionBin(n) = NumberEmissions * scale
 
             MassEmissions = ZERO
             NumberEmissions = ZERO
 
          enddo ! nbins
 
-         SeaSaltState%TotalEmission = sum(SeaSaltState%EmissionPerSpecies)
-         DiagState%sea_salt_total_flux = SeaSaltState%TotalEmission
-         SeaSaltState%TotalNumberEmission = sum(SeaSaltState%NumberEmissionBin)
+         TotalEmission = sum(EmissionBin)
+         TotalNumberEmission = sum(NumberEmissionBin)
 
       endif ! do_Sea Salt
 
-      RC = CC_SUCCESS
+      RC = 0
    end subroutine CCPr_Scheme_Gong97
 
 end module CCPr_Scheme_Gong97_Mod
