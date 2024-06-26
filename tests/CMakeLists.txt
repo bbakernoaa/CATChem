@@ -5,6 +5,7 @@ enable_testing()
 
 add_executable(test_main test_main.F90)
 target_link_libraries(test_main PRIVATE CATChem_core)
+target_link_libraries(test_main PRIVATE CATChem)
 set_target_properties(test_main PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include)
 
 add_test(
@@ -20,6 +21,7 @@ set_property(TEST test_main_missing_config PROPERTY WILL_FAIL TRUE)
 
 add_executable(test_dust test_dust.f90)
 target_link_libraries(test_dust PRIVATE CATChem_core)
+target_link_libraries(test_dust PRIVATE CATChem)
 target_link_libraries(test_dust PRIVATE CATChem_process_dust)
 target_link_libraries(test_dust PRIVATE testing)
 set_target_properties(test_dust PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include)
@@ -31,6 +33,7 @@ add_test(
 
 add_executable(test_seasalt test_seasalt.F90)
 target_link_libraries(test_seasalt PRIVATE CATChem_core)
+target_link_libraries(test_seasalt PRIVATE CATChem)
 target_link_libraries(test_seasalt PRIVATE CATChem_process_seasalt)
 target_link_libraries(test_seasalt PRIVATE testing)
 set_target_properties(test_seasalt PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include)

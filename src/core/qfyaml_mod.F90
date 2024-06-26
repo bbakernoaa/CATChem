@@ -39,6 +39,7 @@ MODULE QFYAML_Mod
      PUBLIC :: QFYAML_Check
      PUBLIC :: QFYAML_FindDepth
      PUBLIC :: QFYAML_FindNextHigher
+     PUBLIC :: QFYAML_Species_Init
      PUBLIC :: QFYAML_Init
      PUBLIC :: QFYAML_Merge
      PUBLIC :: QFYAML_Print
@@ -360,6 +361,51 @@ MODULE QFYAML_Mod
        CALL QFYAML_Sort( yml )
 
      END SUBROUTINE QFYAML_Init
+
+     SUBROUTINE QFYAML_Species_Init( fileName, yml, yml_anchored, species_names,RC )
+      !
+      ! !INPUT PARAMETERS:
+      !
+          CHARACTER(LEN=*), INTENT(IN)    :: fileName
+      !
+      ! !INPUT/OUTPUT PARAMETERS:
+      !
+          TYPE(QFYAML_t),   INTENT(INOUT) :: yml
+          TYPE(QFYAML_t),   INTENT(INOUT) :: yml_anchored
+          CHARACTER(LEN=*), ALLOCATABLE, INTENT(INOUT) :: species_names(:)
+      !
+      ! !OUTPUT PARAMETERS:
+      !
+          INTEGER,          INTENT(OUT)   :: RC
+      !
+      ! !LOCAL VARIABLES:
+      !
+          ! Strings
+          CHARACTER(LEN=QFYAML_StrLen) :: errMsg, thisLoc
+
+          !=======================================================================
+          ! QFYAML_Init begins here!
+          !=======================================================================
+
+          ! Initialize
+          RC      = QFYAML_success
+          errMsg  = ''
+          thisLoc = ' -> at QFYAML_Species_Init (in module qfyaml_mod.F90)'
+
+          ! Read the YML file
+          CALL QFYAML_Read_Species_File( yml, fileName, yml_anchored, species_names, RC )
+
+          ! Trap potential errors
+          IF ( RC /= QFYAML_Success ) THEN
+             errMsg = 'Error encountered in "QFYAML_Read_Species_File"!'
+             CALL Handle_Error( errMsg, RC, thisLoc )
+             RETURN
+          ENDIF
+
+          ! Sort the variable names in the yml object for faster search
+          CALL QFYAML_Sort( yml )
+
+      END SUBROUTINE QFYAML_Species_Init
      !>
      !! \brief Concatenates two QFYAML_t objects together.
      !!
@@ -596,6 +642,216 @@ MODULE QFYAML_Mod
        ENDDO
 
      END SUBROUTINE QFYAML_Read_File
+
+     SUBROUTINE QFYAML_Read_Species_File( yml, fileName, yml_anchored, species_names, RC )
+      !
+      ! !INPUT PARAMETERS:
+      !
+          CHARACTER(LEN=*), INTENT(IN)    :: fileName      ! YAML file to read
+      !
+      ! !INPUT/OUTPUT PARAMETERS:
+      !
+          TYPE(QFYAML_t),   INTENT(INOUT) :: yml           ! Configuration object
+          TYPE(QFYAML_t),   INTENT(INOUT) :: yml_anchored  ! "" for anchored vars
+          CHARACTER(LEN=*), ALLOCATABLE, INTENT(INOUT) :: species_names(:)
+      !
+      ! !OUTPUT PARAMETERS:
+      !
+          INTEGER,          INTENT(OUT  ) :: RC
+      !
+      ! !LOCAL VARIABLES:
+      !
+          ! Scalars
+          LOGICAL                      :: valid_syntax
+          INTEGER                      :: anchor_ix
+          INTEGER                      :: begin_ix
+          INTEGER                      :: end_ix
+          INTEGER                      :: I
+          INTEGER                      :: io_state
+          INTEGER                      :: N
+          INTEGER                      :: line_number
+          INTEGER                      :: my_unit
+
+          ! Strings
+          CHARACTER(LEN=QFYAML_NamLen) :: line_fmt
+          CHARACTER(LEN=QFYAML_NamLen) :: category
+          CHARACTER(LEN=QFYAML_NamLen) :: anchor_cat
+          CHARACTER(LEN=QFYAML_NamLen) :: anchor_ptr
+          CHARACTER(LEN=QFYAML_NamLen) :: anchor_tgt
+          CHARACTER(LEN=QFYAML_NamLen) :: var_pt_to_anchor
+          CHARACTER(LEN=QFYAML_NamLen) :: var_w_anchor
+          CHARACTER(LEN=QFYAML_NamLen) :: var_name
+          CHARACTER(LEN=QFYAML_StrLen) :: errMsg
+          CHARACTER(LEN=QFYAML_StrLen) :: line
+          CHARACTER(LEN=QFYAML_StrLen) :: thisLoc
+          CHARACTER(LEN=QFYAML_NamLen) :: current
+          CHARACTER(LEN=QFYAML_NamLen), allocatable :: names(:)
+
+          !=======================================================================
+          ! QFYAML_READ_FILE begins here!
+          !=======================================================================
+
+          ! Initialize
+          RC           = QFYAML_Success
+          anchor_ptr   = ""
+          anchor_tgt   = ""
+          category     = ""
+          errMsg       = ""
+          thisLoc      = " -> at QFYAML_Read_File (in module qfyaml_mod.F90)"
+          line_number  = 0
+          my_unit      = 777
+
+          !=======================================================================
+          ! First pass: read the file
+          !=======================================================================
+
+          ! Open the file
+          OPEN( my_unit, FILE=TRIM(filename), STATUS="old", ACTION="read", IOSTAT=RC)
+          IF ( RC /= QFYAML_SUCCESS ) THEN
+             errMsg = 'Could not open file: ' // TRIM( fileName )
+             CALL Handle_Error( errMsg, RC, thisLoc )
+             RETURN
+          ENDIF
+
+          ! Create format line
+          WRITE( line_fmt, "(a,i0,a)") "(a", QFYAML_StrLen, ")"
+
+          ! Start looping
+          DO
+
+             ! Read each line and increment the count
+             READ( my_unit, FMT=TRIM(line_fmt), ERR=998, end=999) line
+             line_number = line_number + 1
+
+             ! Parse each line for information.  This will also add
+             ! each found variable to the "yml" configuration object.
+             ! YAML anchors will also be referenced.
+             CALL Parse_Line( yml          = yml,                                  &
+                              yml_anchored = yml_anchored,                         &
+                              set_by       = QFYAML_set_by_file,                   &
+                              line_arg     = line,                                 &
+                              valid_syntax = valid_syntax,                         &
+                              category     = category,                             &
+                              anchor_tgt   = anchor_tgt,                           &
+                              anchor_ptr   = anchor_ptr,                           &
+                              RC           = RC                                   )
+
+             ! Trap potential errors
+             IF ( .not. valid_syntax ) THEN
+                WRITE( errMsg, *) "Cannot read line ", line_number, &
+                     " from ", TRIM(filename)
+                CALL Handle_Error( errMsg, RC, thisLoc )
+                RETURN
+             ENDIF
+          ENDDO
+
+          ! Error handling
+      998 WRITE( errMsg, "(a,i0,a,i0)" ) " IOSTAT = ", io_state, &
+               " while reading from " // trim(filename) // " at line ", &
+               line_number
+          CALL Handle_Error( errMsg, RC, thisLoc )
+          RETURN
+
+          ! Routine ends here if the end of "filename" is reached
+      999 CLOSE( my_unit, iostat=io_state )
+
+          !=======================================================================
+          ! Second pass: Create variables that point to YAML anchors
+          ! with all of the corresponding properties.
+          !=======================================================================
+          DO N = 1, yml_anchored%num_vars
+
+             ! Get properties of each variable that points to an anchor
+             anchor_ptr = yml_anchored%vars(N)%anchor_ptr
+             category   = yml_anchored%vars(N)%category
+             var_name   = yml_anchored%vars(N)%var_name
+
+             ! Find all target variables with the given value of anchor_ptr,
+             ! and return the start and ending indices in the yml config object.
+             CALL Get_Anchor_Info( yml        = yml,                                &
+                                   anchor_ptr = anchor_ptr,                         &
+                                   begin_ix   = begin_ix,                           &
+                                   end_ix     = end_ix,                             &
+                                   anchor_cat = anchor_cat )
+
+             ! Loop over all target variables containing the value of anchor_ptr
+             DO anchor_ix = begin_ix, end_ix
+
+                ! Variable with the anchor
+                var_w_anchor = yml%vars(anchor_ix)%var_name
+
+                ! Variable that we want to point to the anchor
+                I = INDEX( var_w_anchor, QFYAML_category_separator )
+                var_pt_to_anchor = TRIM( category )                             // &
+                                   QFYAML_category_separator                    // &
+                                   var_w_anchor(I+1:)
+
+                ! Create a new variable for this category,
+                ! copying the fields of the variable with the anchor.
+                CALL Copy_Anchor_Variable( yml              = yml,                 &
+                                           anchor_ix        = anchor_ix,           &
+                                           var_w_anchor     = var_w_anchor,        &
+                                           var_pt_to_anchor = var_pt_to_anchor,    &
+                                           RC               = RC                  )
+
+                ! Trap potential errors
+                IF ( RC /= QFYAML_Success ) THEN
+                   errMsg = 'Error encountered in "Copy_Anchor_Variable"!'
+                   CALL Handle_Error( errMsg, RC, thisLoc )
+                   RETURN
+                ENDIF
+             ENDDO
+          ENDDO
+
+          ALLOCATE(names(0), STAT=RC)
+         !  IF ( RC /= 0 ) THEN
+         !     errMsg = 'Error allocating "names"!'
+         !     CALL Handle_Error( errMsg, RC, thisLoc )
+         !     RETURN
+         !  ENDIF
+          current = ""
+          i = 0
+          do n = 1, yml%num_vars
+            if (len(TRIM(yml%vars(n)%category)) > 0) then
+               if ( i == 0 ) then
+                  i = i + 1
+                  current = TRIM(yml%vars(n)%category)
+                  names = [names, yml%vars(n)%category]
+               else if (TRIM(yml%vars(n)%category) /= TRIM(current)) then
+                  i = i + 1
+                  names = [names, yml%vars(n)%category]
+                  current = TRIM(yml%vars(n)%category)
+               endif
+            endif
+         enddo
+
+         ALLOCATE(species_names(i), STAT=RC)
+         IF ( RC /= 0 ) THEN
+            errMsg = 'Error allocating "species_names"!'
+            CALL Handle_Error( errMsg, RC, thisLoc )
+            RETURN
+         ENDIF
+         current = ""
+         i = 0
+         do n = 1, yml%num_vars
+            if (len(TRIM(yml%vars(n)%category)) > 0) then
+               if ( i == 0 ) then
+                  i = i + 1
+                  current = TRIM(yml%vars(n)%category)
+                  species_names(i) = yml%vars(n)%category
+               else if (TRIM(yml%vars(n)%category) /= TRIM(current)) then
+                  i = i + 1
+                  species_names(i) = yml%vars(n)%category
+                  current = TRIM(yml%vars(n)%category)
+               endif
+               ! write(*,*) 'species_names(',i,') = ',species_names(i),current
+            endif
+         enddo
+
+
+
+
+        END SUBROUTINE QFYAML_Read_Species_File
      !>
      !!  Parses a single line of a YAML file and adds the relevant
      !!  variables to the yml configuration object.

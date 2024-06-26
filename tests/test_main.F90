@@ -29,12 +29,14 @@ program test_main
    write(*,*) ''
 
    ! Read input file and initialize grid
-   call cc_read_config(Config, GridState, rc)
+   call cc_read_config(Config, GridState, ChemState, rc)
    if (rc /= CC_SUCCESS) then
       errMsg = 'Error reading configuration file: ' // TRIM( configFile )
       call cc_emit_error(errMsg, rc, thisLoc)
       stop 1
    endif
+
+   ! call cc_read_species(Config, rc)
 
    ! write grid info
    write(*,*) 'Grid info:'
