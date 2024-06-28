@@ -66,6 +66,7 @@ MODULE Config_Opt_Mod
       !----------------------------------------
       CHARACTER(LEN=255)          :: SimulationName
       CHARACTER(LEN=255)          :: SpcDatabaseFile
+      CHARACTER(LEN=255)          :: EmissionDatabaseFile
       LOGICAL                     :: VerboseRequested
       CHARACTER(LEN=10)           :: VerboseOnCores
       LOGICAL                     :: Verbose
@@ -82,6 +83,7 @@ MODULE Config_Opt_Mod
       INTEGER                     :: dust_horizflux_opt ! Horizontal Flux Calculation Option
       real(fp)                    :: dust_alpha
       real(fp)                    :: dust_beta
+
 
       ! SeaSalt Process
       LOGICAL                     :: seasalt_activate

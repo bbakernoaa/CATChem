@@ -1,14 +1,12 @@
 program test_dust
    use CATChem, fp => cc_rk
    use testing_mod, only: assert
+   use state_mod
+
    implicit none
 
-   type(ConfigType) :: Config
-   type(ChemStateType) :: ChemState
-   type(MetStateType) :: MetState
-   type(DiagStateType) :: DiagState
    type(DustStateType) :: DustState
-   type(GridStateType) :: GridState
+
 
    ! Integers
    INTEGER:: rc          ! Success or failure
@@ -37,7 +35,7 @@ program test_dust
    !----------------------------
 
    ! Read input file and initialize grid
-   call cc_read_config(Config, GridState, rc)
+   call cc_read_config(Config, GridState, EmisState, ChemState, rc)
    if (rc /= CC_success) then
       errMsg = 'Error reading configuration file: ' // TRIM( configFile )
       call cc_emit_error(errMsg, rc, thisLoc)

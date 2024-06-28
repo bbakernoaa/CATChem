@@ -14,7 +14,7 @@ program test_main
    ! Error handling
    CHARACTER(LEN=512) :: errMsg
    CHARACTER(LEN=255) :: thisLoc
-   CHARACTER(LEN=18), PARAMETER :: configFile ='CATChem_config.yml'
+   CHARACTER(LEN=18), PARAMETER :: configFile = 'CATChem_config.yml'
    ! set thisLoc
    thisLoc = 'test_main::test_main() -> at read CATChem_Conifg.yml'
    errMsg = ''
@@ -29,12 +29,14 @@ program test_main
    write(*,*) ''
 
    ! Read input file and initialize grid
-   call cc_read_config(Config, GridState, rc)
+   call cc_read_config(Config, GridState, EmisState, ChemState, rc)
    if (rc /= CC_SUCCESS) then
       errMsg = 'Error reading configuration file: ' // TRIM( configFile )
       call cc_emit_error(errMsg, rc, thisLoc)
       stop 1
    endif
+
+   ! call cc_read_species(Config, rc)
 
    ! write grid info
    write(*,*) 'Grid info:'

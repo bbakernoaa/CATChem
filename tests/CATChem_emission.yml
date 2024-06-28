@@ -1,0 +1,20 @@
+anthro:
+  NO:
+    long_name: "Nitrogen Oxide"
+    scale: [1.0]
+    map: ["NO"]
+  CO:
+    long_name: "Carbon Monoxide"
+    map: ["CO"]
+  ISOP:
+    long_name: "Isoprene"
+    scale: [1.0, 0.5]
+    map: [ISOP, TEST]
+dust:
+  DU25:
+    long_name: "Dust Species Fine Mode"
+    scale: [0.7]
+    map: ["dust1"]
+  DU10:
+    long_name: "Dust Species Coarse Mode"
+    map: ["dust1", "dust2"]

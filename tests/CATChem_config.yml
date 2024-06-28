@@ -10,35 +10,30 @@ simulation:
   name: test
   start_date: 20240501 0000
   end_date: 20240501 0100
-  species_database_file: ./species_database.yml
-  species_metadata_output_file: ./species_metadata.yml
+  species_filename: CATChem_species.yml
+  emission_filename: CATChem_emission.yml
   verbose:
-    activate: false
-
+    activate: true
 #============================================================================
 # Grid settings
 #============================================================================
 grid:
   number_of_levels: 28
-
 #============================================================================
 # Timesteps settings
 #============================================================================
 timesteps:
   transport_timestep_in_s: 10
   chemistry_timestep_in_s: 60
-
 #============================================================================
 # Settings for CATChem processes
 #============================================================================
 process:
-
   seasalt:
     activate: true
     scheme_opt: 3
     scale_factor: 1.0
     weibull: true
-
   dust:
     activate: true
     scheme_opt: 1
@@ -47,113 +42,3 @@ process:
     dust_horizflux_opt: 1
     dust_alpha: 1.0
     dust_beta: 1.0
-
-
-#============================================================================
-# Settings for CATChem operations
-#============================================================================
-operations:
-
-  chemistry:
-    activate: false
-
-  convection:
-    activate: false
-
-  dry_deposition:
-    activate: true
-    diag_alt_above_sfc_in_m: 10
-
-  pbl_mixing:
-     activate: true
-     use_non_local_pbl: ${RUNDIR_USE_NLPBL}
-
-  photolysis:
-    activate: true
-    input_directories:
-      fastjx_input_dir: ./
-      cloudj_input_dir: ./
-    overhead_O3:
-      use_online_O3_from_model: false
-      use_column_O3_from_met: true
-      use_TOMS_SBUV_O3: false
-
-  transport:
-    gcclassic_tpcore:                 # CATChem Classic only
-      activate: true                  # CATChem Classic only
-      fill_negative_values: true      # CATChem Classic only
-      iord_jord_kord: [3, 3, 7]       # CATChem Classic only
-    transported_species:
-      - BCPI
-      - BCPO
-      - DMS
-      - DST1
-      - DST2
-      - DST3
-      - DST4
-      - H2O2
-      - MSA
-      - NH3
-      - NH4
-      - NIT
-      - NITs
-      - OCPI
-      - OCPO
-      - pFe
-      - SALA
-      - SALAAL
-      - SALACL
-      - SALC
-      - SALCAL
-      - SALCCL
-      - SO2
-      - SO4
-      - SO4s
-      - SOAP
-      - SOAS
-
-  wet_deposition:
-    activate: true
-
-#============================================================================
-# Settings for CATChem aerosols
-#============================================================================
-aerosols:
-
-  carbon:
-    activate: true
-    brown_carbon: false
-    enhance_black_carbon_absorption:
-      activate: true
-      hydrophilic: 1.5
-      hydrophobic: 1.0
-
-  dust:
-    activate: true
-
-  sea_salt:
-    activate: true
-    SALA_radius_bin_in_um: [0.01, 0.5]
-    SALC_radius_bin_in_um: [0.5,  8.0]
-
-  sulfate:
-    activate: true
-    metal_cat_SO2_oxidation: true
-
-#============================================================================
-# Settings for diagnostics (other than HISTORY and HEMCO)
-#============================================================================
-extra_diagnostics:
-
-  obspack:
-    activate: false
-    quiet_logfile_output: false
-    input_file: ./obspack_co2_1_OCO2MIP_2018-11-28.YYYYMMDD.nc
-    output_file: ./OutputDir/CATChem.ObsPack.YYYYMMDD_hhmmz.nc4
-    output_species:
-      - BCPI
-
-  planeflight:
-    activate: false
-    flight_track_file: Planeflight.dat.YYYYMMDD
-    output_file: plane.log.YYYYMMDD

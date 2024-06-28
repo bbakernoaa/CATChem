@@ -57,7 +57,7 @@ changes.
    to where you would like to keep the CATChem code
    (e.g. in your work location) and clone (see cloning notes below) your fork:
    ```
-   $ git clone git@github.com:$GitHubUsername/$ForkName.git
+   $ git clone --recursive git@github.com:$GitHubUsername/$ForkName.git
    ```
 
 3. Checkout the develop branch --- you need to do this with the remote branch

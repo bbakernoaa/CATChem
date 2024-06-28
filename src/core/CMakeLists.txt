@@ -6,6 +6,7 @@ set(_srcs
     config_opt_mod.F90
     constants.F90
     diagstate_mod.F90
+    emisstate_mod.F90
     error_mod.F90
     gridstate_mod.F90
     init_mod.F90
