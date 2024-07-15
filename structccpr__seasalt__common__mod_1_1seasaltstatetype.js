@@ -9,11 +9,11 @@ var structccpr__seasalt__common__mod_1_1seasaltstatetype =
     [ "numberemissionbin", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#a136071c0bd4406410917399b0e921f6f", null ],
     [ "schemeopt", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#a172dfd958526aec428a2ab75eaf73bfb", null ],
     [ "seasaltdensity", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#a49a07f7571be9c08e5c69b3144aafda3", null ],
-    [ "seasaltscalefactor", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#a5c437936671904d5ab9cda06f2d4653d", null ],
+    [ "seasaltscalefactor", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#a9e01d82beca76097e01d27a16940604a", null ],
     [ "seasaltspeciesindex", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#a4de5d2157d04261c0b5c0f19e2115409", null ],
     [ "spcids", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#a4d0bff43f9cc9c72e0c6b5de4e83d3f6", null ],
-    [ "totalemission", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#a419ea8b5c7df21d298ae09815eb77ff2", null ],
-    [ "totalnumberemission", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#a90b580bce9a5d23f7ee1d1441bb84615", null ],
+    [ "totalemission", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#a465755c510f2203df4abb28987dc9e4d", null ],
+    [ "totalnumberemission", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#aa3a46f232e33066cb31c31f9a603af4e", null ],
     [ "upperbinradius", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#ad31ae4a11a05d5025b094224f2c460a0", null ],
     [ "weibullflag", "structccpr__seasalt__common__mod_1_1seasaltstatetype.html#a7b09fb7257f0c5414423e209a2d1b4ad", null ]
 ];
