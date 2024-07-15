@@ -95,6 +95,12 @@ $(document).ready(function(){initNavTree('structchemstate__mod_1_1chemstatetype.
 
 <p>Data type for managing the state of the chemical model.  
  <a href="structchemstate__mod_1_1chemstatetype.html#details">More...</a></p>
+<div class="dynheader">
+Collaboration diagram for chemstate_mod::chemstatetype:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" frameborder="0" src="structchemstate__mod_1_1chemstatetype__coll__graph.svg" width="244" height="127"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
+</div>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
 Public Attributes</h2></td></tr>
@@ -113,6 +119,10 @@ integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s
 integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structchemstate__mod_1_1chemstatetype.html#a829f30ed5fc6e3d40fe78102bdb3f082">nspeciesaero</a></td></tr>
 <tr class="memdesc:a829f30ed5fc6e3d40fe78102bdb3f082"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of Aerosol Species. <br /></td></tr>
 <tr class="separator:a829f30ed5fc6e3d40fe78102bdb3f082"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9df9a9db4d94f30dc67ac428ecf2a350"><td class="memItemLeft" align="right" valign="top"><a id="a9df9a9db4d94f30dc67ac428ecf2a350"></a>
+integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structchemstate__mod_1_1chemstatetype.html#a9df9a9db4d94f30dc67ac428ecf2a350">nspeciestracer</a></td></tr>
+<tr class="memdesc:a9df9a9db4d94f30dc67ac428ecf2a350"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of Tracer Species. <br /></td></tr>
+<tr class="separator:a9df9a9db4d94f30dc67ac428ecf2a350"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3e41fcac80b385e47aff59bb3a1e2885"><td class="memItemLeft" align="right" valign="top"><a id="a3e41fcac80b385e47aff59bb3a1e2885"></a>
 integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structchemstate__mod_1_1chemstatetype.html#a3e41fcac80b385e47aff59bb3a1e2885">nspeciesdust</a></td></tr>
 <tr class="memdesc:a3e41fcac80b385e47aff59bb3a1e2885"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of Dust Species. <br /></td></tr>
@@ -125,6 +135,10 @@ integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s
 integer, dimension(:), allocatable&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structchemstate__mod_1_1chemstatetype.html#a3189df799e068086fc24d1b09ee1d7f2">speciesindex</a></td></tr>
 <tr class="memdesc:a3189df799e068086fc24d1b09ee1d7f2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Total Species Index. <br /></td></tr>
 <tr class="separator:a3189df799e068086fc24d1b09ee1d7f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a245469cf7604df1b83fb0143ec6d14f9"><td class="memItemLeft" align="right" valign="top"><a id="a245469cf7604df1b83fb0143ec6d14f9"></a>
+integer, dimension(:), allocatable&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structchemstate__mod_1_1chemstatetype.html#a245469cf7604df1b83fb0143ec6d14f9">tracerindex</a></td></tr>
+<tr class="memdesc:a245469cf7604df1b83fb0143ec6d14f9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Tracer Species Index. <br /></td></tr>
+<tr class="separator:a245469cf7604df1b83fb0143ec6d14f9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adca2841739c15194d8d9b9d2d585a888"><td class="memItemLeft" align="right" valign="top"><a id="adca2841739c15194d8d9b9d2d585a888"></a>
 integer, dimension(:), allocatable&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structchemstate__mod_1_1chemstatetype.html#adca2841739c15194d8d9b9d2d585a888">aeroindex</a></td></tr>
 <tr class="memdesc:adca2841739c15194d8d9b9d2d585a888"><td class="mdescLeft">&#160;</td><td class="mdescRight">Aerosol Species Index. <br /></td></tr>
@@ -141,9 +155,13 @@ integer, dimension(:), allocatable&#160;</td><td class="memItemRight" valign="bo
 integer, dimension(:), allocatable&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structchemstate__mod_1_1chemstatetype.html#ab18e842883467663e0affcb032f3c777">seasaltindex</a></td></tr>
 <tr class="memdesc:ab18e842883467663e0affcb032f3c777"><td class="mdescLeft">&#160;</td><td class="mdescRight">SeaSalt Species Index. <br /></td></tr>
 <tr class="separator:ab18e842883467663e0affcb032f3c777"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa3e9520bc18059b1540bad69ceb79142"><td class="memItemLeft" align="right" valign="top"><a id="aa3e9520bc18059b1540bad69ceb79142"></a>
-real(fp), dimension(:,:), pointer&#160;</td><td class="memItemRight" valign="bottom"><b>chemspecies</b></td></tr>
-<tr class="separator:aa3e9520bc18059b1540bad69ceb79142"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abe9801b0a00bd7cb501ab1bf6cbd11a6"><td class="memItemLeft" align="right" valign="top"><a id="abe9801b0a00bd7cb501ab1bf6cbd11a6"></a>
+character(len=50), dimension(:), allocatable&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structchemstate__mod_1_1chemstatetype.html#abe9801b0a00bd7cb501ab1bf6cbd11a6">speciesnames</a></td></tr>
+<tr class="memdesc:abe9801b0a00bd7cb501ab1bf6cbd11a6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Species Names. <br /></td></tr>
+<tr class="separator:abe9801b0a00bd7cb501ab1bf6cbd11a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:accbd386dace4c75e9114377a3e75d208"><td class="memItemLeft" align="right" valign="top"><a id="accbd386dace4c75e9114377a3e75d208"></a>
+type(<a class="el" href="structspecies__mod_1_1speciestype.html">speciestype</a>), dimension(:), allocatable&#160;</td><td class="memItemRight" valign="bottom"><b>chemspecies</b></td></tr>
+<tr class="separator:accbd386dace4c75e9114377a3e75d208"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Data type for managing the state of the chemical model. </p>

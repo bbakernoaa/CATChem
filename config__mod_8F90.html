@@ -97,9 +97,12 @@ $(document).ready(function(){initNavTree('config__mod_8F90.html',''); initResiza
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions/Subroutines</h2></td></tr>
-<tr class="memitem:ga8a24a263deec20d11af227b81ce3cc8a"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga8a24a263deec20d11af227b81ce3cc8a">config_mod::read_input_file</a> (Config, GridState, RC)</td></tr>
-<tr class="memdesc:ga8a24a263deec20d11af227b81ce3cc8a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the configuration file.  <a href="group__core__modules.html#ga8a24a263deec20d11af227b81ce3cc8a">More...</a><br /></td></tr>
-<tr class="separator:ga8a24a263deec20d11af227b81ce3cc8a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab8cb043dec7970a2fbf1d65e516faf8c"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gab8cb043dec7970a2fbf1d65e516faf8c">config_mod::read_input_file</a> (Config, GridState, ChemState, RC)</td></tr>
+<tr class="memdesc:gab8cb043dec7970a2fbf1d65e516faf8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the configuration file.  <a href="group__core__modules.html#gab8cb043dec7970a2fbf1d65e516faf8c">More...</a><br /></td></tr>
+<tr class="separator:gab8cb043dec7970a2fbf1d65e516faf8c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afc6cbf64de63cfe539065f5a03cc153d"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__mod_8F90.html#afc6cbf64de63cfe539065f5a03cc153d">config_mod::config_chem_state</a> (filename, GridState, ChemState, RC)</td></tr>
+<tr class="memdesc:afc6cbf64de63cfe539065f5a03cc153d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reads the species database.  <a href="config__mod_8F90.html#afc6cbf64de63cfe539065f5a03cc153d">More...</a><br /></td></tr>
+<tr class="separator:afc6cbf64de63cfe539065f5a03cc153d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga2828ce1f26410b947722ec54e1c6cbd0">config_mod::config_simulation</a> (ConfigInput, Config, RC)</td></tr>
 <tr class="memdesc:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process simulation configuration.  <a href="group__core__modules.html#ga2828ce1f26410b947722ec54e1c6cbd0">More...</a><br /></td></tr>
 <tr class="separator:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -119,7 +122,68 @@ Functions/Subroutines</h2></td></tr>
 <blockquote class="doxtable">
 <p></p>
 </blockquote>
-</div></div><!-- contents -->
+</div><h2 class="groupheader">Function/Subroutine Documentation</h2>
+<a id="afc6cbf64de63cfe539065f5a03cc153d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afc6cbf64de63cfe539065f5a03cc153d">&#9670;&nbsp;</a></span>config_chem_state()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">subroutine config_mod::config_chem_state </td>
+          <td>(</td>
+          <td class="paramtype">character(len=*), intent(in)&#160;</td>
+          <td class="paramname"><em>filename</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">type(<a class="el" href="structgridstate__mod_1_1gridstatetype.html">gridstatetype</a>), intent(in)&#160;</td>
+          <td class="paramname"><em>GridState</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">type(<a class="el" href="structchemstate__mod_1_1chemstatetype.html">chemstatetype</a>), intent(inout)&#160;</td>
+          <td class="paramname"><em>ChemState</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">integer, intent(inout)&#160;</td>
+          <td class="paramname"><em>RC</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Reads the species database. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">filename</td><td>The name of the species database </td></tr>
+    <tr><td class="paramname">GridState</td><td>The grid state object </td></tr>
+    <tr><td class="paramname">ChemState</td><td>The chemical state object </td></tr>
+    <tr><td class="paramname">RC</td><td>Return code</td></tr>
+  </table>
+  </dd>
+</dl>
+<blockquote class="doxtable">
+<p></p>
+</blockquote>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" frameborder="0" src="config__mod_8F90_afc6cbf64de63cfe539065f5a03cc153d_cgraph.svg" width="1031" height="140"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
+</div>
+</div>
+
+</div>
+</div>
+</div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->

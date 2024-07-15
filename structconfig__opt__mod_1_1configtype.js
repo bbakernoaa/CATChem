@@ -18,7 +18,7 @@ var structconfig__opt__mod_1_1configtype =
     [ "seasalt_scheme", "structconfig__opt__mod_1_1configtype.html#a7ae267e1c55016ab88dc7d7c285a7714", null ],
     [ "seasalt_weibull", "structconfig__opt__mod_1_1configtype.html#a0df9304c7803d774a300413616a24e53", null ],
     [ "simulationname", "structconfig__opt__mod_1_1configtype.html#af2aa5cd6c1be22c8c615d88409e6e0d0", null ],
-    [ "spcdatabasefile", "structconfig__opt__mod_1_1configtype.html#a59e0614a49486f2a3898e419df3af4db", null ],
+    [ "species_file", "structconfig__opt__mod_1_1configtype.html#a3843e56de68a4329eee951ddcfbfbd6a", null ],
     [ "thiscpu", "structconfig__opt__mod_1_1configtype.html#a904e399dde4ae2869203f1a7e0aabd7b", null ],
     [ "verbose", "structconfig__opt__mod_1_1configtype.html#a6a773b3bc462f87e752abfe518a45bef", null ],
     [ "verboseoncores", "structconfig__opt__mod_1_1configtype.html#ac2f09851527a475e070635b1ecc3b5ef", null ],
