@@ -73,7 +73,6 @@ var structmetstate__mod_1_1metstatetype =
     [ "pflcu", "structmetstate__mod_1_1metstatetype.html#a5f8c2888ad1ccd5c402dcd620d6f7729", null ],
     [ "pfllsan", "structmetstate__mod_1_1metstatetype.html#ae0f6f96691f4a349018a7a9a08f17d6d", null ],
     [ "phis", "structmetstate__mod_1_1metstatetype.html#afac935391de1dc613a252138223ca9b6", null ],
-    [ "phit", "structmetstate__mod_1_1metstatetype.html#a96802d377180694e06a799b0a367ee7d", null ],
     [ "pmid", "structmetstate__mod_1_1metstatetype.html#a48286008d4aa0bbf267e02241828528d", null ],
     [ "pmid_dry", "structmetstate__mod_1_1metstatetype.html#ad0151fadb7d541e119bc68feb72cad80", null ],
     [ "precanv", "structmetstate__mod_1_1metstatetype.html#ac38333fa89fce5403d2f920ce8e846b1", null ],
