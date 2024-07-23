@@ -13,19 +13,12 @@ module ChemState_Mod
    !
    USE Error_Mod
    USE Precision_Mod
-   use species_mod, only: SpeciesType
 
    IMPLICIT NONE
    PRIVATE
    !
    ! !PUBLIC MEMBER FUNCTIONS:
    PUBLIC :: Chem_Allocate
-   PUBLIC :: Find_Number_of_Species
-   PUBLIC :: Find_Index_of_Species
-   PUBLIC :: FindSpecByName
-   PUBLIC :: GetSpecConc
-   PUBLIC :: GetSpecConcByName
-   PUBLIC :: GetSpecConcByIndex
    !
    ! !Private DATA MEMBERS:
    !
@@ -59,26 +52,23 @@ module ChemState_Mod
       INTEGER              :: nSpecies          !< Total Number of Species
       INTEGER              :: nSpeciesGas       !< Number of Gas Species
       INTEGER              :: nSpeciesAero      !< Number of Aerosol Species
-      INTEGER              :: nSpeciesTracer    !< Number of Tracer Species
       INTEGER              :: nSpeciesDust      !< Number of Dust Species
       INTEGER              :: nSpeciesSeaSalt   !< Number of SeaSalt Species
       INTEGER, ALLOCATABLE :: SpeciesIndex(:)   !< Total Species Index
-      INTEGER, ALLOCATABLE :: TracerIndex(:)    !< Tracer Species Index
       INTEGER, ALLOCATABLE :: AeroIndex(:)      !< Aerosol Species Index
       INTEGER, ALLOCATABLE :: GasIndex(:)       !< Gas Species Index
       INTEGER, ALLOCATABLE :: DustIndex(:)      !< Dust Species Index
       INTEGER, ALLOCATABLE :: SeaSaltIndex(:)   !< SeaSalt Species Index
-      CHARACTER(len=50), ALLOCATABLE :: SpeciesNames(:)  !< Species Names
 
       !---------------------------------------------------------------------
       ! Reals
       !---------------------------------------------------------------------
-      type(SpeciesType), allocatable :: ChemSpecies(:)
+      REAL(fp), POINTER :: chemSpecies(:,:)
 
+      ! TODO: Add properties for species
    end type ChemStateType
 
 CONTAINS
-
 
 
    subroutine Chem_Allocate(Config, GridState, Species, ChemState, RC)
@@ -111,28 +101,26 @@ CONTAINS
       ! This can prevent compilation errors caused by uninitialized values
       ! Nullify all fields for safety's sake before allocating them
       ! This can prevent compilation errors caused by uninitialized values
-      ! ChemState%chemSpecies => NULL()
+      ChemState%chemSpecies => NULL()
 
       ! Allocate
-      ! ALLOCATE( ChemState%chemSpecies( GridState%number_of_levels, ChemState%nSpecies ), STAT=RC )
-      ! CALL CC_CheckVar( 'ChemState%chemSpecies', 0, RC )
-      ! IF ( RC /= CC_SUCCESS ) RETURN
-      ! ChemState%chemSpecies = TINY
+      ALLOCATE( ChemState%chemSpecies( GridState%number_of_levels, ChemState%nSpecies ), STAT=RC )
+      CALL CC_CheckVar( 'ChemState%chemSpecies', 0, RC )
+      IF ( RC /= CC_SUCCESS ) RETURN
+      ChemState%chemSpecies = TINY
 
       ! do other checks etc
 
    end subroutine Chem_Allocate
 
-   !> \brief Find the number of species
    !!
-   !! This subroutine finds the number of species
-   !!
-   !! \param ChemState The ChemState object
-   !! \param RC The return code
-   !!
-   !! \ingroup core_modules
-   !!!>
-   subroutine Find_Number_of_Species(ChemState, RC)
+   !=========================================================================
+   !
+   !<b>Find Number of Species</b>
+   !
+   !<p>This subroutine loops through the Species object and counts the number of species</p>
+   !
+   subroutine Find_Number_of_Species(ChemState, Species, RC)
       ! USES
       USE Species_Mod,  ONLY :SpeciesType
 
@@ -140,6 +128,7 @@ CONTAINS
 
       ! INOUT Params
       type(ChemStateType), INTENT(inout) :: ChemState     ! chem State object
+      type(SpeciesType),   INTENT(INOUT) :: Species !Species object
       ! OUTPUT Params
       INTEGER,             INTENT(OUT)   :: RC            ! Success or failure
 
@@ -147,50 +136,21 @@ CONTAINS
       CHARACTER(LEN=255) :: ErrMsg
       CHARACTER(LEN=255) :: thisLoc
 
-      ! Local variables
-      INTEGER :: i
-
       ! Initialize
       RC = CC_SUCCESS
       ErrMsg = ''
       thisLoc = ' -> at Find_Number_of_Species (in core/chemstate_mod.F90)'
 
-      ! Initialize to zero before counting species
-      ChemState%nSpeciesAero = 0
-      ChemState%nSpeciesDust = 0
-      ChemState%nSpeciesGas = 0
-      ChemState%nSpeciesSeaSalt = 0
-      ChemState%nSpeciesTracer = 0
+      ! do nothing yet
+      ! loop through Species etc and find the number of species
 
-      ! Count number of species
-      do i = 1, ChemState%nSpecies
-         if (ChemState%ChemSpecies(i)%is_gas .eqv. .true.) then
-            ChemState%nSpeciesGas = ChemState%nSpeciesGas + 1
-         endif
-         if (ChemState%ChemSpecies(i)%is_aerosol .eqv. .true.) then
-            ChemState%nSpeciesAero = ChemState%nSpeciesAero + 1
-         endif
-         if (ChemState%ChemSpecies(i)%is_dust .eqv. .true.) then
-            ChemState%nSpeciesDust = ChemState%nSpeciesDust + 1
-         endif
-         if (ChemState%ChemSpecies(i)%is_seasalt .eqv. .true.) then
-            ChemState%nSpeciesSeaSalt = ChemState%nSpeciesSeaSalt + 1
-         endif
-         if (ChemState%ChemSpecies(i)%is_tracer .eqv. .true.) then
-            ChemState%nSpeciesTracer = ChemState%nSpeciesTracer + 1
-         endif
-      enddo
 
    end subroutine Find_Number_of_Species
 
-   !> \brief Find the indices of species
-   !!
-   !! \param ChemState The ChemState object
-   !! \param RC The return code
-   !!
-   !! \ingroup core_modules
-   !!!>
-   subroutine Find_Index_of_Species(ChemState, RC)
+   !
+   !=========================================================================
+   !
+   subroutine Find_Index_of_Species(ChemState, Species, RC)
       ! USES
       USE Species_Mod,  ONLY : SpeciesType
 
@@ -198,6 +158,7 @@ CONTAINS
 
       ! INOUT Params
       type(ChemStateType),  INTENT(INOUT) :: ChemState     ! chem State object
+      type(SpeciesType),   INTENT(INOUT) :: Species ! Species object
       ! OUTPUT Params
       INTEGER,             INTENT(OUT)   :: RC            ! Success or failure
 
@@ -205,248 +166,15 @@ CONTAINS
       CHARACTER(LEN=255) :: ErrMsg
       CHARACTER(LEN=255) :: thisLoc
 
-      ! Local variables
-      integer :: n ! looping variable
-      integer :: aero_index      ! Current Aerosol Index
-      integer :: gas_index       ! Current Gas Index
-      integer :: dust_index      ! Current Dust Index
-      integer :: seasalt_index   ! Current Seas Salt Index
-      integer :: tracer_index    ! Current Tracer Index
-
-
       ! Initialize
       RC = CC_SUCCESS
       ErrMsg = ''
-      thisLoc = ' -> at Find_indices_of_Species (in core/chemstate_mod.F90)'
+      thisLoc = ' -> at Find_Index_of_Species (in core/chemstate_mod.F90)'
+
+      ! do nothing yet
+      ! loop through Species etc and find the number of species
 
 
-      ! Initialize to zero before counting species
-      aero_index = 1
-      gas_index = 1
-      dust_index = 1
-      seasalt_index = 1
-      tracer_index = 1
-
-      ! Allocate index arrays
-      ALLOCATE(Chemstate%AeroIndex(ChemState%nSpeciesAero), STAT=RC)
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error allocating Chemstate%AeroIndex'
-         call CC_Error(errMsg, RC, thisLoc)
-         RETURN
-      ENDIF
-
-      ALLOCATE(Chemstate%TracerIndex(ChemState%nSpeciesTracer), STAT=RC)
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error allocating Chemstate%TracerIndex'
-         call CC_Error(errMsg, RC, thisLoc)
-         RETURN
-      ENDIF
-
-      ALLOCATE(Chemstate%GasIndex(ChemState%nSpeciesGas), STAT=RC)
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error allocating Chemstate%GasIndex'
-         call CC_Error(errMsg, RC, thisLoc)
-         RETURN
-      ENDIF
-
-      ALLOCATE(Chemstate%DustIndex(ChemState%nSpeciesDust), STAT=RC)
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error allocating Chemstate%DustIndex'
-         call CC_Error(errMsg, RC, thisLoc)
-         RETURN
-      ENDIF
-
-      ALLOCATE(Chemstate%SeaSaltIndex(ChemState%nSpeciesSeaSalt), STAT=RC)
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error allocating Chemstate%SeaSaltIndex'
-         call CC_Error(errMsg, RC, thisLoc)
-         RETURN
-      ENDIF
-
-      ! Find indices for species groups
-      do n = 1, ChemState%nSpecies
-         if (ChemState%ChemSpecies(n)%is_aerosol .eqv. .true.) then
-            Chemstate%AeroIndex(aero_index) = n
-            aero_index = aero_index + 1
-         endif
-         if (ChemState%ChemSpecies(n)%is_gas .eqv. .true.) then
-            Chemstate%GasIndex(gas_index) = n
-            gas_index = gas_index + 1
-         endif
-         if (ChemState%ChemSpecies(n)%is_dust .eqv. .true.) then
-            Chemstate%DustIndex(dust_index) = n
-            dust_index = dust_index + 1
-         endif
-         if (ChemState%ChemSpecies(n)%is_seasalt .eqv. .true.) then
-            Chemstate%SeaSaltIndex(seasalt_index) = n
-            seasalt_index = seasalt_index + 1
-         endif
-         if (ChemState%ChemSpecies(n)%is_tracer .eqv. .true.) then
-            Chemstate%TracerIndex(tracer_index) = n
-            tracer_index = tracer_index + 1
-         endif
-      enddo
-
-   end subroutine Find_index_of_Species
-
-   !> \brief Find the species by name
-   !!
-   !! \param ChemState The ChemState object
-   !! \param name The name of the species
-   !! \param index The index of the species
-   !! \param RC The return code
-   !!
-   !! \ingroup core_modules
-   !!!>
-   subroutine FindSpecByName(ChemState, name, index, RC)
-
-      type(ChemStateType),  INTENT(INOUT) :: ChemState     ! chem State object
-      character(len=50),    INTENT(in)    :: name
-      integer,              INTENT(out)   :: index
-      integer,              INTENT(out)   :: RC
-
-      ! Error handling
-      CHARACTER(LEN=255) :: ErrMsg
-      CHARACTER(LEN=255) :: thisLoc
-
-      ! local variables
-      integer :: n
-
-      ! Initialize
-      RC = CC_SUCCESS
-      ErrMsg = ''
-      thisLoc = ' -> at FindSpecByName (in core/chemstate_mod.F90)'
-
-      index = 0
-      do n = 1, ChemState%nSpecies
-         if (TRIM(name) == TRIM(ChemState%SpeciesNames(n))) then
-            index = n
-            exit
-         endif
-      enddo
-
-   end subroutine FindSpecByName
-
-
-   !> \brief Get the concentration of a species
-   !!
-   !! get the concentration of a species given either the index or the name of the species
-   !!
-   !! \param ChemState The ChemState object
-   !! \param concentration The concentration of the species
-   !! \param RC The return code
-   !! \param index The index of the species - Optional
-   !! \param name The name of the species - Optional
-   !!
-   !! \ingroup core_modules
-   !!!>
-   subroutine GetSpecConc(ChemState, concentration, RC, index, name)
-
-      type(ChemStateType),  INTENT(INOUT) :: ChemState     ! chem State object
-      real(kind=fp), dimension(:), INTENT(out)   :: concentration
-      integer,              INTENT(out)   :: RC
-      integer, optional,    INTENT(inout)    :: index
-      character(len=50), optional, INTENT(inout)    :: name
-
-      ! Error handling
-      CHARACTER(LEN=255) :: ErrMsg
-      CHARACTER(LEN=255) :: thisLoc
-
-      ! Initialize
-      RC = CC_SUCCESS
-      ErrMsg = ''
-      thisLoc = ' -> at GetSpecConc (in core/chemstate_mod.F90)'
-
-      if (present(index)) then
-         call GetSpecConcByIndex(ChemState, concentration, index, RC)
-      elseif (present(name)) then
-         call GetSpecConcByName(ChemState, concentration, name, RC)
-      else
-         RC = CC_FAILURE
-      endif
-
-      if (RC /= CC_SUCCESS) then
-         errMsg = 'Error in GetSpecConc'
-         call CC_Error(errMsg, RC, thisLoc)
-         RETURN
-      endif
-
-   end subroutine GetSpecConc
-
-   !> \brief Get the concentration of a species by index
-   !!
-   !! \param ChemState The ChemState object
-   !! \param concentration The concentration of the species
-   !! \param RC The return code
-   !! \param index The index of the species
-   !!
-   !! \ingroup core_modules
-   !!!>
-   subroutine GetSpecConcByIndex(ChemState, concentration, index, RC)
-
-      type(ChemStateType),  INTENT(INOUT) :: ChemState     ! chem State object
-      real(kind=fp), dimension(:), INTENT(out)   :: concentration
-      integer,              INTENT(in)    :: index
-      integer,              INTENT(out)   :: RC
-
-      ! Error handling
-      CHARACTER(LEN=255) :: ErrMsg
-      CHARACTER(LEN=255) :: thisLoc
-
-      ! Initialize
-      RC = CC_SUCCESS
-      ErrMsg = ''
-      thisLoc = ' -> at GetSpecConcByIndex (in core/chemstate_mod.F90)'
-
-      if (index < 1 .or. index > ChemState%nSpecies) then
-         RC = CC_FAILURE
-         errMsg = 'index out of bounds'
-         call CC_Error(errMsg, RC, thisLoc)
-         RETURN
-      endif
-
-      concentration = ChemState%ChemSpecies(index)%conc
-
-   end subroutine GetSpecConcByIndex
-
-   !> \brief Get the concentration of a species by name
-   !!
-   !! \param ChemState The ChemState object
-   !! \param concentration The concentration of the species
-   !! \param RC The return code
-   !! \param name The name of the species
-   !!
-   !! \ingroup core_modules
-   !!!>
-   subroutine GetSpecConcByName(ChemState, concentration, name, RC)
-
-      type(ChemStateType),  INTENT(INOUT) :: ChemState     ! chem State object
-      real(kind=fp), dimension(:), INTENT(out)   :: concentration
-      character(len=50),    INTENT(in)    :: name
-      integer,              INTENT(out)   :: RC
-
-      ! Locals
-      integer :: index
-
-      ! Error handling
-      CHARACTER(LEN=255) :: ErrMsg
-      CHARACTER(LEN=255) :: thisLoc
-
-      ! Initialize
-      RC = CC_SUCCESS
-      ErrMsg = ''
-      thisLoc = ' -> at GetSpecConcByName (in core/chemstate_mod.F90)'
-
-      call FindSpecByName(ChemState, name, index, RC)
-
-      if (RC /= CC_SUCCESS) then
-         errMsg = 'Error in GetSpecConcByName'
-         call CC_Error(errMsg, RC, thisLoc)
-         RETURN
-      endif
-
-      concentration = ChemState%ChemSpecies(index)%conc
-
-   end subroutine GetSpecConcByName
+   end subroutine Find_Index_of_Species
 
 end module ChemState_Mod

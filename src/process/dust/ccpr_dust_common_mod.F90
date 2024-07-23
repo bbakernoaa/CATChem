@@ -9,6 +9,7 @@
 !!!>
 module CCPr_Dust_Common_Mod
    use precision_mod, only: fp, ZERO
+   use Error_Mod
    implicit none
    private
 
@@ -61,7 +62,7 @@ module CCPr_Dust_Common_Mod
       REAL(fp), ALLOCATABLE           :: DustDensity(:)          !< Dust density            [kg/m^3]
       REAL(fp)                        :: BetaScaleFactor         !< Gamma Scaling Parameter  [1]
       REAL(fp)                        :: AlphaScaleFactor        !< Alpha Scaling Parameter [1]
-      REAL(fp)                        :: TotalEmission           !< Total emission          [kg/m^2/s]
+      REAL(fp), ALLOCATABLE           :: TotalEmission           !< Total emission          [kg/m^2/s]
       REAL(fp), ALLOCATABLE           :: EmissionPerSpecies(:)   !< Emission per species    [kg/m^2/s]
 
       ! Scheme Options
