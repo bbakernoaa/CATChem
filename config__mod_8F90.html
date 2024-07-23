@@ -97,12 +97,15 @@ $(document).ready(function(){initNavTree('config__mod_8F90.html',''); initResiza
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions/Subroutines</h2></td></tr>
-<tr class="memitem:gab8cb043dec7970a2fbf1d65e516faf8c"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gab8cb043dec7970a2fbf1d65e516faf8c">config_mod::read_input_file</a> (Config, GridState, ChemState, RC)</td></tr>
-<tr class="memdesc:gab8cb043dec7970a2fbf1d65e516faf8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the configuration file.  <a href="group__core__modules.html#gab8cb043dec7970a2fbf1d65e516faf8c">More...</a><br /></td></tr>
-<tr class="separator:gab8cb043dec7970a2fbf1d65e516faf8c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6de92f38dff3ed5c1eec7d2ea54c7cee"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga6de92f38dff3ed5c1eec7d2ea54c7cee">config_mod::read_input_file</a> (Config, GridState, EmisState, ChemState, RC)</td></tr>
+<tr class="memdesc:ga6de92f38dff3ed5c1eec7d2ea54c7cee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the configuration file.  <a href="group__core__modules.html#ga6de92f38dff3ed5c1eec7d2ea54c7cee">More...</a><br /></td></tr>
+<tr class="separator:ga6de92f38dff3ed5c1eec7d2ea54c7cee"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afc6cbf64de63cfe539065f5a03cc153d"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="config__mod_8F90.html#afc6cbf64de63cfe539065f5a03cc153d">config_mod::config_chem_state</a> (filename, GridState, ChemState, RC)</td></tr>
 <tr class="memdesc:afc6cbf64de63cfe539065f5a03cc153d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reads the species database.  <a href="config__mod_8F90.html#afc6cbf64de63cfe539065f5a03cc153d">More...</a><br /></td></tr>
 <tr class="separator:afc6cbf64de63cfe539065f5a03cc153d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a498eea3f8bc94fbb02fb3f97e17baf54"><td class="memItemLeft" align="right" valign="top"><a id="a498eea3f8bc94fbb02fb3f97e17baf54"></a>
+subroutine&#160;</td><td class="memItemRight" valign="bottom"><b>config_mod::config_emis_state</b> (filename, EmisState, ChemState, RC)</td></tr>
+<tr class="separator:a498eea3f8bc94fbb02fb3f97e17baf54"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga2828ce1f26410b947722ec54e1c6cbd0">config_mod::config_simulation</a> (ConfigInput, Config, RC)</td></tr>
 <tr class="memdesc:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process simulation configuration.  <a href="group__core__modules.html#ga2828ce1f26410b947722ec54e1c6cbd0">More...</a><br /></td></tr>
 <tr class="separator:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -115,6 +118,9 @@ Functions/Subroutines</h2></td></tr>
 <tr class="memitem:ga7e45fb82e702483a172a1485835f815e"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga7e45fb82e702483a172a1485835f815e">config_mod::config_process_seasalt</a> (ConfigInput, Config, RC)</td></tr>
 <tr class="memdesc:ga7e45fb82e702483a172a1485835f815e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process seasalt configuration.  <a href="group__core__modules.html#ga7e45fb82e702483a172a1485835f815e">More...</a><br /></td></tr>
 <tr class="separator:ga7e45fb82e702483a172a1485835f815e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaa305154c747ff34bbb93d57c42a6afde"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gaa305154c747ff34bbb93d57c42a6afde">config_mod::config_process_megan</a> (ConfigInput, Config, RC)</td></tr>
+<tr class="memdesc:gaa305154c747ff34bbb93d57c42a6afde"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process MEGAN configuration.  <a href="group__core__modules.html#gaa305154c747ff34bbb93d57c42a6afde">More...</a><br /></td></tr>
+<tr class="separator:gaa305154c747ff34bbb93d57c42a6afde"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Contains the ConfigType type and Read_Input_File subroutine. </p>

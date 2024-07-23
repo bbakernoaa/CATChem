@@ -20,7 +20,11 @@ var group__core__modules =
       [ "dust_horizflux_opt", "structconfig__opt__mod_1_1configtype.html#a240d6b49e98d924e6851423394ce3787", null ],
       [ "dust_moist_opt", "structconfig__opt__mod_1_1configtype.html#a58599f88da95a6661c5d79010a8c563d", null ],
       [ "dust_scheme", "structconfig__opt__mod_1_1configtype.html#adb728198753dcbbecd3aa0b4df58d32a", null ],
+      [ "emission_file", "structconfig__opt__mod_1_1configtype.html#abd11f241d674aa7d7c7f33dc1191e7bf", null ],
       [ "ismpi", "structconfig__opt__mod_1_1configtype.html#a63ff70d0c14b28b42dfc7ce1d4d8f82c", null ],
+      [ "megan_activate", "structconfig__opt__mod_1_1configtype.html#a19aa27e6a4d5c0aeee6b0ca541b827ca", null ],
+      [ "megan_co2_conc_ppm", "structconfig__opt__mod_1_1configtype.html#a8514db3df41672b0758f73c3b7a20c90", null ],
+      [ "megan_co2_inhib_opt", "structconfig__opt__mod_1_1configtype.html#a8de25ca6c417eb6aee347ec44d97b3f8", null ],
       [ "mpicomm", "structconfig__opt__mod_1_1configtype.html#a03c71a7d8fca6d7c6ff40d61e6841572", null ],
       [ "numcpus", "structconfig__opt__mod_1_1configtype.html#aefacd5293d136e254cb58e56d0529195", null ],
       [ "seasalt_activate", "structconfig__opt__mod_1_1configtype.html#a4eda443aec6d9871cf148acfd4596c02", null ],
@@ -34,6 +38,11 @@ var group__core__modules =
       [ "verbose", "structconfig__opt__mod_1_1configtype.html#a6a773b3bc462f87e752abfe518a45bef", null ],
       [ "verboseoncores", "structconfig__opt__mod_1_1configtype.html#ac2f09851527a475e070635b1ecc3b5ef", null ],
       [ "verboserequested", "structconfig__opt__mod_1_1configtype.html#aef990fc7550d9963be0c81fecbb73113", null ]
+    ] ],
+    [ "emisstatetype", "structemisstate__mod_1_1emisstatetype.html", [
+      [ "emiscats", "structemisstate__mod_1_1emisstatetype.html#a9f228d8b10c7fcd0fd02a28e2617ca47", null ],
+      [ "nemiscategories", "structemisstate__mod_1_1emisstatetype.html#ac1f0b5f2b77866ea9560d282b0bc0b74", null ],
+      [ "state", "structemisstate__mod_1_1emisstatetype.html#ac7ce1d7494be5aaf8200933f75fae550", null ]
     ] ],
     [ "metstatetype", "structmetstate__mod_1_1metstatetype.html", [
       [ "airden", "structmetstate__mod_1_1metstatetype.html#acd885a880dc6447fe16eb8bd3e3f6d4b", null ],
@@ -184,6 +193,7 @@ var group__core__modules =
     [ "cntmat", "group__core__modules.html#ga36b722fb300c543f0eb910116bb28973", null ],
     [ "config_grid", "group__core__modules.html#gaabe8c8bd2f1a373967f7bc804aedb91e", null ],
     [ "config_process_dust", "group__core__modules.html#ga971679020f0cb9ce171844bf2e435161", null ],
+    [ "config_process_megan", "group__core__modules.html#gaa305154c747ff34bbb93d57c42a6afde", null ],
     [ "config_process_seasalt", "group__core__modules.html#ga7e45fb82e702483a172a1485835f815e", null ],
     [ "config_simulation", "group__core__modules.html#ga2828ce1f26410b947722ec54e1c6cbd0", null ],
     [ "copytxt", "group__core__modules.html#gab3380e435c78f855e451be2b17e7cd9e", null ],
@@ -200,7 +210,7 @@ var group__core__modules =
     [ "init_met", "group__core__modules.html#ga09b0f35a4e262c49d378b175a0310074", null ],
     [ "isdigit", "group__core__modules.html#ga6027107643b128d6ac9f1aa0377d3062", null ],
     [ "met_allocate", "group__core__modules.html#gad1e148405a99dea51c273511b9c1ce5c", null ],
-    [ "read_input_file", "group__core__modules.html#gab8cb043dec7970a2fbf1d65e516faf8c", null ],
+    [ "read_input_file", "group__core__modules.html#ga6de92f38dff3ed5c1eec7d2ea54c7cee", null ],
     [ "readoneline", "group__core__modules.html#ga462d06181fbdfd321dbfc787889e3ee7", null ],
     [ "set_config", "group__core__modules.html#gaffc308211ba3c8ceacc4cd6cef8c6528", null ],
     [ "str2chararr", "group__core__modules.html#ga4ccc30f9cc3562cc9a7511f37a17af60", null ],

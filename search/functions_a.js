@@ -1,11 +1,5 @@
 var searchData=
 [
-  ['seasaltemissiongong_403',['seasaltemissiongong',['../group__catchem__seasalt__process.html#gae88d813a03a04ba38a4bd900773d8064',1,'ccpr_seasalt_common_mod']]],
-  ['set_5fconfig_404',['set_config',['../group__core__modules.html#gaffc308211ba3c8ceacc4cd6cef8c6528',1,'config_opt_mod']]],
-  ['shao_5fsoilmoisture_405',['shao_soilmoisture',['../group__catchem__dust__process.html#ga98e5900d9bfa60f94bbb661f30f7567b',1,'ccpr_dust_common_mod']]],
-  ['soil_5ferosion_5fpotential_406',['soil_erosion_potential',['../group__catchem__dust__process.html#ga86799789075704c8682e43e376519182',1,'ccpr_dust_common_mod']]],
-  ['str2chararr_407',['str2chararr',['../group__core__modules.html#ga4ccc30f9cc3562cc9a7511f37a17af60',1,'charpak_mod']]],
-  ['strrepl_408',['strrepl',['../group__core__modules.html#gab6edafbfa660c83eade74902f54259fa',1,'charpak_mod']]],
-  ['strsplit_409',['strsplit',['../group__core__modules.html#ga0ee5218b21cf850e303a4380e9ce220b',1,'charpak_mod']]],
-  ['strsqueeze_410',['strsqueeze',['../group__core__modules.html#ga3471258b163494d335f7c37fd4769f75',1,'charpak_mod']]]
+  ['read_5finput_5ffile_409',['read_input_file',['../group__core__modules.html#ga6de92f38dff3ed5c1eec7d2ea54c7cee',1,'config_mod']]],
+  ['readoneline_410',['readoneline',['../group__core__modules.html#ga462d06181fbdfd321dbfc787889e3ee7',1,'charpak_mod']]]
 ];

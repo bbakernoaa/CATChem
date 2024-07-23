@@ -105,9 +105,15 @@ Functions/Subroutines</h2></td></tr>
 <tr class="memitem:aefe101c87dc216801a7dded5a06450d0"><td class="memItemLeft" align="right" valign="top"><a id="aefe101c87dc216801a7dded5a06450d0"></a>
 subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><b>qfyaml_mod::qfyaml_species_init</b> (fileName, yml, yml_anchored, species_names, RC)</td></tr>
 <tr class="separator:aefe101c87dc216801a7dded5a06450d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a428ffd19f5c9903f3f4d06a77c398a0c"><td class="memItemLeft" align="right" valign="top"><a id="a428ffd19f5c9903f3f4d06a77c398a0c"></a>
+subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><b>qfyaml_mod::qfyaml_emis_init</b> (fileName, yml, yml_anchored, EmisState, RC)</td></tr>
+<tr class="separator:a428ffd19f5c9903f3f4d06a77c398a0c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2358268cc1e3af852e9bf6420134f9bf"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="qfyaml__mod_8F90.html#a2358268cc1e3af852e9bf6420134f9bf">qfyaml_mod::qfyaml_merge</a> (yml1, yml2, yml, RC)</td></tr>
 <tr class="memdesc:a2358268cc1e3af852e9bf6420134f9bf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Concatenates two QFYAML_t objects together.  <a href="qfyaml__mod_8F90.html#a2358268cc1e3af852e9bf6420134f9bf">More...</a><br /></td></tr>
 <tr class="separator:a2358268cc1e3af852e9bf6420134f9bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abec409e0b096541ccb6707134510629b"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="qfyaml__mod_8F90.html#abec409e0b096541ccb6707134510629b">qfyaml_mod::parse_line</a> (yml, yml_anchored, set_by, line_arg, valid_syntax, category, anchor_ptr, anchor_tgt, RC)</td></tr>
+<tr class="memdesc:abec409e0b096541ccb6707134510629b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Parses a single line of a YAML file and adds the relevant variables to the yml configuration object.  <a href="qfyaml__mod_8F90.html#abec409e0b096541ccb6707134510629b">More...</a><br /></td></tr>
+<tr class="separator:abec409e0b096541ccb6707134510629b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a09d9486add2fd5a4a229445a44d8b1b5"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="qfyaml__mod_8F90.html#a09d9486add2fd5a4a229445a44d8b1b5">qfyaml_mod::qfyaml_check</a> (yml, RC)</td></tr>
 <tr class="memdesc:a09d9486add2fd5a4a229445a44d8b1b5"><td class="mdescLeft">&#160;</td><td class="mdescRight">QFYAML_Check.  <a href="qfyaml__mod_8F90.html#a09d9486add2fd5a4a229445a44d8b1b5">More...</a><br /></td></tr>
 <tr class="separator:a09d9486add2fd5a4a229445a44d8b1b5"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -123,6 +129,15 @@ subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><b>qfyaml_
 <tr class="memitem:a429d59da48e697c73f98fc09fccf48f1"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="qfyaml__mod_8F90.html#a429d59da48e697c73f98fc09fccf48f1">qfyaml_mod::qfyaml_cleanup</a> (yml)</td></tr>
 <tr class="memdesc:a429d59da48e697c73f98fc09fccf48f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">QFYAML_CleanUp.  <a href="qfyaml__mod_8F90.html#a429d59da48e697c73f98fc09fccf48f1">More...</a><br /></td></tr>
 <tr class="separator:a429d59da48e697c73f98fc09fccf48f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a563ab3d5795b2cb14d2617e43170f4a6"><td class="memItemLeft" align="right" valign="top"><a id="a563ab3d5795b2cb14d2617e43170f4a6"></a>
+subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><b>qfyaml_mod::qfyaml_string_to_real_arr</b> (input_string, real_array, array_size, RC)</td></tr>
+<tr class="separator:a563ab3d5795b2cb14d2617e43170f4a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a10f135153efccfbbb830d1cae14a108c"><td class="memItemLeft" align="right" valign="top"><a id="a10f135153efccfbbb830d1cae14a108c"></a>
+subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><b>qfyaml_mod::qfyaml_string_to_integer_arr</b> (input_string, int_arr, array_size, RC)</td></tr>
+<tr class="separator:a10f135153efccfbbb830d1cae14a108c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3c4402c4a9ace4607073ebee9485ce0a"><td class="memItemLeft" align="right" valign="top"><a id="a3c4402c4a9ace4607073ebee9485ce0a"></a>
+subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><b>qfyaml_mod::qfyaml_string_to_string_arr</b> (input_string, str_arr, array_size, RC)</td></tr>
+<tr class="separator:a3c4402c4a9ace4607073ebee9485ce0a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
@@ -156,6 +171,95 @@ integer, parameter, public&#160;</td><td class="memItemRight" valign="bottom"><b
 <p></p>
 </blockquote>
 </div><h2 class="groupheader">Function/Subroutine Documentation</h2>
+<a id="abec409e0b096541ccb6707134510629b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abec409e0b096541ccb6707134510629b">&#9670;&nbsp;</a></span>parse_line()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">subroutine qfyaml_mod::parse_line </td>
+          <td>(</td>
+          <td class="paramtype">type(qfyaml_t), intent(inout)&#160;</td>
+          <td class="paramname"><em>yml</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">type(qfyaml_t), intent(inout)&#160;</td>
+          <td class="paramname"><em>yml_anchored</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">integer, intent(in)&#160;</td>
+          <td class="paramname"><em>set_by</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">character(len=*), intent(in)&#160;</td>
+          <td class="paramname"><em>line_arg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">logical, intent(out)&#160;</td>
+          <td class="paramname"><em>valid_syntax</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">character(len=qfyaml_namlen), intent(out)&#160;</td>
+          <td class="paramname"><em>category</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">character(len=qfyaml_namlen), intent(out)&#160;</td>
+          <td class="paramname"><em>anchor_ptr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">character(len=qfyaml_namlen), intent(out)&#160;</td>
+          <td class="paramname"><em>anchor_tgt</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">integer, intent(out)&#160;</td>
+          <td class="paramname"><em>RC</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Parses a single line of a YAML file and adds the relevant variables to the yml configuration object. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">yml</td><td>The configuration object </td></tr>
+    <tr><td class="paramname">yml_anchored</td><td>The configuration object </td></tr>
+    <tr><td class="paramname">set_by</td><td>The line number in the YAML file </td></tr>
+    <tr><td class="paramname">line_arg</td><td>The line of the YAML file </td></tr>
+    <tr><td class="paramname">valid_syntax</td><td>Whether the line is valid syntax </td></tr>
+    <tr><td class="paramname">category</td><td>The category of the variable </td></tr>
+    <tr><td class="paramname">anchor_ptr</td><td>The name of the variable </td></tr>
+    <tr><td class="paramname">anchor_tgt</td><td>The name of the variable </td></tr>
+    <tr><td class="paramname">RC</td><td>Return code <blockquote class="doxtable">
+<p></p>
+</blockquote>
+</td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="a09d9486add2fd5a4a229445a44d8b1b5"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a09d9486add2fd5a4a229445a44d8b1b5">&#9670;&nbsp;</a></span>qfyaml_check()</h2>
 

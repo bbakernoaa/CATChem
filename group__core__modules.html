@@ -138,6 +138,9 @@ Data Types</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">type &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structconfig__opt__mod_1_1configtype.html">config_opt_mod::configtype</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Derived type for Input Options.  <a href="structconfig__opt__mod_1_1configtype.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">type &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structemisstate__mod_1_1emisstatetype.html">emisstate_mod::emisstatetype</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Emission State.  <a href="structemisstate__mod_1_1emisstatetype.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">type &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html">metstate_mod::metstatetype</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Derived type for Meteorology State.  <a href="structmetstate__mod_1_1metstatetype.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -210,9 +213,9 @@ Functions/Subroutines</h2></td></tr>
 <tr class="memitem:gaa5bad117f9850269ff98d078f1dd69c6"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gaa5bad117f9850269ff98d078f1dd69c6">chemstate_mod::getspecconcbyname</a> (ChemState, concentration, name, RC)</td></tr>
 <tr class="memdesc:gaa5bad117f9850269ff98d078f1dd69c6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the concentration of a species by name.  <a href="group__core__modules.html#gaa5bad117f9850269ff98d078f1dd69c6">More...</a><br /></td></tr>
 <tr class="separator:gaa5bad117f9850269ff98d078f1dd69c6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gab8cb043dec7970a2fbf1d65e516faf8c"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gab8cb043dec7970a2fbf1d65e516faf8c">config_mod::read_input_file</a> (Config, GridState, ChemState, RC)</td></tr>
-<tr class="memdesc:gab8cb043dec7970a2fbf1d65e516faf8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the configuration file.  <a href="group__core__modules.html#gab8cb043dec7970a2fbf1d65e516faf8c">More...</a><br /></td></tr>
-<tr class="separator:gab8cb043dec7970a2fbf1d65e516faf8c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6de92f38dff3ed5c1eec7d2ea54c7cee"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga6de92f38dff3ed5c1eec7d2ea54c7cee">config_mod::read_input_file</a> (Config, GridState, EmisState, ChemState, RC)</td></tr>
+<tr class="memdesc:ga6de92f38dff3ed5c1eec7d2ea54c7cee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the configuration file.  <a href="group__core__modules.html#ga6de92f38dff3ed5c1eec7d2ea54c7cee">More...</a><br /></td></tr>
+<tr class="separator:ga6de92f38dff3ed5c1eec7d2ea54c7cee"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga2828ce1f26410b947722ec54e1c6cbd0">config_mod::config_simulation</a> (ConfigInput, Config, RC)</td></tr>
 <tr class="memdesc:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process simulation configuration.  <a href="group__core__modules.html#ga2828ce1f26410b947722ec54e1c6cbd0">More...</a><br /></td></tr>
 <tr class="separator:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -225,6 +228,9 @@ Functions/Subroutines</h2></td></tr>
 <tr class="memitem:ga7e45fb82e702483a172a1485835f815e"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga7e45fb82e702483a172a1485835f815e">config_mod::config_process_seasalt</a> (ConfigInput, Config, RC)</td></tr>
 <tr class="memdesc:ga7e45fb82e702483a172a1485835f815e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process seasalt configuration.  <a href="group__core__modules.html#ga7e45fb82e702483a172a1485835f815e">More...</a><br /></td></tr>
 <tr class="separator:ga7e45fb82e702483a172a1485835f815e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaa305154c747ff34bbb93d57c42a6afde"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gaa305154c747ff34bbb93d57c42a6afde">config_mod::config_process_megan</a> (ConfigInput, Config, RC)</td></tr>
+<tr class="memdesc:gaa305154c747ff34bbb93d57c42a6afde"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process MEGAN configuration.  <a href="group__core__modules.html#gaa305154c747ff34bbb93d57c42a6afde">More...</a><br /></td></tr>
+<tr class="separator:gaa305154c747ff34bbb93d57c42a6afde"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaffc308211ba3c8ceacc4cd6cef8c6528"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gaffc308211ba3c8ceacc4cd6cef8c6528">config_opt_mod::set_config</a> (am_I_Root, Config, RC)</td></tr>
 <tr class="memdesc:gaffc308211ba3c8ceacc4cd6cef8c6528"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the Config options.  <a href="group__core__modules.html#gaffc308211ba3c8ceacc4cd6cef8c6528">More...</a><br /></td></tr>
 <tr class="separator:gaffc308211ba3c8ceacc4cd6cef8c6528"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -731,6 +737,60 @@ Here is the call graph for this function:</div>
 Here is the call graph for this function:</div>
 <div class="dyncontent">
 <div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_ga971679020f0cb9ce171844bf2e435161_cgraph.svg" width="840" height="88"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
+</div>
+</div>
+
+</div>
+</div>
+<a id="gaa305154c747ff34bbb93d57c42a6afde"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa305154c747ff34bbb93d57c42a6afde">&#9670;&nbsp;</a></span>config_process_megan()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">subroutine config_mod::config_process_megan </td>
+          <td>(</td>
+          <td class="paramtype">type(qfyaml_t), intent(inout)&#160;</td>
+          <td class="paramname"><em>ConfigInput</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">type(<a class="el" href="structconfig__opt__mod_1_1configtype.html">configtype</a>), intent(inout)&#160;</td>
+          <td class="paramname"><em>Config</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">integer, intent(out)&#160;</td>
+          <td class="paramname"><em>RC</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Process MEGAN configuration. </p>
+<p>This function processes the MEGAN configuration and performs the necessary actions based on the configuration.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">ConfigInput</td><td>The YAML configuration object </td></tr>
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">Config</td><td>The configuration object </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">RC</td><td>The return code</td></tr>
+  </table>
+  </dd>
+</dl>
+<blockquote class="doxtable">
+<p></p>
+</blockquote>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_gaa305154c747ff34bbb93d57c42a6afde_cgraph.svg" width="840" height="88"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
 </div>
 </div>
 
@@ -1565,8 +1625,8 @@ Here is the call graph for this function:</div>
 
 </div>
 </div>
-<a id="gab8cb043dec7970a2fbf1d65e516faf8c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gab8cb043dec7970a2fbf1d65e516faf8c">&#9670;&nbsp;</a></span>read_input_file()</h2>
+<a id="ga6de92f38dff3ed5c1eec7d2ea54c7cee"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6de92f38dff3ed5c1eec7d2ea54c7cee">&#9670;&nbsp;</a></span>read_input_file()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1582,6 +1642,12 @@ Here is the call graph for this function:</div>
           <td></td>
           <td class="paramtype">type(<a class="el" href="structgridstate__mod_1_1gridstatetype.html">gridstatetype</a>), intent(inout)&#160;</td>
           <td class="paramname"><em>GridState</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">type(<a class="el" href="structemisstate__mod_1_1emisstatetype.html">emisstatetype</a>), intent(inout)&#160;</td>
+          <td class="paramname"><em>EmisState</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -1619,7 +1685,7 @@ Here is the call graph for this function:</div>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_gab8cb043dec7970a2fbf1d65e516faf8c_cgraph.svg" width="1164" height="287"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
+<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_ga6de92f38dff3ed5c1eec7d2ea54c7cee_cgraph.svg" width="1164" height="352"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
 </div>
 </div>
 

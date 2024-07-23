@@ -12,6 +12,9 @@ var annotated_dup =
     [ "diagstate_mod", null, [
       [ "diagstatetype", "structdiagstate__mod_1_1diagstatetype.html", "structdiagstate__mod_1_1diagstatetype" ]
     ] ],
+    [ "emisstate_mod", null, [
+      [ "emisstatetype", "structemisstate__mod_1_1emisstatetype.html", "structemisstate__mod_1_1emisstatetype" ]
+    ] ],
     [ "gridstate_mod", null, [
       [ "gridstatetype", "structgridstate__mod_1_1gridstatetype.html", "structgridstate__mod_1_1gridstatetype" ]
     ] ],
