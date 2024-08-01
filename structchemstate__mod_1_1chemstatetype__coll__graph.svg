@@ -21,7 +21,7 @@
 <!-- Node2 -->
 <g id="node2" class="node">
 <title>Node2</title>
-<g id="a_node2"><a xlink:href="structspecies__mod_1_1speciestype.html" target="_top" xlink:title=" ">
+<g id="a_node2"><a xlink:href="structspecies__mod_1_1speciestype.html" target="_top" xlink:title="Module for catchem species.">
 <polygon fill="white" stroke="black" points="15,-67.5 15,-86.5 160,-86.5 160,-67.5 15,-67.5"/>
 <text text-anchor="middle" x="87.5" y="-74.5" font-family="Helvetica,sans-Serif" font-size="10.00">species_mod::speciestype</text>
 </a>

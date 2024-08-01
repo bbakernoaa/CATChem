@@ -1,0 +1,4 @@
+<map id="emisstate_mod::emis_find_chem_map_index" name="emisstate_mod::emis_find_chem_map_index">
+<area shape="rect" id="node1" title="Find the index of the mapped species." alt="" coords="5,5,180,47"/>
+<area shape="rect" id="node2" href="$group__core__modules.html#ga486e3baceb107a718cd8c73e83c92f1b" title="Find the species by name." alt="" coords="228,13,471,39"/>
+</map>

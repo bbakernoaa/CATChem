@@ -1,7 +1,6 @@
 var chemstate__mod_8F90 =
 [
-    [ "chemstatetype", "structchemstate__mod_1_1chemstatetype.html", "structchemstate__mod_1_1chemstatetype" ],
-    [ "chem_allocate", "chemstate__mod_8F90.html#a07b1501873f7d5e1751bc37b2c2bdb57", null ],
+    [ "chem_allocate", "chemstate__mod_8F90.html#ga69baeb9a3214455ea4334745c053617d", null ],
     [ "find_index_of_species", "chemstate__mod_8F90.html#ga45871ad07c125bd69f834507753b9c77", null ],
     [ "find_number_of_species", "chemstate__mod_8F90.html#ga0dccd8869724ce68c8a19c30b8d28e11", null ],
     [ "findspecbyname", "chemstate__mod_8F90.html#ga486e3baceb107a718cd8c73e83c92f1b", null ],

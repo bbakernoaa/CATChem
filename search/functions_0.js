@@ -1,26 +1,4 @@
 var searchData=
 [
-  ['cc_5fcheckvar_357',['cc_checkvar',['../group__core__modules.html#ga9d9a1354b84c23bc24cd4db6a547d348',1,'error_mod']]],
-  ['cc_5ferror_358',['cc_error',['../group__core__modules.html#ga51caf927c8403a431dd55956762ad350',1,'error_mod']]],
-  ['cc_5fwarning_359',['cc_warning',['../group__core__modules.html#gab299d742c2231070cf0073631273365b',1,'error_mod']]],
-  ['ccpr_5fdust_5ffinalize_360',['ccpr_dust_finalize',['../group__catchem__dust__process.html#ga656a49bdd429c0384d9767a0a810fda0',1,'ccpr_dust_mod']]],
-  ['ccpr_5fdust_5finit_361',['ccpr_dust_init',['../group__catchem__dust__process.html#ga2d69d5cd207918989db1f94c6c62db68',1,'ccpr_dust_mod']]],
-  ['ccpr_5fdust_5frun_362',['ccpr_dust_run',['../group__catchem__dust__process.html#ga7cc11b39ebc9cd8fa1f7c7b2ab37274d',1,'ccpr_dust_mod']]],
-  ['ccpr_5fscheme_5ffengsha_363',['ccpr_scheme_fengsha',['../group__catchem__dust__process.html#ga67dc6e808171e1508b62207056894363',1,'ccpr_scheme_fengsha_mod']]],
-  ['ccpr_5fscheme_5fgeos12_364',['ccpr_scheme_geos12',['../group__catchem__seasalt__process.html#ga219dc79e66afa8191a6e92d4cc39faa5',1,'ccpr_scheme_geos12_mod']]],
-  ['ccpr_5fscheme_5fginoux_365',['ccpr_scheme_ginoux',['../group__catchem__dust__process.html#ga59077062b16e4d19eb9829c79f5890cf',1,'ccpr_scheme_ginoux_mod']]],
-  ['ccpr_5fscheme_5fgong03_366',['ccpr_scheme_gong03',['../group__catchem__seasalt__process.html#ga6b12277385cd50fdeb6b768eba5a379d',1,'ccpr_scheme_gong03_mod']]],
-  ['ccpr_5fscheme_5fgong97_367',['ccpr_scheme_gong97',['../group__catchem__seasalt__process.html#gabbe0667d0c1f074ded89b95181c3560d',1,'ccpr_scheme_gong97_mod']]],
-  ['ccpr_5fseasalt_5finit_368',['ccpr_seasalt_init',['../group__catchem__seasalt__process.html#ga0f9e1fa0ad1ba2046624d93e22457516',1,'ccpr_seasalt_mod']]],
-  ['chararr2str_369',['chararr2str',['../group__core__modules.html#gae48c68670756c9e733357d9c8f7b5a09',1,'charpak_mod']]],
-  ['cleantext_370',['cleantext',['../group__core__modules.html#gabc9b40ee0a1c19fa41e283aab9c831fa',1,'charpak_mod']]],
-  ['cleanup_5fconfig_371',['cleanup_config',['../group__core__modules.html#ga226cd8b790f08d4006313ba93c7e6f9b',1,'config_opt_mod']]],
-  ['cntmat_372',['cntmat',['../group__core__modules.html#ga36b722fb300c543f0eb910116bb28973',1,'charpak_mod']]],
-  ['config_5fchem_5fstate_373',['config_chem_state',['../config__mod_8F90.html#afc6cbf64de63cfe539065f5a03cc153d',1,'config_mod']]],
-  ['config_5fgrid_374',['config_grid',['../group__core__modules.html#gaabe8c8bd2f1a373967f7bc804aedb91e',1,'config_mod']]],
-  ['config_5fprocess_5fdust_375',['config_process_dust',['../group__core__modules.html#ga971679020f0cb9ce171844bf2e435161',1,'config_mod']]],
-  ['config_5fprocess_5fseasalt_376',['config_process_seasalt',['../group__core__modules.html#ga7e45fb82e702483a172a1485835f815e',1,'config_mod']]],
-  ['config_5fsimulation_377',['config_simulation',['../group__core__modules.html#ga2828ce1f26410b947722ec54e1c6cbd0',1,'config_mod']]],
-  ['copytxt_378',['copytxt',['../group__core__modules.html#gab3380e435c78f855e451be2b17e7cd9e',1,'charpak_mod']]],
-  ['cstrip_379',['cstrip',['../group__core__modules.html#ga3add977d34eed7540e60406b29d41955',1,'charpak_mod']]]
+  ['apply_5femis_5fto_5fchem_366',['apply_emis_to_chem',['../group__core__modules.html#gaaaf061a1d7f2d47365d0e4de0e34f413',1,'emisstate_mod']]]
 ];

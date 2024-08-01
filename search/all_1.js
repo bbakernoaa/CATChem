@@ -1,6 +1,7 @@
 var searchData=
 [
-  ['backgroundvv_14',['backgroundvv',['../structspecies__mod_1_1speciestype.html#ae05fe06bb8f1d2729ef336a838470657',1,'species_mod::speciestype']]],
-  ['boltz_15',['boltz',['../constants_8F90.html#a0e8e91973eaf3aa976a004ab6d1999fe',1,'constants']]],
-  ['bxheight_16',['bxheight',['../structmetstate__mod_1_1metstatetype.html#a1150504ae47f4886f7a476b7c017cae3',1,'metstate_mod::metstatetype']]]
+  ['backgroundvv_17',['backgroundvv',['../structspecies__mod_1_1speciestype.html#ae05fe06bb8f1d2729ef336a838470657',1,'species_mod::speciestype']]],
+  ['boltz_18',['boltz',['../constants_8F90.html#a0e8e91973eaf3aa976a004ab6d1999fe',1,'constants']]],
+  ['briggs_5fplumerise_5fheight_19',['briggs_plumerise_height',['../structdiagstate__mod_1_1diagstatetype.html#a86683e0663b119486d0ae51dad36aa21',1,'diagstate_mod::diagstatetype']]],
+  ['bxheight_20',['bxheight',['../structmetstate__mod_1_1metstatetype.html#a49945cfec9df3504477977c7e5efc14c',1,'metstate_mod::metstatetype']]]
 ];

@@ -1,7 +1,5 @@
 var searchData=
 [
-  ['getspecconc_386',['getspecconc',['../group__core__modules.html#ga5755427bed9745ac6dee663dfe6c292d',1,'chemstate_mod']]],
-  ['getspecconcbyindex_387',['getspecconcbyindex',['../group__core__modules.html#gac48c78e03feb963169b016b226e09c39',1,'chemstate_mod']]],
-  ['getspecconcbyname_388',['getspecconcbyname',['../group__core__modules.html#gaa5bad117f9850269ff98d078f1dd69c6',1,'chemstate_mod']]],
-  ['grid_5finit_5fstate_389',['grid_init_state',['../group__core__modules.html#ga7ee561932721473222bc41a3f3501b9a',1,'gridstate_mod']]]
+  ['emis_5fallocate_393',['emis_allocate',['../group__core__modules.html#ga7aac83c4fa96ac777996a8c7e7bc4333',1,'emisstate_mod']]],
+  ['emis_5ffind_5fchem_5fmap_5findex_394',['emis_find_chem_map_index',['../group__core__modules.html#ga6e604aeac78c9a2dc2cd498c15547941',1,'emisstate_mod']]]
 ];

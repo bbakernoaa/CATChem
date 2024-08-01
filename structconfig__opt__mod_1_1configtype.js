@@ -13,6 +13,7 @@ var structconfig__opt__mod_1_1configtype =
     [ "ismpi", "structconfig__opt__mod_1_1configtype.html#a63ff70d0c14b28b42dfc7ce1d4d8f82c", null ],
     [ "mpicomm", "structconfig__opt__mod_1_1configtype.html#a03c71a7d8fca6d7c6ff40d61e6841572", null ],
     [ "numcpus", "structconfig__opt__mod_1_1configtype.html#aefacd5293d136e254cb58e56d0529195", null ],
+    [ "plumerise_activate", "structconfig__opt__mod_1_1configtype.html#a9a92034d1756206b904f3dbebe59c442", null ],
     [ "seasalt_activate", "structconfig__opt__mod_1_1configtype.html#a4eda443aec6d9871cf148acfd4596c02", null ],
     [ "seasalt_hoppel", "structconfig__opt__mod_1_1configtype.html#a015083dab8433d477c7374f8285f88b9", null ],
     [ "seasalt_scalefactor", "structconfig__opt__mod_1_1configtype.html#a1deef1445e54008f75c51db742f9e725", null ],

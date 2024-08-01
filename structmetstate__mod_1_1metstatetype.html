@@ -98,6 +98,13 @@ $(document).ready(function(){initNavTree('structmetstate__mod_1_1metstatetype.ht
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
 Public Attributes</h2></td></tr>
+<tr class="memitem:a5b26f17322671997a34e05a7bd36cf0f"><td class="memItemLeft" align="right" valign="top"><a id="a5b26f17322671997a34e05a7bd36cf0f"></a>
+character(len=3)&#160;</td><td class="memItemRight" valign="bottom"><b>state</b> = 'MET'</td></tr>
+<tr class="separator:a5b26f17322671997a34e05a7bd36cf0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8d510af6240287d00ce2475b920ae468"><td class="memItemLeft" align="right" valign="top"><a id="a8d510af6240287d00ce2475b920ae468"></a>
+real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a8d510af6240287d00ce2475b920ae468">tstep</a></td></tr>
+<tr class="memdesc:a8d510af6240287d00ce2475b920ae468"><td class="mdescLeft">&#160;</td><td class="mdescRight">Time step [s]. <br /></td></tr>
+<tr class="separator:a8d510af6240287d00ce2475b920ae468"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac128d50ab94f6d3e0b2cf94460ca8a48"><td class="memItemLeft" align="right" valign="top"><a id="ac128d50ab94f6d3e0b2cf94460ca8a48"></a>
 logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ac128d50ab94f6d3e0b2cf94460ca8a48">island</a></td></tr>
 <tr class="memdesc:ac128d50ab94f6d3e0b2cf94460ca8a48"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is this a land grid box? <br /></td></tr>
@@ -114,6 +121,25 @@ logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s
 logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#af51f49c8d2d270f2b333ee5670d41a1e">issnow</a></td></tr>
 <tr class="memdesc:af51f49c8d2d270f2b333ee5670d41a1e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is this a snow grid box? <br /></td></tr>
 <tr class="separator:af51f49c8d2d270f2b333ee5670d41a1e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a09ef11a5418298ed05311514e76338ca"><td class="memItemLeft" align="right" valign="top"><a id="a09ef11a5418298ed05311514e76338ca"></a>
+logical, dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a09ef11a5418298ed05311514e76338ca">instratmeso</a></td></tr>
+<tr class="memdesc:a09ef11a5418298ed05311514e76338ca"><td class="mdescLeft">&#160;</td><td class="mdescRight">Are we in the stratosphere or mesosphere? <br /></td></tr>
+<tr class="separator:a09ef11a5418298ed05311514e76338ca"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaa59fb1afcaccafde542cd5b3dece9ae"><td class="memItemLeft" align="right" valign="top"><a id="aaa59fb1afcaccafde542cd5b3dece9ae"></a>
+logical, dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#aaa59fb1afcaccafde542cd5b3dece9ae">instratosphere</a></td></tr>
+<tr class="memdesc:aaa59fb1afcaccafde542cd5b3dece9ae"><td class="mdescLeft">&#160;</td><td class="mdescRight">Are we in the stratosphere? <br /></td></tr>
+<tr class="separator:aaa59fb1afcaccafde542cd5b3dece9ae"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5874ffcb93ac52fac62c907630191afe"><td class="memItemLeft" align="right" valign="top"><a id="a5874ffcb93ac52fac62c907630191afe"></a>
+logical, dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a5874ffcb93ac52fac62c907630191afe">introposphere</a></td></tr>
+<tr class="memdesc:a5874ffcb93ac52fac62c907630191afe"><td class="mdescLeft">&#160;</td><td class="mdescRight">Are we in the troposphere? <br /></td></tr>
+<tr class="separator:a5874ffcb93ac52fac62c907630191afe"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a03d944c64ee71148423b1c29d042582a"><td class="memItemLeft" align="right" valign="top"><a id="a03d944c64ee71148423b1c29d042582a"></a>
+logical, dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a03d944c64ee71148423b1c29d042582a">inpbl</a></td></tr>
+<tr class="memdesc:a03d944c64ee71148423b1c29d042582a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Are we in the PBL? <br /></td></tr>
+<tr class="separator:a03d944c64ee71148423b1c29d042582a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae2c822afa8bff3e0f21b87ec52ed078e"><td class="memItemLeft" align="right" valign="top"><a id="ae2c822afa8bff3e0f21b87ec52ed078e"></a>
+logical, pointer&#160;</td><td class="memItemRight" valign="bottom"><b>islocalnoon</b></td></tr>
+<tr class="separator:ae2c822afa8bff3e0f21b87ec52ed078e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a077db81901713cdb03758767d64b6492"><td class="memItemLeft" align="right" valign="top"><a id="a077db81901713cdb03758767d64b6492"></a>
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a077db81901713cdb03758767d64b6492">area_m2</a></td></tr>
 <tr class="memdesc:a077db81901713cdb03758767d64b6492"><td class="mdescLeft">&#160;</td><td class="mdescRight">Grid box surface area [m2]. <br /></td></tr>
@@ -152,7 +178,7 @@ real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 <tr class="separator:a54047c7756bdc855c9af6cadf45b03be"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab47d76ed52948640b1ff56cb79725f97"><td class="memItemLeft" align="right" valign="top"><a id="ab47d76ed52948640b1ff56cb79725f97"></a>
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ab47d76ed52948640b1ff56cb79725f97">lai</a></td></tr>
-<tr class="memdesc:ab47d76ed52948640b1ff56cb79725f97"><td class="mdescLeft">&#160;</td><td class="mdescRight">Leaf area index [m2/m2] (online) <br /></td></tr>
+<tr class="memdesc:ab47d76ed52948640b1ff56cb79725f97"><td class="mdescLeft">&#160;</td><td class="mdescRight">Leaf area index [m2/m2] (online) Dominant. <br /></td></tr>
 <tr class="separator:ab47d76ed52948640b1ff56cb79725f97"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7912bdc9e6e4080f24c7629206387b30"><td class="memItemLeft" align="right" valign="top"><a id="a7912bdc9e6e4080f24c7629206387b30"></a>
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a7912bdc9e6e4080f24c7629206387b30">rdrag</a></td></tr>
@@ -218,6 +244,18 @@ real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a3cc0e784dea75b6279f5d2c0c680b480">ustar_threshold</a></td></tr>
 <tr class="memdesc:a3cc0e784dea75b6279f5d2c0c680b480"><td class="mdescLeft">&#160;</td><td class="mdescRight">Threshold friction velocity [m/s]. <br /></td></tr>
 <tr class="separator:a3cc0e784dea75b6279f5d2c0c680b480"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a251e6fb6c77a83116fa35f0ef3ac44a9"><td class="memItemLeft" align="right" valign="top">integer, pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a251e6fb6c77a83116fa35f0ef3ac44a9">nlndtype</a></td></tr>
+<tr class="separator:a251e6fb6c77a83116fa35f0ef3ac44a9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9b0e5510b4c987e3e2fe8f9fe20859a0"><td class="memItemLeft" align="right" valign="top">integer, pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a9b0e5510b4c987e3e2fe8f9fe20859a0">nsoil</a></td></tr>
+<tr class="separator:a9b0e5510b4c987e3e2fe8f9fe20859a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1a26d46817fc54bf3745b309e29d1d81"><td class="memItemLeft" align="right" valign="top"><a id="a1a26d46817fc54bf3745b309e29d1d81"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a1a26d46817fc54bf3745b309e29d1d81">frlanduse</a></td></tr>
+<tr class="memdesc:a1a26d46817fc54bf3745b309e29d1d81"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fractional Land Use. <br /></td></tr>
+<tr class="separator:a1a26d46817fc54bf3745b309e29d1d81"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2a61db6b75c941bfbf681a7e1d597ed2"><td class="memItemLeft" align="right" valign="top"><a id="a2a61db6b75c941bfbf681a7e1d597ed2"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a2a61db6b75c941bfbf681a7e1d597ed2">frlai</a></td></tr>
+<tr class="memdesc:a2a61db6b75c941bfbf681a7e1d597ed2"><td class="mdescLeft">&#160;</td><td class="mdescRight">LAI in each Fractional Land use type [m2/m2]. <br /></td></tr>
+<tr class="separator:a2a61db6b75c941bfbf681a7e1d597ed2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a12e19ddf76a3ba2de6e6d5dfcbd2aead"><td class="memItemLeft" align="right" valign="top"><a id="a12e19ddf76a3ba2de6e6d5dfcbd2aead"></a>
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a12e19ddf76a3ba2de6e6d5dfcbd2aead">albd_vis</a></td></tr>
 <tr class="memdesc:a12e19ddf76a3ba2de6e6d5dfcbd2aead"><td class="mdescLeft">&#160;</td><td class="mdescRight">Visible surface albedo [1]. <br /></td></tr>
@@ -290,6 +328,22 @@ real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ac3602bb57087d25525f2d20295952ee9">z0</a></td></tr>
 <tr class="memdesc:ac3602bb57087d25525f2d20295952ee9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Surface roughness height [m]. <br /></td></tr>
 <tr class="separator:ac3602bb57087d25525f2d20295952ee9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a75b40586ad051a764db43f748a2957ac"><td class="memItemLeft" align="right" valign="top"><a id="a75b40586ad051a764db43f748a2957ac"></a>
+real(fp), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a75b40586ad051a764db43f748a2957ac">frz0</a></td></tr>
+<tr class="memdesc:a75b40586ad051a764db43f748a2957ac"><td class="mdescLeft">&#160;</td><td class="mdescRight">Aerodynamic Roughness Length per FRLANDUSE. <br /></td></tr>
+<tr class="separator:a75b40586ad051a764db43f748a2957ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a139b3aa2355071d3b524366977e7ab73"><td class="memItemLeft" align="right" valign="top"><a id="a139b3aa2355071d3b524366977e7ab73"></a>
+real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a139b3aa2355071d3b524366977e7ab73">pblh</a></td></tr>
+<tr class="memdesc:a139b3aa2355071d3b524366977e7ab73"><td class="mdescLeft">&#160;</td><td class="mdescRight">PBL height [m]. <br /></td></tr>
+<tr class="separator:a139b3aa2355071d3b524366977e7ab73"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7db3d53ecd619106448fc672f1f77cda"><td class="memItemLeft" align="right" valign="top"><a id="a7db3d53ecd619106448fc672f1f77cda"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a7db3d53ecd619106448fc672f1f77cda">f_of_pbl</a></td></tr>
+<tr class="memdesc:a7db3d53ecd619106448fc672f1f77cda"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fraction of box within PBL [1]. <br /></td></tr>
+<tr class="separator:a7db3d53ecd619106448fc672f1f77cda"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a91eaa77fa676d1bc4b62829a77a70e03"><td class="memItemLeft" align="right" valign="top"><a id="a91eaa77fa676d1bc4b62829a77a70e03"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a91eaa77fa676d1bc4b62829a77a70e03">f_under_pbltop</a></td></tr>
+<tr class="memdesc:a91eaa77fa676d1bc4b62829a77a70e03"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fraction of box under PBL top. <br /></td></tr>
+<tr class="separator:a91eaa77fa676d1bc4b62829a77a70e03"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a31fe0cae47bbfacbfea2d84147e25e3d"><td class="memItemLeft" align="right" valign="top"><a id="a31fe0cae47bbfacbfea2d84147e25e3d"></a>
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a31fe0cae47bbfacbfea2d84147e25e3d">cldfrc</a></td></tr>
 <tr class="memdesc:a31fe0cae47bbfacbfea2d84147e25e3d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Column cloud fraction [1]. <br /></td></tr>
@@ -302,30 +356,30 @@ real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a4ef7e91710289a1d0e45c7e0b146d86b">flash_dens</a></td></tr>
 <tr class="memdesc:a4ef7e91710289a1d0e45c7e0b146d86b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Lightning flash density [#/km2/s]. <br /></td></tr>
 <tr class="separator:a4ef7e91710289a1d0e45c7e0b146d86b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a139b3aa2355071d3b524366977e7ab73"><td class="memItemLeft" align="right" valign="top"><a id="a139b3aa2355071d3b524366977e7ab73"></a>
-real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a139b3aa2355071d3b524366977e7ab73">pblh</a></td></tr>
-<tr class="memdesc:a139b3aa2355071d3b524366977e7ab73"><td class="mdescLeft">&#160;</td><td class="mdescRight">PBL height [m]. <br /></td></tr>
-<tr class="separator:a139b3aa2355071d3b524366977e7ab73"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9dde33abdbb8796268ebd62930dfbb96"><td class="memItemLeft" align="right" valign="top"><a id="a9dde33abdbb8796268ebd62930dfbb96"></a>
-real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a9dde33abdbb8796268ebd62930dfbb96">pbl_top_hpa</a></td></tr>
-<tr class="memdesc:a9dde33abdbb8796268ebd62930dfbb96"><td class="mdescLeft">&#160;</td><td class="mdescRight">PBL top [hPa]. <br /></td></tr>
-<tr class="separator:a9dde33abdbb8796268ebd62930dfbb96"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa01f7a4c4fc59726e5f678871fabcfa9"><td class="memItemLeft" align="right" valign="top"><a id="aa01f7a4c4fc59726e5f678871fabcfa9"></a>
-real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#aa01f7a4c4fc59726e5f678871fabcfa9">pbl_top_l</a></td></tr>
-<tr class="memdesc:aa01f7a4c4fc59726e5f678871fabcfa9"><td class="mdescLeft">&#160;</td><td class="mdescRight">PBL top [level]. <br /></td></tr>
-<tr class="separator:aa01f7a4c4fc59726e5f678871fabcfa9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4b663dcd4f4a352661653e38f66086f1"><td class="memItemLeft" align="right" valign="top"><a id="a4b663dcd4f4a352661653e38f66086f1"></a>
-real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a4b663dcd4f4a352661653e38f66086f1">pbl_top_m</a></td></tr>
-<tr class="memdesc:a4b663dcd4f4a352661653e38f66086f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">PBL top [m]. <br /></td></tr>
-<tr class="separator:a4b663dcd4f4a352661653e38f66086f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a58b6daae16dcbad6099fd2d242a4bbcf"><td class="memItemLeft" align="right" valign="top"><a id="a58b6daae16dcbad6099fd2d242a4bbcf"></a>
-real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a58b6daae16dcbad6099fd2d242a4bbcf">pbl_thick</a></td></tr>
-<tr class="memdesc:a58b6daae16dcbad6099fd2d242a4bbcf"><td class="mdescLeft">&#160;</td><td class="mdescRight">PBL thickness [hPa]. <br /></td></tr>
-<tr class="separator:a58b6daae16dcbad6099fd2d242a4bbcf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afac935391de1dc613a252138223ca9b6"><td class="memItemLeft" align="right" valign="top"><a id="afac935391de1dc613a252138223ca9b6"></a>
-real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#afac935391de1dc613a252138223ca9b6">phis</a></td></tr>
-<tr class="memdesc:afac935391de1dc613a252138223ca9b6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Surface geopotential height [m2/s2]. <br /></td></tr>
-<tr class="separator:afac935391de1dc613a252138223ca9b6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a222fe21fa910367efe2205ba07769246"><td class="memItemLeft" align="right" valign="top"><a id="a222fe21fa910367efe2205ba07769246"></a>
+real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a222fe21fa910367efe2205ba07769246">cnv_frc</a></td></tr>
+<tr class="memdesc:a222fe21fa910367efe2205ba07769246"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convective fraction [1]. <br /></td></tr>
+<tr class="separator:a222fe21fa910367efe2205ba07769246"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab95731b4fb85df86b65bb05dc2fae514"><td class="memItemLeft" align="right" valign="top"><a id="ab95731b4fb85df86b65bb05dc2fae514"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ab95731b4fb85df86b65bb05dc2fae514">cldf</a></td></tr>
+<tr class="memdesc:ab95731b4fb85df86b65bb05dc2fae514"><td class="mdescLeft">&#160;</td><td class="mdescRight">3-D cloud fraction [1] <br /></td></tr>
+<tr class="separator:ab95731b4fb85df86b65bb05dc2fae514"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6cf258d24d1069db97eff42eb51454f5"><td class="memItemLeft" align="right" valign="top"><a id="a6cf258d24d1069db97eff42eb51454f5"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a6cf258d24d1069db97eff42eb51454f5">cmfmc</a></td></tr>
+<tr class="memdesc:a6cf258d24d1069db97eff42eb51454f5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Cloud mass flux [kg/m2/s]. <br /></td></tr>
+<tr class="separator:a6cf258d24d1069db97eff42eb51454f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac8e32e0d9c508d168ed6ba8333ff9e81"><td class="memItemLeft" align="right" valign="top"><a id="ac8e32e0d9c508d168ed6ba8333ff9e81"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ac8e32e0d9c508d168ed6ba8333ff9e81">dqrcu</a></td></tr>
+<tr class="memdesc:ac8e32e0d9c508d168ed6ba8333ff9e81"><td class="mdescLeft">&#160;</td><td class="mdescRight">Conv precip production rate [kg/kg/s] (assume per dry air) <br /></td></tr>
+<tr class="separator:ac8e32e0d9c508d168ed6ba8333ff9e81"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afb3e63a1f3b1aac71eec9ca91845f466"><td class="memItemLeft" align="right" valign="top"><a id="afb3e63a1f3b1aac71eec9ca91845f466"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#afb3e63a1f3b1aac71eec9ca91845f466">dqrlsan</a></td></tr>
+<tr class="memdesc:afb3e63a1f3b1aac71eec9ca91845f466"><td class="mdescLeft">&#160;</td><td class="mdescRight">LS precip prod rate [kg/kg/s] (assume per dry air) <br /></td></tr>
+<tr class="separator:afb3e63a1f3b1aac71eec9ca91845f466"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a79466a879bf8da5db2ef01417b6b0510"><td class="memItemLeft" align="right" valign="top"><a id="a79466a879bf8da5db2ef01417b6b0510"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a79466a879bf8da5db2ef01417b6b0510">dtrain</a></td></tr>
+<tr class="memdesc:a79466a879bf8da5db2ef01417b6b0510"><td class="mdescLeft">&#160;</td><td class="mdescRight">Detrainment flux [kg/m2/s]. <br /></td></tr>
+<tr class="separator:a79466a879bf8da5db2ef01417b6b0510"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac38333fa89fce5403d2f920ce8e846b1"><td class="memItemLeft" align="right" valign="top"><a id="ac38333fa89fce5403d2f920ce8e846b1"></a>
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ac38333fa89fce5403d2f920ce8e846b1">precanv</a></td></tr>
 <tr class="memdesc:ac38333fa89fce5403d2f920ce8e846b1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Anvil previp @ ground [kg/m2/s] -&gt; [mm/day]. <br /></td></tr>
@@ -342,6 +396,54 @@ real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ae243449c599e5e06a5027ed7f73308a0">prectot</a></td></tr>
 <tr class="memdesc:ae243449c599e5e06a5027ed7f73308a0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Total precip @ ground [kg/m2/s] -&gt; [mm/day]. <br /></td></tr>
 <tr class="separator:ae243449c599e5e06a5027ed7f73308a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa22dd8e9342277adca2bdcae12f5790e"><td class="memItemLeft" align="right" valign="top"><a id="aa22dd8e9342277adca2bdcae12f5790e"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#aa22dd8e9342277adca2bdcae12f5790e">qi</a></td></tr>
+<tr class="memdesc:aa22dd8e9342277adca2bdcae12f5790e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Mass fraction of cloud ice water [kg/kg dry air]. <br /></td></tr>
+<tr class="separator:aa22dd8e9342277adca2bdcae12f5790e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a00e3bfccc7eb5e9e09d01f81a98fd9f7"><td class="memItemLeft" align="right" valign="top"><a id="a00e3bfccc7eb5e9e09d01f81a98fd9f7"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a00e3bfccc7eb5e9e09d01f81a98fd9f7">ql</a></td></tr>
+<tr class="memdesc:a00e3bfccc7eb5e9e09d01f81a98fd9f7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Mass fraction of cloud liquid water [kg/kg dry air]. <br /></td></tr>
+<tr class="separator:a00e3bfccc7eb5e9e09d01f81a98fd9f7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac756a1d7f0570f04ee9fcd14db835cc9"><td class="memItemLeft" align="right" valign="top"><a id="ac756a1d7f0570f04ee9fcd14db835cc9"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ac756a1d7f0570f04ee9fcd14db835cc9">pficu</a></td></tr>
+<tr class="memdesc:ac756a1d7f0570f04ee9fcd14db835cc9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dwn flux ice prec:conv [kg/m2/s]. <br /></td></tr>
+<tr class="separator:ac756a1d7f0570f04ee9fcd14db835cc9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab4122c1e207e0a4dff3db19c80de6dcd"><td class="memItemLeft" align="right" valign="top"><a id="ab4122c1e207e0a4dff3db19c80de6dcd"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ab4122c1e207e0a4dff3db19c80de6dcd">pfilsan</a></td></tr>
+<tr class="memdesc:ab4122c1e207e0a4dff3db19c80de6dcd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dwn flux ice prec:LS+anv [kg/m2/s]. <br /></td></tr>
+<tr class="separator:ab4122c1e207e0a4dff3db19c80de6dcd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a94bed2029e36fd6a73cc2051479b4030"><td class="memItemLeft" align="right" valign="top"><a id="a94bed2029e36fd6a73cc2051479b4030"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a94bed2029e36fd6a73cc2051479b4030">pflcu</a></td></tr>
+<tr class="memdesc:a94bed2029e36fd6a73cc2051479b4030"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dwn flux liq prec:conv [kg/m2/s]. <br /></td></tr>
+<tr class="separator:a94bed2029e36fd6a73cc2051479b4030"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9161680c8e9615ce783a0cdec7196fdf"><td class="memItemLeft" align="right" valign="top"><a id="a9161680c8e9615ce783a0cdec7196fdf"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a9161680c8e9615ce783a0cdec7196fdf">pfllsan</a></td></tr>
+<tr class="memdesc:a9161680c8e9615ce783a0cdec7196fdf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dwn flux ice prec:LS+anv [kg/m2/s]. <br /></td></tr>
+<tr class="separator:a9161680c8e9615ce783a0cdec7196fdf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abc77f8dbe5a30225eadfc123076762ed"><td class="memItemLeft" align="right" valign="top"><a id="abc77f8dbe5a30225eadfc123076762ed"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#abc77f8dbe5a30225eadfc123076762ed">taucli</a></td></tr>
+<tr class="memdesc:abc77f8dbe5a30225eadfc123076762ed"><td class="mdescLeft">&#160;</td><td class="mdescRight">Opt depth of ice clouds [1]. <br /></td></tr>
+<tr class="separator:abc77f8dbe5a30225eadfc123076762ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad7133f11ff68500c5a22682083418cd7"><td class="memItemLeft" align="right" valign="top"><a id="ad7133f11ff68500c5a22682083418cd7"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ad7133f11ff68500c5a22682083418cd7">tauclw</a></td></tr>
+<tr class="memdesc:ad7133f11ff68500c5a22682083418cd7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Opt depth of H2O clouds [1]. <br /></td></tr>
+<tr class="separator:ad7133f11ff68500c5a22682083418cd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afac935391de1dc613a252138223ca9b6"><td class="memItemLeft" align="right" valign="top"><a id="afac935391de1dc613a252138223ca9b6"></a>
+real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#afac935391de1dc613a252138223ca9b6">phis</a></td></tr>
+<tr class="memdesc:afac935391de1dc613a252138223ca9b6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Surface geopotential height [m2/s2]. <br /></td></tr>
+<tr class="separator:afac935391de1dc613a252138223ca9b6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad9658b01532cc13763f8fb660bf36e10"><td class="memItemLeft" align="right" valign="top"><a id="ad9658b01532cc13763f8fb660bf36e10"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ad9658b01532cc13763f8fb660bf36e10">z</a></td></tr>
+<tr class="memdesc:ad9658b01532cc13763f8fb660bf36e10"><td class="mdescLeft">&#160;</td><td class="mdescRight">Full Layer Geopotential Height. <br /></td></tr>
+<tr class="separator:ad9658b01532cc13763f8fb660bf36e10"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a26247514eaa60321123b421fd49dc67b"><td class="memItemLeft" align="right" valign="top"><a id="a26247514eaa60321123b421fd49dc67b"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a26247514eaa60321123b421fd49dc67b">zmid</a></td></tr>
+<tr class="memdesc:a26247514eaa60321123b421fd49dc67b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Mid Layer Geopotential Height. <br /></td></tr>
+<tr class="separator:a26247514eaa60321123b421fd49dc67b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a49945cfec9df3504477977c7e5efc14c"><td class="memItemLeft" align="right" valign="top"><a id="a49945cfec9df3504477977c7e5efc14c"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a49945cfec9df3504477977c7e5efc14c">bxheight</a></td></tr>
+<tr class="memdesc:a49945cfec9df3504477977c7e5efc14c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Grid box height [m] (dry air) <br /></td></tr>
+<tr class="separator:a49945cfec9df3504477977c7e5efc14c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a668ef67775fca5233fb444dc63913b7e"><td class="memItemLeft" align="right" valign="top"><a id="a668ef67775fca5233fb444dc63913b7e"></a>
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a668ef67775fca5233fb444dc63913b7e">ps_wet</a></td></tr>
 <tr class="memdesc:a668ef67775fca5233fb444dc63913b7e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Wet surface pressure at start of timestep [hPa]. <br /></td></tr>
@@ -354,9 +456,42 @@ real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a1073b9591ef11640b31e1601eae8080c">qv2m</a></td></tr>
 <tr class="memdesc:a1073b9591ef11640b31e1601eae8080c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Specific Humidity at 2m [kg/kg]. <br /></td></tr>
 <tr class="separator:a1073b9591ef11640b31e1601eae8080c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a707f8c4172640b52b221c235345bd0dd"><td class="memItemLeft" align="right" valign="top"><a id="a707f8c4172640b52b221c235345bd0dd"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a707f8c4172640b52b221c235345bd0dd">qv</a></td></tr>
+<tr class="memdesc:a707f8c4172640b52b221c235345bd0dd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Specific Humidity [kg/kg]. <br /></td></tr>
+<tr class="separator:a707f8c4172640b52b221c235345bd0dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af9b1756551e90d0e04be109521dc26da"><td class="memItemLeft" align="right" valign="top"><a id="af9b1756551e90d0e04be109521dc26da"></a>
-real(fp)&#160;</td><td class="memItemRight" valign="bottom"><b>t2m</b></td></tr>
+real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#af9b1756551e90d0e04be109521dc26da">t2m</a></td></tr>
+<tr class="memdesc:af9b1756551e90d0e04be109521dc26da"><td class="mdescLeft">&#160;</td><td class="mdescRight">Temperature 2m [K]. <br /></td></tr>
 <tr class="separator:af9b1756551e90d0e04be109521dc26da"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac6842eee9f1a20fa04b1f7c199cfc586"><td class="memItemLeft" align="right" valign="top"><a id="ac6842eee9f1a20fa04b1f7c199cfc586"></a>
+real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ac6842eee9f1a20fa04b1f7c199cfc586">ts</a></td></tr>
+<tr class="memdesc:ac6842eee9f1a20fa04b1f7c199cfc586"><td class="mdescLeft">&#160;</td><td class="mdescRight">Surface temperature [K]. <br /></td></tr>
+<tr class="separator:ac6842eee9f1a20fa04b1f7c199cfc586"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6e17bbc467917579a9e7224990a8de45"><td class="memItemLeft" align="right" valign="top"><a id="a6e17bbc467917579a9e7224990a8de45"></a>
+real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a6e17bbc467917579a9e7224990a8de45">tskin</a></td></tr>
+<tr class="memdesc:a6e17bbc467917579a9e7224990a8de45"><td class="mdescLeft">&#160;</td><td class="mdescRight">Surface skin temperature [K]. <br /></td></tr>
+<tr class="separator:a6e17bbc467917579a9e7224990a8de45"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a806ee4899bb6a7da21efad653c07b10c"><td class="memItemLeft" align="right" valign="top"><a id="a806ee4899bb6a7da21efad653c07b10c"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a806ee4899bb6a7da21efad653c07b10c">t</a></td></tr>
+<tr class="memdesc:a806ee4899bb6a7da21efad653c07b10c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Temperature [K]. <br /></td></tr>
+<tr class="separator:a806ee4899bb6a7da21efad653c07b10c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a64dd8e191e72f6d304b5e63c13d6eeba"><td class="memItemLeft" align="right" valign="top"><a id="a64dd8e191e72f6d304b5e63c13d6eeba"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a64dd8e191e72f6d304b5e63c13d6eeba">theta</a></td></tr>
+<tr class="memdesc:a64dd8e191e72f6d304b5e63c13d6eeba"><td class="mdescLeft">&#160;</td><td class="mdescRight">Potential temperature [K]. <br /></td></tr>
+<tr class="separator:a64dd8e191e72f6d304b5e63c13d6eeba"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2238c53eaf303bc43914e95b9038b420"><td class="memItemLeft" align="right" valign="top"><a id="a2238c53eaf303bc43914e95b9038b420"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a2238c53eaf303bc43914e95b9038b420">tv</a></td></tr>
+<tr class="memdesc:a2238c53eaf303bc43914e95b9038b420"><td class="mdescLeft">&#160;</td><td class="mdescRight">Virtual temperature [K]. <br /></td></tr>
+<tr class="separator:a2238c53eaf303bc43914e95b9038b420"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9b012bf4dad43a3cafecd9be32ff3c6d"><td class="memItemLeft" align="right" valign="top"><a id="a9b012bf4dad43a3cafecd9be32ff3c6d"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a9b012bf4dad43a3cafecd9be32ff3c6d">v</a></td></tr>
+<tr class="memdesc:a9b012bf4dad43a3cafecd9be32ff3c6d"><td class="mdescLeft">&#160;</td><td class="mdescRight">N/S component of wind [m s-1]. <br /></td></tr>
+<tr class="separator:a9b012bf4dad43a3cafecd9be32ff3c6d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a159175f4c69a445d453f8098a4cfcde8"><td class="memItemLeft" align="right" valign="top"><a id="a159175f4c69a445d453f8098a4cfcde8"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a159175f4c69a445d453f8098a4cfcde8">u</a></td></tr>
+<tr class="memdesc:a159175f4c69a445d453f8098a4cfcde8"><td class="mdescLeft">&#160;</td><td class="mdescRight">E/W component of wind [m s-1]. <br /></td></tr>
+<tr class="separator:a159175f4c69a445d453f8098a4cfcde8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5fe25cd75af1682aead455f17d9b5253"><td class="memItemLeft" align="right" valign="top"><a id="a5fe25cd75af1682aead455f17d9b5253"></a>
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a5fe25cd75af1682aead455f17d9b5253">sst</a></td></tr>
 <tr class="memdesc:a5fe25cd75af1682aead455f17d9b5253"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sea surface temperature [K]. <br /></td></tr>
@@ -369,6 +504,14 @@ real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a6e8740794a6f6a94166bb5c57f3d2c20">ps</a></td></tr>
 <tr class="memdesc:a6e8740794a6f6a94166bb5c57f3d2c20"><td class="mdescLeft">&#160;</td><td class="mdescRight">Surface Pressure [hPa]. <br /></td></tr>
 <tr class="separator:a6e8740794a6f6a94166bb5c57f3d2c20"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afe357320a556cd246c6b1ef91cdb9d5b"><td class="memItemLeft" align="right" valign="top"><a id="afe357320a556cd246c6b1ef91cdb9d5b"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#afe357320a556cd246c6b1ef91cdb9d5b">omega</a></td></tr>
+<tr class="memdesc:afe357320a556cd246c6b1ef91cdb9d5b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Updraft velocity [Pa/s]. <br /></td></tr>
+<tr class="separator:afe357320a556cd246c6b1ef91cdb9d5b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab0ab5e39901dae05fd2f614c512dd55c"><td class="memItemLeft" align="right" valign="top"><a id="ab0ab5e39901dae05fd2f614c512dd55c"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ab0ab5e39901dae05fd2f614c512dd55c">rh</a></td></tr>
+<tr class="memdesc:ab0ab5e39901dae05fd2f614c512dd55c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Relative humidity [%]. <br /></td></tr>
+<tr class="separator:ab0ab5e39901dae05fd2f614c512dd55c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afa0fdd387eb454f90d6eca4908f7dc1f"><td class="memItemLeft" align="right" valign="top"><a id="afa0fdd387eb454f90d6eca4908f7dc1f"></a>
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#afa0fdd387eb454f90d6eca4908f7dc1f">to3</a></td></tr>
 <tr class="memdesc:afa0fdd387eb454f90d6eca4908f7dc1f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Total overhead O3 column [DU]. <br /></td></tr>
@@ -385,257 +528,54 @@ integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s
 real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a2d1fdee872ccdca3130956f9eb13f8fe">tropht</a></td></tr>
 <tr class="memdesc:a2d1fdee872ccdca3130956f9eb13f8fe"><td class="mdescLeft">&#160;</td><td class="mdescRight">Tropopause height [km]. <br /></td></tr>
 <tr class="separator:a2d1fdee872ccdca3130956f9eb13f8fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac6842eee9f1a20fa04b1f7c199cfc586"><td class="memItemLeft" align="right" valign="top"><a id="ac6842eee9f1a20fa04b1f7c199cfc586"></a>
-real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ac6842eee9f1a20fa04b1f7c199cfc586">ts</a></td></tr>
-<tr class="memdesc:ac6842eee9f1a20fa04b1f7c199cfc586"><td class="mdescLeft">&#160;</td><td class="mdescRight">Surface temperature [K]. <br /></td></tr>
-<tr class="separator:ac6842eee9f1a20fa04b1f7c199cfc586"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6e17bbc467917579a9e7224990a8de45"><td class="memItemLeft" align="right" valign="top"><a id="a6e17bbc467917579a9e7224990a8de45"></a>
-real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a6e17bbc467917579a9e7224990a8de45">tskin</a></td></tr>
-<tr class="memdesc:a6e17bbc467917579a9e7224990a8de45"><td class="mdescLeft">&#160;</td><td class="mdescRight">Surface skin temperature [K]. <br /></td></tr>
-<tr class="separator:a6e17bbc467917579a9e7224990a8de45"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a222fe21fa910367efe2205ba07769246"><td class="memItemLeft" align="right" valign="top"><a id="a222fe21fa910367efe2205ba07769246"></a>
-real(fp)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a222fe21fa910367efe2205ba07769246">cnv_frc</a></td></tr>
-<tr class="memdesc:a222fe21fa910367efe2205ba07769246"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convective fraction [1]. <br /></td></tr>
-<tr class="separator:a222fe21fa910367efe2205ba07769246"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2cfe0c5bc6391895cc744da04e891a97"><td class="memItemLeft" align="right" valign="top"><a id="a2cfe0c5bc6391895cc744da04e891a97"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a2cfe0c5bc6391895cc744da04e891a97">cldf</a></td></tr>
-<tr class="memdesc:a2cfe0c5bc6391895cc744da04e891a97"><td class="mdescLeft">&#160;</td><td class="mdescRight">3-D cloud fraction [1] <br /></td></tr>
-<tr class="separator:a2cfe0c5bc6391895cc744da04e891a97"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8739272b1c11e5ee3100ad832a0a26b6"><td class="memItemLeft" align="right" valign="top"><a id="a8739272b1c11e5ee3100ad832a0a26b6"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a8739272b1c11e5ee3100ad832a0a26b6">cmfmc</a></td></tr>
-<tr class="memdesc:a8739272b1c11e5ee3100ad832a0a26b6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Cloud mass flux [kg/m2/s]. <br /></td></tr>
-<tr class="separator:a8739272b1c11e5ee3100ad832a0a26b6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae712ce105bccc7412bc91d9ff92d6179"><td class="memItemLeft" align="right" valign="top"><a id="ae712ce105bccc7412bc91d9ff92d6179"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ae712ce105bccc7412bc91d9ff92d6179">dqrcu</a></td></tr>
-<tr class="memdesc:ae712ce105bccc7412bc91d9ff92d6179"><td class="mdescLeft">&#160;</td><td class="mdescRight">Conv precip production rate [kg/kg/s] (assume per dry air) <br /></td></tr>
-<tr class="separator:ae712ce105bccc7412bc91d9ff92d6179"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a874dc59d794dfc607040c4795a590ee4"><td class="memItemLeft" align="right" valign="top"><a id="a874dc59d794dfc607040c4795a590ee4"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a874dc59d794dfc607040c4795a590ee4">dqrlsan</a></td></tr>
-<tr class="memdesc:a874dc59d794dfc607040c4795a590ee4"><td class="mdescLeft">&#160;</td><td class="mdescRight">LS precip prod rate [kg/kg/s] (assume per dry air) <br /></td></tr>
-<tr class="separator:a874dc59d794dfc607040c4795a590ee4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a075ff8f3b1ae761452153ecc083595ee"><td class="memItemLeft" align="right" valign="top"><a id="a075ff8f3b1ae761452153ecc083595ee"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a075ff8f3b1ae761452153ecc083595ee">dtrain</a></td></tr>
-<tr class="memdesc:a075ff8f3b1ae761452153ecc083595ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Detrainment flux [kg/m2/s]. <br /></td></tr>
-<tr class="separator:a075ff8f3b1ae761452153ecc083595ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7db3d53ecd619106448fc672f1f77cda"><td class="memItemLeft" align="right" valign="top"><a id="a7db3d53ecd619106448fc672f1f77cda"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a7db3d53ecd619106448fc672f1f77cda">f_of_pbl</a></td></tr>
-<tr class="memdesc:a7db3d53ecd619106448fc672f1f77cda"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fraction of box within PBL [1]. <br /></td></tr>
-<tr class="separator:a7db3d53ecd619106448fc672f1f77cda"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a91eaa77fa676d1bc4b62829a77a70e03"><td class="memItemLeft" align="right" valign="top"><a id="a91eaa77fa676d1bc4b62829a77a70e03"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a91eaa77fa676d1bc4b62829a77a70e03">f_under_pbltop</a></td></tr>
-<tr class="memdesc:a91eaa77fa676d1bc4b62829a77a70e03"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fraction of box under PBL top. <br /></td></tr>
-<tr class="separator:a91eaa77fa676d1bc4b62829a77a70e03"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a85120ee2fdb119c0233bf65f658f4858"><td class="memItemLeft" align="right" valign="top"><a id="a85120ee2fdb119c0233bf65f658f4858"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a85120ee2fdb119c0233bf65f658f4858">omega</a></td></tr>
-<tr class="memdesc:a85120ee2fdb119c0233bf65f658f4858"><td class="mdescLeft">&#160;</td><td class="mdescRight">Updraft velocity [Pa/s]. <br /></td></tr>
-<tr class="separator:a85120ee2fdb119c0233bf65f658f4858"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a72bac93893ea73320c6343e188650d4a"><td class="memItemLeft" align="right" valign="top"><a id="a72bac93893ea73320c6343e188650d4a"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a72bac93893ea73320c6343e188650d4a">optd</a></td></tr>
-<tr class="memdesc:a72bac93893ea73320c6343e188650d4a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Visible optical depth [1]. <br /></td></tr>
-<tr class="separator:a72bac93893ea73320c6343e188650d4a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a187d3bd728ac14afecf80f838796d1b4"><td class="memItemLeft" align="right" valign="top"><a id="a187d3bd728ac14afecf80f838796d1b4"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a187d3bd728ac14afecf80f838796d1b4">pedge</a></td></tr>
-<tr class="memdesc:a187d3bd728ac14afecf80f838796d1b4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Wet air press @ level edges [hPa]. <br /></td></tr>
-<tr class="separator:a187d3bd728ac14afecf80f838796d1b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9cb5cc487a5c1dd333f47406ac36c9d9"><td class="memItemLeft" align="right" valign="top"><a id="a9cb5cc487a5c1dd333f47406ac36c9d9"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a9cb5cc487a5c1dd333f47406ac36c9d9">pficu</a></td></tr>
-<tr class="memdesc:a9cb5cc487a5c1dd333f47406ac36c9d9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dwn flux ice prec:conv [kg/m2/s]. <br /></td></tr>
-<tr class="separator:a9cb5cc487a5c1dd333f47406ac36c9d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5e0068135a13c37fe59ffe4c97e415c2"><td class="memItemLeft" align="right" valign="top"><a id="a5e0068135a13c37fe59ffe4c97e415c2"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a5e0068135a13c37fe59ffe4c97e415c2">pfilsan</a></td></tr>
-<tr class="memdesc:a5e0068135a13c37fe59ffe4c97e415c2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dwn flux ice prec:LS+anv [kg/m2/s]. <br /></td></tr>
-<tr class="separator:a5e0068135a13c37fe59ffe4c97e415c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5f8c2888ad1ccd5c402dcd620d6f7729"><td class="memItemLeft" align="right" valign="top"><a id="a5f8c2888ad1ccd5c402dcd620d6f7729"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a5f8c2888ad1ccd5c402dcd620d6f7729">pflcu</a></td></tr>
-<tr class="memdesc:a5f8c2888ad1ccd5c402dcd620d6f7729"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dwn flux liq prec:conv [kg/m2/s]. <br /></td></tr>
-<tr class="separator:a5f8c2888ad1ccd5c402dcd620d6f7729"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae0f6f96691f4a349018a7a9a08f17d6d"><td class="memItemLeft" align="right" valign="top"><a id="ae0f6f96691f4a349018a7a9a08f17d6d"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ae0f6f96691f4a349018a7a9a08f17d6d">pfllsan</a></td></tr>
-<tr class="memdesc:ae0f6f96691f4a349018a7a9a08f17d6d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dwn flux ice prec:LS+anv [kg/m2/s]. <br /></td></tr>
-<tr class="separator:ae0f6f96691f4a349018a7a9a08f17d6d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa63798b03dfa5956f4928fa74f8d7c95"><td class="memItemLeft" align="right" valign="top"><a id="aa63798b03dfa5956f4928fa74f8d7c95"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#aa63798b03dfa5956f4928fa74f8d7c95">qi</a></td></tr>
-<tr class="memdesc:aa63798b03dfa5956f4928fa74f8d7c95"><td class="mdescLeft">&#160;</td><td class="mdescRight">Mass fraction of cloud ice water [kg/kg dry air]. <br /></td></tr>
-<tr class="separator:aa63798b03dfa5956f4928fa74f8d7c95"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8cddfa6f4987d3976f1183cf60bb6e54"><td class="memItemLeft" align="right" valign="top"><a id="a8cddfa6f4987d3976f1183cf60bb6e54"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a8cddfa6f4987d3976f1183cf60bb6e54">ql</a></td></tr>
-<tr class="memdesc:a8cddfa6f4987d3976f1183cf60bb6e54"><td class="mdescLeft">&#160;</td><td class="mdescRight">Mass fraction of cloud liquid water [kg/kg dry air]. <br /></td></tr>
-<tr class="separator:a8cddfa6f4987d3976f1183cf60bb6e54"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7f130d851c6aad700551e1ce21a7634b"><td class="memItemLeft" align="right" valign="top"><a id="a7f130d851c6aad700551e1ce21a7634b"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a7f130d851c6aad700551e1ce21a7634b">rh</a></td></tr>
-<tr class="memdesc:a7f130d851c6aad700551e1ce21a7634b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Relative humidity [%]. <br /></td></tr>
-<tr class="separator:a7f130d851c6aad700551e1ce21a7634b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3efc4627530ce46246942895cf8b530c"><td class="memItemLeft" align="right" valign="top"><a id="a3efc4627530ce46246942895cf8b530c"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a3efc4627530ce46246942895cf8b530c">sphu</a></td></tr>
-<tr class="memdesc:a3efc4627530ce46246942895cf8b530c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Specific humidity [g H2O/kg tot air]. <br /></td></tr>
-<tr class="separator:a3efc4627530ce46246942895cf8b530c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acf13c058de733e366b533f0e21977037"><td class="memItemLeft" align="right" valign="top"><a id="acf13c058de733e366b533f0e21977037"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#acf13c058de733e366b533f0e21977037">sphu1</a></td></tr>
-<tr class="memdesc:acf13c058de733e366b533f0e21977037"><td class="mdescLeft">&#160;</td><td class="mdescRight">Specific humidity at start of timestep [g/kg]. <br /></td></tr>
-<tr class="separator:acf13c058de733e366b533f0e21977037"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac5c9737a0671b5e4615716dfcd6d32dd"><td class="memItemLeft" align="right" valign="top"><a id="ac5c9737a0671b5e4615716dfcd6d32dd"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ac5c9737a0671b5e4615716dfcd6d32dd">sphu2</a></td></tr>
-<tr class="memdesc:ac5c9737a0671b5e4615716dfcd6d32dd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Specific humidity at end of timestep [g/kg]. <br /></td></tr>
-<tr class="separator:ac5c9737a0671b5e4615716dfcd6d32dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7427ab0437cc0ae99c07fc734d5eff5d"><td class="memItemLeft" align="right" valign="top"><a id="a7427ab0437cc0ae99c07fc734d5eff5d"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a7427ab0437cc0ae99c07fc734d5eff5d">t</a></td></tr>
-<tr class="memdesc:a7427ab0437cc0ae99c07fc734d5eff5d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Temperature [K]. <br /></td></tr>
-<tr class="separator:a7427ab0437cc0ae99c07fc734d5eff5d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7ab8b45e26d422a5062e0c860d4574cc"><td class="memItemLeft" align="right" valign="top"><a id="a7ab8b45e26d422a5062e0c860d4574cc"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a7ab8b45e26d422a5062e0c860d4574cc">taucli</a></td></tr>
-<tr class="memdesc:a7ab8b45e26d422a5062e0c860d4574cc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Opt depth of ice clouds [1]. <br /></td></tr>
-<tr class="separator:a7ab8b45e26d422a5062e0c860d4574cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abaecdaf0b15cde926578140d4bc4231d"><td class="memItemLeft" align="right" valign="top"><a id="abaecdaf0b15cde926578140d4bc4231d"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#abaecdaf0b15cde926578140d4bc4231d">tauclw</a></td></tr>
-<tr class="memdesc:abaecdaf0b15cde926578140d4bc4231d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Opt depth of H2O clouds [1]. <br /></td></tr>
-<tr class="separator:abaecdaf0b15cde926578140d4bc4231d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a80846313c2f8d88a0d85e510d519cd0a"><td class="memItemLeft" align="right" valign="top"><a id="a80846313c2f8d88a0d85e510d519cd0a"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a80846313c2f8d88a0d85e510d519cd0a">tmpu1</a></td></tr>
-<tr class="memdesc:a80846313c2f8d88a0d85e510d519cd0a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Temperature at start of timestep [K]. <br /></td></tr>
-<tr class="separator:a80846313c2f8d88a0d85e510d519cd0a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1fad38a02566eb1faf53e78cb419a2c4"><td class="memItemLeft" align="right" valign="top"><a id="a1fad38a02566eb1faf53e78cb419a2c4"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a1fad38a02566eb1faf53e78cb419a2c4">tmpu2</a></td></tr>
-<tr class="memdesc:a1fad38a02566eb1faf53e78cb419a2c4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Temperature at end of timestep [K]. <br /></td></tr>
-<tr class="separator:a1fad38a02566eb1faf53e78cb419a2c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6b1d4d8f9c6aa2628b1fb11ed01b21d7"><td class="memItemLeft" align="right" valign="top"><a id="a6b1d4d8f9c6aa2628b1fb11ed01b21d7"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a6b1d4d8f9c6aa2628b1fb11ed01b21d7">u</a></td></tr>
-<tr class="memdesc:a6b1d4d8f9c6aa2628b1fb11ed01b21d7"><td class="mdescLeft">&#160;</td><td class="mdescRight">E/W component of wind [m s-1]. <br /></td></tr>
-<tr class="separator:a6b1d4d8f9c6aa2628b1fb11ed01b21d7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad986a5546fab93babb95de04eeb87791"><td class="memItemLeft" align="right" valign="top"><a id="ad986a5546fab93babb95de04eeb87791"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ad986a5546fab93babb95de04eeb87791">updvvel</a></td></tr>
-<tr class="memdesc:ad986a5546fab93babb95de04eeb87791"><td class="mdescLeft">&#160;</td><td class="mdescRight">Updraft vertical velocity [hPa/s]. <br /></td></tr>
-<tr class="separator:ad986a5546fab93babb95de04eeb87791"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a609652d121015078250b63cbc7d41bb8"><td class="memItemLeft" align="right" valign="top"><a id="a609652d121015078250b63cbc7d41bb8"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a609652d121015078250b63cbc7d41bb8">v</a></td></tr>
-<tr class="memdesc:a609652d121015078250b63cbc7d41bb8"><td class="mdescLeft">&#160;</td><td class="mdescRight">N/S component of wind [m s-1]. <br /></td></tr>
-<tr class="separator:a609652d121015078250b63cbc7d41bb8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab37079dd3056f0c539c4a48192bbe4d5"><td class="memItemLeft" align="right" valign="top"><a id="ab37079dd3056f0c539c4a48192bbe4d5"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ab37079dd3056f0c539c4a48192bbe4d5">pedge_dry</a></td></tr>
-<tr class="memdesc:ab37079dd3056f0c539c4a48192bbe4d5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dry air partial pressure @ level edges [hPa]. <br /></td></tr>
-<tr class="separator:ab37079dd3056f0c539c4a48192bbe4d5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a48286008d4aa0bbf267e02241828528d"><td class="memItemLeft" align="right" valign="top"><a id="a48286008d4aa0bbf267e02241828528d"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a48286008d4aa0bbf267e02241828528d">pmid</a></td></tr>
-<tr class="memdesc:a48286008d4aa0bbf267e02241828528d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Average wet air pressure [hPa] defined as arithmetic average of edge pressures. <br /></td></tr>
-<tr class="separator:a48286008d4aa0bbf267e02241828528d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad0151fadb7d541e119bc68feb72cad80"><td class="memItemLeft" align="right" valign="top"><a id="ad0151fadb7d541e119bc68feb72cad80"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ad0151fadb7d541e119bc68feb72cad80">pmid_dry</a></td></tr>
-<tr class="memdesc:ad0151fadb7d541e119bc68feb72cad80"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dry air partial pressure [hPa] defined as arithmetic avg of edge pressures. <br /></td></tr>
-<tr class="separator:ad0151fadb7d541e119bc68feb72cad80"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a23e4ab4651cc6b6cb2e4e531357951bb"><td class="memItemLeft" align="right" valign="top"><a id="a23e4ab4651cc6b6cb2e4e531357951bb"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a23e4ab4651cc6b6cb2e4e531357951bb">theta</a></td></tr>
-<tr class="memdesc:a23e4ab4651cc6b6cb2e4e531357951bb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Potential temperature [K]. <br /></td></tr>
-<tr class="separator:a23e4ab4651cc6b6cb2e4e531357951bb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a524fdb811e60e7c99a512bbf8087ba30"><td class="memItemLeft" align="right" valign="top"><a id="a524fdb811e60e7c99a512bbf8087ba30"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a524fdb811e60e7c99a512bbf8087ba30">tv</a></td></tr>
-<tr class="memdesc:a524fdb811e60e7c99a512bbf8087ba30"><td class="mdescLeft">&#160;</td><td class="mdescRight">Virtual temperature [K]. <br /></td></tr>
-<tr class="separator:a524fdb811e60e7c99a512bbf8087ba30"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a72758be1538700bb9548f35b9d46f10a"><td class="memItemLeft" align="right" valign="top"><a id="a72758be1538700bb9548f35b9d46f10a"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a72758be1538700bb9548f35b9d46f10a">mairden</a></td></tr>
-<tr class="memdesc:a72758be1538700bb9548f35b9d46f10a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Moist air density [kg/m3]. <br /></td></tr>
-<tr class="separator:a72758be1538700bb9548f35b9d46f10a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acd885a880dc6447fe16eb8bd3e3f6d4b"><td class="memItemLeft" align="right" valign="top"><a id="acd885a880dc6447fe16eb8bd3e3f6d4b"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#acd885a880dc6447fe16eb8bd3e3f6d4b">airden</a></td></tr>
-<tr class="memdesc:acd885a880dc6447fe16eb8bd3e3f6d4b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dry air density [kg/m3]. <br /></td></tr>
-<tr class="separator:acd885a880dc6447fe16eb8bd3e3f6d4b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7ccac28aa24d3ff1449990151e0cbe6c"><td class="memItemLeft" align="right" valign="top"><a id="a7ccac28aa24d3ff1449990151e0cbe6c"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a7ccac28aa24d3ff1449990151e0cbe6c">airnumden</a></td></tr>
-<tr class="memdesc:a7ccac28aa24d3ff1449990151e0cbe6c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dry air density [molec/cm3]. <br /></td></tr>
-<tr class="separator:a7ccac28aa24d3ff1449990151e0cbe6c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a693d8e413c5efe6a568696cd16264613"><td class="memItemLeft" align="right" valign="top"><a id="a693d8e413c5efe6a568696cd16264613"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a693d8e413c5efe6a568696cd16264613">avgw</a></td></tr>
-<tr class="memdesc:a693d8e413c5efe6a568696cd16264613"><td class="mdescLeft">&#160;</td><td class="mdescRight">Water vapor volume mixing ratio [vol H2O/vol dry air]. <br /></td></tr>
-<tr class="separator:a693d8e413c5efe6a568696cd16264613"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1150504ae47f4886f7a476b7c017cae3"><td class="memItemLeft" align="right" valign="top"><a id="a1150504ae47f4886f7a476b7c017cae3"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a1150504ae47f4886f7a476b7c017cae3">bxheight</a></td></tr>
-<tr class="memdesc:a1150504ae47f4886f7a476b7c017cae3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Grid box height [m] (dry air) <br /></td></tr>
-<tr class="separator:a1150504ae47f4886f7a476b7c017cae3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac5f45089a4fd0442dbb0f81e34848c23"><td class="memItemLeft" align="right" valign="top"><a id="ac5f45089a4fd0442dbb0f81e34848c23"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ac5f45089a4fd0442dbb0f81e34848c23">delp</a></td></tr>
-<tr class="memdesc:ac5f45089a4fd0442dbb0f81e34848c23"><td class="mdescLeft">&#160;</td><td class="mdescRight">Delta-P (wet) across box [hPa]. <br /></td></tr>
-<tr class="separator:ac5f45089a4fd0442dbb0f81e34848c23"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af80da62214a0c792697fd0a212025f80"><td class="memItemLeft" align="right" valign="top"><a id="af80da62214a0c792697fd0a212025f80"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#af80da62214a0c792697fd0a212025f80">delp_dry</a></td></tr>
-<tr class="memdesc:af80da62214a0c792697fd0a212025f80"><td class="mdescLeft">&#160;</td><td class="mdescRight">Delta-P (dry) across box [hPa]. <br /></td></tr>
-<tr class="separator:af80da62214a0c792697fd0a212025f80"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab96c8f234123c637a102dd7faeb6ac78"><td class="memItemLeft" align="right" valign="top"><a id="ab96c8f234123c637a102dd7faeb6ac78"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ab96c8f234123c637a102dd7faeb6ac78">dairmass</a></td></tr>
-<tr class="memdesc:ab96c8f234123c637a102dd7faeb6ac78"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dry air mass [kg] in grid box. <br /></td></tr>
-<tr class="separator:ab96c8f234123c637a102dd7faeb6ac78"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6245da4edebf90ee30b3db6cbe2d5e4c"><td class="memItemLeft" align="right" valign="top"><a id="a6245da4edebf90ee30b3db6cbe2d5e4c"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a6245da4edebf90ee30b3db6cbe2d5e4c">airvol</a></td></tr>
-<tr class="memdesc:a6245da4edebf90ee30b3db6cbe2d5e4c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Grid box volume [m3] (dry air) <br /></td></tr>
-<tr class="separator:a6245da4edebf90ee30b3db6cbe2d5e4c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8f98827c12640779ca2a30bcaa842ad9"><td class="memItemLeft" align="right" valign="top"><a id="a8f98827c12640779ca2a30bcaa842ad9"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a8f98827c12640779ca2a30bcaa842ad9">dp_dry_prev</a></td></tr>
-<tr class="memdesc:a8f98827c12640779ca2a30bcaa842ad9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Previous MetStateDELP_DRY. <br /></td></tr>
-<tr class="separator:a8f98827c12640779ca2a30bcaa842ad9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a90b4bc1cabf9e7de72325ef6cc69a536"><td class="memItemLeft" align="right" valign="top"><a id="a90b4bc1cabf9e7de72325ef6cc69a536"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a90b4bc1cabf9e7de72325ef6cc69a536">sphu_prev</a></td></tr>
-<tr class="memdesc:a90b4bc1cabf9e7de72325ef6cc69a536"><td class="mdescLeft">&#160;</td><td class="mdescRight">Previous MetStateSPHU. <br /></td></tr>
-<tr class="separator:a90b4bc1cabf9e7de72325ef6cc69a536"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2338d6da4594ffe14935dbc41e10ff16"><td class="memItemLeft" align="right" valign="top">integer, pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a2338d6da4594ffe14935dbc41e10ff16">ireg</a></td></tr>
-<tr class="separator:a2338d6da4594ffe14935dbc41e10ff16"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abacb197d9deb3b2cc816e130f456258d"><td class="memItemLeft" align="right" valign="top"><a id="abacb197d9deb3b2cc816e130f456258d"></a>
-integer, dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#abacb197d9deb3b2cc816e130f456258d">iland</a></td></tr>
-<tr class="memdesc:abacb197d9deb3b2cc816e130f456258d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Land type at (I,J); 1..IREG(I,J) <br /></td></tr>
-<tr class="separator:abacb197d9deb3b2cc816e130f456258d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a77874b2fe95e324d7c91d83c203dd7a1"><td class="memItemLeft" align="right" valign="top"><a id="a77874b2fe95e324d7c91d83c203dd7a1"></a>
-integer, dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a77874b2fe95e324d7c91d83c203dd7a1">iuse</a></td></tr>
-<tr class="memdesc:a77874b2fe95e324d7c91d83c203dd7a1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fraction (per mil) of box (I,J) occupied by each land. <br /></td></tr>
-<tr class="separator:a77874b2fe95e324d7c91d83c203dd7a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a224c3405245cca8c5bf3ba4c79fa5c3b"><td class="memItemLeft" align="right" valign="top"><a id="a224c3405245cca8c5bf3ba4c79fa5c3b"></a>
-real(fp), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a224c3405245cca8c5bf3ba4c79fa5c3b">modislai</a></td></tr>
-<tr class="memdesc:a224c3405245cca8c5bf3ba4c79fa5c3b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Daily LAI computed from monthly offline MODIS [m2/m2]. <br /></td></tr>
-<tr class="separator:a224c3405245cca8c5bf3ba4c79fa5c3b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a152bdea7304b10cb4ce202fcdd5e44b0"><td class="memItemLeft" align="right" valign="top"><a id="a152bdea7304b10cb4ce202fcdd5e44b0"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a152bdea7304b10cb4ce202fcdd5e44b0">xlai</a></td></tr>
-<tr class="memdesc:a152bdea7304b10cb4ce202fcdd5e44b0"><td class="mdescLeft">&#160;</td><td class="mdescRight">MODIS LAI per land type, for this month. <br /></td></tr>
-<tr class="separator:a152bdea7304b10cb4ce202fcdd5e44b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a05cbed15c6bf325423f23c3b595a87ca"><td class="memItemLeft" align="right" valign="top"><a id="a05cbed15c6bf325423f23c3b595a87ca"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a05cbed15c6bf325423f23c3b595a87ca">landtypefrac</a></td></tr>
-<tr class="memdesc:a05cbed15c6bf325423f23c3b595a87ca"><td class="mdescLeft">&#160;</td><td class="mdescRight">Olson frac per type (I,J,type) <br /></td></tr>
-<tr class="separator:a05cbed15c6bf325423f23c3b595a87ca"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a796fcf25262bd7964f506215e8149916"><td class="memItemLeft" align="right" valign="top"><a id="a796fcf25262bd7964f506215e8149916"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a796fcf25262bd7964f506215e8149916">xlai_native</a></td></tr>
-<tr class="memdesc:a796fcf25262bd7964f506215e8149916"><td class="mdescLeft">&#160;</td><td class="mdescRight">avg LAI per type (I,J,type) <br /></td></tr>
-<tr class="separator:a796fcf25262bd7964f506215e8149916"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af17064f9436f755ee0e17d91088b699a"><td class="memItemLeft" align="right" valign="top"><a id="af17064f9436f755ee0e17d91088b699a"></a>
-real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#af17064f9436f755ee0e17d91088b699a">xlai2</a></td></tr>
-<tr class="memdesc:af17064f9436f755ee0e17d91088b699a"><td class="mdescLeft">&#160;</td><td class="mdescRight">MODIS LAI per land type,. <br /></td></tr>
-<tr class="separator:af17064f9436f755ee0e17d91088b699a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1851891d9075a0f40f170c43b7616d94"><td class="memItemLeft" align="right" valign="top"><a id="a1851891d9075a0f40f170c43b7616d94"></a>
-logical, dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><b>inchemgrid</b></td></tr>
-<tr class="separator:a1851891d9075a0f40f170c43b7616d94"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a17240ed8b2ec935fa023ca04c8e2f87d"><td class="memItemLeft" align="right" valign="top"><a id="a17240ed8b2ec935fa023ca04c8e2f87d"></a>
-logical, dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><b>inpbl</b></td></tr>
-<tr class="separator:a17240ed8b2ec935fa023ca04c8e2f87d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1b7659a0471f0b3424891f615e81462b"><td class="memItemLeft" align="right" valign="top"><a id="a1b7659a0471f0b3424891f615e81462b"></a>
-logical, dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><b>instratmeso</b></td></tr>
-<tr class="separator:a1b7659a0471f0b3424891f615e81462b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aaa59fb1afcaccafde542cd5b3dece9ae"><td class="memItemLeft" align="right" valign="top"><a id="aaa59fb1afcaccafde542cd5b3dece9ae"></a>
-logical, dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><b>instratosphere</b></td></tr>
-<tr class="separator:aaa59fb1afcaccafde542cd5b3dece9ae"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae7a4e5d971911b0ce978fd7ba4a10392"><td class="memItemLeft" align="right" valign="top"><a id="ae7a4e5d971911b0ce978fd7ba4a10392"></a>
-logical, dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><b>introposphere</b></td></tr>
-<tr class="separator:ae7a4e5d971911b0ce978fd7ba4a10392"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1440dcb088316499435887e7c870378b"><td class="memItemLeft" align="right" valign="top"><a id="a1440dcb088316499435887e7c870378b"></a>
-real(fp), pointer&#160;</td><td class="memItemRight" valign="bottom"><b>localsolartime</b></td></tr>
-<tr class="separator:a1440dcb088316499435887e7c870378b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae2c822afa8bff3e0f21b87ec52ed078e"><td class="memItemLeft" align="right" valign="top"><a id="ae2c822afa8bff3e0f21b87ec52ed078e"></a>
-logical, pointer&#160;</td><td class="memItemRight" valign="bottom"><b>islocalnoon</b></td></tr>
-<tr class="separator:ae2c822afa8bff3e0f21b87ec52ed078e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a633da3d189695ea936d48de34e6ff28c"><td class="memItemLeft" align="right" valign="top"><a id="a633da3d189695ea936d48de34e6ff28c"></a>
-integer, pointer&#160;</td><td class="memItemRight" valign="bottom"><b>imix</b></td></tr>
-<tr class="separator:a633da3d189695ea936d48de34e6ff28c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3cfe0d7e5fd5e42468e3b15546b4a954"><td class="memItemLeft" align="right" valign="top"><a id="a3cfe0d7e5fd5e42468e3b15546b4a954"></a>
-real(fp), pointer&#160;</td><td class="memItemRight" valign="bottom"><b>fpbl</b></td></tr>
-<tr class="separator:a3cfe0d7e5fd5e42468e3b15546b4a954"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae956ca0bb9b362051e780d57d54177fd"><td class="memItemLeft" align="right" valign="top"><a id="ae956ca0bb9b362051e780d57d54177fd"></a>
-integer&#160;</td><td class="memItemRight" valign="bottom"><b>pbl_max_l</b></td></tr>
-<tr class="separator:ae956ca0bb9b362051e780d57d54177fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5b26f17322671997a34e05a7bd36cf0f"><td class="memItemLeft" align="right" valign="top"><a id="a5b26f17322671997a34e05a7bd36cf0f"></a>
-character(len=3)&#160;</td><td class="memItemRight" valign="bottom"><b>state</b> = 'MET'</td></tr>
-<tr class="separator:a5b26f17322671997a34e05a7bd36cf0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a966e4245a6fcaed51eacafd47be25b7c"><td class="memItemLeft" align="right" valign="top"><a id="a966e4245a6fcaed51eacafd47be25b7c"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a966e4245a6fcaed51eacafd47be25b7c">sphu</a></td></tr>
+<tr class="memdesc:a966e4245a6fcaed51eacafd47be25b7c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Specific humidity [g H2O/kg tot air]. <br /></td></tr>
+<tr class="separator:a966e4245a6fcaed51eacafd47be25b7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4d3604ddc8a2ca5ac715103ec148f896"><td class="memItemLeft" align="right" valign="top"><a id="a4d3604ddc8a2ca5ac715103ec148f896"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a4d3604ddc8a2ca5ac715103ec148f896">airden</a></td></tr>
+<tr class="memdesc:a4d3604ddc8a2ca5ac715103ec148f896"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dry air density [kg/m3]. <br /></td></tr>
+<tr class="separator:a4d3604ddc8a2ca5ac715103ec148f896"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab6a7eca5ae393135b1d1bcff79f0d23c"><td class="memItemLeft" align="right" valign="top"><a id="ab6a7eca5ae393135b1d1bcff79f0d23c"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ab6a7eca5ae393135b1d1bcff79f0d23c">airnumden</a></td></tr>
+<tr class="memdesc:ab6a7eca5ae393135b1d1bcff79f0d23c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dry air density [molec/cm3]. <br /></td></tr>
+<tr class="separator:ab6a7eca5ae393135b1d1bcff79f0d23c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab620c3dafc87a7284b59ba421d93790d"><td class="memItemLeft" align="right" valign="top"><a id="ab620c3dafc87a7284b59ba421d93790d"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ab620c3dafc87a7284b59ba421d93790d">mairden</a></td></tr>
+<tr class="memdesc:ab620c3dafc87a7284b59ba421d93790d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Moist air density [kg/m3]. <br /></td></tr>
+<tr class="separator:ab620c3dafc87a7284b59ba421d93790d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aef7f7c54d6ad2bdeb27728baf0e2b8a1"><td class="memItemLeft" align="right" valign="top"><a id="aef7f7c54d6ad2bdeb27728baf0e2b8a1"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#aef7f7c54d6ad2bdeb27728baf0e2b8a1">avgw</a></td></tr>
+<tr class="memdesc:aef7f7c54d6ad2bdeb27728baf0e2b8a1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Water vapor volume mixing ratio [vol H2O/vol dry air]. <br /></td></tr>
+<tr class="separator:aef7f7c54d6ad2bdeb27728baf0e2b8a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6aa9895f109e00794b85c049a5477b6e"><td class="memItemLeft" align="right" valign="top"><a id="a6aa9895f109e00794b85c049a5477b6e"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a6aa9895f109e00794b85c049a5477b6e">delp</a></td></tr>
+<tr class="memdesc:a6aa9895f109e00794b85c049a5477b6e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Delta-P (wet) across box [hPa]. <br /></td></tr>
+<tr class="separator:a6aa9895f109e00794b85c049a5477b6e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac9f9254b9a50298bff8fd16f606e6c5e"><td class="memItemLeft" align="right" valign="top"><a id="ac9f9254b9a50298bff8fd16f606e6c5e"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#ac9f9254b9a50298bff8fd16f606e6c5e">delp_dry</a></td></tr>
+<tr class="memdesc:ac9f9254b9a50298bff8fd16f606e6c5e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Delta-P (dry) across box [hPa]. <br /></td></tr>
+<tr class="separator:ac9f9254b9a50298bff8fd16f606e6c5e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aae4a0a9375bc2a806484c1bdd80dc4ca"><td class="memItemLeft" align="right" valign="top"><a id="aae4a0a9375bc2a806484c1bdd80dc4ca"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#aae4a0a9375bc2a806484c1bdd80dc4ca">dairmass</a></td></tr>
+<tr class="memdesc:aae4a0a9375bc2a806484c1bdd80dc4ca"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dry air mass [kg] in grid box. <br /></td></tr>
+<tr class="separator:aae4a0a9375bc2a806484c1bdd80dc4ca"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8d1ddd2d5c5d58bc85c96fa9ac54a345"><td class="memItemLeft" align="right" valign="top"><a id="a8d1ddd2d5c5d58bc85c96fa9ac54a345"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a8d1ddd2d5c5d58bc85c96fa9ac54a345">airvol</a></td></tr>
+<tr class="memdesc:a8d1ddd2d5c5d58bc85c96fa9ac54a345"><td class="mdescLeft">&#160;</td><td class="mdescRight">Grid box volume [m3] (dry air) <br /></td></tr>
+<tr class="separator:a8d1ddd2d5c5d58bc85c96fa9ac54a345"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a57d9eacecbfddb14c052984a7f623527"><td class="memItemLeft" align="right" valign="top"><a id="a57d9eacecbfddb14c052984a7f623527"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#a57d9eacecbfddb14c052984a7f623527">pedge_dry</a></td></tr>
+<tr class="memdesc:a57d9eacecbfddb14c052984a7f623527"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dry air partial pressure @ level edges [hPa]. <br /></td></tr>
+<tr class="separator:a57d9eacecbfddb14c052984a7f623527"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af0740b14c94cacc6880f05665de25e70"><td class="memItemLeft" align="right" valign="top"><a id="af0740b14c94cacc6880f05665de25e70"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#af0740b14c94cacc6880f05665de25e70">pmid</a></td></tr>
+<tr class="memdesc:af0740b14c94cacc6880f05665de25e70"><td class="mdescLeft">&#160;</td><td class="mdescRight">Average wet air pressure [hPa] defined as arithmetic average of edge pressures. <br /></td></tr>
+<tr class="separator:af0740b14c94cacc6880f05665de25e70"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af5b08cc69b4b3d4e66b3ccb83a901101"><td class="memItemLeft" align="right" valign="top"><a id="af5b08cc69b4b3d4e66b3ccb83a901101"></a>
+real(fp), dimension(:), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmetstate__mod_1_1metstatetype.html#af5b08cc69b4b3d4e66b3ccb83a901101">pmid_dry</a></td></tr>
+<tr class="memdesc:af5b08cc69b4b3d4e66b3ccb83a901101"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dry air partial pressure [hPa] defined as arithmetic avg of edge pressures. <br /></td></tr>
+<tr class="separator:af5b08cc69b4b3d4e66b3ccb83a901101"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Derived type for Meteorology State. </p>
@@ -643,19 +583,35 @@ character(len=3)&#160;</td><td class="memItemRight" valign="bottom"><b>state</b>
 <p></p>
 </blockquote>
 </div><h2 class="groupheader">Member Data Documentation</h2>
-<a id="a2338d6da4594ffe14935dbc41e10ff16"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2338d6da4594ffe14935dbc41e10ff16">&#9670;&nbsp;</a></span>ireg</h2>
+<a id="a251e6fb6c77a83116fa35f0ef3ac44a9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a251e6fb6c77a83116fa35f0ef3ac44a9">&#9670;&nbsp;</a></span>nlndtype</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">integer, pointer metstate_mod::metstatetype::ireg</td>
+          <td class="memname">integer, pointer metstate_mod::metstatetype::nlndtype</td>
         </tr>
       </table>
 </div><div class="memdoc">
 <h1><a class="anchor" id="autotoc_md11"></a>
 of landtypes in box (I,J)</h1>
+
+</div>
+</div>
+<a id="a9b0e5510b4c987e3e2fe8f9fe20859a0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9b0e5510b4c987e3e2fe8f9fe20859a0">&#9670;&nbsp;</a></span>nsoil</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">integer, pointer metstate_mod::metstatetype::nsoil</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<h1><a class="anchor" id="autotoc_md12"></a>
+number of soil layers</h1>
 
 </div>
 </div>
