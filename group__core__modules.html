@@ -237,9 +237,9 @@ Functions/Subroutines</h2></td></tr>
 <tr class="memitem:gaa5bad117f9850269ff98d078f1dd69c6"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gaa5bad117f9850269ff98d078f1dd69c6">chemstate_mod::getspecconcbyname</a> (ChemState, concentration, name, RC)</td></tr>
 <tr class="memdesc:gaa5bad117f9850269ff98d078f1dd69c6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the concentration of a species by name.  <a href="group__core__modules.html#gaa5bad117f9850269ff98d078f1dd69c6">More...</a><br /></td></tr>
 <tr class="separator:gaa5bad117f9850269ff98d078f1dd69c6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga6de92f38dff3ed5c1eec7d2ea54c7cee"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga6de92f38dff3ed5c1eec7d2ea54c7cee">config_mod::read_input_file</a> (Config, GridState, EmisState, ChemState, RC)</td></tr>
-<tr class="memdesc:ga6de92f38dff3ed5c1eec7d2ea54c7cee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the configuration file.  <a href="group__core__modules.html#ga6de92f38dff3ed5c1eec7d2ea54c7cee">More...</a><br /></td></tr>
-<tr class="separator:ga6de92f38dff3ed5c1eec7d2ea54c7cee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaaa871afed70ba5dbd87ded36caa35706"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gaaa871afed70ba5dbd87ded36caa35706">config_mod::read_input_file</a> (Config, GridState, EmisState, ChemState, RC, ConfigFilename)</td></tr>
+<tr class="memdesc:gaaa871afed70ba5dbd87ded36caa35706"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the configuration file.  <a href="group__core__modules.html#gaaa871afed70ba5dbd87ded36caa35706">More...</a><br /></td></tr>
+<tr class="separator:gaaa871afed70ba5dbd87ded36caa35706"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga2828ce1f26410b947722ec54e1c6cbd0">config_mod::config_simulation</a> (ConfigInput, Config, RC)</td></tr>
 <tr class="memdesc:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process simulation configuration.  <a href="group__core__modules.html#ga2828ce1f26410b947722ec54e1c6cbd0">More...</a><br /></td></tr>
 <tr class="separator:ga2828ce1f26410b947722ec54e1c6cbd0"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -252,6 +252,9 @@ Functions/Subroutines</h2></td></tr>
 <tr class="memitem:ga7e45fb82e702483a172a1485835f815e"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga7e45fb82e702483a172a1485835f815e">config_mod::config_process_seasalt</a> (ConfigInput, Config, RC)</td></tr>
 <tr class="memdesc:ga7e45fb82e702483a172a1485835f815e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process seasalt configuration.  <a href="group__core__modules.html#ga7e45fb82e702483a172a1485835f815e">More...</a><br /></td></tr>
 <tr class="separator:ga7e45fb82e702483a172a1485835f815e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga0705737c9e63a2419dc08d831e763b2a"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga0705737c9e63a2419dc08d831e763b2a">config_mod::config_process_plumerise</a> (ConfigInput, Config, RC)</td></tr>
+<tr class="memdesc:ga0705737c9e63a2419dc08d831e763b2a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process plumerise configuration.  <a href="group__core__modules.html#ga0705737c9e63a2419dc08d831e763b2a">More...</a><br /></td></tr>
+<tr class="separator:ga0705737c9e63a2419dc08d831e763b2a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaffc308211ba3c8ceacc4cd6cef8c6528"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gaffc308211ba3c8ceacc4cd6cef8c6528">config_opt_mod::set_config</a> (am_I_Root, Config, RC)</td></tr>
 <tr class="memdesc:gaffc308211ba3c8ceacc4cd6cef8c6528"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the Config options.  <a href="group__core__modules.html#gaffc308211ba3c8ceacc4cd6cef8c6528">More...</a><br /></td></tr>
 <tr class="separator:gaffc308211ba3c8ceacc4cd6cef8c6528"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -261,18 +264,21 @@ Functions/Subroutines</h2></td></tr>
 <tr class="memitem:ga1d3e72b0cd819739ddf2fb31e9c91722"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga1d3e72b0cd819739ddf2fb31e9c91722">diagstate_mod::diag_allocate</a> (Config, GridState, DiagState, RC)</td></tr>
 <tr class="memdesc:ga1d3e72b0cd819739ddf2fb31e9c91722"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate memory for the diagnostic state variables.  <a href="group__core__modules.html#ga1d3e72b0cd819739ddf2fb31e9c91722">More...</a><br /></td></tr>
 <tr class="separator:ga1d3e72b0cd819739ddf2fb31e9c91722"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga7aac83c4fa96ac777996a8c7e7bc4333"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga7aac83c4fa96ac777996a8c7e7bc4333">emisstate_mod::emis_allocate</a> (GridState, EmisState, RC)</td></tr>
-<tr class="memdesc:ga7aac83c4fa96ac777996a8c7e7bc4333"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate the emission state.  <a href="group__core__modules.html#ga7aac83c4fa96ac777996a8c7e7bc4333">More...</a><br /></td></tr>
-<tr class="separator:ga7aac83c4fa96ac777996a8c7e7bc4333"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6a265c96a1a9e6998af339746e28a167"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga6a265c96a1a9e6998af339746e28a167">emisstate_mod::emis_allocate</a> (GridState, EmisState, RC)</td></tr>
+<tr class="memdesc:ga6a265c96a1a9e6998af339746e28a167"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate the emission state.  <a href="group__core__modules.html#ga6a265c96a1a9e6998af339746e28a167">More...</a><br /></td></tr>
+<tr class="separator:ga6a265c96a1a9e6998af339746e28a167"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga1c1127d6a6674f39656266f15d83928b"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga1c1127d6a6674f39656266f15d83928b">emisstate_mod::totemisspecies_allocate</a> (GridState, EmisState, RC)</td></tr>
 <tr class="memdesc:ga1c1127d6a6674f39656266f15d83928b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate the total emitted species.  <a href="group__core__modules.html#ga1c1127d6a6674f39656266f15d83928b">More...</a><br /></td></tr>
 <tr class="separator:ga1c1127d6a6674f39656266f15d83928b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga6e604aeac78c9a2dc2cd498c15547941"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga6e604aeac78c9a2dc2cd498c15547941">emisstate_mod::emis_find_chem_map_index</a> (EmisState, ChemState, RC)</td></tr>
-<tr class="memdesc:ga6e604aeac78c9a2dc2cd498c15547941"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the index of the mapped species.  <a href="group__core__modules.html#ga6e604aeac78c9a2dc2cd498c15547941">More...</a><br /></td></tr>
-<tr class="separator:ga6e604aeac78c9a2dc2cd498c15547941"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaaaf061a1d7f2d47365d0e4de0e34f413"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gaaaf061a1d7f2d47365d0e4de0e34f413">emisstate_mod::apply_emis_to_chem</a> (Species, MetState, ChemState, RC)</td></tr>
-<tr class="memdesc:gaaaf061a1d7f2d47365d0e4de0e34f413"><td class="mdescLeft">&#160;</td><td class="mdescRight">Apply emissions to the chemical state.  <a href="group__core__modules.html#gaaaf061a1d7f2d47365d0e4de0e34f413">More...</a><br /></td></tr>
-<tr class="separator:gaaaf061a1d7f2d47365d0e4de0e34f413"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gac812932ea5d0cb6a562bd34950d4336e"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gac812932ea5d0cb6a562bd34950d4336e">emisstate_mod::emis_find_chem_map_index</a> (EmisState, ChemState, RC)</td></tr>
+<tr class="memdesc:gac812932ea5d0cb6a562bd34950d4336e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the index of the mapped species.  <a href="group__core__modules.html#gac812932ea5d0cb6a562bd34950d4336e">More...</a><br /></td></tr>
+<tr class="separator:gac812932ea5d0cb6a562bd34950d4336e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga525bf8c9909d91935aadfb01bf6cf79e"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga525bf8c9909d91935aadfb01bf6cf79e">emisstate_mod::apply_emis_to_chem</a> (EmisState, MetState, ChemState, RC, surface_only_flag)</td></tr>
+<tr class="memdesc:ga525bf8c9909d91935aadfb01bf6cf79e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Apply emissions to the chemical state.  <a href="group__core__modules.html#ga525bf8c9909d91935aadfb01bf6cf79e">More...</a><br /></td></tr>
+<tr class="separator:ga525bf8c9909d91935aadfb01bf6cf79e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad73685620af586a4c5c67505b7a9ae50"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#gad73685620af586a4c5c67505b7a9ae50">emisstate_mod::emisstate_cleanup</a> (EmisState, RC)</td></tr>
+<tr class="memdesc:gad73685620af586a4c5c67505b7a9ae50"><td class="mdescLeft">&#160;</td><td class="mdescRight">Clean up the emission state.  <a href="group__core__modules.html#gad73685620af586a4c5c67505b7a9ae50">More...</a><br /></td></tr>
+<tr class="separator:gad73685620af586a4c5c67505b7a9ae50"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga51caf927c8403a431dd55956762ad350"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__core__modules.html#ga51caf927c8403a431dd55956762ad350">error_mod::cc_error</a> (ErrMsg, RC, ThisLoc, Instr)</td></tr>
 <tr class="memdesc:ga51caf927c8403a431dd55956762ad350"><td class="mdescLeft">&#160;</td><td class="mdescRight">CC_Error.  <a href="group__core__modules.html#ga51caf927c8403a431dd55956762ad350">More...</a><br /></td></tr>
 <tr class="separator:ga51caf927c8403a431dd55956762ad350"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -300,17 +306,17 @@ Functions/Subroutines</h2></td></tr>
 <p></p>
 </blockquote>
 <h2 class="groupheader">Function/Subroutine Documentation</h2>
-<a id="gaaaf061a1d7f2d47365d0e4de0e34f413"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaaaf061a1d7f2d47365d0e4de0e34f413">&#9670;&nbsp;</a></span>apply_emis_to_chem()</h2>
+<a id="ga525bf8c9909d91935aadfb01bf6cf79e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga525bf8c9909d91935aadfb01bf6cf79e">&#9670;&nbsp;</a></span>apply_emis_to_chem()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">subroutine emisstate_mod::apply_emis_to_chem </td>
+          <td class="memname">subroutine, public emisstate_mod::apply_emis_to_chem </td>
           <td>(</td>
-          <td class="paramtype">type(emisspeciestype), intent(in)&#160;</td>
-          <td class="paramname"><em>Species</em>, </td>
+          <td class="paramtype">type(<a class="el" href="structemisstate__mod_1_1emisstatetype.html">emisstatetype</a>), intent(in)&#160;</td>
+          <td class="paramname"><em>EmisState</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -328,7 +334,13 @@ Functions/Subroutines</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">integer, intent(out)&#160;</td>
-          <td class="paramname"><em>RC</em>&#160;</td>
+          <td class="paramname"><em>RC</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">logical, intent(in), optional&#160;</td>
+          <td class="paramname"><em>surface_only_flag</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -889,6 +901,60 @@ Here is the call graph for this function:</div>
 
 </div>
 </div>
+<a id="ga0705737c9e63a2419dc08d831e763b2a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga0705737c9e63a2419dc08d831e763b2a">&#9670;&nbsp;</a></span>config_process_plumerise()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">subroutine config_mod::config_process_plumerise </td>
+          <td>(</td>
+          <td class="paramtype">type(qfyaml_t), intent(inout)&#160;</td>
+          <td class="paramname"><em>ConfigInput</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">type(<a class="el" href="structconfig__opt__mod_1_1configtype.html">configtype</a>), intent(inout)&#160;</td>
+          <td class="paramname"><em>Config</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">integer, intent(out)&#160;</td>
+          <td class="paramname"><em>RC</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Process plumerise configuration. </p>
+<p>This function processes the plumerise configuration and performs the necessary actions based on the configuration.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">ConfigInput</td><td>The YAML configuration object </td></tr>
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">Config</td><td>The configuration object </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">RC</td><td>The return code</td></tr>
+  </table>
+  </dd>
+</dl>
+<blockquote class="doxtable">
+<p></p>
+</blockquote>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_ga0705737c9e63a2419dc08d831e763b2a_cgraph.svg" width="847" height="88"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
+</div>
+</div>
+
+</div>
+</div>
 <a id="ga7e45fb82e702483a172a1485835f815e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga7e45fb82e702483a172a1485835f815e">&#9670;&nbsp;</a></span>config_process_seasalt()</h2>
 
@@ -1139,14 +1205,14 @@ Here is the call graph for this function:</div>
 
 </div>
 </div>
-<a id="ga7aac83c4fa96ac777996a8c7e7bc4333"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga7aac83c4fa96ac777996a8c7e7bc4333">&#9670;&nbsp;</a></span>emis_allocate()</h2>
+<a id="ga6a265c96a1a9e6998af339746e28a167"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6a265c96a1a9e6998af339746e28a167">&#9670;&nbsp;</a></span>emis_allocate()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">subroutine emisstate_mod::emis_allocate </td>
+          <td class="memname">subroutine, public emisstate_mod::emis_allocate </td>
           <td>(</td>
           <td class="paramtype">type(<a class="el" href="structgridstate__mod_1_1gridstatetype.html">gridstatetype</a>), intent(in)&#160;</td>
           <td class="paramname"><em>GridState</em>, </td>
@@ -1184,17 +1250,23 @@ Here is the call graph for this function:</div>
 <blockquote class="doxtable">
 <p></p>
 </blockquote>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_ga6a265c96a1a9e6998af339746e28a167_cgraph.svg" width="843" height="52"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
+</div>
+</div>
 
 </div>
 </div>
-<a id="ga6e604aeac78c9a2dc2cd498c15547941"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga6e604aeac78c9a2dc2cd498c15547941">&#9670;&nbsp;</a></span>emis_find_chem_map_index()</h2>
+<a id="gac812932ea5d0cb6a562bd34950d4336e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac812932ea5d0cb6a562bd34950d4336e">&#9670;&nbsp;</a></span>emis_find_chem_map_index()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">subroutine emisstate_mod::emis_find_chem_map_index </td>
+          <td class="memname">subroutine, public emisstate_mod::emis_find_chem_map_index </td>
           <td>(</td>
           <td class="paramtype">type(<a class="el" href="structemisstate__mod_1_1emisstatetype.html">emisstatetype</a>), intent(inout)&#160;</td>
           <td class="paramname"><em>EmisState</em>, </td>
@@ -1235,9 +1307,49 @@ Here is the call graph for this function:</div>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_ga6e604aeac78c9a2dc2cd498c15547941_cgraph.svg" width="476" height="52"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
+<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_gac812932ea5d0cb6a562bd34950d4336e_cgraph.svg" width="948" height="88"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
 </div>
 </div>
+
+</div>
+</div>
+<a id="gad73685620af586a4c5c67505b7a9ae50"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad73685620af586a4c5c67505b7a9ae50">&#9670;&nbsp;</a></span>emisstate_cleanup()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">subroutine, public emisstate_mod::emisstate_cleanup </td>
+          <td>(</td>
+          <td class="paramtype">type(<a class="el" href="structemisstate__mod_1_1emisstatetype.html">emisstatetype</a>), intent(inout)&#160;</td>
+          <td class="paramname"><em>EmisState</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">integer, intent(out)&#160;</td>
+          <td class="paramname"><em>RC</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Clean up the emission state. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">EmisState</td><td>Emission State </td></tr>
+    <tr><td class="paramname">RC</td><td>Return code</td></tr>
+  </table>
+  </dd>
+</dl>
+<blockquote class="doxtable">
+<p></p>
+</blockquote>
 
 </div>
 </div>
@@ -1735,7 +1847,7 @@ Here is the call graph for this function:</div>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_ga09b0f35a4e262c49d378b175a0310074_cgraph.svg" width="883" height="88"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
+<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_ga09b0f35a4e262c49d378b175a0310074_cgraph.svg" width="1080" height="63"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
 </div>
 </div>
 
@@ -1817,11 +1929,17 @@ Here is the call graph for this function:</div>
   </table>
   </dd>
 </dl>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_gad1e148405a99dea51c273511b9c1ce5c_cgraph.svg" width="891" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
+</div>
+</div>
 
 </div>
 </div>
-<a id="ga6de92f38dff3ed5c1eec7d2ea54c7cee"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga6de92f38dff3ed5c1eec7d2ea54c7cee">&#9670;&nbsp;</a></span>read_input_file()</h2>
+<a id="gaaa871afed70ba5dbd87ded36caa35706"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaaa871afed70ba5dbd87ded36caa35706">&#9670;&nbsp;</a></span>read_input_file()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1854,7 +1972,13 @@ Here is the call graph for this function:</div>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">integer, intent(out)&#160;</td>
-          <td class="paramname"><em>RC</em>&#160;</td>
+          <td class="paramname"><em>RC</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">character(len=*), intent(in), optional&#160;</td>
+          <td class="paramname"><em>ConfigFilename</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -1880,7 +2004,7 @@ Here is the call graph for this function:</div>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_ga6de92f38dff3ed5c1eec7d2ea54c7cee_cgraph.svg" width="1164" height="287"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
+<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_gaaa871afed70ba5dbd87ded36caa35706_cgraph.svg" width="1164" height="352"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
 </div>
 </div>
 
@@ -2247,6 +2371,12 @@ Here is the call graph for this function:</div>
 <blockquote class="doxtable">
 <p></p>
 </blockquote>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" frameborder="0" src="group__core__modules_ga1c1127d6a6674f39656266f15d83928b_cgraph.svg" width="911" height="52"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe>
+</div>
+</div>
 
 </div>
 </div>
