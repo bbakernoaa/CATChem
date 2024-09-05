@@ -44,6 +44,7 @@ var NAVTREE =
       [ "Data Types", "classes.html", null ],
       [ "Data Fields", "functions.html", [
         [ "All", "functions.html", null ],
+        [ "Functions/Subroutines", "functions_func.html", null ],
         [ "Variables", "functions_vars.html", null ]
       ] ]
     ] ],
@@ -56,8 +57,8 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "annotated.html",
-"qfyaml__mod_8F90.html#a4ad6165a05819ed17dea700444c86a38",
-"structmetstate__mod_1_1metstatetype.html#ac7de9b54d40e2bcde3d3ccf5ff3a3bc5"
+"qfyaml__mod_8F90.html#a428ffd19f5c9903f3f4d06a77c398a0c",
+"structmetstate__mod_1_1metstatetype.html#ac38333fa89fce5403d2f920ce8e846b1"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

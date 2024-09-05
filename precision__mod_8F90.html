@@ -86,6 +86,8 @@ $(document).ready(function(){initNavTree('precision__mod_8F90.html',''); initRes
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Types</a> &#124;
+<a href="#func-members">Functions/Subroutines</a> &#124;
 <a href="#var-members">Variables</a>  </div>
   <div class="headertitle">
 <div class="title">precision_mod.F90 File Reference<div class="ingroups"><a class="el" href="group__core__modules.html">Core_modules</a></div></div>  </div>
@@ -95,6 +97,22 @@ $(document).ready(function(){initNavTree('precision__mod_8F90.html',''); initRes
 <p>Module PRECISION_MOD is used to change the precision of many variables throughout catchem at compile-time. Also contains parameters that can be used to represent missing values.  
 <a href="#details">More...</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="nested-classes"></a>
+Data Types</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">interface &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="interfaceprecision__mod_1_1rae.html">precision_mod::rae</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
+Functions/Subroutines</h2></td></tr>
+<tr class="memitem:a41ddf075a27b283984f59b2a0e6de7d8"><td class="memItemLeft" align="right" valign="top"><a id="a41ddf075a27b283984f59b2a0e6de7d8"></a>
+logical function&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="precision__mod_8F90.html#a41ddf075a27b283984f59b2a0e6de7d8">precision_mod::rae_f4</a> (a, b)</td></tr>
+<tr class="memdesc:a41ddf075a27b283984f59b2a0e6de7d8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Real approximately equal: <code>abs(a - b) &lt; tiny(a)</code> <br /></td></tr>
+<tr class="separator:a41ddf075a27b283984f59b2a0e6de7d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3dad4cff4c4d1384e1cbf3158ace195f"><td class="memItemLeft" align="right" valign="top"><a id="a3dad4cff4c4d1384e1cbf3158ace195f"></a>
+logical function&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="precision__mod_8F90.html#a3dad4cff4c4d1384e1cbf3158ace195f">precision_mod::rae_f8</a> (a, b)</td></tr>
+<tr class="memdesc:a3dad4cff4c4d1384e1cbf3158ace195f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Real approximately equal: <code>abs(a - b) &lt; tiny(a)</code> <br /></td></tr>
+<tr class="separator:a3dad4cff4c4d1384e1cbf3158ace195f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
 <tr class="memitem:a75fdfe95b9c5392ecc43993a46f71295"><td class="memItemLeft" align="right" valign="top"><a id="a75fdfe95b9c5392ecc43993a46f71295"></a>
@@ -145,18 +163,17 @@ real(f4), parameter, public&#160;</td><td class="memItemRight" valign="bottom"><
 real(f8), parameter, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="precision__mod_8F90.html#af64fba0ea4b5a65015a9c2b5de2cee60">precision_mod::zero_dble</a> = 0.0_f8</td></tr>
 <tr class="memdesc:af64fba0ea4b5a65015a9c2b5de2cee60"><td class="mdescLeft">&#160;</td><td class="mdescRight">Zero value (kind=f8) <br /></td></tr>
 <tr class="separator:af64fba0ea4b5a65015a9c2b5de2cee60"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afb4468560f12b287d230193f6086d33a"><td class="memItemLeft" align="right" valign="top"><a id="afb4468560f12b287d230193f6086d33a"></a>
-real(fp), parameter, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="precision__mod_8F90.html#afb4468560f12b287d230193f6086d33a">precision_mod::tiny</a> = 1.0e-16_fp</td></tr>
-<tr class="memdesc:afb4468560f12b287d230193f6086d33a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Tiny value (kind=fp) <br /></td></tr>
-<tr class="separator:afb4468560f12b287d230193f6086d33a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5bcd4814a238bde64e33dd58523efa61"><td class="memItemLeft" align="right" valign="top"><a id="a5bcd4814a238bde64e33dd58523efa61"></a>
 real(f4), parameter, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="precision__mod_8F90.html#a5bcd4814a238bde64e33dd58523efa61">precision_mod::tiny_real</a> = 1.0e-16_f4</td></tr>
-<tr class="memdesc:a5bcd4814a238bde64e33dd58523efa61"><td class="mdescLeft">&#160;</td><td class="mdescRight">Tiny value (kind=f4) <br /></td></tr>
+<tr class="memdesc:a5bcd4814a238bde64e33dd58523efa61"><td class="mdescLeft">&#160;</td><td class="mdescRight">A small value (kind=f4) <br /></td></tr>
 <tr class="separator:a5bcd4814a238bde64e33dd58523efa61"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae27c86fd122002e4d83430dd5bde7786"><td class="memItemLeft" align="right" valign="top"><a id="ae27c86fd122002e4d83430dd5bde7786"></a>
 real(f8), parameter, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="precision__mod_8F90.html#ae27c86fd122002e4d83430dd5bde7786">precision_mod::tiny_dble</a> = 1.0e-31_f8</td></tr>
-<tr class="memdesc:ae27c86fd122002e4d83430dd5bde7786"><td class="mdescLeft">&#160;</td><td class="mdescRight">tiny value (kind=f8) <br /></td></tr>
+<tr class="memdesc:ae27c86fd122002e4d83430dd5bde7786"><td class="mdescLeft">&#160;</td><td class="mdescRight">A small value (kind=f8) <br /></td></tr>
 <tr class="separator:ae27c86fd122002e4d83430dd5bde7786"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9ebc117ace5b18bbbe130d245f418ef6"><td class="memItemLeft" align="right" valign="top"><a id="a9ebc117ace5b18bbbe130d245f418ef6"></a>
+real(fp), parameter, public&#160;</td><td class="memItemRight" valign="bottom"><b>precision_mod::tiny_</b> = TINY_REAL</td></tr>
+<tr class="separator:a9ebc117ace5b18bbbe130d245f418ef6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3f1a9f1a799cb775a2c3dd7eff346f47"><td class="memItemLeft" align="right" valign="top"><a id="a3f1a9f1a799cb775a2c3dd7eff346f47"></a>
 real(fp), parameter, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="precision__mod_8F90.html#a3f1a9f1a799cb775a2c3dd7eff346f47">precision_mod::one</a> = 1.0_fp</td></tr>
 <tr class="memdesc:a3f1a9f1a799cb775a2c3dd7eff346f47"><td class="mdescLeft">&#160;</td><td class="mdescRight">One value (kind=fp) <br /></td></tr>

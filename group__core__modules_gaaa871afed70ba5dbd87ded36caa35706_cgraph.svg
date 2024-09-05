@@ -36,7 +36,7 @@
 <!-- Node5 -->
 <g id="node5" class="node">
 <title>Node5</title>
-<g id="a_node5"><a xlink:href="group__core__modules.html#gaabe8c8bd2f1a373967f7bc804aedb91e" target="_top" xlink:title="Process grid configuration.">
+<g id="a_node5"><a xlink:href="group__core__modules.html#ga10f00109641c5ffb13f2693cae3b3081" target="_top" xlink:title="Process grid configuration.">
 <polygon fill="white" stroke="black" points="187,-236 187,-255 319,-255 319,-236 187,-236"/>
 <text text-anchor="middle" x="253" y="-243" font-family="Helvetica,sans-Serif" font-size="10.00">config_mod::config_grid</text>
 </a>

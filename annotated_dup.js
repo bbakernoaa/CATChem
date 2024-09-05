@@ -21,6 +21,9 @@ var annotated_dup =
     [ "metstate_mod", null, [
       [ "metstatetype", "structmetstate__mod_1_1metstatetype.html", "structmetstate__mod_1_1metstatetype" ]
     ] ],
+    [ "precision_mod", null, [
+      [ "rae", "interfaceprecision__mod_1_1rae.html", "interfaceprecision__mod_1_1rae" ]
+    ] ],
     [ "species_mod", null, [
       [ "speciestype", "structspecies__mod_1_1speciestype.html", "structspecies__mod_1_1speciestype" ]
     ] ]
