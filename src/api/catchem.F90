@@ -41,6 +41,8 @@ module CATChem
    ! Configuration Read
    !-------------------
    use Config_Mod, only: cc_read_config => Read_Input_File  !< Method for reading the configuration file
+   use Config_Mod, only: cc_config_chemstate => Config_ChemState  !< Method for reading the configuration file
+   use Config_Mod, only: cc_config_emisstate => Config_EmisState  !< Method for reading the configuration file
 
    !---------------
    ! Error Handling
