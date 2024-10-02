@@ -56,14 +56,14 @@ CONTAINS
    !! \param RC The return code
    !! \ingroup core_modules
    !!!>
-   subroutine Diag_Allocate(Config, DiagState, RC)
+   subroutine Diag_Allocate(Config, MetState, DiagState, RC)
       ! USES
-      USE GridState_Mod, ONLY : GridStateType
+      use MetState_Mod,  only : MetStateType
       USE Config_Opt_Mod, ONLY : ConfigType
 
       ! Arguments
       type(ConfigType),    INTENT(IN)    :: Config
-      ! type(GridStateType), INTENT(IN)    :: GridState ! Grid State object
+      type(MetStateType),  INTENT(IN)    :: MetState
       type(DiagStateType), INTENT(INOUT) :: DiagState ! Diag State object
       ! OUTPUT Params
       INTEGER,             INTENT(OUT)   :: RC        ! Success or failure
