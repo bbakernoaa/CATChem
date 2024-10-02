@@ -232,14 +232,12 @@ CONTAINS
    !! \param MetState    CATCHem met state
    !! \param RC          Error return code
    !!!>
-   SUBROUTINE Met_Allocate( GridState, MetState, RC)
+   SUBROUTINE Met_Allocate( MetState, RC)
       ! USES
-      USE GridState_Mod, Only : GridStateType
 
       IMPLICIT NONE
 
       ! Arguments
-      TYPE(GridStateType), INTENT(IN)  :: GridState !< Grid state
       TYPE(MetStateType), INTENT(INOUT) :: MetState !< Meteorological state
       INTEGER,            INTENT(OUT)   :: RC       !< Return code
 
@@ -258,7 +256,6 @@ CONTAINS
       !--------------------------------------------------
       ! Initialize fields
       !--------------------------------------------------
-      MetState%nSOIL = GridState%number_of_soil_layers
       print*, 'MetState%nSOIL = ', MetState%nSOIL
 
       ! Visible Surface Albedo
