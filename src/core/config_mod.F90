@@ -38,15 +38,15 @@ CONTAINS
    !!
    !! \ingroup core_modules
    !!!>
-   SUBROUTINE Read_Input_File( Config , GridState, EmisState, ChemState, RC, ConfigFilename )
+   SUBROUTINE Read_Input_File( Config, RC, ConfigFilename )
 !
 ! !USES:
 !
       USE Error_Mod
       USE Config_Opt_Mod,  ONLY : ConfigType
-      USE GridState_Mod, ONLY : GridStateType
-      use ChemState_Mod, only : ChemStateType
-      use EmisState_Mod, only : EmisStateType
+      ! USE GridState_Mod, ONLY : GridStateType
+      ! use ChemState_Mod, only : ChemStateType
+      ! use EmisState_Mod, only : EmisStateType
 
       ! !INPUT PARAMETERS:
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL :: ConfigFilename
@@ -54,9 +54,9 @@ CONTAINS
 ! !INPUT/OUTPUT PARAMETERS:
 !
       TYPE(ConfigType),    INTENT(INOUT) :: Config    ! Input options
-      TYPE(GridStateType), INTENT(INOUT) :: GridState  ! Grid State object
-      TYPE(ChemStateType), INTENT(inout) :: ChemState ! Chemical State
-      TYPE(EmisStateType), INTENT(inout) :: EmisState ! Emission State
+      ! TYPE(GridStateType), INTENT(INOUT) :: GridState  ! Grid State object
+      ! TYPE(ChemStateType), INTENT(inout) :: ChemState ! Chemical State
+      ! TYPE(EmisStateType), INTENT(inout) :: EmisState ! Emission State
 !
 ! !OUTPUT PARAMETERS:
 !
@@ -164,29 +164,29 @@ CONTAINS
          RETURN
       ENDIF
 
-      !========================================================================
-      ! Config ChemState
-      !========================================================================
-      call Config_Chem_State(config%Species_File, GridState, ChemState, RC)
-      if (RC /= CC_SUCCESS) then
-         errMsg = 'Error in "Config_Chem_State"!'
-         CALL CC_Error( errMsg, RC, thisLoc  )
-         CALL QFYAML_CleanUp( ConfigInput )
-         CALL QFYAML_CleanUp( ConfigAnchored )
-         RETURN
-      endif
+      ! !========================================================================
+      ! ! Config ChemState
+      ! !========================================================================
+      ! call Config_Chem_State(config%Species_File, GridState, ChemState, RC)
+      ! if (RC /= CC_SUCCESS) then
+      !    errMsg = 'Error in "Config_Chem_State"!'
+      !    CALL CC_Error( errMsg, RC, thisLoc  )
+      !    CALL QFYAML_CleanUp( ConfigInput )
+      !    CALL QFYAML_CleanUp( ConfigAnchored )
+      !    RETURN
+      ! endif
 
-      !========================================================================
-      ! Config EmisState
-      !========================================================================
-      call Config_Emis_State(config%Emission_File, EmisState, RC)
-      if (RC /= CC_SUCCESS) then
-         errMsg = 'Error in "Config_Emis_State"!'
-         CALL CC_Error( errMsg, RC, thisLoc  )
-         CALL QFYAML_CleanUp( ConfigInput )
-         CALL QFYAML_CleanUp( ConfigAnchored )
-         RETURN
-      endif
+      ! !========================================================================
+      ! ! Config EmisState
+      ! !========================================================================
+      ! call Config_Emis_State(config%Emission_File, EmisState, RC)
+      ! if (RC /= CC_SUCCESS) then
+      !    errMsg = 'Error in "Config_Emis_State"!'
+      !    CALL CC_Error( errMsg, RC, thisLoc  )
+      !    CALL QFYAML_CleanUp( ConfigInput )
+      !    CALL QFYAML_CleanUp( ConfigAnchored )
+      !    RETURN
+      ! endif
 
       !========================================================================
       ! Further error-checking and initialization
@@ -204,15 +204,15 @@ CONTAINS
    !! \param   RC Return code
    !!
    !!!>
-   SUBROUTINE Config_Chem_State( filename, GridState, ChemState, RC )
+   SUBROUTINE Config_Chem_State( filename, MetState, ChemState, RC )
       USE ChemState_Mod, ONLY : ChemStateType, Find_Number_of_Species, Find_Index_of_Species
       use Config_Opt_Mod, ONLY : ConfigType
       USE Error_Mod
-      USE GridState_Mod, ONLY : GridStateType
+      USE MetState_Mod, ONLY : MetStateType
 
       CHARACTER(LEN=*), INTENT(IN) :: filename
       TYPE(ChemStateType), INTENT(INOUT) :: ChemState
-      TYPE(GridStateType), INTENT(IN) :: GridState
+      TYPE(MetStateType), INTENT(IN) :: MetState
       INTEGER, INTENT(INOUT) :: RC
 
       TYPE(QFYAML_t)     :: ConfigInput, ConfigAnchored
@@ -532,7 +532,7 @@ CONTAINS
          !---------------------------------------
          ! Allocate initial Species Concentration
          !---------------------------------------
-         ALLOCATE(ChemState%ChemSpecies(n)%conc(GridState%number_of_levels), STAT=RC)
+         ALLOCATE(ChemState%ChemSpecies(n)%conc(MetState%NLEVS), STAT=RC)
 
       enddo ! n
 
