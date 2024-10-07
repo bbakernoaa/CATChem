@@ -127,5 +127,6 @@ var structmetstate__mod_1_1metstatetype =
     [ "wilt", "structmetstate__mod_1_1metstatetype.html#aa373bce9e0b43f7bee1c1b51bf64c003", null ],
     [ "z", "structmetstate__mod_1_1metstatetype.html#a3934f0cf36e74813cba6d8018ea4dac7", null ],
     [ "z0", "structmetstate__mod_1_1metstatetype.html#ac3602bb57087d25525f2d20295952ee9", null ],
+    [ "z0h", "structmetstate__mod_1_1metstatetype.html#a077b05ce12f73111c4c6486d7b519794", null ],
     [ "zmid", "structmetstate__mod_1_1metstatetype.html#ac4ed901d35a1baf7b06a4a48dab236c3", null ]
 ];

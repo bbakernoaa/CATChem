@@ -1,6 +1,9 @@
 var structconfig__opt__mod_1_1configtype =
 [
     [ "amiroot", "structconfig__opt__mod_1_1configtype.html#a5bcde2a6a8d495404fad78eddd4249cb", null ],
+    [ "drydep_activate", "structconfig__opt__mod_1_1configtype.html#ac48a1fc32f47fa97a6065a63b73de8d8", null ],
+    [ "drydep_resuspension", "structconfig__opt__mod_1_1configtype.html#aff737d11f851e4f95c23bae7622fcbaa", null ],
+    [ "drydep_scheme", "structconfig__opt__mod_1_1configtype.html#ad9a3c7dc9dd8d7907fa48a3b143a54f5", null ],
     [ "dryrun", "structconfig__opt__mod_1_1configtype.html#a858c8d4e9ccacd61ace3e7bac7dbf22a", null ],
     [ "dust_activate", "structconfig__opt__mod_1_1configtype.html#a7f12b5f7e81b1911dee10361e685314d", null ],
     [ "dust_alpha", "structconfig__opt__mod_1_1configtype.html#a33633f8b85d13785073cf1b762a76d86", null ],
