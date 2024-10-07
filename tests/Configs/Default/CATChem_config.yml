@@ -19,7 +19,7 @@ simulation:
 #============================================================================
 grid:
   number_of_levels: 28
-  number_of_soil_layers: 4
+  numbber_of_soil_layers: 4
 #============================================================================
 # Timesteps settings
 #============================================================================
@@ -43,7 +43,3 @@ process:
     dust_horizflux_opt: 1
     dust_alpha: 1.0
     dust_beta: 1.0
-  drydep:
-    activate: true
-    scheme_opt: 1
-    resuspension: false

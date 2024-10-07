@@ -77,11 +77,6 @@ module CATChem
    use CCPr_Plumerise_mod, only: cc_plumerise_init => CCPr_Plumerise_Init         !< Plumerise Process Initialization Routine
    use CCPr_Plumerise_mod, only: cc_plumerise_run => CCPr_Plumerise_Run           !< Plumerise Process Run Routine
    use CCPr_Plumerise_mod, only: cc_plumerise_finalize => CCPr_Plumerise_Finalize !< Plumerise Process Finalization Routine
-   ! Dry Dep
-   use CCPr_DryDep_mod, only: DryDepStateType                            !< DryDep State
-   use CCPr_DryDep_mod, only: cc_drydep_init => CCPr_DryDep_Init         !< DryDep Process Initialization Routine
-   use CCPr_DryDep_mod, only: cc_drydep_run => CCPr_DryDep_Run           !< DryDep Process Run Routine
-   use CCPr_DryDep_mod, only: cc_drydep_finalize => CCPr_DryDep_Finalize !< DryDep Process Finalization Routine
 
    implicit none
 

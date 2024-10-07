@@ -42,9 +42,6 @@ MODULE Config_Opt_Mod
    !! - `dust_scheme_opt` : Scheme option for dust process
    !! - `seasalt_activate` : Activate seasalt process
    !! - `seasalt_scheme_opt` : Scheme option for seasalt process
-   !! - `drydep_activate` : Activate drydep process
-   !! - `drydep_scheme` : Scheme option for drydep process
-   !! - `drydep_resuspension` : Activate resuspension
    !!
    !! \ingroup core_modules
    !!!>
@@ -97,10 +94,7 @@ MODULE Config_Opt_Mod
       ! Plumerise Process
       LOGICAL                     :: plumerise_activate
 
-      ! DryDeposition Process
-      LOGICAL                     :: drydep_activate
-      INTEGER                     :: drydep_scheme
-      LOGICAL                     :: drydep_resuspension  !< Turn on resuspension
+
 
    END TYPE ConfigType
 
@@ -171,10 +165,7 @@ CONTAINS
       Config%seasalt_activate = .FALSE.
       Config%seasalt_scheme = 1
 
-      ! Dry Dep Process
-      Config%drydep_activate = .FALSE.
-      Config%drydep_scheme = 1
-      Config%drydep_resuspension = .FALSE.
+
 
    END SUBROUTINE Set_Config
    !> \brief Cleanup the Config options

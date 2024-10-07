@@ -64,11 +64,10 @@ contains
    !!
    !! \ingroup core_modules
    !!!>
-   subroutine Init_Diag(Config, DiagState, ChemState, RC)
+   subroutine Init_Diag(Config, DiagState, RC)
       use DiagState_Mod
       use Config_Opt_Mod, Only : ConfigType
-      ! use GridState_Mod, Only : GridStateType
-      use ChemState_Mod, Only : ChemStateType
+      use GridState_Mod, Only : GridStateType
       use Error_Mod
 
       implicit none
@@ -77,7 +76,6 @@ contains
       TYPE(ConfigType),    INTENT(IN)    :: Config
       ! TYPE(GridStateType), INTENT(IN)    :: GridState
       TYPE(DiagStateType), INTENT(INOUT) :: DiagState
-      TYPE(ChemStateType), INTENT(INOUT)    :: ChemState
       INTEGER,         INTENT(OUT) :: RC
 
       ! Local variables
@@ -88,7 +86,7 @@ contains
       ErrMsg = ''
       thisLoc = ' -> at Init_Diag (in core/init_mod.F90)'
 
-      call Diag_Allocate(Config, DiagState, ChemState, RC)
+      call Diag_Allocate(Config, DiagState, RC)
       if (RC /= CC_SUCCESS) then
          errMsg = 'Error allocating diag state'
          call CC_Error(errMsg, RC , thisLoc)

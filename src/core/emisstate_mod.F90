@@ -159,13 +159,13 @@ CONTAINS
       integer :: s ! Loop counter for emitted species
       ! integer :: nPlumes ! temporary variable for number of plumes
 
+
       ! Initialize return code
       RC = CC_SUCCESS
 
       ! Initialize local variables
       ErrMsg = ''
       ThisLoc = ' -> at Emis_Allocate (in core/emisstate_mod.F90)'
-
       if (EmisState%nCats > 0) then
          print*, 'Number of Categories = ', EmisState%nCats
          do c = 1, EmisState%nCats
@@ -384,6 +384,7 @@ CONTAINS
       TYPE(MetStateType),  INTENT(IN)    :: MetState
       TYPE(ChemStateType), INTENT(INOUT) :: ChemState
       LOGICAL, INTENT(IN), OPTIONAL :: surface_only_flag
+
       INTEGER, INTENT(OUT) :: RC
 
       ! Local

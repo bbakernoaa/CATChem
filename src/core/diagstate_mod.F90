@@ -22,14 +22,6 @@ module DiagState_Mod
    !!
    !! \ingroup core_modules
    !!
-   !! \param dust_total_flux      Total flux of dust particles [kg m-2 s-1]
-   !! \param sea_salt_total_flux  Total flux of sea salt particles [kg m-2 s-1]
-   !! \param AOD550               Total AOD at 550nm [1]
-   !! \param AOD380               Total AOD at 380nm [1]
-   !! \param TOMSAI               TOMS Aerosol Index [1]
-   !! \param briggs_plumerise_height Effective plume rise height from Briggs algorithm [m]
-   !! \param sofiev_plumerise_height Effective plume rise height from Sofiev algorithm [m]
-   !!
    !!!>
    type, public :: DiagStateType
 
@@ -46,10 +38,6 @@ module DiagState_Mod
 
       real(fp) :: briggs_plumerise_height !< Effective plume rise height from Briggs algorithm [m]
       real(fp) :: sofiev_plumerise_height !< Effective plume rise height from Sofiev algorithm [m]
-
-
-      real(fp), allocatable :: drydep_frequency(:)
-      real(fp), allocatable :: drydep_vel(:)
 
       ! Species Specific Variables
 
@@ -68,17 +56,15 @@ CONTAINS
    !! \param RC The return code
    !! \ingroup core_modules
    !!!>
-   subroutine Diag_Allocate(Config, DiagState, ChemState, RC)
+   subroutine Diag_Allocate(Config, DiagState, RC)
       ! USES
-      ! USE GridState_Mod, ONLY : GridStateType
+      USE GridState_Mod, ONLY : GridStateType
       USE Config_Opt_Mod, ONLY : ConfigType
-      use ChemState_Mod, only : ChemStateType
 
       ! Arguments
       type(ConfigType),    INTENT(IN)    :: Config
       ! type(GridStateType), INTENT(IN)    :: GridState ! Grid State object
       type(DiagStateType), INTENT(INOUT) :: DiagState ! Diag State object
-      type(ChemStateType), INTENT(INOUT) :: ChemState ! Chem State object
       ! OUTPUT Params
       INTEGER,             INTENT(OUT)   :: RC        ! Success or failure
 
@@ -104,27 +90,6 @@ CONTAINS
       if (Config%seasalt_activate) then
          DiagState%sea_salt_total_flux = ZERO
       endif
-
-      ! If dry deposition process is activated then allocate dry dep related diagnostics
-      !write (*,*) "ChemState%nSpeciesAeroDryDep=", ChemState%nSpeciesAeroDryDep
-      if (Config%drydep_activate) then
-         Allocate(DiagState%drydep_frequency(ChemState%nSpeciesAeroDryDep), STAT=RC)
-         IF ( RC /= CC_SUCCESS ) THEN
-            ErrMsg = 'Could not Allocate DiagState%drydep_frequency(ChemState%nSpeciesAeroDryDep)'
-            CALL CC_Error( ErrMsg, RC, thisLoc )
-         ENDIF
-         DiagState%drydep_frequency(ChemState%nSpeciesAeroDryDep)= ZERO
-
-         Allocate(DiagState%drydep_vel(ChemState%nSpeciesAeroDryDep), STAT=RC)
-         IF ( RC /= CC_SUCCESS ) THEN
-            ErrMsg = 'Could not Allocate DiagState%drydep_vel(ChemState%nSpeciesAeroDryDep)'
-            CALL CC_Error( ErrMsg, RC, thisLoc )
-         ENDIF
-         DiagState%drydep_vel(ChemState%nSpeciesAeroDryDep)= ZERO
-
-      endif
-
-
 
    end subroutine Diag_Allocate
 

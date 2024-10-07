@@ -13,7 +13,6 @@ dust1:
   density: 2500.
   is_dust: true
   is_aerosol: true
-  is_drydep: true
 dust2:
   name: dust2
   long_name: 'Dust Species Accumulation'
@@ -24,4 +23,3 @@ dust2:
   density: 2500.
   is_dust: true
   is_aerosol: true
-  is_drydep: true

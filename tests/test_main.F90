@@ -7,7 +7,6 @@ program test_main
    use state_mod  ! FIXME: declare states here or move to a driver
    use testing_mod, only: assert_close
 
-
    IMPLICIT NONE
 
    ! Integers

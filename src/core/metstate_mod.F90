@@ -122,7 +122,6 @@ MODULE MetState_Mod
       REAL(fp)              :: USTAR             !< Friction velocity [m/s]
       REAL(fp)              :: V10M              !< N/S wind speed @ 10m ht [m/s]
       REAL(fp)              :: Z0                !< Surface roughness height [m]
-      REAL(fp)              :: Z0H               !< Surface roughness height, for heat (thermal roughness) [m]
       REAL(fp), ALLOCATABLE :: FRZ0(:)           !< Aerodynamic Roughness Length per FRLANDUSE
       REAL(fp)              :: PBLH              !< PBL height [m]
       REAL(fp), ALLOCATABLE :: F_OF_PBL(:)       !< Fraction of box within PBL [1]
@@ -295,7 +294,6 @@ CONTAINS
       MetState%U10M = ZERO
       MetState%V10M = ZERO
       MetState%z0 = ZERO
-      MetState%z0h = ZERO
       MetState%USTAR_THRESHOLD = ZERO
       MetState%RDRAG = ZERO
       MetState%SSM = ZERO
