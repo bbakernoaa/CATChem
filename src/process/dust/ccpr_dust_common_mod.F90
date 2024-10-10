@@ -55,14 +55,14 @@ module CCPr_Dust_Common_Mod
       INTEGER, ALLOCATABLE            :: SpcIDs(:)               !< CATChem species IDs
 
       ! Process Specific Parameters
-      REAL(fp), ALLOCATABLE           :: LowerBinRadius(:)       !< Lower bin radius        [m]
-      REAL(fp), ALLOCATABLE           :: UpperBinRadius(:)       !< Upper bin radius        [m]
-      REAL(fp), ALLOCATABLE           :: EffectiveRadius(:)      !< Effective radius        [m]
-      REAL(fp), ALLOCATABLE           :: DustDensity(:)          !< Dust density            [kg/m^3]
-      REAL(fp)                        :: BetaScaleFactor         !< Gamma Scaling Parameter  [1]
-      REAL(fp)                        :: AlphaScaleFactor        !< Alpha Scaling Parameter [1]
-      REAL(fp)                        :: TotalEmission           !< Total emission          [kg/m^2/s]
-      REAL(fp), ALLOCATABLE           :: EmissionPerSpecies(:)   !< Emission per species    [kg/m^2/s]
+      REAL(fp), ALLOCATABLE           :: LowerBinRadius(:)        !< Lower bin radius        [m]
+      REAL(fp), ALLOCATABLE           :: UpperBinRadius(:)        !< Upper bin radius        [m]
+      REAL(fp), ALLOCATABLE           :: EffectiveRadius(:)       !< Effective radius        [m]
+      REAL(fp), ALLOCATABLE           :: DustDensity(:)           !< Dust density            [kg/m^3]
+      REAL(fp)                        :: BetaScaleFactor          !< Gamma Scaling Parameter  [1]
+      REAL(fp)                        :: AlphaScaleFactor         !< Alpha Scaling Parameter [1]
+      REAL(fp), ALLOCATABLE           :: TotalEmission(:)         !< Total emission          [kg/m^2/s]
+      REAL(fp), ALLOCATABLE           :: EmissionPerSpecies(:,:)  !< Emission per species    [kg/m^2/s]
 
       ! Scheme Options
       INTEGER                         :: MoistOpt                !< Fengsha-Moisture Calculation Option
@@ -379,6 +379,187 @@ contains
       return
 
    end subroutine MB95_DragPartition
+
+   !>
+   !! \brief Computes the Drag Partition from Darmenova et al. 2009
+   !!
+   !! Darmenova, K., Sokolik, I. N., Shao, Y., Marticorena, B., and
+   !! Bergametti, G.: Development of a physically based dust
+   !! emission module within the Weather Research and Forecasting (WRF) model:
+   !! Assessment of dust emission parameterizations and input parameters for source regions in Central and East Asia,
+   !! J. Geophys. Res.-Atmos., 114, D14201, https://doi.org/10.1029/2008JD011236, 2009
+   !!
+   !! \param Lc latent heat of condensation
+   !! \param vegfrac vegetation fraction
+   !! \param thresh threshold fraction
+   !! \return Drag partition
+   !!
+   !! \ingroup catchem_dust_process
+   !!!>
+   real function DarmenovaDragPartition(Lc_, vegfrac, thresh)
+! !USES:
+      implicit NONE
+
+! !INPUT PARAMETERS:
+      real, intent(in) :: Lc_
+      real, intent(in) :: vegfrac
+      real, intent(in) :: thresh
+
+! !CONSTANTS:
+      real, parameter :: sigb = 1.0
+      real, parameter :: mb = 0.5
+      real, parameter :: Betab = 90.0
+      real, parameter :: sigv = 1.45
+      real, parameter :: mv = 0.16
+      real, parameter :: Betav = 202.0
+
+      real            :: Lc
+      real            :: Lc_veg
+      real            :: Lc_bare
+      real            :: Rveg1
+      real            :: Rveg2
+      real            :: Rbare1
+      real            :: Rbare2
+      real            :: feff_bare
+      real            :: feff_veg
+      real            :: feff
+      real            :: gvf
+      real            :: tmpVal
+      logical         :: skip
+! !DESCRIPTION:
+! !REVISION HISTORY:
+!
+! 27Jun2024 B.Baker/NOAA    - Original implementation
+!
+!EOP
+
+      gvf = vegfrac
+
+      ! vegetation effect
+      skip = .false.
+      if (.not.skip) skip = (gvf < 0.0) .or. (gvf >= thresh)
+      if (.not.skip) then
+         Lc_veg = -0.35 * LOG(1. - gvf)
+         Rveg1 = 1.0 / sqrt(1 - sigv * mv * Lc_veg)
+         Rveg2 = 1.0 / sqrt(1 + mv * Betav * Lc_veg)
+         feff_veg = Rveg1 * Rveg2
+      else
+         feff_veg = 1e-3
+      endif
+
+      ! bare surface effect
+      Lc = max(5e-4, Lc_)
+      Lc_bare = Lc / (1 - gvf) ! avoid any numerical issues at high Lc
+      tmpVal = 1 - sigb * mb * Lc_bare
+      skip=.false.
+      if (.not.skip) skip = (gvf < 0.0) .or. (gvf >= thresh)
+      if (.not.skip) skip = (Lc > 0.2) .or. (tmpVal <= 0.0)
+      if (.not.skip) then
+         Rbare1 = 1.0 / sqrt(1 - sigb * mb * Lc_bare)
+         Rbare2 = 1.0 / sqrt(1 +  mb*Betab * Lc_bare )
+         feff_bare = Rbare1 * Rbare2
+      else
+         feff_bare = 1.0e-3
+      endif
+
+      feff = feff_veg * feff_bare
+
+      if (feff > 1.) then
+         DarmenovaDragPartition = 1.e-3
+      else if (feff <1e-5) then
+         DarmenovaDragPartition = 1.e-3
+      else
+         DarmenovaDragPartition = feff
+      endif
+
+   end function DarmenovaDragPartition
+
+   !>
+   !! \brief Computes the Drag Partition from Leung et al. 2009
+   !!
+   !! Leung, W., Wang, C., and Wang, T.: Spatially explicit model for estimating
+   !! the atmospheric surface emission of dust, Geoscientific Model Development,
+   !! 8, 303, 2009, https://doi.org/10.5194/gmd-8-303-2009, 2009
+   !!
+   !! \param Lc gap length
+   !! \param lai leaf area index
+   !! \param gvf vegetation fraction
+   !! \param thresh threshold fraction
+   !! \return Drag partition
+   !!
+   !! \ingroup catchem_dust_process
+   !!!>
+   real function LeungDragPartition(Lc, lai, gvf, thresh)
+
+      implicit NONE
+
+      ! INPUT PARAMETERS
+      ! ----------------
+      real, intent(in) :: Lc
+      real, intent(in) :: lai
+      real, intent(in) :: gvf
+      real, intent(in) :: thresh
+
+      ! LOCAL VARIABLES
+      ! ---------------
+      real            :: frac_bare       ! Fraction of bare surface
+      real            :: frac_veg        ! fraction of vegetative surface
+      real            :: K               ! normalized gap length
+      real            :: feff_bare       ! effective drag partition due to bare surfaces
+      real            :: feff_veg
+      real            :: Rbare1
+      real            :: Rbare2
+      real            :: Lc_bare
+      real            :: feff
+      real            :: tmpVal
+      real            :: vegfrac
+
+      ! CONSTANTS
+      real, parameter :: LAI_THR = 0.33
+      real, parameter :: c = 4.8
+      real, parameter :: f0 = 0.32
+      real, parameter :: sigb = 1.0
+      real, parameter :: mB = 0.5
+      real, parameter :: Betab = 90.0
+
+      feff_bare = 0.
+      feff_veg = 0.
+
+      frac_bare  = MAX(1. - LAI / thresh, 0.)
+
+      if ((LAI <= 0) .or. (LAI >= thresh)) then
+         feff_veg = 0.
+      else if (LAI < thresh) then
+         K = 2. * ( 1 / (1 - LAI) - 1)
+         feff_veg = ( K + f0 * c) / (K + c)
+      endif
+
+      if ((Lc <= 0.2) .and. (Lc > 0) .and. (LAI < thresh)) then
+         Lc_bare = Lc / frac_bare
+         tmpVal = 1 - sigB * mB * Lc_bare
+         if (tmpVal > 0.0) then
+            Rbare1 = 1.0 / sqrt(1 - sigB * mB* Lc_bare)
+            Rbare2 = 1.0 / sqrt(1 + BetaB * mB * Lc_bare )
+            feff_bare = Rbare1 * Rbare2
+         else
+            feff_bare = 0.
+         endif
+
+      else
+         feff_bare = 0.
+      endif
+
+      feff = (gvf * feff_veg**3 + frac_bare * feff_bare**3) ** (1./3.)
+
+      if (feff > 1.) then
+         LeungDragPartition = 1.e-3
+      else if (feff <1e-5) then
+         LeungDragPartition = 1.e-3
+      else
+         LeungDragPartition = feff
+      endif
+
+   end function LeungDragPartition
 
    !>
    !! \brief Computes the Threshold Friction Velocity from MB97

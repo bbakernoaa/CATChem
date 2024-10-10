@@ -54,10 +54,10 @@ module EmisState_Mod
 
       ! Real
       real(fp), ALLOCATABLE :: Scale(:)        !< Scale factor
-      real(fp), ALLOCATABLE :: Flux(:)         !< Emission flux
+      real(fp), ALLOCATABLE :: Flux(:,:)         !< Emission flux
       real(fp)              :: EmisHeight      !< Emission Height [m] - Simple emission height or -1 for PBLH
-      real(fp), ALLOCATABLE :: PlmSrcFlx(:)    !< Plumerise source emission flux [kg/m2/s]
-      real(fp), ALLOCATABLE :: PlmRiseHgt(:)   !< Height of Plume rise [m]
+      real(fp), ALLOCATABLE :: PlmSrcFlx(:,:)    !< Plumerise source emission flux [kg/m2/s]
+      real(fp), ALLOCATABLE :: PlmRiseHgt(:,:)   !< Height of Plume rise [m]
       real(fp), ALLOCATABLE :: FRP(:)          !< Fire Radiative Power (W/m^2)
       real(fp), ALLOCATABLE :: STKDM(:)        !< Briggs stack diameter [m] (array of all point sources in grid cell)
       real(fp), ALLOCATABLE :: STKHT(:)        !< Briggs stack thickness [m] (array of all point sources in grid cell)
@@ -135,15 +135,15 @@ CONTAINS
    !! \param RC Return code
    !!
    !!!>
-   subroutine Emis_Allocate(GridState, EmisState, RC)
+   subroutine Emis_Allocate(MetState, EmisState, RC)
 
       ! Uses
-      USE GridState_Mod, ONLY : GridStateType
+      USE MetState_Mod, ONLY : MetStateType
 
       IMPLICIT NONE
 
       !Input
-      TYPE(GridStateType), INTENT(IN) :: GridState
+      TYPE(MetStateType), INTENT(IN) :: MetState
 
       ! Input/Output
       TYPE(EmisStateType), INTENT(INOUT) :: EmisState
@@ -157,7 +157,9 @@ CONTAINS
 
       integer :: c ! Loop counter for emission Cats
       integer :: s ! Loop counter for emitted species
-      ! integer :: nPlumes ! temporary variable for number of plumes
+      integer :: i ! loop counter for horizontal grid points
+      integer :: nLEVS ! number of levels in the grid
+      integer :: nHORZ ! number of horizontal grid points
 
 
       ! Initialize return code
@@ -173,7 +175,7 @@ CONTAINS
             do s = 1, EmisState%Cats(c)%nSpecies
                print*, 'Allocating ', EmisState%Cats(c)%Species(s)%name
 
-               ALLOCATE(EmisState%Cats(c)%Species(s)%Flux(GridState%number_of_levels), STAT=RC)
+               ALLOCATE(EmisState%Cats(c)%Species(s)%Flux(nHORZ, nLEVS), STAT=RC)
                if (RC /= CC_SUCCESS) then
                   ErrMsg = '  Error allocating "EmisState%Cats%Species%Flux"!'
                   call CC_Error(ErrMsg, RC, ThisLoc)
@@ -392,6 +394,7 @@ CONTAINS
       integer :: s !< Loop counter for emitted species
       integer :: n !< Loop counter for mapped species
       integer :: k !< Loop counter for height levels
+      integer :: i !< Loop counter for horizontal grid points
       real(kind=fp) :: scale  !< scaling factor
       integer :: index        !< index of the mapped chemical species
       real(kind=fp) :: cdt    !< time step
@@ -426,12 +429,14 @@ CONTAINS
                ! current flux of the emitted species
                   emis => EmisState%Cats(c)%Species(s)%Flux, &
                ! current concentration of the species at `index`
-                  conc => ChemState%ChemSpecies(index)%conc)
+                  conc => ChemState%Species(index)%conc)
 
-                  levs: do k = 1, MetState%NLEVS
-                     dqa = emis(k) * scale * cdt * g0 / MetState%DELP(k)
-                     conc(k) = conc(k) + dqa
-                  end do levs
+                  horz: do i = 1, MetState%nHORZ
+                     levs: do k = 1, MetState%NLEVS
+                        dqa = emis(i,k) * scale * cdt * g0 / MetState%DELP(i,k)
+                        conc(i,k) = conc(i,k) + dqa
+                     end do levs
+                  end do horz
 
                end associate
 

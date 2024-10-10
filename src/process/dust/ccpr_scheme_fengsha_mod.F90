@@ -85,6 +85,11 @@ contains
       rupper,           &
       TotalEmission,    &
       EmissionBin,      &
+      ustar_t,          &
+      H,                &
+      HorizFlux,        &
+      R,                &
+      SEP,              &
       RC,               &
       MoistOpt,         &
       DragOpt,          &
@@ -125,24 +130,25 @@ contains
       integer,  intent(in), optional :: HorizFluxOpt    !< Option for horizontal flux
 
       ! Outputs
-      real(fp), intent(inout) :: TotalEmission  !< Total Emission
-      real(fp), intent(inout) :: EmissionBin(:) !< Emission per Bin
-      integer, intent(out)  :: RC             !< Return Code
+      real(fp), intent(inout) :: TotalEmission     !< Total Emission [kg m-2 s-1]
+      real(fp), intent(inout) :: ustar_t           !< Effective Threshold [m/s]
+      real(fp), intent(inout) :: HorizFlux         !< Horizontal Mass Flux [kg/m2/s]
+      real(fp), intent(inout) :: H                 !< Soil Moisture Attenuation Factor
+      real(fp), intent(inout) :: R                 !< Drag Partition [1]
+      real(fp), intent(inout) :: SEP               !< Soil Erosion Potential
+      real(fp), intent(inout) :: EmissionBin(:)    !< Emission per Bin [kg/m2/s]
+
+      integer,  intent(out)   :: RC                !< Return Code
 
       ! Local Variables
       logical :: do_dust                               !< Enable Dust Calculation Flag
       integer :: n                                     !< Bin index
       integer :: nbins                                 !< number of dust bins
-      real(fp) :: hflux                                !< Horizontal Flux
-      real(fp) :: R                                    !< Drag Partition [1]
       real(fp) :: h_to_v_ratio                         !< Horizontal to Vertical Mass Flux Ratio
       real(fp) :: airmass                              !< Air Mass at lowest model level
-      real(fp) :: H                                    !< Soil Moisture Attenuation Factor
       real(fp) :: distribution(nDustSpecies)           !< Distribution Weights
       real(fp) :: EmissBins(nDustSpecies)              !< Emission Rate per Bin
-      real(fp) :: SEP                                  !< Soil Erosion Potential
       real(fp) :: alpha_grav                           !< Alpha Parameter over Gravity
-      real(fp) :: HorizFlux                            !< Horizontal Mass Flux
       real(fp) :: FengshaScaling                       !< Total Scaling Factor
       real(fp), parameter :: clay_thresh = 0.2
       real(fp), parameter :: kvhmax = 2.0e-4 !< Max. Vertical to Horizontal Mass Flux Ratio
@@ -152,8 +158,6 @@ contains
 
       ! Initialize
       RC = 0
-
-      hflux = ZERO
       h_to_v_ratio = ZERO
       airmass = ZERO
       distribution = ZERO
@@ -161,8 +165,10 @@ contains
       FengshaScaling = ZERO
       SEP = ZERO
       H = ZERO
+      R = 1.e-5
       EmissBins = ZERO
       TotalEmission = ZERO
+      ustar_t = ZERO
 
       nbins = size(reff)
 
@@ -271,6 +277,8 @@ contains
             RC = -1
             return
          endif
+
+         ustar_t = USTAR_THRESHOLD * H / R
 
          ! Compute the Total Dust Flux (ug/m2/s)
          !--------------------------------------

@@ -10,10 +10,7 @@ MODULE CCPr_Dust_mod
    ! USES:
    USE Precision_Mod
    USE Error_MOD
-   USE DiagState_Mod, Only : DiagStateType
-   USE MetState_Mod, Only : MetStateType
-   USE Config_Opt_Mod, Only : ConfigType
-   USE ChemState_Mod, Only : ChemStateType
+   USE State_mod
    USE CCPr_Dust_Common_Mod, Only : DustStateType
 
    IMPLICIT NONE
@@ -59,6 +56,7 @@ CONTAINS
       REAL(fp), DIMENSION(nDustBinsDefault), Parameter :: DefaultUpperBinRadius  = (/ 1.0e-6, 1.8e-6, 3.0e-6, 6.0e-6, 10.0e-6  /)
 
       INTEGER :: k ! Loop Counter
+      integer :: index ! index of dust species
 
       ! Error handling
       !---------------
@@ -80,7 +78,7 @@ CONTAINS
 
          ! Set number of dust species
          !---------------------------
-         DustState%nDustSpecies = ChemState%nSpeciesDust
+         DustState%nDustSpecies = ChemState%nDust
 
          ! Set Scheme Options
          !-------------------
@@ -162,20 +160,43 @@ CONTAINS
                DustState%DustDensity(k) = DefaultDustDensity(k)
             end do
 
-            ALLOCATE(DustState%EmissionPerSpecies(nDustBinsDefault), STAT=RC)
-            CALL CC_CheckVar('EmissionPerSpecies', 0, RC)
-            IF (RC /= CC_SUCCESS) RETURN
-            do k = 1, nDustBinsDefault
-               DustState%EmissionPerSpecies(k) = 0.0_fp
-            end do
-
          else
 
             ! Dust Aerosols are present in ChmState
             !--------------------------------------
+            print*, 'Using Dust bins from ChmState'
+            ALLOCATE(DustState%LowerBinRadius(ChemState%nDust), STAT=RC)
+            CALL CC_CheckVar('DustState%LowerBinRadius', 0, RC)
+            IF (RC /= CC_SUCCESS) RETURN
+            do k = 1, ChemState%nDust
+               index = ChemState%DustIndex(k)
+               DustState%LowerBinRadius(k) = ChemState%Species(index)%lower_radius
+            end do
 
-            !TODO: Need to figure out how exactly to do this at the moment
-            write(*,*) 'TODO: Need to figure out how to add back to the chemical species state '
+            ALLOCATE(DustState%UpperBinRadius(ChemState%nDust), STAT=RC)
+            CALL CC_CheckVar('DustState%UpperBinRadius', 0, RC)
+            IF (RC /= CC_SUCCESS) RETURN
+            do k = 1, ChemState%nDust
+               index = ChemState%DustIndex(k)
+               DustState%UpperBinRadius(k) = ChemState%Species(index)%upper_radius
+            enddo
+
+            ALLOCATE(DustState%EffectiveRadius(ChemState%nDust), STAT=RC)
+            CALL CC_CheckVar('DustState%EffectiveRadius', 0, RC)
+            IF (RC /= CC_SUCCESS) RETURN
+            do k = 1, ChemState%nDust
+               index = ChemState%DustIndex(k)
+               DustState%EffectiveRadius(k) = ChemState%Species(index)%radius
+            end do
+
+            ALLOCATE(DustState%DustDensity(ChemState%nDust), STAT=RC)
+            CALL CC_CheckVar('DustState%DustDensity', 0, RC)
+            IF (RC /= CC_SUCCESS) RETURN
+            do k = 1, ChemState%nDust
+               index = ChemState%DustIndex(k)
+               DustState%DustDensity(k) = ChemState%Species(index)%density
+            end do
+
 
          endif
 
@@ -225,6 +246,17 @@ CONTAINS
       ! LOCAL VARIABLES
       !----------------
       CHARACTER(LEN=255) :: ErrMsg, thisLoc
+      integer :: i ! horizontal loop counter
+      integer :: b ! bin loop counter
+      real :: airden ! air density
+      real :: airden_arr(MetState%nLEVS)
+      real :: total_flux
+      real :: emis_per_bin(DustState%nDustSpecies)
+      real :: soil_moisture_adj
+      real :: soil_erosion_potential
+      real :: USTAR_T
+      real :: horiz_flux
+      real :: drag_partition
 
       ! Initialize
       !-----------
@@ -232,72 +264,109 @@ CONTAINS
       errMsg = ''
       thisLoc = ' -> at CCPr_Dust_Run (in process/dust/ccpr_dust_mod.F90)'
 
+      total_flux = 0.0
+      emis_per_bin(:) = 0.0
+      USTAR_T = 0.0
+      horiz_flux = 0.0
+      soil_moisture_adj = 0.0
+      soil_erosion_potential = 0.0
+      drag_partition = 0.0
+
       if (DustState%Activate) then
 
-         ! Run the Dust Scheme
-         !--------------------
-         if (DustState%SchemeOpt == 1) then ! FENGSHA
-            call CCPr_Scheme_Fengsha(DustState%nDustSpecies,          &
-               MetState%DSOILTYPE,              &
-               MetState%SSM,                    &
-               MetState%RDRAG,                  &
-               MetState%TSKIN,                  &
-               MetState%USTAR,                  &
-               MetState%USTAR_THRESHOLD,        &
-               MetState%GWETTOP,                &
-               MetState%z0,                     &
-               MetState%CLAYFRAC,               &
-               MetSTate%SANDFRAC,               &
-               MetState%AIRDEN(1),              &
-               MetState%FROCEAN,                &
-               MetState%FRLANDIC,               &
-               MetState%FRSNO,                  &
-               DustState%AlphaScaleFactor,      &
-               DustState%BetaScaleFactor,       &
-               DustState%EffectiveRadius,       &
-               DustState%LowerBinRadius,        &
-               DustState%UpperBinRadius,        &
-               DustState%TotalEmission,         &
-               DustState%EmissionPerSpecies,    &
-               RC,                              &
-               MoistOpt=DustState%MoistOpt,     &
-               DragOpt=DustState%DragOpt,       &
-               HorizFluxOpt=DustState%HorizFluxOpt)
+         horizon_loop: do i = 1, MetState%nHORZ
 
-            if (RC /= CC_SUCCESS) then
-               errMsg = 'Error in CCPr_Scheme_Fengsha'
+            airden = MetState%AIRDEN(i,1)
+            airden_arr = MetState%AIRDEN(i,1:MetState%nLEVS)
+
+            ! Run the Dust Scheme
+            !--------------------
+            if (DustState%SchemeOpt == 1) then ! FENGSHA
+               call CCPr_Scheme_Fengsha(DustState%nDustSpecies, &
+                  MetState%DSOILTYPE(i),                        &
+                  MetState%SSM(i),                              &
+                  MetState%RDRAG(i),                            &
+                  MetState%TSKIN(i),                            &
+                  MetState%USTAR(i),                            &
+                  MetState%USTAR_THRESHOLD(i),                  &
+                  MetState%GWETTOP(i),                          &
+                  MetState%z0(i),                               &
+                  MetState%CLAYFRAC(i),                         &
+                  MetSTate%SANDFRAC(i),                         &
+                  airden,                                       &
+                  MetState%FROCEAN(i),                          &
+                  MetState%FRLANDICE(i),                        &
+                  MetState%FRSNO(i),                            &
+                  DustState%AlphaScaleFactor,                   &
+                  DustState%BetaScaleFactor,                    &
+                  DustState%EffectiveRadius,                    &
+                  DustState%LowerBinRadius,                     &
+                  DustState%UpperBinRadius,                     &
+                  total_flux,                                   &
+                  emis_per_bin,                                 &
+                  USTAR_T,                                      &
+                  soil_moisture_adj,                            &
+                  horiz_flux,                                   &
+                  drag_partition,                               &
+                  soil_erosion_potential,                       &
+                  RC,                                           &
+                  MoistOpt=DustState%MoistOpt,                  &
+                  DragOpt=DustState%DragOpt,                    &
+                  HorizFluxOpt=DustState%HorizFluxOpt)
+
+               if (RC /= CC_SUCCESS) then
+                  errMsg = 'Error in CCPr_Scheme_Fengsha'
+                  CALL CC_Error( errMsg, RC, thisLoc )
+               endif
+
+               DiagState%dust_total_flux(i) = total_flux
+               DiagState%dust_emission_per_bin(i,:) = emis_per_bin
+               DiagState%dust_effective_threshold(i) = USTAR_T
+               DiagState%dust_horiz_flux(i) = horiz_flux
+               DiagState%dust_soil_moisture_adj(i) = soil_moisture_adj
+               DiagState%dust_soil_erosion_potential(i) = soil_erosion_potential
+               DiagState%dust_drag_partition(i) = drag_partition
+
+            else if (DustState%SchemeOpt == 2) then ! GINOUX
+               call CCPr_Scheme_Ginoux(MetState%DSOILTYPE(i), &
+                  MetState%SSM(i),                            &
+                  MetState%TSKIN(i),                          &
+                  MetState%FROCEAN(i),                        &
+                  MetState%FRSNO(i),                          &
+                  airden_arr,                       &
+                  MetState%U10M(i),                           &
+                  MetState%V10M(i),                           &
+                  MetState%GWETTOP(i),                        &
+                  DustState%AlphaScaleFactor,                 &
+                  DustState%EffectiveRadius,                  &
+                  DustState%DustDensity,                      &
+                  total_flux,                                 &
+                  emis_per_bin,                               &
+                  RC)
+               if (RC /= CC_SUCCESS) then
+                  errMsg = 'Error in CCPr_Scheme_Ginoux'
+                  CALL CC_Error( errMsg, RC, thisLoc )
+               endif
+
+               DiagState%dust_total_flux(i) = total_flux
+               DiagState%dust_emission_per_bin(i,:) = emis_per_bin
+            else
+               errMsg =  'ERROR: Unknown dust scheme option'
+               RC = CC_FAILURE
                CALL CC_Error( errMsg, RC, thisLoc )
+               return
             endif
-         else if (DustState%SchemeOpt == 2) then ! GINOUX
-            call CCPr_Scheme_Ginoux(MetState%DSOILTYPE,            &
-               MetState%SSM,                  &
-               MetState%TSKIN,                &
-               MetState%FROCEAN,              &
-               MetState%FRSNO,                &
-               MetState%AIRDEN,            &
-               MetState%U10M,                 &
-               MetState%V10M,                 &
-               MetState%GWETTOP,              &
-               DustState%AlphaScaleFactor,    &
-               DustState%EffectiveRadius,     &
-               DustState%DustDensity,         &
-               DustState%TotalEmission,       &
-               DustState%EmissionPerSpecies,  &
-               RC)
-            if (RC /= CC_SUCCESS) then
-               errMsg = 'Error in CCPr_Scheme_Ginoux'
-               CALL CC_Error( errMsg, RC, thisLoc )
-            endif
-         else
-            errMsg =  'ERROR: Unknown dust scheme option'
-            RC = CC_FAILURE
-            CALL CC_Error( errMsg, RC, thisLoc )
-            return
-         endif
+
+            total_flux = ZERO
+            emis_per_bin = ZERO
+            USTAR_T = ZERO
+            horiz_flux = ZERO
+            soil_moisture_adj = ZERO
+            soil_erosion_potential = ZERO
+            drag_partition = ZERO
+
+         enddo horizon_loop
       endif
-
-      ! Fill Diagnostic States
-      DiagState%dust_total_flux = DustState%TotalEmission
 
    END SUBROUTINE CCPr_Dust_Run
 
@@ -347,9 +416,9 @@ CONTAINS
       CALL CC_CheckVar('DustState%DustDensity', 0, RC)
       IF (RC /= CC_SUCCESS) RETURN
 
-      DEALLOCATE( DustState%EmissionPerSpecies, STAT=RC )
-      CALL CC_CheckVar('DustState%EmissionPerSpecies', 0, RC)
-      IF (RC /= CC_SUCCESS) RETURN
+      ! DEALLOCATE( DustState%EmissionPerSpecies, STAT=RC )
+      ! CALL CC_CheckVar('DustState%EmissionPerSpecies', 0, RC)
+      ! IF (RC /= CC_SUCCESS) RETURN
 
    END SUBROUTINE CCPr_Dust_Finalize
 

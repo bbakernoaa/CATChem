@@ -130,7 +130,7 @@ contains
       endif
 
       if (do_seasalt) then
-
+         print*, 'DOING SEASALT'
          ! GEOS 12 Params
          !---------------
          scalefac = 33.0e3_fp
@@ -195,6 +195,9 @@ contains
 
          TotalEmission = sum(EmissionBin)
          TotalNumberEmission = sum(NumberEmissionBin)
+
+         print*, 'Total Emission = ', TotalEmission
+         print*, 'Total Number Emission = ', TotalNumberEmission
 
       endif ! do_Sea Salt
 

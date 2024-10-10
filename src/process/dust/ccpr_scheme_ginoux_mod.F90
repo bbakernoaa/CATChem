@@ -107,34 +107,41 @@ contains
          do_dust = .false.
       endif
 
+      print*, 'do_dust = ', do_dust
+
       if (do_dust) then
 
          ! get the scaling factor following Ginoux et al. (2001)
          ginoux_scaling = (1 - FROCEAN) * (1 - FRSNO) * SSM * AlphaScaleFactor
 
-         do n = 1, nbins
+         bins: do n = 1, nbins
 
             ! get threshold friction velocity following MB97
             call MB97_threshold_velocity(DustDensity(n), AIRDEN(1), EffectiveRadius(n), u_thresh0)
 
             ! get 10m mean wind speed
             w10m = sqrt(U10M ** 2 + V10M ** 2)
-
+            print*, 'GWETTOP = ', GWETTOP
             if (GWETTOP .lt. 0.5_fp) then
+
 
                ! add the moisture correction following Ginoux et al. (2001)
                u_thresh = amax1(0., u_thresh0 * (1.2_fp + 0.2_fp*alog10(max(1.e-3_fp, GWETTOP))) )
-
+               print*, 'u_thresh = ', u_thresh
+               print*, 'w10m = ', w10m
                if (w10m .gt. u_thresh) then
                   EmissionPerSpecies(n) = ginoux_scaling * w10m ** 2 * max(0.,(w10m - u_thresh) )
                endif
 
             endif ! GWETTOP < 0.5
-         enddo ! nbins
+
+            print*, 'n = ', n, 'EmissionPerSpecies(n) = ', EmissionPerSpecies(n)
+         enddo bins
+
 
          TotalEmission = sum(EmissionPerSpecies)
-         ! DiagState%dust_total_flux = TotalEmission
 
+         print*, 'Total Emission = ', TotalEmission
       endif ! do_dust
 
    end subroutine CCPr_Scheme_Ginoux

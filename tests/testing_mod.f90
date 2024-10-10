@@ -358,40 +358,40 @@ contains
       end do
       if (verbose_) then
          ! >>> print column data >>>
-         print *, "BXHEIGHT:", size(MetState%BXHEIGHT), MetState%BXHEIGHT
-         print *, "CLDF:", size(MetState%CLDF), MetState%CLDF
-         print *, "DELP:", size(MetState%DELP), MetState%DELP
-         print *, "DLUSE:", MetState%DLUSE
-         print *, "DSOILTYPE:", MetState%DSOILTYPE
-         print *, "EFLUX:", MetState%EFLUX
-         print *, "FRSNO:", MetState%FRSNO
-         print *, "FRVEG:", MetState%FRVEG
-         print *, "GWETROOT:", MetState%GWETROOT
-         print *, "GWETTOP:", MetState%GWETTOP
-         print *, "HFLUX:", MetState%HFLUX
-         print *, "LWI:", MetState%LWI
-         print *, "PBLH:", MetState%PBLH
+         print *, "BXHEIGHT:", size(MetState%BXHEIGHT), MetState%BXHEIGHT(1,:)
+         print *, "CLDF:", size(MetState%CLDF), MetState%CLDF(1,:)
+         print *, "DELP:", size(MetState%DELP), MetState%DELP(1,:)
+         print *, "DLUSE:", MetState%DLUSE(1)
+         print *, "DSOILTYPE:", MetState%DSOILTYPE(1)
+         print *, "EFLUX:", MetState%EFLUX(1)
+         print *, "FRSNO:", MetState%FRSNO(1)
+         print *, "FRVEG:", MetState%FRVEG(1)
+         print *, "GWETROOT:", MetState%GWETROOT(1)
+         print *, "GWETTOP:", MetState%GWETTOP(1)
+         print *, "HFLUX:", MetState%HFLUX(1)
+         print *, "LWI:", MetState%LWI(1)
+         print *, "PBLH:", MetState%PBLH(1)
          print *, "PMID:", size(MetState%PMID), MetState%PMID
-         print *, "PS:", MetState%PS
-         print *, "QL:", size(MetState%QL), MetState%QL
-         print *, "QV:", size(MetState%QV), MetState%QV
-         print *, "SNODP:", MetState%SNODP
-         print *, "SNOMAS:", MetState%SNOMAS
-         print *, "SOILM:", size(MetState%SOILM), MetState%SOILM
-         print *, "SPHU:", size(MetState%SPHU), MetState%SPHU
-         print *, "SWGDN:", MetState%SWGDN
-         print *, "T:", size(MetState%T), MetState%T
-         print *, "T2M:", MetState%T2M
-         print *, "TS:", MetState%TS
-         print *, "U:", size(MetState%U), MetState%U
-         print *, "U10M:", MetState%U10M
-         print *, "USTAR:", MetState%USTAR
-         print *, "V:", size(MetState%V), MetState%V
-         print *, "V10M:", MetState%V10M
-         print *, "WILT:", MetState%WILT
-         print *, "Z:", size(MetState%Z), MetState%Z
-         print *, "Z0:", MetState%Z0
-         print *, "ZMID:", size(MetState%ZMID), MetState%ZMID
+         print *, "PS:", MetState%PS(1)
+         print *, "QL:", size(MetState%QL), MetState%QL(1,:)
+         print *, "QV:", size(MetState%QV), MetState%QV(1,:)
+         print *, "SNODP:", MetState%SNODP(1)
+         print *, "SNOMAS:", MetState%SNOMAS(1)
+         print *, "SOILM:", size(MetState%SOILM), MetState%SOILM(1,:)
+         print *, "SPHU:", size(MetState%SPHU), MetState%SPHU(1,:)
+         print *, "SWGDN:", MetState%SWGDN(1)
+         print *, "T:", size(MetState%T), MetState%T(1,:)
+         print *, "T2M:", MetState%T2M(1)
+         print *, "TS:", MetState%TS(1)
+         print *, "U:", size(MetState%U), MetState%U(1,:)
+         print *, "U10M:", MetState%U10M(1)
+         print *, "USTAR:", MetState%USTAR(1)
+         print *, "V:", size(MetState%V), MetState%V(1,:)
+         print *, "V10M:", MetState%V10M(1)
+         print *, "WILT:", MetState%WILT(1)
+         print *, "Z:", size(MetState%Z), MetState%Z(1,:)
+         print *, "Z0:", MetState%Z0(1)
+         print *, "ZMID:", size(MetState%ZMID), MetState%ZMID(1,:)
          ! <<< print column data <<<
       end if
 

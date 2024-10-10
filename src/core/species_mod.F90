@@ -50,7 +50,6 @@ module species_mod
       real(kind=fp) :: upper_radius         !< upper radius in meters
       real(kind=fp) :: viscosity            !< kinematic viscosity (m2/s)
 
-
       ! Default background concentration
       real(kind=fp) :: BackgroundVV        !< Background conc [v/v]
 

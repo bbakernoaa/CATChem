@@ -34,8 +34,18 @@ program test_main
    write(*,*) ''
    write(*,*) ''
 
+   ! set nHORZ to 1
+   MetState%nHORZ = 1
+   MetState%nLEVS = 1
+   call cc_init_met(MetState, rc)
+   if (rc /= CC_SUCCESS) then
+      errMsg = 'Error initializing meteorology'
+      call cc_emit_error(errMsg, rc, thisLoc)
+      stop 1
+   endif
+
    ! Read input file and initialize grid
-   call cc_read_config(Config, GridState, EmisState, ChemState, rc, configFile)
+   call cc_read_config(Config, MetState, EmisState, ChemState, rc, configFile)
    if (rc /= CC_SUCCESS) then
       errMsg = 'Error reading configuration file: ' // TRIM( configFile )
       call cc_emit_error(errMsg, rc, thisLoc)
@@ -71,41 +81,41 @@ program test_main
    endif
 
    ! Ensure dust1 is an aerosol and is_dust
-   if (.not. ChemState%ChemSpecies(1)%is_aerosol) then
+   if (.not. ChemState%Species(1)%is_aerosol) then
       errMsg = 'Error: dust1 is not an aerosol'
       call cc_emit_error(errMsg, rc, thisLoc)
       stop 1
    endif
-   if (.not. ChemState%ChemSpecies(1)%is_dust) then
+   if (.not. ChemState%Species(1)%is_dust) then
       errMsg = 'Error: dust1 is not a dust'
       call cc_emit_error(errMsg, rc, thisLoc)
       stop 1
    endif
-   if (ChemState%ChemSpecies(1)%is_seasalt) then
+   if (ChemState%Species(1)%is_seasalt) then
       errMsg = 'Error: dust2 is categorized as seasalt'
       call cc_emit_error(errMsg, rc, thisLoc)
       stop 1
    endif
-   if (ChemState%ChemSpecies(1)%is_gas) then
+   if (ChemState%Species(1)%is_gas) then
       errMsg = 'Error: dust2 is categorized as gas'
       call cc_emit_error(errMsg, rc, thisLoc)
       stop 1
    endif
 
    ! Check numerical values of dust1
-   call assert_close(ChemState%ChemSpecies(1)%lower_radius, 0.1_fp, msg="dust1 lower radius")
-   call assert_close(ChemState%ChemSpecies(1)%upper_radius, 1.0_fp, msg="dust1 upper radius")
-   call assert_close(ChemState%ChemSpecies(1)%radius, 0.8_fp, msg="dust1 radius")
-   call assert_close(ChemState%ChemSpecies(1)%density, 2500.0_fp, msg="dust1 density")
+   call assert_close(ChemState%Species(1)%lower_radius, 0.1_fp, msg="dust1 lower radius")
+   call assert_close(ChemState%Species(1)%upper_radius, 1.0_fp, msg="dust1 upper radius")
+   call assert_close(ChemState%Species(1)%radius, 0.8_fp, msg="dust1 radius")
+   call assert_close(ChemState%Species(1)%density, 2500.0_fp, msg="dust1 density")
 
-   ! write grid info
-   write(*,*) 'Grid info:'
-   write(*,*) 'Number of grid nx = ', GridState%NX
-   write(*,*) 'Number of grid ny = ', GridState%NY
-   write(*,*) 'Number of grid levels = ', GridState%number_of_levels
+   ! ! write grid info
+   ! write(*,*) 'Grid info:'
+   ! write(*,*) 'Number of grid nx = ', GridState%NX
+   ! write(*,*) 'Number of grid ny = ', GridState%NY
+   ! write(*,*) 'Number of grid levels = ', GridState%number_of_levels
 
    ! initialize met
-   call cc_init_met(GridState, MetState, rc)
+   call cc_init_met(MetState, rc)
    if (rc /= CC_SUCCESS) then
       errMsg = 'Error initializing meteorology'
       call cc_emit_error(errMsg, rc, thisLoc)

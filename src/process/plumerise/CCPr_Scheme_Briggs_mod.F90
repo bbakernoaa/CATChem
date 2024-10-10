@@ -90,7 +90,8 @@ contains
       STKTK,   &
       STKVE,   &
       ZPLM,    &
-      TFRAC )
+      TFRAC,   &
+      RC )
 
       !-----------------------------------------------------------------------
 
@@ -148,6 +149,7 @@ contains
       REAL,    INTENT( IN )  :: ZH   ( : )      ! layer center height [m]
       REAL,    INTENT( OUT ) :: ZPLM            ! temporarily, plume top height
       REAL,    INTENT( OUT ) :: TFRAC( : )      ! Plume Fractions
+      INTEGER, INTENT( OUT ) :: RC              ! return code
 
       ! Parameters:
       REAL, PARAMETER :: HCRIT   = 1.0E-4 * 0.03  ! hfx min * tolerance
@@ -226,6 +228,7 @@ contains
          FIRSTIME = .FALSE.
       END IF
 
+      RC = 0
 
       ALLOCATE ( TV( EMLAYS ), TF( EMLAYS ), ZSTK( EMLAYS ), &
          DDZF( EMLAYS ), DTHDZ( EMLAYS ), WSPD( EMLAYS ), &

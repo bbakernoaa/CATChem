@@ -107,6 +107,7 @@ CONTAINS
       ! INPUT/OUTPUT PARAMETERS
       !------------------------
       TYPE(PlumeriseStateType), INTENT(INOUT) :: PlumeriseState   ! PlumeriseState Instance
+      ! type(MetStateType),  INTENT(IN) :: MetState       ! MetState Instance
       ! TYPE(ChemStateType), INTENT(INOUT) :: ChemState  ! ChemState Instance
 
       ! OUTPUT PARAMETERS
@@ -122,12 +123,13 @@ CONTAINS
       Integer :: s ! Emitted Species
       Integer :: p ! Plumerise source length counter
       Integer :: z ! Vertical counter
+      Integer :: i ! Horizontal counter
       ! integer :: nPlumes ! temporary variable for number of plumes
       Logical :: verbose_
 
       REAL(fp) :: plmHGT                              ! Plumerise Height [m]
-      REAL(fp) :: EFRAC(GridState%number_of_levels)   ! Emission fraction
-      real(fp) :: ColEmis(GridState%number_of_levels) ! Column emission rate [kg/m2/s]
+      REAL(fp) :: EFRAC(MetState%nHORZ, MetState%nLEVS)   ! Emission fraction
+      real(fp) :: ColEmis(MetState%nHORZ, MetState%nLEVS) ! Column emission rate [kg/m2/s]
 
       ! Initialize
       !-----------
@@ -147,90 +149,100 @@ CONTAINS
 
       if (PlumeriseState%Activate) then
          if (EmisState%nEmisTotalPlumerise == 0) RETURN  ! no plumerise species listed in CATCHem_emission.yml
+
          cats: do c = 1, EmisState%nCats
+
             if (EmisState%Cats(c)%nPlumerise /= 0) then  ! in EmisState%Cats(c) plumerise options activated
+
                species: do s = 1, EmisState%Cats(c)%nSpecies ! loop over emitted species
-                  print*, 'Running Plumerise for ', EmisState%Cats(c)%Species(s)%name
+
+                  if (verbose_) then
+                     print*, 'Running Plumerise for ', EmisState%Cats(c)%Species(s)%name
+                  end if
+
                   plume: do p = 1, EmisState%Cats(c)%Species(s)%nPlmSrc ! loop over plume sources
-                     select case (EmisState%Cats(c)%Species(s)%plumerise)
-                      case (1) ! Sofiev Plumerise
 
-                        call CCPr_Sofiev_Plmrise(MetState%Z,     &
-                           MetState%T,                           &
-                           MetState%PMID,                        &
-                           MetState%PBLH,                        &
-                           MetState%PS,                          &
-                           EmisState%Cats(c)%Species(s)%frp(p),  &
-                           plmHGT,                               &
-                           EFRAC,                                &
-                           RC)
-                        if (RC /= CC_SUCCESS) then
-                           errMsg = 'Error in CCPr_Sofiev_Plmrise'
-                           CALL CC_Error( errMsg, RC, thisLoc )
+                     horz: do i = 1, MetState%nHORZ
+                        select case (EmisState%Cats(c)%Species(s)%plumerise)
+                         case (1) ! Sofiev Plumerise
+                           call CCPr_Sofiev_Plmrise(MetState%Z(i,:),     &
+                              MetState%T(i,:),                           &
+                              MetState%PMID(i,:),                        &
+                              MetState%PBLH(i),                        &
+                              MetState%PS(i),                          &
+                              EmisState%Cats(c)%Species(s)%frp(p),  &
+                              plmHGT,                               &
+                              EFRAC(i,:),                                &
+                              RC)
+                           if (RC /= CC_SUCCESS) then
+                              errMsg = 'Error in CCPr_Sofiev_Plmrise'
+                              CALL CC_Error( errMsg, RC, thisLoc )
+                           endif
+
+                           ! Add emission to ColEmis for total Emission in grid cell due to plumerise
+                           ! Will Speciate out afterwards to concentration at end
+                           do z = 1, MetState%nLEVS
+                              ColEmis(i,z) = ColEmis(i, z) + EmisState%Cats(c)%Species(s)%PlmSrcFlx(i, p) * EFRAC(i,z)
+                           end do
+
+                           ! Add Plume Rise height to species
+                           EmisState%Cats(c)%Species(s)%PlmRiseHgt(i,p) = plmHGT
+
+                         case (2) ! Brigg's Plumerise
+                           call CCPr_Briggs_Plumerise(MetState%Z(i,:),          &
+                              MetState%ZMID(i,:),                               &
+                              MetState%T(i,:),                                  &
+                              MetState%QV(i,:),                                 &
+                              MetState%U(i,:),                                  &
+                              MetState%V(i,:),                                  &
+                              MetState%PMID(i,:),                               &
+                              MetState%HFLUX(i),                              &
+                              MetState%PBLH(i),                               &
+                              MetState%USTAR(i),                              &
+                              MetState%T2M(i),                                &
+                              MetState%PS(i),                                 &
+                              SIZE(MetState%T(i,:)),                            &
+                              EmisState%Cats(c)%Species(s)%STKDM(p),   &
+                              EmisState%Cats(c)%Species(s)%STKHT(p),   &
+                              EmisState%Cats(c)%Species(s)%STKTK(p),   &
+                              EmisState%Cats(c)%Species(s)%STKVE(p),   &
+                              plmHGT,                                      &
+                              EFRAC(i,:),                                   &
+                              RC)
+                           if (RC /= CC_SUCCESS) then
+                              errMsg = 'Error in CCPr_Briggs_Plumerise'
+                              CALL CC_Error( errMsg, RC, thisLoc )
+                           endif
+
+                           levs: do z = 1, MetState%nLEVS
+                              ColEmis(i,z) = ColEmis(i,z) + EmisState%Cats(c)%Species(s)%PlmSrcFlx(i,p) * EFRAC(i,z)
+                           end do levs
+
+                           ! Add Plume Rise height to species
+                           EmisState%Cats(c)%Species(s)%PlmRiseHgt(i,p) = plmHGT
+                         case default
+
+                        end select
+
+
+                        if ((verbose_ .eqv. .true.) .and. (EmisState%Cats(c)%Species(s)%plumerise > 0)) then
+                           write(*,*) '------------ PLUMERISE ---------------'
+                           write(*,*) 'Category: ', EmisState%Cats(c)%Name
+                           write(*,*) 'Species: ', EmisState%Cats(c)%Species(s)%Name
+                           write(*,*) 'PlmHGT: ', plmHGT
+                           write(*,*) 'PlmSrcFlx: ', EmisState%Cats(c)%Species(s)%PlmSrcFlx(i,p)
+                           if (EmisState%Cats(c)%Species(s)%plumerise == 2) then
+                              write(*,*) 'PlumriseOpt: BRIGGS'
+                              write(*,*) '  STKDM: ', EmisState%Cats(c)%Species(s)%STKDM(p)
+                              write(*,*) '  STKHT: ', EmisState%Cats(c)%Species(s)%STKHT(p)
+                              write(*,*) '  STKTK: ', EmisState%Cats(c)%Species(s)%STKTK(p)
+                              write(*,*) '  STKVE: ', EmisState%Cats(c)%Species(s)%STKVE(p)
+                           else if (EmisState%Cats(c)%Species(s)%plumerise == 1) then
+                              write(*,*) 'PlumriseOpt: SOFIEV'
+                              write(*,*) '  FRP: ', EmisState%Cats(c)%Species(s)%frp(p)
+                           endif
                         endif
-
-                        ! Add emission to ColEmis for total Emission in grid cell due to plumerise
-                        ! Will Speciate out afterwards to concentration at end
-                        do z = 1, GridState%number_of_levels
-                           ColEmis(z) = ColEmis(z) + EmisState%Cats(c)%Species(s)%PlmSrcFlx(p) * EFRAC(z)
-                        end do
-
-                        ! Add Plume Rise height to species
-                        EmisState%Cats(c)%Species(s)%PlmRiseHgt(p) = plmHGT
-
-                      case (2) ! Brigg's Plumerise
-                        call CCPr_Briggs_Plumerise(MetState%Z,          &
-                           MetState%ZMID,                               &
-                           MetState%T,                                  &
-                           MetState%QV,                                 &
-                           MetState%U,                                  &
-                           MetState%V,                                  &
-                           MetState%PMID,                               &
-                           MetState%HFLUX,                              &
-                           MetState%PBLH,                               &
-                           MetState%USTAR,                              &
-                           MetState%T2M,                                &
-                           MetState%PS,                                 &
-                           SIZE(MetState%T),                            &
-                           EmisState%Cats(c)%Species(s)%STKDM(p),   &
-                           EmisState%Cats(c)%Species(s)%STKHT(p),   &
-                           EmisState%Cats(c)%Species(s)%STKTK(p),   &
-                           EmisState%Cats(c)%Species(s)%STKVE(p),   &
-                           plmHGT,                                      &
-                           EFRAC)
-                        if (RC /= CC_SUCCESS) then
-                           errMsg = 'Error in CCPr_Briggs_Plumerise'
-                           CALL CC_Error( errMsg, RC, thisLoc )
-                        endif
-
-                        do z = 1, GridState%number_of_levels
-                           ColEmis(z) = ColEmis(z) + EmisState%Cats(c)%Species(s)%PlmSrcFlx(p) * EFRAC(z)
-                        end do
-
-                        ! Add Plume Rise height to species
-                        EmisState%Cats(c)%Species(s)%PlmRiseHgt(p) = plmHGT
-
-                      case default
-
-                     end select
-
-                     if ((verbose_ .eqv. .true.) .and. (EmisState%Cats(c)%Species(s)%plumerise > 0)) then
-                        write(*,*) '------------ PLUMERISE ---------------'
-                        write(*,*) 'Category: ', EmisState%Cats(c)%Name
-                        write(*,*) 'Species: ', EmisState%Cats(c)%Species(s)%Name
-                        write(*,*) 'PlmHGT: ', plmHGT
-                        write(*,*) 'PlmSrcFlx: ', EmisState%Cats(c)%Species(s)%PlmSrcFlx(p)
-                        if (EmisState%Cats(c)%Species(s)%plumerise == 2) then
-                           write(*,*) 'PlumriseOpt: BRIGGS'
-                           write(*,*) '  STKDM: ', EmisState%Cats(c)%Species(s)%STKDM(p)
-                           write(*,*) '  STKHT: ', EmisState%Cats(c)%Species(s)%STKHT(p)
-                           write(*,*) '  STKTK: ', EmisState%Cats(c)%Species(s)%STKTK(p)
-                           write(*,*) '  STKVE: ', EmisState%Cats(c)%Species(s)%STKVE(p)
-                        else if (EmisState%Cats(c)%Species(s)%plumerise == 1) then
-                           write(*,*) 'PlumriseOpt: SOFIEV'
-                           write(*,*) '  FRP: ', EmisState%Cats(c)%Species(s)%frp(p)
-                        endif
-                     endif
+                     end do horz
                   end do plume
 
                   ! Add emission to ColEmis to Species total flux in grid cell

@@ -33,14 +33,30 @@ program test_dust
    !----------------------------
    ! Test 1
    !----------------------------
+   MetState%nHORZ = 1
+   MetState%nLEVS = 127
+   call cc_init_met(MetState, rc)
+   if (rc /= CC_SUCCESS) then
+      errMsg = 'Error initializing meteorology'
+      call cc_emit_error(errMsg, rc, thisLoc)
+      stop 1
+   endif
 
    ! Read input file and initialize grid
-   call cc_read_config(Config, GridState, EmisState, ChemState, rc, configFile)
+   call cc_read_config(Config, MetState, EmisState, ChemState, rc, configFile)
    if (rc /= CC_success) then
       errMsg = 'Error reading configuration file: ' // TRIM( configFile )
       call cc_emit_error(errMsg, rc, thisLoc)
       stop 1
    endif
+
+   call cc_init_diag(Config, MetState, DiagState, ChemState, RC)
+   if (rc /= CC_success) then
+      errMsg = 'Error initializing diagnostics'
+      call cc_emit_error(errMsg, rc, thisLoc)
+      stop 1
+   endif
+
    title = 'SeaSalt Test 1 | Read Config'
    write(*,*) 'title = ', title
    write(*,*) 'Config%seasalt_activate = ', Config%seasalt_activate
@@ -52,17 +68,16 @@ program test_dust
    ! Test 2
    !----------------------------
    ! Set number of dust species to zero for now
-   ChemState%nSpeciesSeaSalt = 0
+   ChemState%nSeaSalt = 0
 
    ! Meteorological State
-   MetState%SST=300.0_fp
-   MetState%FROCEAN = 1.0_fp
-   MetState%FRSEAICE = 0.0_fp
-   MetState%U10M = 20.0_fp
-   MetState%V10M = 20.0_fp
-   MetState%USTAR = 2.0_fp
-   allocate(MetState%AIRDEN(1))
-   MetState%AIRDEN = 1.2_fp  ! kg/m3
+   MetState%SST(1)=300.0_fp
+   MetState%FROCEAN(1) = 1.0_fp
+   MetState%FRSEAICE(1) = 0.0_fp
+   MetState%U10M(1) = 20.0_fp
+   MetState%V10M(1) = 20.0_fp
+   MetState%USTAR(1) = 2.0_fp
+   MetState%AIRDEN(1,1) = 1.2_fp  ! kg/m3
 
    title = "SeaSalt Test 2 | Test GEOS12 defaults"
    Config%seasalt_activate = .TRUE.
@@ -83,9 +98,9 @@ program test_dust
       stop 1
    end if
 
-   call print_info(Config, SeaSaltState, MetState, title)
-   call assert(SeaSaltState%TotalEmission > 0.0_fp, "Test GEOS12 SeaSalt Scheme")
-   SeaSaltState%TotalEmission = 0.0_fp
+   call print_info(Config, SeaSaltState, MetState, DiagState,title)
+   call assert(Diagstate%ss_total_flux(1) > 0.0_fp, "Test GEOS12 SeaSalt Scheme")
+   DiagState%ss_total_flux(:) = 0.0_fp
    !-------------------------
    ! Test Gong03 Scheme
    !-------------------------
@@ -99,8 +114,8 @@ program test_dust
       stop 1
    end if
 
-   call print_info(Config, SeaSaltState, MetState, title)
-   call assert(SeaSaltState%TotalEmission > 0.0_fp, "Test GEOS12 SeaSalt Scheme")
+   call print_info(Config, SeaSaltState, MetState, DiagState, title)
+   call assert(DiagState%ss_total_flux(1) > 0.0_fp, "Test GEOS12 SeaSalt Scheme")
    SeaSaltState%TotalEmission = 0.0_fp
    !-------------------------
    ! Test Gong03 Scheme
@@ -115,16 +130,18 @@ program test_dust
       stop 1
    end if
 
-   call print_info(Config, SeaSaltState, MetState, title)
-   call assert(SeaSaltState%TotalEmission > 0.0_fp, "Test Gong97 SeaSalt Scheme")
+   call print_info(Config, SeaSaltState, MetState, DiagState, title)
+   call assert(DiagState%ss_total_flux(1) > 0.0_fp, "Test Gong97 SeaSalt Scheme")
    SeaSaltState%TotalEmission = 0.0_fp
 
 contains
 
-   subroutine print_info(Config_, SeaSaltState_, MetState_, title_)
+   subroutine print_info(Config_, SeaSaltState_, MetState_, DiagState_, title_)
       type(ConfigType), intent(in) :: Config_
       type(MetStateType), intent(in) :: MetState_
       type(SeaSaltStateType), intent(in) :: SeaSaltState_
+      type(DiagStateType), intent(in) :: DiagState_
+
       character(len=*), intent(in) :: title_
 
       write(*,*) '======================================='
@@ -144,7 +161,7 @@ contains
       write(*,*) 'MetState%V10M =', MetState_%V10M
       write(*,*) 'MetState%USTAR =', MetState_%USTAR
       write(*,*) 'MetState%AIRDEN =', MetState_%AIRDEN
-      write(*,*) 'SeaSaltState%TotalEmission = ', SeaSaltState_%TotalEmission
+      write(*,*) 'DiagState%ss_total_flux = ', DiagState_%ss_total_flux
 
    end subroutine print_info
 

@@ -34,8 +34,17 @@ program test_plumerise
    write(*,*) ''
    write(*,*) '  PLUMERISE TEST'
 
+   MetState%nHORZ = 1
+   MetState%nLEVS = 127
+   call cc_init_met(MetState, rc)
+   if (rc /= CC_SUCCESS) then
+      errMsg = 'Error initializing meteorology'
+      call cc_emit_error(errMsg, rc, thisLoc)
+      stop 1
+   endif
+
    ! Read input file and initialize grid
-   call cc_read_config(Config, GridState, EmisState, ChemState, rc, configFile)
+   call cc_read_config(Config, MetState, EmisState, ChemState, rc, configFile)
    if (rc /= CC_success) then
       errMsg = 'Error reading configuration file: ' // TRIM( configFile )
       call cc_emit_error(errMsg, rc, thisLoc)
@@ -45,7 +54,7 @@ program test_plumerise
    ! Allocate MetState
    MetState%nSOIL = 4
    print*, 'Allocating MetState'
-   call cc_allocate_metstate(GridState, MetState, rc)
+   call cc_allocate_metstate(MetState, rc)
    if (rc /= CC_success) then
       errMsg = 'Error in "cc_allocate_metstate"'
       call cc_emit_error(errMsg, rc, thisLoc)
@@ -62,7 +71,7 @@ program test_plumerise
    endif
 
    ! Allocate EmisState
-   call cc_allocate_emisstate(GridState, EmisState, rc)
+   call cc_allocate_emisstate(MetState,EmisState, rc)
    if (rc /= CC_success) then
       errMsg = 'Error in "cc_allocate_emisstate"'
       call cc_emit_error(errMsg, rc, thisLoc)
@@ -78,7 +87,7 @@ program test_plumerise
             if (EmisState%Cats(c)%Species(s)%plumerise == 1) then
 
                EmisState%Cats(c)%Species(s)%nPlmSrc = 4
-               allocate(EmisState%Cats(c)%Species(s)%PlmSrcFlx(EmisState%Cats(c)%Species(s)%nPlmSrc), stat=rc)
+               allocate(EmisState%Cats(c)%Species(s)%PlmSrcFlx(1,EmisState%Cats(c)%Species(s)%nPlmSrc), stat=rc)
                if (rc /= CC_success) then
                   errMsg = 'Error in allocate for EmisState%Cats(c)%Species(s)%PlmSrcFlx'
                   call cc_emit_error(errMsg, rc, thisLoc)
@@ -90,7 +99,7 @@ program test_plumerise
                   call cc_emit_error(errMsg, rc, thisLoc)
                   stop 1
                endif
-               allocate(EmisState%Cats(c)%Species(s)%PlmRiseHgt(EmisState%Cats(c)%Species(s)%nPlmSrc), stat=rc)
+               allocate(EmisState%Cats(c)%Species(s)%PlmRiseHgt(1,EmisState%Cats(c)%Species(s)%nPlmSrc), stat=rc)
                if (rc /= CC_success) then
                   errMsg = 'Error in allocate for EmisState%Cats(c)%Species(s)%FRP'
                   call cc_emit_error(errMsg, rc, thisLoc)
@@ -98,13 +107,13 @@ program test_plumerise
                endif
                ! do n = 1, EmisState%Cats(c)%Species(s)%nPlmSrc
 
-               EmisState%Cats(c)%Species(s)%FRP = (/10.0e6, 100.0e6, 500.0e7, 1000.0e10/)
-               EmisState%Cats(c)%Species(s)%PlmSrcFlx = (/10., 100., 500., 1000./)
+               EmisState%Cats(c)%Species(s)%FRP(:) = (/10.0e6, 100.0e6, 500.0e7, 1000.0e10/)
+               EmisState%Cats(c)%Species(s)%PlmSrcFlx(1,:) = (/10., 100., 500., 1000./)
 
             else if (EmisState%Cats(c)%Species(s)%plumerise == 2) then
 
                EmisState%Cats(c)%Species(s)%nPlmSrc = 1
-               allocate(EmisState%Cats(c)%Species(s)%PlmSrcFlx(EmisState%Cats(c)%Species(s)%nPlmSrc), stat=rc)
+               allocate(EmisState%Cats(c)%Species(s)%PlmSrcFlx(1,EmisState%Cats(c)%Species(s)%nPlmSrc), stat=rc)
                if (rc /= CC_success) then
                   errMsg = 'Error in allocate for EmisState%Cats(c)%Species(s)%PlmSrcFlx'
                   call cc_emit_error(errMsg, rc, thisLoc)
@@ -134,7 +143,7 @@ program test_plumerise
                   call cc_emit_error(errMsg, rc, thisLoc)
                   stop 1
                endif
-               allocate(EmisState%Cats(c)%Species(s)%PlmRiseHgt(EmisState%Cats(c)%Species(s)%nPlmSrc), stat=rc)
+               allocate(EmisState%Cats(c)%Species(s)%PlmRiseHgt(1,EmisState%Cats(c)%Species(s)%nPlmSrc), stat=rc)
                if (rc /= CC_success) then
                   errMsg = 'Error in allocate for EmisState%Cats(c)%Species(s)%FRP'
                   call cc_emit_error(errMsg, rc, thisLoc)
@@ -144,7 +153,7 @@ program test_plumerise
                EmisState%Cats(c)%Species(s)%STKHT = (/10.0/)
                EmisState%Cats(c)%Species(s)%STKTK = (/273.0/)
                EmisState%Cats(c)%Species(s)%STKVE = (/10.0/)
-               EmisState%Cats(c)%Species(s)%PlmSrcFlx = (/10./)
+               EmisState%Cats(c)%Species(s)%PlmSrcFlx(1,:) = (/10./)
 
             endif
          enddo
@@ -175,10 +184,10 @@ program test_plumerise
          plume2: do p = 1, EmisState%Cats(c)%Species(s)%nPlmSrc
             if (EmisState%Cats(c)%Species(s)%plumerise > 0) then
                if (TRIM(EmisState%Cats(c)%Species(s)%name) == 'CO') then
-                  call assert_close(EmisState%Cats(c)%Species(s)%PlmRiseHgt(p), CO_PLMRISE(index), 1.e-3)
+                  call assert_close(EmisState%Cats(c)%Species(s)%PlmRiseHgt(1,p), CO_PLMRISE(index), 1.e-3)
                   index = index + 1
                else if (TRIM(EmisState%Cats(c)%Species(s)%name) == 'ISOP') then
-                  call assert_close(EmisState%Cats(c)%Species(s)%PlmRiseHgt(p), ISOP_PLMRISE(1), 1.e-3)
+                  call assert_close(EmisState%Cats(c)%Species(s)%PlmRiseHgt(1,p), ISOP_PLMRISE(1), 1.e-3)
                endif
             endif
 
