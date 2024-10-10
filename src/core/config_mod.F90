@@ -19,6 +19,8 @@ MODULE Config_Mod
 ! !PUBLIC MEMBER FUNCTIONS:
 !
    PUBLIC  :: Read_Input_File
+   PUBLIC  :: Config_ChemState
+   PUBLIC  :: Config_EmisState
 
 !
 ! !DEFINED PARAMETERS:
@@ -38,15 +40,15 @@ CONTAINS
    !!
    !! \ingroup core_modules
    !!!>
-   SUBROUTINE Read_Input_File( Config, RC, ConfigFilename )
+   SUBROUTINE Read_Input_File( Config, MetState, EmisState, ChemState, RC, ConfigFilename )
 !
 ! !USES:
 !
       USE Error_Mod
-      USE Config_Opt_Mod,  ONLY : ConfigType
-      ! USE GridState_Mod, ONLY : GridStateType
-      ! use ChemState_Mod, only : ChemStateType
-      ! use EmisState_Mod, only : EmisStateType
+      USE MetState_Mod, Only : MetStateType
+      USE ChemState_Mod, Only : ChemStateType
+      USE EmisState_Mod, Only : EmisStateType
+      USE Config_Opt_Mod, Only : ConfigType
 
       ! !INPUT PARAMETERS:
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL :: ConfigFilename
@@ -54,9 +56,9 @@ CONTAINS
 ! !INPUT/OUTPUT PARAMETERS:
 !
       TYPE(ConfigType),    INTENT(INOUT) :: Config    ! Input options
-      ! TYPE(GridStateType), INTENT(INOUT) :: GridState  ! Grid State object
-      ! TYPE(ChemStateType), INTENT(inout) :: ChemState ! Chemical State
-      ! TYPE(EmisStateType), INTENT(inout) :: EmisState ! Emission State
+      TYPE(MetStateType),  INTENT(INOUT) :: MetState  ! Grid State object
+      TYPE(ChemStateType), INTENT(inout) :: ChemState ! Chemical State
+      TYPE(EmisStateType), INTENT(inout) :: EmisState ! Emission State
 !
 ! !OUTPUT PARAMETERS:
 !
@@ -84,12 +86,12 @@ CONTAINS
       endif
 
       ! Echo output
-      IF ( Config %amIRoot ) THEN
-         WRITE( 6, '(a  )' ) REPEAT( '=', 79 )
-         WRITE( 6, '(a,/)' ) 'CATChem Initialization'
-         WRITE( 6, 100   ) TRIM( cFile )
-100      FORMAT( 'READ_INPUT_FILE: Opening ', a )
-      ENDIF
+!       IF ( Config%amIRoot ) THEN
+!          WRITE( 6, '(a  )' ) REPEAT( '=', 79 )
+!          WRITE( 6, '(a,/)' ) 'CATChem Initialization'
+!          WRITE( 6, 100   ) TRIM( cFile )
+! 100      FORMAT( 'READ_INPUT_FILE: Opening ', a )
+!       ENDIF
 
       ! Assume success
       RC      = CC_SUCCESS
@@ -125,14 +127,14 @@ CONTAINS
       !========================================================================
 
       ! Grid config settings
-      CALL Config_Grid( ConfigInput, GridState, RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error in "Config_Grid"!'
-         CALL CC_Error( errMsg, RC, thisLoc  )
-         CALL QFYAML_CleanUp( ConfigInput         )
-         CALL QFYAML_CleanUp( ConfigAnchored )
-         RETURN
-      ENDIF
+      ! CALL Config_Grid( ConfigInput, GridState, RC )
+      ! IF ( RC /= CC_SUCCESS ) THEN
+      !    errMsg = 'Error in "Config_Grid"!'
+      !    CALL CC_Error( errMsg, RC, thisLoc  )
+      !    CALL QFYAML_CleanUp( ConfigInput         )
+      !    CALL QFYAML_CleanUp( ConfigAnchored )
+      !    RETURN
+      ! ENDIF
 
       ! !========================================================================
       ! ! Config processes
@@ -164,29 +166,29 @@ CONTAINS
          RETURN
       ENDIF
 
-      ! !========================================================================
-      ! ! Config ChemState
-      ! !========================================================================
-      ! call Config_Chem_State(config%Species_File, GridState, ChemState, RC)
-      ! if (RC /= CC_SUCCESS) then
-      !    errMsg = 'Error in "Config_Chem_State"!'
-      !    CALL CC_Error( errMsg, RC, thisLoc  )
-      !    CALL QFYAML_CleanUp( ConfigInput )
-      !    CALL QFYAML_CleanUp( ConfigAnchored )
-      !    RETURN
-      ! endif
+      !========================================================================
+      ! Config ChemState
+      !========================================================================
+      call Config_ChemState(config%Species_File, MetState, ChemState, RC)
+      if (RC /= CC_SUCCESS) then
+         errMsg = 'Error in "Config_Chem_State"!'
+         CALL CC_Error( errMsg, RC, thisLoc  )
+         CALL QFYAML_CleanUp( ConfigInput )
+         CALL QFYAML_CleanUp( ConfigAnchored )
+         RETURN
+      endif
 
-      ! !========================================================================
-      ! ! Config EmisState
-      ! !========================================================================
-      ! call Config_Emis_State(config%Emission_File, EmisState, RC)
-      ! if (RC /= CC_SUCCESS) then
-      !    errMsg = 'Error in "Config_Emis_State"!'
-      !    CALL CC_Error( errMsg, RC, thisLoc  )
-      !    CALL QFYAML_CleanUp( ConfigInput )
-      !    CALL QFYAML_CleanUp( ConfigAnchored )
-      !    RETURN
-      ! endif
+      !========================================================================
+      ! Config EmisState
+      !========================================================================
+      call Config_EmisState(config%Emission_File, EmisState, RC)
+      if (RC /= CC_SUCCESS) then
+         errMsg = 'Error in "Config_Emis_State"!'
+         CALL CC_Error( errMsg, RC, thisLoc  )
+         CALL QFYAML_CleanUp( ConfigInput )
+         CALL QFYAML_CleanUp( ConfigAnchored )
+         RETURN
+      endif
 
       !========================================================================
       ! Further error-checking and initialization
@@ -204,7 +206,7 @@ CONTAINS
    !! \param   RC Return code
    !!
    !!!>
-   SUBROUTINE Config_Chem_State( filename, MetState, ChemState, RC )
+   SUBROUTINE Config_ChemState( filename, MetState, ChemState, RC )
       USE ChemState_Mod, ONLY : ChemStateType, Find_Number_of_Species, Find_Index_of_Species
       use Config_Opt_Mod, ONLY : ConfigType
       USE Error_Mod
@@ -281,9 +283,9 @@ CONTAINS
          enddo
 
          ! Allocate the species
-         ALLOCATE(ChemState%ChemSpecies(ChemState%nSpecies), STAT=RC)
+         ALLOCATE(ChemState%Species(ChemState%nSpecies), STAT=RC)
          IF (RC /= CC_SUCCESS) then
-            errMsg = 'Error Allocating ChemState%ChemSpecies in "Config_Chem_State"!'
+            errMsg = 'Error Allocating ChemState%Species in "Config_Chem_State"!'
             call CC_Error(errMsg, RC, thisLoc)
             call QFYAML_CleanUp(ConfigInput)
             RETURN
@@ -292,7 +294,6 @@ CONTAINS
       ENDIF
 
       ! Print Species
-
       write(*,*) '==============================='
       write(*,*) 'Chemical Species Settings:'
       write(*,*) '==============================='
@@ -314,8 +315,8 @@ CONTAINS
             call QFYAML_CleanUp(ConfigInput)
             RETURN
          ENDIF
-         ChemState%ChemSpecies(n)%short_name = TRIM(v_str)
-         write(*,*) '|  short_name: ', TRIM(ChemState%ChemSpecies(n)%short_name)
+         ChemState%Species(n)%short_name = TRIM(v_str)
+         write(*,*) '|  short_name: ', TRIM(ChemState%Species(n)%short_name)
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'long_name'
          v_str = MISSING_STR
@@ -323,21 +324,21 @@ CONTAINS
          IF (RC /= CC_SUCCESS) then
             ! assume that if the long name isn't in the species.yaml file that long_name = short_name
             errMsg = 'Error Getting Species Long Name in "Config_Chem_State"!'
-            ChemState%ChemSpecies(n)%long_name = TRIM(ChemState%ChemSpecies(n)%short_name)
+            ChemState%Species(n)%long_name = TRIM(ChemState%Species(n)%short_name)
          else
-            ChemState%ChemSpecies(n)%long_name = TRIM(v_str)
+            ChemState%Species(n)%long_name = TRIM(v_str)
          ENDIF
-         write(*,*) '|  long_name: ', TRIM(ChemState%ChemSpecies(n)%long_name)
+         write(*,*) '|  long_name: ', TRIM(ChemState%Species(n)%long_name)
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'description'
          v_str = MISSING_STR
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_str, "", RC )
          IF (RC /= CC_SUCCESS) then
             ! assume description is None if it isn't in the species.yaml file
-            ChemState%ChemSpecies(n)%description = 'None'
+            ChemState%Species(n)%description = 'None'
          ENDIF
-         ChemState%ChemSpecies(n)%description = TRIM(v_str)
-         write(*,*) '|  description: ', TRIM(ChemState%ChemSpecies(n)%description)
+         ChemState%Species(n)%description = TRIM(v_str)
+         write(*,*) '|  description: ', TRIM(ChemState%Species(n)%description)
 
          !-----------------------------
          !  Initialize species booleans
@@ -348,80 +349,80 @@ CONTAINS
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_logical, "", RC )
          IF (RC /= CC_SUCCESS) then
             ! assume that if is_gas isn't in the species.yaml file assume false
-            ChemState%ChemSpecies(n)%is_gas = MISSING_BOOL
+            ChemState%Species(n)%is_gas = MISSING_BOOL
          ENDIF
-         ChemState%ChemSpecies(n)%is_gas = v_logical
-         write(*,*) '|  is_gas: ', ChemState%ChemSpecies(n)%is_gas
+         ChemState%Species(n)%is_gas = v_logical
+         write(*,*) '|  is_gas: ', ChemState%Species(n)%is_gas
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'is_aerosol'
          v_logical = MISSING_BOOL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_logical, "", RC )
          IF (RC /= CC_SUCCESS) then
             ! assume that if is_aerosol isn't in the species.yaml file assume false
-            ChemState%ChemSpecies(n)%is_aerosol = MISSING_BOOL
+            ChemState%Species(n)%is_aerosol = MISSING_BOOL
          ENDIF
-         ChemState%ChemSpecies(n)%is_aerosol = v_logical
-         write(*,*) '|  is_aerosol: ', ChemState%ChemSpecies(n)%is_aerosol
+         ChemState%Species(n)%is_aerosol = v_logical
+         write(*,*) '|  is_aerosol: ', ChemState%Species(n)%is_aerosol
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'is_tracer'
          v_logical = MISSING_BOOL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_logical, "", RC )
          IF (RC /= CC_SUCCESS) then
             ! assume that if is_tracer isn't in the species.yaml file assume false
-            ChemState%ChemSpecies(n)%is_tracer = MISSING_BOOL
+            ChemState%Species(n)%is_tracer = MISSING_BOOL
          ENDIF
-         ChemState%ChemSpecies(n)%is_tracer = v_logical
-         write(*,*) '|  is_tracer: ', ChemState%ChemSpecies(n)%is_tracer
+         ChemState%Species(n)%is_tracer = v_logical
+         write(*,*) '|  is_tracer: ', ChemState%Species(n)%is_tracer
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'is_advected'
          v_logical = MISSING_BOOL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_logical, "", RC )
          IF (RC /= CC_SUCCESS) then
             ! assume that if is_advected isn't in the species.yaml file assume false
-            ChemState%ChemSpecies(n)%is_advected = MISSING_BOOL
+            ChemState%Species(n)%is_advected = MISSING_BOOL
          ENDIF
-         ChemState%ChemSpecies(n)%is_advected = v_logical
-         write(*,*) '|  is_advected: ', ChemState%ChemSpecies(n)%is_advected
+         ChemState%Species(n)%is_advected = v_logical
+         write(*,*) '|  is_advected: ', ChemState%Species(n)%is_advected
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'is_drydep'
          v_logical = MISSING_BOOL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_logical, "", RC )
          IF (RC /= CC_SUCCESS) then
             ! assume that if is_drydep isn't in the species.yaml file assume false
-            ChemState%ChemSpecies(n)%is_drydep = MISSING_BOOL
+            ChemState%Species(n)%is_drydep = MISSING_BOOL
          ENDIF
-         ChemState%ChemSpecies(n)%is_drydep = v_logical
-         write(*,*) '|  is_drydep: ', ChemState%ChemSpecies(n)%is_drydep
+         ChemState%Species(n)%is_drydep = v_logical
+         write(*,*) '|  is_drydep: ', ChemState%Species(n)%is_drydep
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'is_photolysis'
          v_logical = MISSING_BOOL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_logical, "", RC )
          IF (RC /= CC_SUCCESS) then
             ! assume that if is_photolysis isn't in the species.yaml file assume false
-            ChemState%ChemSpecies(n)%is_photolysis = MISSING_BOOL
+            ChemState%Species(n)%is_photolysis = MISSING_BOOL
          ENDIF
-         ChemState%ChemSpecies(n)%is_photolysis = v_logical
-         write(*,*) '|  is_photolysis: ', ChemState%ChemSpecies(n)%is_photolysis
+         ChemState%Species(n)%is_photolysis = v_logical
+         write(*,*) '|  is_photolysis: ', ChemState%Species(n)%is_photolysis
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'is_dust'
          v_logical = MISSING_BOOL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_logical, "", RC )
          IF (RC /= CC_SUCCESS) then
             ! assume that if is_dust isn't in the species.yaml file assume false
-            ChemState%ChemSpecies(n)%is_dust = MISSING_BOOL
+            ChemState%Species(n)%is_dust = MISSING_BOOL
          ENDIF
-         ChemState%ChemSpecies(n)%is_dust = v_logical
-         write(*,*) '|  is_dust: ', ChemState%ChemSpecies(n)%is_dust
+         ChemState%Species(n)%is_dust = v_logical
+         write(*,*) '|  is_dust: ', ChemState%Species(n)%is_dust
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'is_seasalt'
          v_logical = MISSING_BOOL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_logical, "", RC )
          IF (RC /= CC_SUCCESS) then
             ! assume that if is_seasalt isn't in the species.yaml file assume false
-            ChemState%ChemSpecies(n)%is_seasalt = MISSING_BOOL
+            ChemState%Species(n)%is_seasalt = MISSING_BOOL
          ENDIF
-         ChemState%ChemSpecies(n)%is_seasalt = v_logical
-         write(*,*) '|  is_seasalt: ', ChemState%ChemSpecies(n)%is_seasalt
+         ChemState%Species(n)%is_seasalt = v_logical
+         write(*,*) '|  is_seasalt: ', ChemState%Species(n)%is_seasalt
 
          !-----------------------------
          !  Initialize species reals
@@ -431,9 +432,9 @@ CONTAINS
          v_real = MISSING_REAL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_real, "", RC )
          IF (RC /= CC_SUCCESS) then
-            if (ChemState%ChemSpecies(n)%is_gas .eqv. .false.) then
+            if (ChemState%Species(n)%is_gas .eqv. .false.) then
                ! assume that if mw_g isn't in the species.yaml file assume 0.0
-               ChemState%ChemSpecies(n)%mw_g = MISSING_REAL
+               ChemState%Species(n)%mw_g = MISSING_REAL
             else
                ! if is_gas mw_g must be present
                errMsg = 'MW_g required for gas species ' // TRIM(ChemState%SpeciesNames(n))
@@ -441,16 +442,16 @@ CONTAINS
                RETURN
             endif
          ENDIF
-         ChemState%ChemSpecies(n)%mw_g = v_real
-         write(*,*) '|  mw_g: ', ChemState%ChemSpecies(n)%mw_g
+         ChemState%Species(n)%mw_g = v_real
+         write(*,*) '|  mw_g: ', ChemState%Species(n)%mw_g
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'density'
          v_real = MISSING_REAL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_real, "", RC )
          IF (RC /= CC_SUCCESS) then
-            if (ChemState%ChemSpecies(n)%is_aerosol .eqv. .false.) then
+            if (ChemState%Species(n)%is_aerosol .eqv. .false.) then
                ! assume that if density isn't in the species.yaml file assume 0.0
-               ChemState%ChemSpecies(n)%density = MISSING_REAL
+               ChemState%Species(n)%density = MISSING_REAL
             else
                ! if is_aerosol density must be present
                errMsg = 'Density required for aerosol species ' // TRIM(ChemState%SpeciesNames(n))
@@ -458,16 +459,16 @@ CONTAINS
                RETURN
             endif
          ENDIF
-         ChemState%ChemSpecies(n)%density = v_real
-         write(*,*) '|  density: ', ChemState%ChemSpecies(n)%density
+         ChemState%Species(n)%density = v_real
+         write(*,*) '|  density: ', ChemState%Species(n)%density
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'radius'
          v_real = MISSING_REAL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_real, "", RC )
          IF (RC /= CC_SUCCESS) then
-            if (ChemState%ChemSpecies(n)%is_aerosol .eqv. .false.) then
+            if (ChemState%Species(n)%is_aerosol .eqv. .false.) then
                ! assume that if radius isn't in the species.yaml file assume 0.0
-               ChemState%ChemSpecies(n)%radius = MISSING_REAL
+               ChemState%Species(n)%radius = MISSING_REAL
             else
                ! if is_aerosol radius must be present
                errMsg = 'Radius required for aerosol species ' // TRIM(ChemState%SpeciesNames(n))
@@ -475,16 +476,16 @@ CONTAINS
                RETURN
             endif
          ENDIF
-         ChemState%ChemSpecies(n)%radius = v_real
-         write(*,*) '|  radius: ', ChemState%ChemSpecies(n)%radius
+         ChemState%Species(n)%radius = v_real
+         write(*,*) '|  radius: ', ChemState%Species(n)%radius
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'lower_radius'
          v_real = MISSING_REAL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_real, "", RC )
          IF (RC /= CC_SUCCESS) then
-            if (ChemState%ChemSpecies(n)%is_aerosol .eqv. .false.) then
+            if (ChemState%Species(n)%is_aerosol .eqv. .false.) then
                ! assume that if lower_radius isn't in the species.yaml file assume 0.0
-               ChemState%ChemSpecies(n)%lower_radius = MISSING_REAL
+               ChemState%Species(n)%lower_radius = MISSING_REAL
             else
                ! if is_aerosol lower_radius must be present
                errMsg = 'Lower_radius required for aerosol species ' // TRIM(ChemState%SpeciesNames(n))
@@ -492,16 +493,16 @@ CONTAINS
                RETURN
             endif
          ENDIF
-         ChemState%ChemSpecies(n)%lower_radius = v_real
-         write(*,*) '|  lower_radius: ', ChemState%ChemSpecies(n)%lower_radius
+         ChemState%Species(n)%lower_radius = v_real
+         write(*,*) '|  lower_radius: ', ChemState%Species(n)%lower_radius
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'upper_radius'
          v_real = MISSING_REAL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_real, "", RC )
          IF (RC /= CC_SUCCESS) then
-            if (ChemState%ChemSpecies(n)%is_aerosol .eqv. .false.) then
+            if (ChemState%Species(n)%is_aerosol .eqv. .false.) then
                ! assume that if upper_radius isn't in the species.yaml file assume 0.0
-               ChemState%ChemSpecies(n)%upper_radius = MISSING_REAL
+               ChemState%Species(n)%upper_radius = MISSING_REAL
             else
                ! if is_aerosol upper_radius must be present
                errMsg = 'upper_radius required for aerosol species ' // TRIM(ChemState%SpeciesNames(n))
@@ -509,16 +510,16 @@ CONTAINS
                RETURN
             endif
          ENDIF
-         ChemState%ChemSpecies(n)%upper_radius = v_real
-         write(*,*) '|  upper_radius: ', ChemState%ChemSpecies(n)%upper_radius
+         ChemState%Species(n)%upper_radius = v_real
+         write(*,*) '|  upper_radius: ', ChemState%Species(n)%upper_radius
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'viscosity'
          v_real = MISSING_REAL
          CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_real, "", RC )
          IF (RC /= CC_SUCCESS) then
-            if (ChemState%ChemSpecies(n)%is_gas .eqv. .false.) then
+            if (ChemState%Species(n)%is_gas .eqv. .false.) then
                ! assume that if viscosity isn't in the species.yaml file assume 0.0
-               ChemState%ChemSpecies(n)%viscosity = MISSING_REAL
+               ChemState%Species(n)%viscosity = MISSING_REAL
             else
                ! if is_gas viscosity must be present
                errMsg = 'viscosity required for aerosol species ' // TRIM(ChemState%SpeciesNames(n))
@@ -526,13 +527,13 @@ CONTAINS
                RETURN
             endif
          ENDIF
-         ChemState%ChemSpecies(n)%viscosity = v_real
-         write(*,*) '|  viscosity: ', ChemState%ChemSpecies(n)%viscosity
+         ChemState%Species(n)%viscosity = v_real
+         write(*,*) '|  viscosity: ', ChemState%Species(n)%viscosity
 
          !---------------------------------------
          ! Allocate initial Species Concentration
          !---------------------------------------
-         ALLOCATE(ChemState%ChemSpecies(n)%conc(MetState%NLEVS), STAT=RC)
+         ALLOCATE(ChemState%Species(n)%conc(MetState%nHORZ, MetState%NLEVS), STAT=RC)
 
       enddo ! n
 
@@ -553,16 +554,16 @@ CONTAINS
       write(*,*) '========================================================='
       write(*,*) '| Chemstate SUMMARY'
       write(*,*) '|  number_of_species:  ', ChemState%nSpecies
-      write(*,*) '|  number_of_aerosols: ', ChemState%nSpeciesAero
-      write(*,*) '|  number_of_gases:    ', ChemState%nSpeciesGas
-      write(*,*) '|  number of tracers:  ', ChemState%nSpeciesTracer
-      write(*,*) '|  number of dust:     ', ChemState%nSpeciesDust
-      write(*,*) '|  number of seasalt:  ', ChemState%nSpeciesSeaSalt
+      write(*,*) '|  number_of_aerosols: ', ChemState%nAero
+      write(*,*) '|  number_of_gases:    ', ChemState%nGas
+      write(*,*) '|  number of tracers:  ', ChemState%nTracer
+      write(*,*) '|  number of dust:     ', ChemState%nDust
+      write(*,*) '|  number of seasalt:  ', ChemState%nSeaSalt
       write(*,*) '========================================================='
 
-   END SUBROUTINE Config_Chem_State
+   END SUBROUTINE Config_ChemState
 
-   SUBROUTINE Config_Emis_State( filename, EmisState, RC )
+   SUBROUTINE Config_EmisState( filename, EmisState, RC )
       USE ChemState_Mod, ONLY : ChemStateType
       USE EmisState_Mod, ONLY : EmisStateType
       use Config_Opt_Mod, ONLY : ConfigType
@@ -805,7 +806,7 @@ CONTAINS
       CALL QFYAML_CleanUp(ConfigInput)
       CALL QFYAML_CleanUp(ConfigAnchored)
 
-   END SUBROUTINE Config_Emis_State
+   END SUBROUTINE Config_EmisState
 
 
    !> \brief Process simulation configuration
@@ -904,108 +905,108 @@ CONTAINS
 
    END SUBROUTINE Config_Simulation
 
-   !> \brief Process grid configuration
-   !!
-   !! This function processes the grid configuration and performs the necessary actions based on the configuration.
-   !!
-   !! \param[in] ConfigInput The YAML configuration object
-   !! \param[inout] Config The configuration object
-   !! \param[out] RC The return code
-   !!
-   !! \ingroup core_modules
-   !!!>
-   SUBROUTINE Config_Grid( ConfigInput, GridState, RC )
-!
-! !USES:
-!
-      USE CharPak_Mod,    ONLY : StrSplit
-      USE Error_Mod
-      USE Config_Opt_Mod,  ONLY : ConfigType
-      USE GridState_Mod, ONLY : GridStateType
-!
-! !INPUT/OUTPUT PARAMETERS:
-!
-      TYPE(QFYAML_t),      INTENT(INOUT) :: ConfigInput      ! YAML Config object
-      ! TYPE(ConfigType),     INTENT(INOUT) :: Config   ! Input options
-      TYPE(GridStateType), INTENT(INOUT) :: GridState  ! Grid State
-!
-! !OUTPUT PARAMETERS:
-!
-      INTEGER,        INTENT(OUT)   :: RC          ! Success or failure
-!
-! !LOCAL VARIABLES:
-!
-      ! Scalars
-      ! LOGICAL                      :: v_bool
-      INTEGER                      :: v_int
+!    !> \brief Process grid configuration
+!    !!
+!    !! This function processes the grid configuration and performs the necessary actions based on the configuration.
+!    !!
+!    !! \param[in] ConfigInput The YAML configuration object
+!    !! \param[inout] Config The configuration object
+!    !! \param[out] RC The return code
+!    !!
+!    !! \ingroup core_modules
+!    !!!>
+!    SUBROUTINE Config_Grid( ConfigInput, GridState, RC )
+! !
+! ! !USES:
+! !
+!       USE CharPak_Mod,    ONLY : StrSplit
+!       USE Error_Mod
+!       USE Config_Opt_Mod,  ONLY : ConfigType
+!       USE GridState_Mod, ONLY : GridStateType
+! !
+! ! !INPUT/OUTPUT PARAMETERS:
+! !
+!       TYPE(QFYAML_t),      INTENT(INOUT) :: ConfigInput      ! YAML Config object
+!       ! TYPE(ConfigType),     INTENT(INOUT) :: Config   ! Input options
+!       TYPE(GridStateType), INTENT(INOUT) :: GridState  ! Grid State
+! !
+! ! !OUTPUT PARAMETERS:
+! !
+!       INTEGER,        INTENT(OUT)   :: RC          ! Success or failure
+! !
+! ! !LOCAL VARIABLES:
+! !
+!       ! Scalars
+!       ! LOGICAL                      :: v_bool
+!       INTEGER                      :: v_int
 
-      ! Strings
-      CHARACTER(LEN=255)           :: thisLoc
-      CHARACTER(LEN=512)           :: errMsg
-      CHARACTER(LEN=QFYAML_StrLen) :: key
+!       ! Strings
+!       CHARACTER(LEN=255)           :: thisLoc
+!       CHARACTER(LEN=512)           :: errMsg
+!       CHARACTER(LEN=QFYAML_StrLen) :: key
 
-      !========================================================================
-      ! Config_Grid begins here!
-      !========================================================================
+!       !========================================================================
+!       ! Config_Grid begins here!
+!       !========================================================================
 
-      ! Initialize
-      RC      = CC_SUCCESS
-      errMsg  = ''
-      thisLoc = ' -> at Config_Grid (in CATChem/src/core/input_mod.F90)'
+!       ! Initialize
+!       RC      = CC_SUCCESS
+!       errMsg  = ''
+!       thisLoc = ' -> at Config_Grid (in CATChem/src/core/input_mod.F90)'
 
-      !------------------------------------------------------------------------
-      ! Level range
-      !------------------------------------------------------------------------
-      key   = "grid%number_of_levels"
-      v_int = MISSING_INT
-      CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error parsing ' // TRIM( key ) // '!'
-         CALL CC_Error( errMsg, RC, thisLoc )
-         RETURN
-      ENDIF
-      GridState%number_of_levels = v_int
+!       !------------------------------------------------------------------------
+!       ! Level range
+!       !------------------------------------------------------------------------
+!       key   = "grid%number_of_levels"
+!       v_int = MISSING_INT
+!       CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
+!       IF ( RC /= CC_SUCCESS ) THEN
+!          errMsg = 'Error parsing ' // TRIM( key ) // '!'
+!          CALL CC_Error( errMsg, RC, thisLoc )
+!          RETURN
+!       ENDIF
+!       GridState%number_of_levels = v_int
 
-      !------------------------------------------------------------------------
-      ! number of soil layers range
-      !------------------------------------------------------------------------
-      key   = "grid%number_of_soil_layers"
-      v_int = MISSING_INT
-      CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error parsing ' // TRIM( key ) // '!'
-         CALL CC_Error( errMsg, RC, thisLoc )
-         RETURN
-      ENDIF
-      GridState%number_of_soil_layers = v_int
+!       !------------------------------------------------------------------------
+!       ! number of soil layers range
+!       !------------------------------------------------------------------------
+!       key   = "grid%number_of_soil_layers"
+!       v_int = MISSING_INT
+!       CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
+!       IF ( RC /= CC_SUCCESS ) THEN
+!          errMsg = 'Error parsing ' // TRIM( key ) // '!'
+!          CALL CC_Error( errMsg, RC, thisLoc )
+!          RETURN
+!       ENDIF
+!       GridState%number_of_soil_layers = v_int
 
-      !------------------------------------------------------------------------
-      ! number of x and y dimensions (nx and ny)
-      !------------------------------------------------------------------------
-      key   = "grid%nx"
-      v_int = MISSING_INT
-      CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error parsing ' // TRIM( key ) // '!'
-         CALL CC_Error( errMsg, RC, thisLoc )
-         RETURN
-      ENDIF
-      GridState%NX = v_int
+!       !------------------------------------------------------------------------
+!       ! number of x and y dimensions (nx and ny)
+!       !------------------------------------------------------------------------
+!       key   = "grid%nx"
+!       v_int = MISSING_INT
+!       CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
+!       IF ( RC /= CC_SUCCESS ) THEN
+!          errMsg = 'Error parsing ' // TRIM( key ) // '!'
+!          CALL CC_Error( errMsg, RC, thisLoc )
+!          RETURN
+!       ENDIF
+!       GridState%NX = v_int
 
-      key   = "grid%ny"
-      v_int = MISSING_INT
-      CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error parsing ' // TRIM( key ) // '!'
-         CALL CC_Error( errMsg, RC, thisLoc )
-         RETURN
-      ENDIF
-      GridState%NY = v_int
+!       key   = "grid%ny"
+!       v_int = MISSING_INT
+!       CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
+!       IF ( RC /= CC_SUCCESS ) THEN
+!          errMsg = 'Error parsing ' // TRIM( key ) // '!'
+!          CALL CC_Error( errMsg, RC, thisLoc )
+!          RETURN
+!       ENDIF
+!       GridState%NY = v_int
 
-      ! Return success
-      RC = CC_SUCCESS
+!       ! Return success
+!       RC = CC_SUCCESS
 
-   END SUBROUTINE Config_Grid
+!    END SUBROUTINE Config_Grid
 
    !> \brief Process dust configuration
    !!
