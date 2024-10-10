@@ -42,8 +42,8 @@ contains
       )
 
       ! USE
-      USE CATCHem, Only : ConfigType, GridStateType, MetStateType, ChemStateType, &
-         EmisStateType, DiagStateType, cc_read_config,
+      ! USE CATCHem, Only : ConfigType, GridStateType, MetStateType, ChemStateType, &
+      !    EmisStateType, DiagStateType, cc_read_config,
 
 
       implicit none
