@@ -11,11 +11,11 @@ module CATChem
    ! CATChem States
    !---------------
    use ChemState_Mod,  only: ChemStateType    !< Chemical State
+   use ChemState_Mod,  only: SpeciesType      !< Chemical State
    use GridState_Mod,  only: GridStateType    !< Grid State
    use DiagState_Mod,  only: DiagStateType    !< Diagnostic State
    use EmisState_Mod,  only: EmisStateType    !< Emission State
    use MetState_Mod,   only: MetStateType     !< Meteorology State
-   use species_mod,    only: SpeciesType      !< Species State
    use Config_Opt_Mod, only: ConfigType
 
    !----------------
