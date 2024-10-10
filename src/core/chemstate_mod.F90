@@ -14,7 +14,7 @@ module ChemState_Mod
    !
    USE Error_Mod
    USE Precision_Mod
-   use species_mod, only: SpeciesType
+   ! use species_mod, only: SpeciesType
 
    IMPLICIT NONE
    PRIVATE
@@ -47,7 +47,7 @@ module ChemState_Mod
    !! \param GasIndex: An array containing the gas species index.
    !! \param DustIndex: An array containing the dust species index.
    !! \param SeaSaltIndex: An array containing the sea salt species index.
-   !! \param chemSpecies: A 2-D array containing the concentration of each species.
+   !! \param Species: A 2-D array containing the concentration of each species.
    !!
    !! \ingroup core_modules
    !!!>
@@ -61,11 +61,11 @@ module ChemState_Mod
       ! Integers
       !---------------------------------------------------------------------
       INTEGER              :: nSpecies          !< Total Number of Species
-      INTEGER              :: nSpeciesGas       !< Number of Gas Species
-      INTEGER              :: nSpeciesAero      !< Number of Aerosol Species
-      INTEGER              :: nSpeciesTracer    !< Number of Tracer Species
-      INTEGER              :: nSpeciesDust      !< Number of Dust Species
-      INTEGER              :: nSpeciesSeaSalt   !< Number of SeaSalt Species
+      INTEGER              :: nGas              !< Number of Gas Species
+      INTEGER              :: nAero             !< Number of Aerosol Species
+      INTEGER              :: nTracer           !< Number of Tracer Species
+      INTEGER              :: nDust             !< Number of Dust Species
+      INTEGER              :: nSeaSalt          !< Number of SeaSalt Species
       INTEGER, ALLOCATABLE :: SpeciesIndex(:)   !< Total Species Index
       INTEGER, ALLOCATABLE :: TracerIndex(:)    !< Tracer Species Index
       INTEGER, ALLOCATABLE :: AeroIndex(:)      !< Aerosol Species Index
@@ -77,9 +77,49 @@ module ChemState_Mod
       !---------------------------------------------------------------------
       ! Reals
       !---------------------------------------------------------------------
-      type(SpeciesType), allocatable :: ChemSpecies(:)
+      type(SpeciesType), allocatable :: Species(:)
 
    end type ChemStateType
+
+   type, public :: SpeciesType
+
+      ! Names
+      character(len=30) :: long_name  !< long name for species used for netcdf attribute "long_name"
+      character(len=30) :: short_name !< short name for species
+      character(len=50) :: description !< description of species
+
+      ! Logcial switches
+      logical :: is_gas               !< if true, species is a gas and not an aerosol
+      logical :: is_aerosol           !< if true, species is aerosol and not a gas
+      logical :: is_tracer            !< if true, species is a tracer and not an aerosol or gas that undergoes chemistry or photolysis
+      logical :: is_advected          !< if true, species is advected
+      logical :: is_drydep            !< if true, species undergoes dry depotiion
+      logical :: is_photolysis        !< if true, species undergoes photolysis
+      logical :: is_gocart_aero       !< if true, species is a GOCART aerosol species
+      logical :: is_dust              !< if true, species is a dust
+      logical :: is_seasalt           !< if true, species is a seasalt
+
+      ! Numerical properties
+      real(kind=fp) :: mw_g                 !< gaseous molecular weight
+      real(kind=fp) :: density              !< particle density (kg/m3)
+      real(kind=fp) :: radius               !< mean molecular diameter in meters
+      real(kind=fp) :: lower_radius         !< lower radius in meters
+      real(kind=fp) :: upper_radius         !< upper radius in meters
+      real(kind=fp) :: viscosity            !< kinematic viscosity (m2/s)
+
+      ! Default background concentration
+      real(kind=fp) :: BackgroundVV        !< Background conc [v/v]
+
+      ! Indices
+      integer :: species_index        !< species index in species array
+      integer :: drydep_index         !< drydep index in drydep array
+      integer :: photolysis_index     !< photolysis index in photolysis array
+      integer :: gocart_aero_index    !< gocart_aero index in gocart_aero array
+
+      ! Concentration
+      real(kind=fp), ALLOCATABLE :: conc(:,:)             !< species concentration [v/v] or kg/kg
+
+   end type SpeciesType
 
 CONTAINS
 
@@ -90,21 +130,21 @@ CONTAINS
    !!
    !! \ingroup core_modules
    !!
-   !! \param GridState Grid State
+   !! \param MetState Grid State
    !! \param ChemState Chem State
    !! \param RC Return code
    !!
    !!!>
-   subroutine Chem_Allocate(GridState, ChemState, RC)
+   subroutine Chem_Allocate(MetState, ChemState, RC)
 
       ! USES
-      USE GridState_Mod,  ONLY : GridStateType
+      USE MetState_Mod,  ONLY : MetStateType
       USE Species_Mod,    Only : SpeciesType
 
       IMPLICIT NONE
 
       ! INOUT Params
-      type(GridStateType), INTENT(in)    :: GridState ! Grid State object
+      type(MetStateType), INTENT(in)    :: MetState ! Grid State object
       type(ChemStateType), INTENT(inout) :: ChemState ! chem State object
       ! type(SpeciesType),   POINTER       :: Species   ! Species object
       ! OUTPUT Params
@@ -123,21 +163,21 @@ CONTAINS
       thisLoc = ' -> at chem_Allocate (in core/chemstate_mod.F90)'
 
       ! Allocate
-      ALLOCATE( ChemState%ChemSpecies( ChemState%nSpecies ), STAT=RC )
+      ALLOCATE( ChemState%Species( ChemState%nSpecies ), STAT=RC )
       IF ( RC /= CC_SUCCESS ) THEN
-         ErrMsg = 'Could not allocate ChemState%chemSpecies'
+         ErrMsg = 'Could not allocate ChemState%Species'
          CALL CC_Error( ErrMsg, RC, thisLoc )
       ENDIF
-      CALL CC_CheckVar( 'ChemState%chemSpecies', 0, RC )
+      CALL CC_CheckVar( 'ChemState%Species', 0, RC )
       IF ( RC /= CC_SUCCESS ) RETURN
 
       do i=0, ChemState%nSpecies
-         ALLOCATE(ChemState%ChemSpecies(i)%conc(GridState%number_of_levels), STAT=RC)
+         ALLOCATE(ChemState%Species(i)%conc(MetState%nHORZ, MetState%NLEVS), STAT=RC)
          IF ( RC /= CC_SUCCESS ) THEN
-            ErrMsg = 'Could not Allocate ChemState%ChemSpecies(i)%conc'
+            ErrMsg = 'Could not Allocate ChemState%Species(i)%conc'
             CALL CC_Error( ErrMsg, RC, thisLoc )
          ENDIF
-         ChemState%ChemSpecies(i)%conc = TINY_
+         ChemState%Species(i)%conc = TINY_
       end do
 
    end subroutine Chem_Allocate
@@ -175,28 +215,28 @@ CONTAINS
       thisLoc = ' -> at Find_Number_of_Species (in core/chemstate_mod.F90)'
 
       ! Initialize to zero before counting species
-      ChemState%nSpeciesAero = 0
-      ChemState%nSpeciesDust = 0
-      ChemState%nSpeciesGas = 0
-      ChemState%nSpeciesSeaSalt = 0
-      ChemState%nSpeciesTracer = 0
+      ChemState%nAero = 0
+      ChemState%nDust = 0
+      ChemState%nGas = 0
+      ChemState%nSeaSalt = 0
+      ChemState%nTracer = 0
 
       ! Count number of species
       do i = 1, ChemState%nSpecies
-         if (ChemState%ChemSpecies(i)%is_gas .eqv. .true.) then
-            ChemState%nSpeciesGas = ChemState%nSpeciesGas + 1
+         if (ChemState%Species(i)%is_gas .eqv. .true.) then
+            ChemState%nGas = ChemState%nGas + 1
          endif
-         if (ChemState%ChemSpecies(i)%is_aerosol .eqv. .true.) then
-            ChemState%nSpeciesAero = ChemState%nSpeciesAero + 1
+         if (ChemState%Species(i)%is_aerosol .eqv. .true.) then
+            ChemState%nAero = ChemState%nAero + 1
          endif
-         if (ChemState%ChemSpecies(i)%is_dust .eqv. .true.) then
-            ChemState%nSpeciesDust = ChemState%nSpeciesDust + 1
+         if (ChemState%Species(i)%is_dust .eqv. .true.) then
+            ChemState%nDust = ChemState%nDust + 1
          endif
-         if (ChemState%ChemSpecies(i)%is_seasalt .eqv. .true.) then
-            ChemState%nSpeciesSeaSalt = ChemState%nSpeciesSeaSalt + 1
+         if (ChemState%Species(i)%is_seasalt .eqv. .true.) then
+            ChemState%nSeaSalt = ChemState%nSeaSalt + 1
          endif
-         if (ChemState%ChemSpecies(i)%is_tracer .eqv. .true.) then
-            ChemState%nSpeciesTracer = ChemState%nSpeciesTracer + 1
+         if (ChemState%Species(i)%is_tracer .eqv. .true.) then
+            ChemState%nTracer = ChemState%nTracer + 1
          endif
       enddo
 
@@ -247,35 +287,35 @@ CONTAINS
       tracer_index = 1
 
       ! Allocate index arrays
-      ALLOCATE(Chemstate%AeroIndex(ChemState%nSpeciesAero), STAT=RC)
+      ALLOCATE(Chemstate%AeroIndex(ChemState%nAero), STAT=RC)
       IF ( RC /= CC_SUCCESS ) THEN
          errMsg = 'Error allocating Chemstate%AeroIndex'
          call CC_Error(errMsg, RC, thisLoc)
          RETURN
       ENDIF
 
-      ALLOCATE(Chemstate%TracerIndex(ChemState%nSpeciesTracer), STAT=RC)
+      ALLOCATE(Chemstate%TracerIndex(ChemState%nTracer), STAT=RC)
       IF ( RC /= CC_SUCCESS ) THEN
          errMsg = 'Error allocating Chemstate%TracerIndex'
          call CC_Error(errMsg, RC, thisLoc)
          RETURN
       ENDIF
 
-      ALLOCATE(Chemstate%GasIndex(ChemState%nSpeciesGas), STAT=RC)
+      ALLOCATE(Chemstate%GasIndex(ChemState%nGas), STAT=RC)
       IF ( RC /= CC_SUCCESS ) THEN
          errMsg = 'Error allocating Chemstate%GasIndex'
          call CC_Error(errMsg, RC, thisLoc)
          RETURN
       ENDIF
 
-      ALLOCATE(Chemstate%DustIndex(ChemState%nSpeciesDust), STAT=RC)
+      ALLOCATE(Chemstate%DustIndex(ChemState%nDust), STAT=RC)
       IF ( RC /= CC_SUCCESS ) THEN
          errMsg = 'Error allocating Chemstate%DustIndex'
          call CC_Error(errMsg, RC, thisLoc)
          RETURN
       ENDIF
 
-      ALLOCATE(Chemstate%SeaSaltIndex(ChemState%nSpeciesSeaSalt), STAT=RC)
+      ALLOCATE(Chemstate%SeaSaltIndex(ChemState%nSeaSalt), STAT=RC)
       IF ( RC /= CC_SUCCESS ) THEN
          errMsg = 'Error allocating Chemstate%SeaSaltIndex'
          call CC_Error(errMsg, RC, thisLoc)
@@ -284,23 +324,23 @@ CONTAINS
 
       ! Find indices for species groups
       do n = 1, ChemState%nSpecies
-         if (ChemState%ChemSpecies(n)%is_aerosol .eqv. .true.) then
+         if (ChemState%Species(n)%is_aerosol .eqv. .true.) then
             Chemstate%AeroIndex(aero_index) = n
             aero_index = aero_index + 1
          endif
-         if (ChemState%ChemSpecies(n)%is_gas .eqv. .true.) then
+         if (ChemState%Species(n)%is_gas .eqv. .true.) then
             Chemstate%GasIndex(gas_index) = n
             gas_index = gas_index + 1
          endif
-         if (ChemState%ChemSpecies(n)%is_dust .eqv. .true.) then
+         if (ChemState%Species(n)%is_dust .eqv. .true.) then
             Chemstate%DustIndex(dust_index) = n
             dust_index = dust_index + 1
          endif
-         if (ChemState%ChemSpecies(n)%is_seasalt .eqv. .true.) then
+         if (ChemState%Species(n)%is_seasalt .eqv. .true.) then
             Chemstate%SeaSaltIndex(seasalt_index) = n
             seasalt_index = seasalt_index + 1
          endif
-         if (ChemState%ChemSpecies(n)%is_tracer .eqv. .true.) then
+         if (ChemState%Species(n)%is_tracer .eqv. .true.) then
             Chemstate%TracerIndex(tracer_index) = n
             tracer_index = tracer_index + 1
          endif
@@ -362,7 +402,7 @@ CONTAINS
    subroutine GetSpecConc(ChemState, concentration, RC, index, name)
 
       type(ChemStateType),  INTENT(INOUT) :: ChemState     ! chem State object
-      real(kind=fp), dimension(:), INTENT(out)   :: concentration
+      real(kind=fp), pointer, dimension(:,:), INTENT(out)   :: concentration
       integer,              INTENT(out)   :: RC
       integer, optional,    INTENT(inout)    :: index
       character(len=50), optional, INTENT(inout)    :: name
@@ -404,7 +444,7 @@ CONTAINS
    subroutine GetSpecConcByIndex(ChemState, concentration, index, RC)
 
       type(ChemStateType),  INTENT(INOUT) :: ChemState     ! chem State object
-      real(kind=fp), dimension(:), INTENT(out)   :: concentration
+      real(kind=fp), pointer, dimension(:,:), INTENT(out)   :: concentration
       integer,              INTENT(in)    :: index
       integer,              INTENT(out)   :: RC
 
@@ -424,7 +464,7 @@ CONTAINS
          RETURN
       endif
 
-      concentration = ChemState%ChemSpecies(index)%conc
+      concentration = ChemState%Species(index)%conc
 
    end subroutine GetSpecConcByIndex
 
@@ -440,7 +480,7 @@ CONTAINS
    subroutine GetSpecConcByName(ChemState, concentration, name, RC)
 
       type(ChemStateType),  INTENT(INOUT) :: ChemState     ! chem State object
-      real(kind=fp), dimension(:), INTENT(out)   :: concentration
+      real(kind=fp), pointer, dimension(:,:), INTENT(out)   :: concentration
       character(len=50),    INTENT(in)    :: name
       integer,              INTENT(out)   :: RC
 
@@ -464,7 +504,7 @@ CONTAINS
          RETURN
       endif
 
-      concentration = ChemState%ChemSpecies(index)%conc
+      concentration = ChemState%Species(index)%conc
 
    end subroutine GetSpecConcByName
 
