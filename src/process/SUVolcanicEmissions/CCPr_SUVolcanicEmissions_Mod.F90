@@ -63,7 +63,7 @@ CONTAINS
    !! \param ChemState         CATCHem chemical state
    !! \param RC               Error return code
    !!
-   !! \ingroup catchem_drydep_process
+   !! \ingroup catchem_suvolcanicemissions_process
    !!
    !!!>
    SUBROUTINE CCPR_SUVolcanicEmissions_Init( Config, SUVolcanicEmisionsState, ChemState, RC )
@@ -131,7 +131,7 @@ CONTAINS
    !! \param [INOUT] ChemState - The ChemState object
    !! \param [OUT] RC Return code
    !!
-   !! \ingroup catchem_drydep_process
+   !! \ingroup catchem_suvolcanicemissions_process
    !!!>
    SUBROUTINE CCPr_SUVolcanicEmissions_Run( MetState, DiagState, SUVolcanicEmissionsState, ChemState, RC )
 
@@ -154,8 +154,8 @@ CONTAINS
       ! LOCAL VARIABLES
       CHARACTER(LEN=255) :: ErrMsg, thisLoc
       INTEGER :: km
-      REAL(fp) :: dqa                                    ! Change in Species due to drydep
-      REAL(fp) :: SpecConc                               ! Temporary Species concentration
+      REAL(fp) :: dqa                       ! Change in Species due to drydep
+      REAL(fp) :: SpecConc                  ! Temporary Species concentration
 
       ! Initialize
       RC = CC_SUCCESS
@@ -171,7 +171,7 @@ CONTAINS
          ! Run the DryDep Scheme
          !-------------------------
          if (SUVolcanicEmissionsState%SchemeOpt == 1) then
-            ! Run the DryDep Scheme - Only Applicable to AEROSOL species
+            ! Run the SU Volcanic Scheme - Only Applicable to AEROSOL species
             !-------------------------
 
             ! Below is not needed if only SO2 is reported
@@ -228,12 +228,7 @@ CONTAINS
       thisLoc = ' -> at CCPr_SUVolcanicEmissions_Finalize &
       &(in process/SUVolcanicEmissions/ccpr_SUVolcanicEmissions_mod.F90)'
 
-! Next two will not need to be deallocated, leaving in as placeholders
-      DEALLOCATE( SUVolcanicEmissionsState%drydep_frequency, STAT=RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         ErrMsg = 'Could not Deallocate SUVolcanicEmissionsState%drydep_frequency'
-         CALL CC_Error( ErrMsg, RC, ThisLoc )
-      ENDIF
+! This will not need to be deallocated, leaving in as placeholders; need to change
 
       DEALLOCATE( SUVolcanicEmissionsState%drydep_vel, STAT=RC )
       IF ( RC /= CC_SUCCESS ) THEN

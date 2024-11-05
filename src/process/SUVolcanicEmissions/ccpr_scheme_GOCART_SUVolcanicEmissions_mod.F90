@@ -40,18 +40,8 @@ contains
       SUVolcanicEmissions, &
       RC)
 
-!   call CCPr_Scheme_GOCART_SUVolcanicEmissions( MetState%NLEVS,   &
-!           MetState%ZMID, MetState%DELP,    &
-!           g0,               &
-!           RC)
-
-      ! Below is cut/paste from GOCART
-      !subroutine SUvolcanicEmissions (nVolc, vStart, vEnd, vSO2, vElev, vCloud, iPoint, &
-      !                             jPoint, nhms, SO2EMVN, SO2EMVE, SO2, nSO2, SU_emis, km, cdt, grav,&
-      !                             hghte, delp, area, vLat, vLon, rc)
-
-
-      USE GOCART2G_Process, only: SUVolcanicEmissions, ReadPointEmissions
+      USE GOCART2G_Process, only: SUVolcanicEmissions
+      USE ReadEmissions, only:  ReadASCIIPointEmissions
 
       IMPLICIT NONE
 
@@ -71,15 +61,20 @@ contains
       REAL, allocatable, intent(in), DIMENSION(:) :: hghte  ! top of layer geopotential Height [m]
       REAL, intent(in)                        :: g0
 
+
+      REAL, intent(inout)                      :: area     ! area of grid cell [m^2]
       REAL, intent(inout)                     :: vSO2   ! volcanic emissions from file [kg]
  !!!!  Below can be figured out from ChemSpeciesState%nSpeciesSUVolcanicIndex???
- !     REAL, intent(inout)                     :: nSO2      ! index of SO2 relative to other sulfate tracers
+      REAL, intent(inout)                     :: nSO2     ! index of SO2 relative to other sulfate tracers
       REAL, intent(inout)                     :: SO2       ! SO2 [kg kg-1]
       REAL, intent(inout)                     :: SU_emis   ! SU emissions, kg/m2/s
       REAL, intent(inout)                     :: vCloud    ! top elevation of emissions [m]
       REAL, intent(inout)                     :: vElev     ! bottom elevation of emissions [m]
       REAL, intent(inout)                     :: SO2EMVN   ! non-explosive volcanic emissions [kg m-2 s-1]
       REAL, intent(inout)                     :: SO2EMVE   ! explosive volcanic emissions [kg m-2 s-1]
+      REAL, intent(inout)                      :: vLat     ! latitude specified in file [degree]
+      REAL, intent(inout)                      :: VLon     ! longitude specified in file [degree]
+
 
       REAL, parameter :: fMassSulfur = 32.     !  gram molecular weights of species
       REAL, parameter :: fMassSO2 = 64.     !  gram molecular weights of species
@@ -114,98 +109,52 @@ contains
       !------------------
       ! Begin Scheme Code
       !------------------
-!!!!!!!!!!!!!!!!!! NEED TO EDIT THESE LINES !!!!!!!!!!!!!!!!!!
-  integer,          optional, intent(in ) :: nymd    ! numeric year, month, day???
-  integer,          optional, intent(in ) :: nhms    ! numeric hour, minute, second???
-!! Above is from github.com/GEOS-ESM/MAPL/blob/main/base/StringTemplate.F90
-!! The files only have hourly temporal resolution
-!!!!!
-    if(MetState%YMD /= nymd) then
-       MetState%YMD = nymd
+
 !      Get pointwise SO2 and altitude of volcanoes from a daily file data base
        if(index(self%volcano_srcfilen,'volcanic_') /= 0) then
           ! Need to replace StrTemplate with something else that doesn't rely on MAPL
-          call StrTemplate(fname, self%volcano_srcfilen, xid='unknown', &
-                            nymd=nymd, nhms=120000 )
-          call ReadPointEmissions (YMD, fname, nVolc, vLat, vLon, &
+          !call StrTemplate(fname, self%volcano_srcfilen, xid='unknown', &
+          !                  nymd=nymd, nhms=120000 )
+          call ReadASCIIPointEmissions (MetState%YMD, fname, nVolc, vLat, vLon, &
                                    vElev, vCloud, vSO2, vStart, &
                                    vEnd, label='volcano', __RC__)
 !!! I don't know if we need the line below, if we are just reading in??
           vSO2 = vSO2 * fMassSO2 / fMassSulfur
 !         Special possible case
 !!! I don't know why this is here, so I commented it out for now
-          if(self%volcano_srcfilen(1:9) == '/dev/null') nVolc = 0  ! option for no volcanoes??
+          if(self%volcano_srcfilen(1:9) == '/dev/null') nVolc = 0  ! option for no volcano??
        end if
-    end if
+
 !!!!!!!!!!!!!!!!!!!!! NEED TO EDIT ABOVE !!!!!!!!!!!!!!!!!!!!!
 !!!! Most of the volcanic stuff, is going directly into the call below
 
+!! Need to replace below.  Not sure if ipoint, jpoint coordinates will be necessary
+    if (workspace%nVolc > 0) then
+       if (associated(SO2EMVE)) SO2EMVE=0.0
+       if (associated(SO2EMVN)) SO2EMVN=0.0
+       !  iPointVolc and jPointVolc are i, j indices for the subgrid
+       allocate(iPointVolc(workspace%nVolc), jPointVolc(workspace%nVolc),  __STAT__)
+       call GetHorzIJIndex(workspace%nVolc, iPointVolc, jPointVolc, &
+                                grid,               &
+                                lon,  &
+                                lat,  &
+                                rc   = status)
+           if ( status /= 0 ) then
+              if (mapl_am_i_root()) print*, trim(Iam), ' - cannot get indices for point emissions'
+              VERIFY_(status)
+           end if
+
       call SUvolcanicEmissions (nVolc, vStart, vEnd, vSO2, vElev, vCloud, iPoint, &
-           jPoint, nhms, SO2EMVN, SO2EMVE, SO2, SUVolcanicEmissions%nSpeciesSUVolcanic, &
+           jPoint, nhms, SO2EMVN, SO2EMVE, SO2, SUVolcanicEmissionsState%nSpeciesSUVolcanic, &
            SU_emis, km, cdt, g0, gocart_hghte, gocart_delp, area, vLat, vLon, rc)
 
+    end if
 
       if (associated(GOCART_DELP)) nullify(GOCART_DELP)
       if (associated(GOCART_TMPU)) nullify(GOCART_TMPU)
      
 
    end subroutine CCPr_Scheme_GOCART_SUVolcanicEmissions
-
-   !>
-   !! \brief PrepMetVarsForGOCART - Prep the meteorological variables for GOCART DryDeposition scheme
-   !!
-   !! \param [INOUT] metstate
-   !! \param [INOUT] tmpu
-   !! \param [INOUT] rhoa
-   !! \param [INOUT] hghte
-   !! \param [INOUT] oro
-   !! \param [INOUT] ustar
-   !! \param [INOUT] pblh
-   !! \param [INOUT] shflux
-   !! \param [INOUT] z0h
-   !! \param [INOUT] u10m
-   !! \param [INOUT] v10m
-   !! \param [INOUT] fraclake
-   !! \param [INOUT] gwettop
-   !! \param [OUT] rc
-   !!
-   !! \ingroup core_modules
-   !!!>
-
-   ! Need to fix below subroutine to convert one variable at a time.
-   subroutine PrepMetVarsForGOCARTSUV(km,        &
-      delp,            &
-      hghte,           &
-      GOCART_delp,     &
-      GOCART_HGHTE)
-
-
-      IMPLICIT NONE
-
-      ! INPUTS
-      INTEGER, intent(in)                     :: km     ! number of vertical levels
-      REAL,  intent(in), DIMENSION(:), target :: delp   ! Temperature [K]
-      REAL,  intent(in), DIMENSION(:), target :: hghte  ! Height [m]
-
-      ! INPUT/OUTPUTS
-      REAL, intent(inout), pointer :: GOCART_DELP(:,:,:)   !< temperature [K]
-      REAL, intent(inout), pointer, DIMENSION(:,:,:) :: GOCART_HGHTE  !< geometric height [m]
-
-      ! OUTPUTS - Add error handling back in late
-      !INTEGER :: rc !< Return code
-
-      ! Error handling
-      !character(len=255) :: thisloc
-
-      allocate(GOCART_DELP(1, 1, km))
-      allocate(GOCART_HGHTE(1, 1, km))
-
-      GOCART_DELP(1,1,:) = delp ! temperature [K]
-      GOCART_HGHTE(1,1,:) = hghte    ! top of layer geopotential height [m]
-
-
-   end subroutine PrepMetVarsForGOCARTSUV
-
 
 end module CCPr_Scheme_GOCART_SUVolcanicEmissions
 
