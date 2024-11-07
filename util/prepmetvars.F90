@@ -4,17 +4,12 @@ module PrepMetVars
 
    private
 
+
 CONTAINS
 
 
-SUBROUTINE PrepMetVarsForGOCART
-
-
-
-end subroutine PrepMetVarsForGOCART
-
    !>
-   !! \brief PrepMetVarsForGOCART - Prep the meteorological variables for GOCART SUVolcanicEmissions scheme
+   !! \brief PrepMetVarsForGOCARTSUV - Prep the meteorological variables for GOCART SUVolcanicEmissions scheme
    !!
    !! \param [INOUT] metstate
    !! \param [INOUT] tmpu
@@ -41,7 +36,6 @@ end subroutine PrepMetVarsForGOCART
       hghte,           &
       GOCART_delp,     &
       GOCART_HGHTE)
-
 
 
       IMPLICIT NONE

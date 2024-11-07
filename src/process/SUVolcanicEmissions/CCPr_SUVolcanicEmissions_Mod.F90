@@ -174,7 +174,7 @@ CONTAINS
             ! Run the SU Volcanic Scheme - Only Applicable to AEROSOL species
             !-------------------------
 
-            ! Below is not needed if only SO2 is reported
+            ! Below is not needed if only SO2 is reported??
             if (ChemState%nSpeciesSUVolcanic > 0) then
 
                ! loop through aerosol species

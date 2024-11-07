@@ -8,7 +8,7 @@ program test_suvolcanic
    type(ChemStateType) :: ChemState
    type(MetStateType) :: MetState
    type(DiagStateType) :: DiagState
-   type(DryDepStateType) :: SUVolcanicEmissionsState
+   type(SUVolcanicEmissionsStateType) :: SUVolcanicEmissionsState
    type(GridStateType) :: GridState
    type(EmisStateType) :: EmisState
 
@@ -24,15 +24,15 @@ program test_suvolcanic
    CHARACTER(LEN=255), PARAMETER :: configFile ='Configs/Default/CATChem_config.yml'
 
 
-   thisLoc = 'test_drydep -> at read CATChem_Config.yml'
+   thisLoc = 'test_suvolcanic -> at read CATChem_Config.yml'
    errMsg = ''
    rc = CC_SUCCESS
 
    write(*,*) '   CCCCC      A     TTTTTTT   CCCCC  H'
-   write(*,*) '  C          A A       T     C       H       CCCC   EEEE   M       M'
-   write(*,*) '  C         AAAAA      T     C       HHHHH  C      E    E  M M   M M'
-   write(*,*) '  C        A     A     T     C       H   H  C      E EE    M   M   M'
-   write(*,*) '   CCCCC  A       A    T      CCCCC  H   H   CCCC   EEEEE  M       M'
+   write(*,*) '  C          A A       T     C       H        EEEE   M       M'
+   write(*,*) '  C         AAAAA      T     C       HHHHH   E    E  M M   M M'
+   write(*,*) '  C        A     A     T     C       H   H   E EE    M   M   M'
+   write(*,*) '   CCCCC  A       A    T      CCCCC  H   H    EEEEE  M       M'
    write(*,*) ''
    write(*,*) ''
 
@@ -49,7 +49,7 @@ program test_suvolcanic
    endif
 
 
-   title = 'drydep Test 1 | Read Config'
+   title = 'Volcanic Test 1 | Read Config'
    SUVolcanicEmissions%Activate = .false.
    call print_info(Config, SUVolcanicEmissionsState, MetState, title)
    write (*,*) '-- '
@@ -59,9 +59,9 @@ program test_suvolcanic
    !----------------------------
    ! Test 2
    !----------------------------
-   ! Set number of drydep species
+   ! Set number of Volcanic species
 
-   ChemState%nSpeciesAerodrydep = 2
+   ChemState%nSpeciesSUVolcanic = 2
    SUVolcanicEmissionsState%Activate = .true.
 
    ! Meteorological State
@@ -84,7 +84,7 @@ program test_suvolcanic
       stop 1
    endif
 
-   title = "DryDep Test 2 | Test GOCART DryDep defaults"
+   title = "SUVolcanic Test 2 | Test GOCART SUVolcanic defaults"
 
    call cc_drydep_init(Config, DryDepState, ChemState, rc)
    if (rc /= CC_SUCCESS) then
@@ -105,27 +105,6 @@ program test_suvolcanic
    ! Need to update below 10/29/2024
  !  call assert(DiagState%drydep_frequency(1) > 0.0_fp, "Test GOCART DryDep Scheme (no resuspension)")
 
-
-   !----------------------------
-   ! Test 3
-   !----------------------------
-   title = "SUVolcanicEmissions Test 3 | resuspension is .TRUE. "
-   ChemState%nSpeciesAerodrydep = 1
-   ! Change to a relevant test???
-   SUVolcanicEmissionsState%Resuspension = .TRUE.
-
-
-   call cc_suvolcanicemissions_run(MetState, DiagState, DryDepState, ChemState, rc)
-   if (rc /= CC_SUCCESS) then
-      errMsg = 'Error in cc_suvolcanicemissions_run'
-      call cc_emit_error(errMsg, rc, thisLoc)
-      stop 1
-   end if
-
-  ! Please revisit statements below - confirm only 1 valid value is being returned
-   call print_info(Config, DryDepState, MetState, title)
-   call assert(DiagState%drydep_frequency(1) > 0.0_fp, "Test 2 GOCART drydep Scheme (resuspension activated)")
- 
 
 contains
 

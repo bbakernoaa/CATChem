@@ -61,7 +61,6 @@ contains
       REAL, allocatable, intent(in), DIMENSION(:) :: hghte  ! top of layer geopotential Height [m]
       REAL, intent(in)                        :: g0
 
-
       REAL, intent(inout)                      :: area     ! area of grid cell [m^2]
       REAL, intent(inout)                     :: vSO2   ! volcanic emissions from file [kg]
  !!!!  Below can be figured out from ChemSpeciesState%nSpeciesSUVolcanicIndex???
@@ -74,7 +73,6 @@ contains
       REAL, intent(inout)                     :: SO2EMVE   ! explosive volcanic emissions [kg m-2 s-1]
       REAL, intent(inout)                      :: vLat     ! latitude specified in file [degree]
       REAL, intent(inout)                      :: VLon     ! longitude specified in file [degree]
-
 
       REAL, parameter :: fMassSulfur = 32.     !  gram molecular weights of species
       REAL, parameter :: fMassSO2 = 64.     !  gram molecular weights of species
@@ -112,9 +110,6 @@ contains
 
 !      Get pointwise SO2 and altitude of volcanoes from a daily file data base
        if(index(self%volcano_srcfilen,'volcanic_') /= 0) then
-          ! Need to replace StrTemplate with something else that doesn't rely on MAPL
-          !call StrTemplate(fname, self%volcano_srcfilen, xid='unknown', &
-          !                  nymd=nymd, nhms=120000 )
           call ReadASCIIPointEmissions (MetState%YMD, fname, nVolc, vLat, vLon, &
                                    vElev, vCloud, vSO2, vStart, &
                                    vEnd, label='volcano', __RC__)
@@ -132,17 +127,9 @@ contains
     if (workspace%nVolc > 0) then
        if (associated(SO2EMVE)) SO2EMVE=0.0
        if (associated(SO2EMVN)) SO2EMVN=0.0
-       !  iPointVolc and jPointVolc are i, j indices for the subgrid
-       allocate(iPointVolc(workspace%nVolc), jPointVolc(workspace%nVolc),  __STAT__)
-       call GetHorzIJIndex(workspace%nVolc, iPointVolc, jPointVolc, &
-                                grid,               &
-                                lon,  &
-                                lat,  &
-                                rc   = status)
-           if ( status /= 0 ) then
-              if (mapl_am_i_root()) print*, trim(Iam), ' - cannot get indices for point emissions'
-              VERIFY_(status)
-           end if
+
+      iPoint = 0
+      jPoint = 0
 
       call SUvolcanicEmissions (nVolc, vStart, vEnd, vSO2, vElev, vCloud, iPoint, &
            jPoint, nhms, SO2EMVN, SO2EMVE, SO2, SUVolcanicEmissionsState%nSpeciesSUVolcanic, &
