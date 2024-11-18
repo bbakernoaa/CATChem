@@ -8,6 +8,7 @@ MODULE ReadEmissions
 
 
   ! Define a derived type to hold the data for each emission entry
+  ! This may need to go into the Emissions State type???
   type :: VolcanicEmissionData
     real :: vlat
     real :: vlon
@@ -28,13 +29,11 @@ subroutine ReadASCIIPointEmissions(nymd, filename, VolcanicEmissions, rc )
 
       integer, intent(in)            :: nymd  !! Need to do something with this???
       character(*), intent(in) :: filename, label
-      !real, allocatable, dimension(:), intent(out)    :: vLat, vLon, vTop, vBase, vEmis
-      !integer, allocatable, dimension(:), intent(out) :: vStart, vEnd
 
       integer, intent(out) :: rc
 
       type(VolcanicEmissionData), allocatable, intent(out) :: VolcanicEmissions(:)
-      integer, intent(out) :: num_emissions
+      integer, intent(out) :: num_emiss_sources
       integer :: i
       character(*) :: line
       type(VolcanicEmissionData), allocatable :: temp_emissions(:)
@@ -52,17 +51,17 @@ subroutine ReadASCIIPointEmissions(nymd, filename, VolcanicEmissions, rc )
     do
        read(10, '(A)', iostat=rc) line
        ! if (rc /= 0) exit
-       num_emissions = num_emissions + 1
+       num_emiss_sources = num_emiss_sources + 1
     end do
 
     ! Rewind the file to start reading data
     rewind(10)
 
     ! Allocate the array to hold all entries
-    allocate(temp_emissions(num_emissions))
+    allocate(temp_emissions(num_emiss_sources))
 
     ! Read each line and store data in the array
-    do i = 1, num_emissions
+    do i = 1, num_emiss_sources
        read(10, *, iostat=rc) &
             temp_emissions(i)%vlat, &
             temp_emissions(i)%vlon, &
@@ -73,7 +72,7 @@ subroutine ReadASCIIPointEmissions(nymd, filename, VolcanicEmissions, rc )
             temp_emissions(i)%vend
        if (rc /= 0) then
           print *, "Error reading line", i
-          num_emissions = i - 1
+          num_emiss_sources = i - 1
           stop 1
        end if
     end do

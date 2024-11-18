@@ -104,12 +104,12 @@ CONTAINS
          ! Activate Process
          !------------------
          SUVolcanicEmissionsState%Activate = .true.
-         allocate(SUVolcanicEmissionsState%drydep_frequency(ChemState%nSpeciesSUVolcanic), STAT=RC)
+         allocate(SUVolcanicEmissionsState, STAT=RC)
          IF ( RC /= CC_SUCCESS ) THEN
-            ErrMsg = 'Could not Allocate SUVolcanicEmissionsState%drydep_frequency(ChemState%nSpeciesSUVolcanic)'
+            ErrMsg = 'Could not Allocate SUVolcanicEmissionsState'
             CALL CC_Error( ErrMsg, RC, ThisLoc )
          ENDIF
-         SUVolcanicEmissionsState%drydep_frequency(1:ChemState%nSpeciesSUVolcanic)=ZERO
+         SUVolcanicEmissionsState=ZERO
 
          ! Set scheme option
          !------------------
@@ -123,7 +123,7 @@ CONTAINS
    end subroutine CCPR_SUVolcanicEmissions_Init
 
    !>
-   !! \brief Run the SUVolcanicEmisions
+   !! \brief Run the SUVolcanicEmissions
    !!
    !! \param [IN] MetState - The MetState object
    !! \param [INOUT] DiagState - The DiagState object
