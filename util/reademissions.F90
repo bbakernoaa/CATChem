@@ -61,6 +61,7 @@ subroutine ReadASCIIPointEmissions(nymd, filename, VolcanicEmissions, rc )
     allocate(temp_emissions(num_emiss_sources))
 
     ! Read each line and store data in the array
+    ! Need a way to generalize this, first several lines are commented out
     do i = 1, num_emiss_sources
        read(10, *, iostat=rc) &
             temp_emissions(i)%vlat, &
