@@ -10,11 +10,8 @@ MODULE MetState_Mod
    !
    ! USES:
    !
-   USE Cmn_Size_Mod, ONLY : NSURFTYPE
-   ! USE Dictionary_M, ONLY : dictionary_t
    USE Error_Mod
    USE Precision_Mod
-   ! USE Registry_Mod
 
 
    IMPLICIT NONE
@@ -38,20 +35,22 @@ MODULE MetState_Mod
 
       CHARACTER(LEN=3)             :: State     = 'MET'    ! Name of this state
 
-      ! NLEVS
-      !------
-      INTEGER               :: NLEVS             !< Number of vertical levels
+      ! Integer Fields for MetState Array Dimensions
+      !---------------------------------------------
+      INTEGER               :: nLEVS             !< Number of vertical levels
+      INTEGER               :: nSOIL             !< # number of soil layers
+      INTEGER               :: nLNDTYPE          !< # of landtypes in box (I,J)
 
       ! TIMESTEP
       !---------
-      REAL(fp)              :: TSTEP             !< Time step [s]
+      REAL(fp), ALLOCATABLE :: TSTEP             !< Time step [s]
 
       ! Logicals
       !---------
-      LOGICAL           :: IsLand            !< Is this a land grid box?
-      LOGICAL           :: IsWater           !< Is this a water grid box?
-      LOGICAL           :: IsIce             !< Is this a ice grid box?
-      LOGICAL           :: IsSnow            !< Is this a snow grid box?
+      LOGICAL           :: IsLand                !< Is this a land grid box?
+      LOGICAL           :: IsWater               !< Is this a water grid box?
+      LOGICAL           :: IsIce                 !< Is this a ice grid box?
+      LOGICAL           :: IsSnow                !< Is this a snow grid box?
       LOGICAL,  ALLOCATABLE :: InStratMeso(:)    !< Are we in the stratosphere or mesosphere?
       LOGICAL,  ALLOCATABLE :: InStratosphere(:) !< Are we in the stratosphere?
       LOGICAL,  ALLOCATABLE :: InTroposphere(:)  !< Are we in the troposphere?
@@ -90,12 +89,11 @@ MODULE MetState_Mod
       REAL(fp)              :: SNOMAS          !< Snow mass [kg/m2]
       REAL(fp)              :: SSM             !< Sediment Supply Map [1]
       REAL(fp)              :: USTAR_THRESHOLD !< Threshold friction velocity [m/s]
-      INTEGER,  ALLOCATABLE :: nLNDTYPE        !< # of landtypes in box (I,J)
       REAL(fp)              :: GWETTOP         !< Top soil moisture [1]
       REAL(fp)              :: GWETROOT        !< Root Zone soil moisture [1]
       REAL(fp)              :: WILT            !< Wilt point [1]
-      INTEGER,  ALLOCATABLE :: nSOIL           !< # number of soil layers
       REAL(fp), ALLOCATABLE :: SOILM(:)        !< Volumetric Soil moisture [m3/m3]
+      REAL(fp), ALLOCATABLE :: SOILT(:)        !< Volumetric Soil T [K]
       REAL(fp), ALLOCATABLE :: FRLANDUSE(:)    !< Fractional Land Use
       REAL(fp), ALLOCATABLE :: FRLAI(:)        !< LAI in each Fractional Land use type [m2/m2]
 
@@ -224,24 +222,13 @@ CONTAINS
 
    END SUBROUTINE Zero_MetState
 
-   !>
-   !! \brief Allocate the MetState object
-   !!
-   !! \ingroup core_modules
-   !!
-   !! \param GridState   CATCHem grid state
-   !! \param MetState    CATCHem met state
-   !! \param RC          Error return code
-   !!!>
-   SUBROUTINE Met_Allocate( GridState, MetState, RC)
-      ! USES
-      USE GridState_Mod, Only : GridStateType
+   SUBROUTINE Met_Allocate(MetState, RC)
+      USE error_mod,     ONLY : CC_CheckAllocate, CC_SUCCESS, CC_Error
 
       IMPLICIT NONE
 
       ! Arguments
-      TYPE(GridStateType), INTENT(IN)  :: GridState !< Grid state
-      TYPE(MetStateType), INTENT(INOUT) :: MetState !< Meteorological state
+      TYPE(MetStateType),  INTENT(INOUT) :: MetState !< Meteorological state
       INTEGER,            INTENT(OUT)   :: RC       !< Return code
 
       ! Local variables
@@ -251,16 +238,6 @@ CONTAINS
       RC = CC_SUCCESS
       ErrMsg = ''
       thisLoc = ' -> at Met_Allocate (in core/metstate_mod.F90)'
-
-      ! Nullify all fields for safety's sake before allocating them
-      ! This can prevent compilation errors caused by uninitialized values
-
-
-      !--------------------------------------------------
-      ! Initialize fields
-      !--------------------------------------------------
-      MetState%nSOIL = GridState%number_of_soil_layers
-      print*, 'MetState%nSOIL = ', MetState%nSOIL
 
       ! Visible Surface Albedo
       !-----------------------
@@ -303,400 +280,275 @@ CONTAINS
       MetSTate%SANDFRAC = ZERO
       MetState%SST = ZERO
 
-      ! Allocate Column Fields
+      ! Allocate Column Fields using CC_CheckAllocate
       !-----------------------
-      !  Logicals
-      if (.not. allocated(MetState%InStratosphere)) then
-         allocate(MetState%InStratosphere(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      ! Logicals
+      RC = CC_CheckAllocate(MetState%InStratosphere, MetState%nLEVS, 'MetState%InStratosphere')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%InPbl)) then
-         allocate(MetState%InPbl(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InPbl'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%InPbl, MetState%nLEVS, 'MetState%InPbl')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%InStratMeso)) then
-         allocate(MetState%InStratMeso(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratMeso'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%InStratMeso, MetState%nLEVS, 'MetState%InStratMeso')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%InTroposphere)) then
-         allocate(MetState%InTroposphere(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InTroposphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%InTroposphere, MetState%nLEVS, 'MetState%InTroposphere')
+      IF (RC /= CC_SUCCESS) RETURN
 
       ! Flux Related
-      if (.not. allocated(MetState%F_OF_PBL)) then
-         allocate(MetState%F_OF_PBL(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%F_OF_PBL'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%F_OF_PBL, MetState%nLEVS, 'MetState%F_OF_PBL')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%F_UNDER_PBLTOP)) then
-         allocate(MetState%F_UNDER_PBLTOP(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%F_UNDER_PBLTOP'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%F_UNDER_PBLTOP, MetState%nLEVS, 'MetState%F_UNDER_PBLTOP')
+      IF (RC /= CC_SUCCESS) RETURN
 
       ! Cloud / Precipitation
-      if (.not. allocated(MetState%CLDF)) then
-         allocate(MetState%CLDF(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%CLDF'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%CLDF, MetState%nLEVS, 'MetState%CLDF')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%CMFMC)) then
-         allocate(MetState%CMFMC(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%CMFMC'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%CMFMC, MetState%nLEVS, 'MetState%CMFMC')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%DQRCU)) then
-         allocate(MetState%DQRCU(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%DQRCU'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%DQRCU, MetState%nLEVS, 'MetState%DQRCU')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%DQRLSAN)) then
-         allocate(MetState%DQRLSAN(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%DQRLSAN'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%DQRLSAN, MetState%nLEVS, 'MetState%DQRLSAN')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%DTRAIN)) then
-         allocate(MetState%DTRAIN(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%DTRAIN'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%DTRAIN, MetState%nLEVS, 'MetState%DTRAIN')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%QI)) then
-         allocate(MetState%QI(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%QI'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%QI, MetState%nLEVS, 'MetState%QI')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%QL)) then
-         allocate(MetState%QL(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%QL'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%QL, MetState%nLEVS, 'MetState%QL')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%PFICU)) then
-         allocate(MetState%PFICU(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%PFICU'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%PFICU, MetState%nLEVS, 'MetState%PFICU')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%PFILSAN)) then
-         allocate(MetState%PFILSAN(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%PFILSAN'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%PFILSAN, MetState%nLEVS, 'MetState%PFILSAN')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%PFLCU)) then
-         allocate(MetState%PFLCU(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%PFLCU'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%PFLCU, MetState%nLEVS, 'MetState%PFLCU')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%PFLLSAN)) then
-         allocate(MetState%PFLLSAN(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%PFLLSAN'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%PFLLSAN, MetState%nLEVS, 'MetState%PFLLSAN')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%TAUCLI)) then
-         allocate(MetState%TAUCLI(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%TAUCLI'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%TAUCLI, MetState%nLEVS, 'MetState%TAUCLI')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%TAUCLW)) then
-         allocate(MetState%TAUCLW(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%TAUCLW'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%TAUCLW, MetState%nLEVS, 'MetState%TAUCLW')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      ! State Variables
-      if (.not. allocated(MetState%Z)) then
-         allocate(MetState%Z(GridState%number_of_levels + 1), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%Z'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      ! State Related
+      RC = CC_CheckAllocate(MetState%Z, MetState%nLEVS + 1, 'MetState%Z')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%ZMID)) then
-         allocate(MetState%ZMID(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%ZMID'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%ZMID, MetState%nLEVS, 'MetState%ZMID')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%BXHEIGHT)) then
-         allocate(MetState%BXHEIGHT(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%BXHEIGHT'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%BXHEIGHT, MetState%nLEVS, 'MetState%BXHEIGHT')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%QV)) then
-         allocate(MetState%QV(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%QV, MetState%nLEVS, 'MetState%QV')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%T)) then
-         allocate(MetState%T(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%T'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%T, MetState%nLEVS, 'MetState%T')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%THETA)) then
-         allocate(MetState%THETA(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%THETA'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%THETA, MetState%nLEVS, 'MetState%THETA')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%TV)) then
-         allocate(MetState%TV(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%TV'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%TV, MetState%nLEVS, 'MetState%TV')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%U)) then
-         allocate(MetState%U(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%U, MetState%nLEVS, 'MetState%U')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%V)) then
-         allocate(MetState%V(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%V, MetState%nLEVS, 'MetState%V')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%OMEGA)) then
-         allocate(MetState%OMEGA(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%OMEGA'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%OMEGA, MetState%nLEVS, 'MetState%OMEGA')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%RH)) then
-         allocate(MetState%RH(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%RH, MetState%nLEVS, 'MetState%RH')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%SPHU)) then
-         allocate(MetState%SPHU(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%SPHU, MetState%nLEVS, 'MetState%SPHU')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%AIRDEN)) then
-         allocate(MetState%AIRDEN(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%AIRDEN, MetState%nLEVS, 'MetState%AIRDEN')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%AIRNUMDEN)) then
-         allocate(MetState%AIRNUMDEN(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%AIRNUMDEN, MetState%nLEVS, 'MetState%AIRNUMDEN')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%MAIRDEN)) then
-         allocate(MetState%MAIRDEN(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%MAIRDEN, MetState%nLEVS, 'MetState%MAIRDEN')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%AVGW)) then
-         allocate(MetState%AVGW(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%AVGW, MetState%nLEVS, 'MetState%AVGW')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%DELP)) then
-         allocate(MetState%DELP(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%DELP, MetState%nLEVS, 'MetState%DELP')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%DELP_DRY)) then
-         allocate(MetState%DELP_DRY(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%DELP_DRY, MetState%nLEVS, 'MetState%DELP_DRY')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%DAIRMASS)) then
-         allocate(MetState%DAIRMASS(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%DAIRMASS, MetState%nLEVS, 'MetState%DAIRMASS')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%AIRVOL)) then
-         allocate(MetState%AIRVOL(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%AIRVOL, MetState%nLEVS, 'MetState%AIRVOL')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%PMID)) then
-         allocate(MetState%PMID(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%PMID, MetState%nLEVS, 'MetState%PMID')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%PMID_DRY)) then
-         allocate(MetState%PMID_DRY(GridState%number_of_levels), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%PMID_DRY, MetState%nLEVS, 'MetState%PMID_DRY')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%PEDGE_DRY)) then
-         allocate(MetState%PEDGE_DRY(GridState%number_of_levels+1), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      RC = CC_CheckAllocate(MetState%PEDGE_DRY, MetState%nLEVS + 1, 'MetState%PEDGE_DRY')
+      IF (RC /= CC_SUCCESS) RETURN
 
-      if (.not. allocated(MetState%SOILM)) then
-         allocate(MetState%SOILM(MetState%nSOIL), stat=RC)
-         if (RC /= CC_SUCCESS) then
-            errMsg = 'Error allocating MetState%InStratosphere'
-            call CC_Error(errMsg, RC, thisLoc)
-            return
-         endif
-      end if
+      ! Surface and Soil Properties
+      RC = CC_CheckAllocate(MetState%SOILM, MetState%nSOIL, 'MetState%SOILM')
+      IF (RC /= CC_SUCCESS) RETURN
 
-   end subroutine Met_Allocate
+      RC = CC_CheckAllocate(MetState%SOILT, MetState%nSOIL, 'MetState%SOILT')
+      IF (RC /= CC_SUCCESS) RETURN
+
+      RC = CC_CheckAllocate(MetState%FRLANDUSE, MetState%nLNDTYPE, 'MetState%FRLANDUSE')
+      IF (RC /= CC_SUCCESS) RETURN
+
+      RC = CC_CheckAllocate(MetState%FRLAI, MetState%nLNDTYPE, 'MetState%FRLAI')
+      IF (RC /= CC_SUCCESS) RETURN
+
+      RC = CC_CheckAllocate(MetState%FRZ0, MetState%nLNDTYPE, 'MetState%FRZ0')
+      IF (RC /= CC_SUCCESS) RETURN
+
+   END SUBROUTINE Met_Allocate
+
+   !>
+   !! \brief Deallocate the MetState object
+   !!
+   !! \ingroup core_modules
+   !!
+   !! \param MetState    CATCHem met state
+   !! \param RC          Error return code
+   !!!>
+   SUBROUTINE Met_Finalize( MetState, RC )
+      ! Arguments
+      TYPE(MetStateType), INTENT(INOUT) :: MetState !< Meteorological state
+      INTEGER,            INTENT(OUT)   :: RC       !< Return code
+
+      ! Local variables
+      CHARACTER(LEN=255) :: ErrMsg, thisLoc
+
+      ! Initialize
+      RC = CC_SUCCESS
+      ErrMsg = ''
+      thisLoc = ' -> at Met_Finalize (in core/metstate_mod.F90)'
+
+      ! Deallocate all allocated arrays
+      RC = CC_CheckDeallocate(MetState%InStratosphere, 'MetState%InStratosphere')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%InPbl,          'MetState%InPbl')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%InStratMeso,    'MetState%InStratMeso')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%InTroposphere,  'MetState%InTroposphere')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%F_OF_PBL,       'MetState%F_OF_PBL')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%F_UNDER_PBLTOP, 'MetState%F_UNDER_PBLTOP')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%CLDF,           'MetState%CLDF')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%CMFMC,          'MetState%CMFMC')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%DQRCU,          'MetState%DQRCU')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%DQRLSAN,        'MetState%DQRLSAN')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%DTRAIN,         'MetState%DTRAIN')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%QI,             'MetState%QI')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%QL,             'MetState%QL')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%PFICU,          'MetState%PFICU')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%PFILSAN,        'MetState%PFILSAN')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%PFLCU,          'MetState%PFLCU')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%PFLLSAN,        'MetState%PFLLSAN')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%TAUCLI,         'MetState%TAUCLI')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%TAUCLW,         'MetState%TAUCLW')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%Z,              'MetState%Z')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%ZMID,           'MetState%ZMID')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%BXHEIGHT,       'MetState%BXHEIGHT')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%QV,             'MetState%QV')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%T,              'MetState%T')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%THETA,          'MetState%THETA')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%TV,             'MetState%TV')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%U,              'MetState%U')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%V,              'MetState%V')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%OMEGA,          'MetState%OMEGA')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%RH,             'MetState%RH')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%SPHU,           'MetState%SPHU')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%AIRDEN,         'MetState%AIRDEN')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%AIRNUMDEN,      'MetState%AIRNUMDEN')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%MAIRDEN,        'MetState%MAIRDEN')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%AVGW,           'MetState%AVGW')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%DELP,           'MetState%DELP')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%DELP_DRY,       'MetState%DELP_DRY')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%DAIRMASS,       'MetState%DAIRMASS')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%AIRVOL,         'MetState%AIRVOL')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%PMID,           'MetState%PMID')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%PMID_DRY,       'MetState%PMID_DRY')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%PEDGE_DRY,      'MetState%PEDGE_DRY')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%SOILM,          'MetState%SOILM')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%SOILT,          'MetState%SOILT')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%FRLANDUSE,      'MetState%FRLANDUSE')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%FRLAI,          'MetState%FRLAI')
+      IF (RC /= CC_SUCCESS) RETURN
+      RC = CC_CheckDeallocate(MetState%FRZ0,           'MetState%FRZ0')
+      IF (RC /= CC_SUCCESS) RETURN
+
+   END SUBROUTINE Met_Finalize
+
+
 
 END MODULE MetState_Mod

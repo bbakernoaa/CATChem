@@ -82,6 +82,54 @@ module ChemState_Mod
 
    end type ChemStateType
 
+   !> \brief Data Type for catchem species
+   !!
+   !! This container defines the catchem species properties
+   !!
+   !!
+   !!!>
+   type, public :: SpeciesType
+
+      ! Names
+      character(len=30) :: long_name  !< long name for species used for netcdf attribute "long_name"
+      character(len=30) :: short_name !< short name for species
+      character(len=50) :: description !< description of species
+
+      ! Logcial switches
+      logical :: is_gas               !< if true, species is a gas and not an aerosol
+      logical :: is_aerosol           !< if true, species is aerosol and not a gas
+      logical :: is_tracer            !< if true, species is a tracer and not an aerosol or gas that undergoes chemistry or photolysis
+      logical :: is_advected          !< if true, species is advected
+      logical :: is_drydep            !< if true, species undergoes dry depotiion
+      logical :: is_photolysis        !< if true, species undergoes photolysis
+      logical :: is_gocart_aero       !< if true, species is a GOCART aerosol species
+      logical :: is_dust              !< if true, species is a dust
+      logical :: is_seasalt           !< if true, species is a seasalt
+
+      ! Numerical properties
+      real(kind=fp) :: mw_g                 !< gaseous molecular weight
+      real(kind=fp) :: density              !< particle density (kg/m3)
+      real(kind=fp) :: radius               !< mean molecular diameter in meters
+      real(kind=fp) :: lower_radius         !< lower radius in meters
+      real(kind=fp) :: upper_radius         !< upper radius in meters
+      real(kind=fp) :: viscosity            !< kinematic viscosity (m2/s)
+
+
+      ! Default background concentration
+      real(kind=fp) :: BackgroundVV        !< Background conc [v/v]
+
+      ! Indices
+      integer :: species_index        !< species index in species array
+      integer :: drydep_index         !< drydep index in drydep array
+      integer :: photolysis_index     !< photolysis index in photolysis array
+      integer :: gocart_aero_index    !< gocart_aero index in gocart_aero array
+
+      ! Concentration
+      real(kind=fp), ALLOCATABLE :: conc(:)             !< species concentration [v/v] or kg/kg
+
+   end type SpeciesType
+
+
 CONTAINS
 
 
@@ -91,24 +139,20 @@ CONTAINS
    !!
    !! \ingroup core_modules
    !!
-   !! \param GridState Grid State
    !! \param ChemState Chem State
    !! \param RC Return code
    !!
    !!!>
-   subroutine Chem_Allocate(GridState, ChemState, RC)
+   subroutine Chem_Allocate(MetState, ChemState, RC)
 
       ! USES
-      USE GridState_Mod,  ONLY : GridStateType
-      USE Species_Mod,    Only : SpeciesType
+      USE MetState_Mod,  ONLY : MetStateType
 
       IMPLICIT NONE
 
       ! INOUT Params
-      type(GridStateType), INTENT(in)    :: GridState ! Grid State object
-      !type(MetStateType), INTENT(in)    :: MetState   ! Met State object
+      type(MetStateType), INTENT(in)    :: MetState   ! Met State object
       type(ChemStateType), INTENT(inout) :: ChemState ! chem State object
-      ! type(SpeciesType),   POINTER       :: Species   ! Species object
       ! OUTPUT Params
       INTEGER,             INTENT(OUT)   :: RC            ! Success or failure
 
@@ -134,7 +178,7 @@ CONTAINS
       IF ( RC /= CC_SUCCESS ) RETURN
 
       do i=0, ChemState%nSpecies
-         ALLOCATE(ChemState%ChemSpecies(i)%conc(GridState%number_of_levels), STAT=RC)
+         ALLOCATE(ChemState%ChemSpecies(i)%conc(MetState%nLEVS), STAT=RC)
          IF ( RC /= CC_SUCCESS ) THEN
             ErrMsg = 'Could not Allocate ChemState%ChemSpecies(i)%conc'
             CALL CC_Error( ErrMsg, RC, thisLoc )
@@ -143,6 +187,79 @@ CONTAINS
       end do
 
    end subroutine Chem_Allocate
+
+   !> \brief Finalize and deallocate the chem state
+   !!
+   !! \details Deallocates all memory associated with the ChemState object
+   !!
+   !! \ingroup core_modules
+   !!
+   !! \param ChemState Chem State to be deallocated
+   !! \param RC Return code
+   !!
+   !!!>
+   subroutine Chem_Finalize(ChemState, RC)
+      USE CC_Mod,    ONLY : CC_SUCCESS, CC_FAILURE
+      USE CC_Error,  ONLY : CC_CheckDeallocate
+
+      IMPLICIT NONE
+
+      ! Parameters
+      TYPE(ChemStateType), INTENT(INOUT) :: ChemState
+      INTEGER, INTENT(OUT) :: RC
+
+      ! Local variables
+      INTEGER :: i
+
+      ! Initialize
+      RC = CC_SUCCESS
+
+      ! Deallocate concentration arrays for each species
+      do i = 1, ChemState%nSpecies
+         RC = CC_CheckDeallocate(ChemState%ChemSpecies(i)%conc, 'ChemSpecies concentration')
+         if (RC /= CC_SUCCESS) return
+      end do
+
+      ! Deallocate index arrays
+      RC = CC_CheckDeallocate(ChemState%SpeciesIndex, 'SpeciesIndex')
+      if (RC /= CC_SUCCESS) return
+
+      RC = CC_CheckDeallocate(ChemState%TracerIndex, 'TracerIndex')
+      if (RC /= CC_SUCCESS) return
+
+      RC = CC_CheckDeallocate(ChemState%AeroIndex, 'AeroIndex')
+      if (RC /= CC_SUCCESS) return
+
+      RC = CC_CheckDeallocate(ChemState%GasIndex, 'GasIndex')
+      if (RC /= CC_SUCCESS) return
+
+      RC = CC_CheckDeallocate(ChemState%DustIndex, 'DustIndex')
+      if (RC /= CC_SUCCESS) return
+
+      RC = CC_CheckDeallocate(ChemState%SeaSaltIndex, 'SeaSaltIndex')
+      if (RC /= CC_SUCCESS) return
+
+      RC = CC_CheckDeallocate(ChemState%DryDepIndex, 'DryDepIndex')
+      if (RC /= CC_SUCCESS) return
+
+      ! Deallocate species names
+      RC = CC_CheckDeallocate(ChemState%SpeciesNames, 'SpeciesNames')
+      if (RC /= CC_SUCCESS) return
+
+      ! Finally deallocate the ChemSpecies array
+      RC = CC_CheckDeallocate(ChemState%ChemSpecies, 'ChemSpecies array')
+      if (RC /= CC_SUCCESS) return
+
+      ! Reset counters to zero
+      ChemState%nSpecies = 0
+      ChemState%nSpeciesGas = 0
+      ChemState%nSpeciesAero = 0
+      ChemState%nSpeciesAeroDryDep = 0
+      ChemState%nSpeciesTracer = 0
+      ChemState%nSpeciesDust = 0
+      ChemState%nSpeciesSeaSalt = 0
+
+   end subroutine Chem_Finalize
 
    !> \brief Find the number of species
    !!

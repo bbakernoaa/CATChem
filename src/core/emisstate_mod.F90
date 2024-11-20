@@ -135,15 +135,15 @@ CONTAINS
    !! \param RC Return code
    !!
    !!!>
-   subroutine Emis_Allocate(GridState, EmisState, RC)
+   subroutine Emis_Allocate(MetState, EmisState, RC)
 
       ! Uses
-      USE GridState_Mod, ONLY : GridStateType
+      USE MetState_Mod, ONLY : MetStateType
 
       IMPLICIT NONE
 
       !Input
-      TYPE(GridStateType), INTENT(IN) :: GridState
+      TYPE(MetStateType), INTENT(IN) :: MetState
 
       ! Input/Output
       TYPE(EmisStateType), INTENT(INOUT) :: EmisState
@@ -173,7 +173,7 @@ CONTAINS
             do s = 1, EmisState%Cats(c)%nSpecies
                print*, 'Allocating ', EmisState%Cats(c)%Species(s)%name
 
-               ALLOCATE(EmisState%Cats(c)%Species(s)%Flux(GridState%number_of_levels), STAT=RC)
+               ALLOCATE(EmisState%Cats(c)%Species(s)%Flux(MetState%nLEVS), STAT=RC)
                if (RC /= CC_SUCCESS) then
                   ErrMsg = '  Error allocating "EmisState%Cats%Species%Flux"!'
                   call CC_Error(ErrMsg, RC, ThisLoc)
@@ -448,61 +448,70 @@ CONTAINS
    !! \param RC Return code
    !!
    !!!>
-   subroutine EmisState_CleanUp(EmisState, RC)
+   subroutine EmisState_Finalize(EmisState, RC)
+      USE CC_Mod,   ONLY : CC_SUCCESS
+      USE CC_Error, ONLY : CC_CheckDeallocate
 
       TYPE(EmisStateType), INTENT(INOUT) :: EmisState
       INTEGER, INTENT(OUT) :: RC
 
-      character(len=255) :: ErrMsg
-      character(len=255) :: ThisLoc
-
-      integer :: c ! Loop counter for emission Cats
-      integer :: s ! Loop counter for emitted species
+      integer :: c     ! Loop counter for emission Cats
+      integer :: s     ! Loop counter for emitted species
 
       ! Initialize return code
       RC = CC_SUCCESS
 
-      ! Initialize local variables
-      ErrMsg = ''
-      ThisLoc = ' -> at EmisState_CleanUp (in core/emisstate_mod.F90)'
-
       ! Deallocate total variables
-      if (allocated(EmisState%TotEmisNames)) deallocate(EmisState%TotEmisNames)
+      RC = CC_CheckDeallocate(EmisState%TotEmisNames, 'TotEmisNames')
+      if (RC /= CC_SUCCESS) return
+
+      ! Deallocate total species fluxes
       do c = 1, EmisState%nEmisTotal
-         if (allocated(EmisState%TotSpecies(c)%Flux)) deallocate(EmisState%TotSpecies(c)%Flux)
-         if (allocated(EmisState%TotSpecies(c)%Flux)) deallocate(EmisState%TotSpecies(c)%Flux)
+         RC = CC_CheckDeallocate(EmisState%TotSpecies(c)%Flux, 'TotSpecies Flux')
+         if (RC /= CC_SUCCESS) return
       end do
 
       ! Deallocate emission variables in each category
       cats: do c = 1, EmisState%nCats
          species: do s = 1, EmisState%Cats(c)%nSpecies
-            if (allocated(EmisState%Cats(c)%Species(s)%Flux)) &
-               deallocate(EmisState%Cats(c)%Species(s)%Flux)
-            if (allocated(EmisState%Cats(c)%Species(s)%EmisMapIndex)) &
-               deallocate(EmisState%Cats(c)%Species(s)%EmisMapIndex)
-            if (allocated(EmisState%Cats(c)%Species(s)%Scale)) &
-               deallocate(EmisState%Cats(c)%Species(s)%Scale)
-            if (allocated(EmisState%Cats(c)%Species(s)%EmisMapName)) &
-               deallocate(EmisState%Cats(c)%Species(s)%EmisMapName)
-            if (allocated(EmisState%Cats(c)%Species(s)%PlmRiseHgt)) &
-               deallocate(EmisState%Cats(c)%Species(s)%PlmRiseHgt)
-            if (allocated(EmisState%Cats(c)%Species(s)%PlmSrcFlx)) &
-               deallocate(EmisState%Cats(c)%Species(s)%PlmSrcFlx)
-            if (allocated(EmisState%Cats(c)%Species(s)%FRP)) &
-               deallocate(EmisState%Cats(c)%Species(s)%FRP)
-            if (allocated(EmisState%Cats(c)%Species(s)%STKDM)) &
-               deallocate(EmisState%Cats(c)%Species(s)%STKDM)
-            if (allocated(EmisState%Cats(c)%Species(s)%STKHT)) &
-               deallocate(EmisState%Cats(c)%Species(s)%STKHT)
-            if (allocated(EmisState%Cats(c)%Species(s)%STKTK)) &
-               deallocate(EmisState%Cats(c)%Species(s)%STKTK)
-            if (allocated(EmisState%Cats(c)%Species(s)%STKVE)) &
-               deallocate(EmisState%Cats(c)%Species(s)%STKVE)
+            RC = CC_CheckDeallocate(EmisState%Cats(c)%Species(s)%Flux, 'Species Flux')
+            if (RC /= CC_SUCCESS) return
+
+            RC = CC_CheckDeallocate(EmisState%Cats(c)%Species(s)%EmisMapIndex, 'EmisMapIndex')
+            if (RC /= CC_SUCCESS) return
+
+            RC = CC_CheckDeallocate(EmisState%Cats(c)%Species(s)%Scale, 'Scale')
+            if (RC /= CC_SUCCESS) return
+
+            RC = CC_CheckDeallocate(EmisState%Cats(c)%Species(s)%EmisMapName, 'EmisMapName')
+            if (RC /= CC_SUCCESS) return
+
+            RC = CC_CheckDeallocate(EmisState%Cats(c)%Species(s)%PlmRiseHgt, 'PlmRiseHgt')
+            if (RC /= CC_SUCCESS) return
+
+            RC = CC_CheckDeallocate(EmisState%Cats(c)%Species(s)%PlmSrcFlx, 'PlmSrcFlx')
+            if (RC /= CC_SUCCESS) return
+
+            RC = CC_CheckDeallocate(EmisState%Cats(c)%Species(s)%FRP, 'FRP')
+            if (RC /= CC_SUCCESS) return
+
+            RC = CC_CheckDeallocate(EmisState%Cats(c)%Species(s)%STKDM, 'STKDM')
+            if (RC /= CC_SUCCESS) return
+
+            RC = CC_CheckDeallocate(EmisState%Cats(c)%Species(s)%STKHT, 'STKHT')
+            if (RC /= CC_SUCCESS) return
+
+            RC = CC_CheckDeallocate(EmisState%Cats(c)%Species(s)%STKTK, 'STKTK')
+            if (RC /= CC_SUCCESS) return
+
+            RC = CC_CheckDeallocate(EmisState%Cats(c)%Species(s)%STKVE, 'STKVE')
+            if (RC /= CC_SUCCESS) return
          end do species
       end do cats
-      if (allocated(EmisState%Cats)) deallocate(EmisState%Cats)
-      if (allocated(EmisState%Cats)) deallocate(EmisState%Cats)
 
-   end subroutine EmisState_CleanUp
+      ! Final deallocation of Cats array
+      RC = CC_CheckDeallocate(EmisState%Cats, 'Cats array')
+      if (RC /= CC_SUCCESS) return
 
+   end subroutine EmisState_Finalize
 END MODULE EmisState_Mod

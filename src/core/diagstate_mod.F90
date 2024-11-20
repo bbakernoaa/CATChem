@@ -15,8 +15,9 @@ module DiagState_Mod
    IMPLICIT NONE
    private
 
-   ! PUBLIC :: Zero_DiagState
    PUBLIC :: Diag_Allocate
+   PUBLIC :: Diag_Finalize
+
 
    !> \brief Data type for storing diagnostic state variables
    !!
@@ -127,5 +128,47 @@ CONTAINS
 
 
    end subroutine Diag_Allocate
+
+
+   !> \brief Finalizes and deallocates the DiagState object
+   !!
+   !! \param State DiagState object to finalize
+   !! \param RC Return code
+   !!
+   !!!>
+   subroutine Diag_Finalize(State, RC)
+      USE CC_Mod,   ONLY : CC_SUCCESS
+      USE CC_Error, ONLY : CC_CheckDeallocate
+
+      !----------------------------------------------------------
+      ! Arguments
+      !----------------------------------------------------------
+      TYPE(DiagStateType), INTENT(INOUT) :: State
+      INTEGER, INTENT(OUT) :: RC
+
+      !----------------------------------------------------------
+      ! Initialize
+      !----------------------------------------------------------
+      RC = CC_SUCCESS
+
+      !----------------------------------------------------------
+      ! Deallocate arrays with error checking
+      !----------------------------------------------------------
+      RC = CC_CheckDeallocate(State%AOD550, 'AOD550')
+      if (RC /= CC_SUCCESS) return
+
+      RC = CC_CheckDeallocate(State%AOD380, 'AOD380')
+      if (RC /= CC_SUCCESS) return
+
+      RC = CC_CheckDeallocate(State%TOMSAI, 'TOMSAI')
+      if (RC /= CC_SUCCESS) return
+
+      RC = CC_CheckDeallocate(State%drydep_frequency, 'drydep_frequency')
+      if (RC /= CC_SUCCESS) return
+
+      RC = CC_CheckDeallocate(State%drydep_vel, 'drydep_vel')
+      if (RC /= CC_SUCCESS) return
+
+   end subroutine Diag_Finalize
 
 end module DiagState_Mod
