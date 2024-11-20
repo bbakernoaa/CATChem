@@ -38,13 +38,12 @@ CONTAINS
    !!
    !! \ingroup core_modules
    !!!>
-   SUBROUTINE Read_Input_File( Config , GridState, EmisState, ChemState, RC, ConfigFilename )
+   SUBROUTINE Read_Input_File( Config, EmisState, ChemState, RC, ConfigFilename )
 !
 ! !USES:
 !
       USE Error_Mod
       USE Config_Opt_Mod,  ONLY : ConfigType
-      USE GridState_Mod, ONLY : GridStateType
       use ChemState_Mod, only : ChemStateType
       use EmisState_Mod, only : EmisStateType
 
@@ -54,7 +53,6 @@ CONTAINS
 ! !INPUT/OUTPUT PARAMETERS:
 !
       TYPE(ConfigType),    INTENT(INOUT) :: Config    ! Input options
-      TYPE(GridStateType), INTENT(INOUT) :: GridState  ! Grid State object
       TYPE(ChemStateType), INTENT(inout) :: ChemState ! Chemical State
       TYPE(EmisStateType), INTENT(inout) :: EmisState ! Emission State
 !
@@ -120,23 +118,23 @@ CONTAINS
          RETURN
       ENDIF
 
-      !========================================================================
-      ! Get grid settings from the YAML Config object
-      !========================================================================
-
-      ! Grid config settings
-      CALL Config_Grid( ConfigInput, GridState, RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error in "Config_Grid"!'
-         CALL CC_Error( errMsg, RC, thisLoc  )
-         CALL QFYAML_CleanUp( ConfigInput         )
-         CALL QFYAML_CleanUp( ConfigAnchored )
-         RETURN
-      ENDIF
-
       ! !========================================================================
-      ! ! Config processes
+      ! ! Get grid settings from the YAML Config object
       ! !========================================================================
+
+      ! ! Grid config settings
+      ! CALL Config_Grid( ConfigInput, GridState, RC )
+      ! IF ( RC /= CC_SUCCESS ) THEN
+      !    errMsg = 'Error in "Config_Grid"!'
+      !    CALL CC_Error( errMsg, RC, thisLoc  )
+      !    CALL QFYAML_CleanUp( ConfigInput         )
+      !    CALL QFYAML_CleanUp( ConfigAnchored )
+      !    RETURN
+      ! ENDIF
+
+      !========================================================================
+      ! Config processes
+      !========================================================================
       call Config_Process_SeaSalt(ConfigInput, Config, RC)
       IF ( RC /= CC_SUCCESS ) THEN
          errMsg = 'Error in "Config_Process_SeaSalt"!'
@@ -214,15 +212,13 @@ CONTAINS
    !! \param   RC Return code
    !!
    !!!>
-   SUBROUTINE Config_Chem_State( filename, GridState, ChemState, RC )
+   SUBROUTINE Config_Chem_State( filename, ChemState, RC )
       USE ChemState_Mod, ONLY : ChemStateType, Find_Number_of_Species, Find_Index_of_Species
       use Config_Opt_Mod, ONLY : ConfigType
       USE Error_Mod
-      USE GridState_Mod, ONLY : GridStateType
 
       CHARACTER(LEN=*), INTENT(IN) :: filename
       TYPE(ChemStateType), INTENT(INOUT) :: ChemState
-      TYPE(GridStateType), INTENT(IN) :: GridState
       INTEGER, INTENT(INOUT) :: RC
 
       TYPE(QFYAML_t)     :: ConfigInput, ConfigAnchored
@@ -539,10 +535,10 @@ CONTAINS
          ChemState%ChemSpecies(n)%viscosity = v_real
          write(*,*) '|  viscosity: ', ChemState%ChemSpecies(n)%viscosity
 
-         !---------------------------------------
-         ! Allocate initial Species Concentration
-         !---------------------------------------
-         ALLOCATE(ChemState%ChemSpecies(n)%conc(GridState%number_of_levels), STAT=RC)
+         ! !---------------------------------------
+         ! ! Allocate initial Species Concentration
+         ! !---------------------------------------
+         ! ALLOCATE(ChemState%ChemSpecies(n)%conc(GridState%number_of_levels), STAT=RC)
 
       enddo ! n
 
@@ -578,7 +574,6 @@ CONTAINS
       USE EmisState_Mod, ONLY : EmisStateType
       use Config_Opt_Mod, ONLY : ConfigType
       USE Error_Mod
-      USE GridState_Mod, ONLY : GridStateType
 
       CHARACTER(LEN=*), INTENT(IN) :: filename
       ! TYPE(ChemStateType), INTENT(INOUT) :: ChemState
@@ -853,14 +848,8 @@ CONTAINS
 ! !LOCAL VARIABLES:
 !
       ! Scalars
-      ! REAL(fp)                     :: JulianDateStart,  JulianDateEnd
 
       ! Strings
-      ! CHARACTER(LEN=6)             :: timeStr
-      ! CHARACTER(LEN=8)             :: dateStr
-      ! CHARACTER(LEN=12)            :: met
-      ! CHARACTER(LEN=15)            :: verboseMsg
-      ! CHARACTER(LEN=24)            :: sim
       CHARACTER(LEN=255)           :: thisLoc
       CHARACTER(LEN=512)           :: errMsg
       CHARACTER(LEN=QFYAML_NamLen) :: key
@@ -914,109 +903,6 @@ CONTAINS
       RC = CC_SUCCESS
 
    END SUBROUTINE Config_Simulation
-
-   !> \brief Process grid configuration
-   !!
-   !! This function processes the grid configuration and performs the necessary actions based on the configuration.
-   !!
-   !! \param[in] ConfigInput The YAML configuration object
-   !! \param[inout] Config The configuration object
-   !! \param[out] RC The return code
-   !!
-   !! \ingroup core_modules
-   !!!>
-   SUBROUTINE Config_Grid( ConfigInput, GridState, RC )
-!
-! !USES:
-!
-      USE CharPak_Mod,    ONLY : StrSplit
-      USE Error_Mod
-      USE Config_Opt_Mod,  ONLY : ConfigType
-      USE GridState_Mod, ONLY : GridStateType
-!
-! !INPUT/OUTPUT PARAMETERS:
-!
-      TYPE(QFYAML_t),      INTENT(INOUT) :: ConfigInput      ! YAML Config object
-      ! TYPE(ConfigType),     INTENT(INOUT) :: Config   ! Input options
-      TYPE(GridStateType), INTENT(INOUT) :: GridState  ! Grid State
-!
-! !OUTPUT PARAMETERS:
-!
-      INTEGER,        INTENT(OUT)   :: RC          ! Success or failure
-!
-! !LOCAL VARIABLES:
-!
-      ! Scalars
-      ! LOGICAL                      :: v_bool
-      INTEGER                      :: v_int
-
-      ! Strings
-      CHARACTER(LEN=255)           :: thisLoc
-      CHARACTER(LEN=512)           :: errMsg
-      CHARACTER(LEN=QFYAML_StrLen) :: key
-
-      !========================================================================
-      ! Config_Grid begins here!
-      !========================================================================
-
-      ! Initialize
-      RC      = CC_SUCCESS
-      errMsg  = ''
-      thisLoc = ' -> at Config_Grid (in CATChem/src/core/input_mod.F90)'
-
-      !------------------------------------------------------------------------
-      ! Level range
-      !------------------------------------------------------------------------
-      key   = "grid%number_of_levels"
-      v_int = MISSING_INT
-      CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error parsing ' // TRIM( key ) // '!'
-         CALL CC_Error( errMsg, RC, thisLoc )
-         RETURN
-      ENDIF
-      GridState%number_of_levels = v_int
-
-      !------------------------------------------------------------------------
-      ! number of soil layers range
-      !------------------------------------------------------------------------
-      key   = "grid%number_of_soil_layers"
-      v_int = MISSING_INT
-      CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error parsing ' // TRIM( key ) // '!'
-         CALL CC_Error( errMsg, RC, thisLoc )
-         RETURN
-      ENDIF
-      GridState%number_of_soil_layers = v_int
-
-      !------------------------------------------------------------------------
-      ! number of x and y dimensions (nx and ny)
-      !------------------------------------------------------------------------
-      key   = "grid%nx"
-      v_int = MISSING_INT
-      CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error parsing ' // TRIM( key ) // '!'
-         CALL CC_Error( errMsg, RC, thisLoc )
-         RETURN
-      ENDIF
-      GridState%NX = v_int
-
-      key   = "grid%ny"
-      v_int = MISSING_INT
-      CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_int, "", RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         errMsg = 'Error parsing ' // TRIM( key ) // '!'
-         CALL CC_Error( errMsg, RC, thisLoc )
-         RETURN
-      ENDIF
-      GridState%NY = v_int
-
-      ! Return success
-      RC = CC_SUCCESS
-
-   END SUBROUTINE Config_Grid
 
    !> \brief Process dust configuration
    !!
@@ -1179,7 +1065,7 @@ CONTAINS
       RC      = CC_SUCCESS
       thisLoc = ' -> at Config_Process_SeaSalt (in CATChem/src/core/config_mod.F90)'
       errMsg = ''
-      
+
       key   = "process%seasalt%activate"
       v_bool = MISSING_BOOL
       CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_bool, "", RC )

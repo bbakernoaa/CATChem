@@ -19,6 +19,7 @@ MODULE Error_Mod
    PUBLIC :: CC_Error
    PUBLIC :: CC_Warning
    PUBLIC :: CC_CheckVar
+   PUBLIC :: CC_CheckDeallocate
    !
    ! !DEFINED PARAMETERS:
    !
@@ -212,5 +213,102 @@ CONTAINS
       ENDIF
 
    END SUBROUTINE CC_CheckVar
+
+   !<
+   !! \brief Check and perform array allocation
+   !!
+   !! \param array    Array to allocate
+   !! \param size     Size of array to allocate
+   !! \param varName  Variable name for error messages
+   !!
+   !! \return RC     Return code (CC_SUCCESS or error)
+   !!!>
+   FUNCTION CC_CheckAllocate(array, size, varName) RESULT(RC)
+      !
+      ! !INPUT PARAMETERS:
+      !
+      CLASS(*), ALLOCATABLE, INTENT(INOUT) :: array(:)  !< Array to allocate
+      INTEGER,              INTENT(IN)    :: size      !< Size to allocate
+      CHARACTER(LEN=*),     INTENT(IN)    :: varName   !< Variable name for messages
+      !
+      ! !RETURN VALUE:
+      !
+      INTEGER :: RC
+      !
+      ! !LOCAL VARIABLES:
+      !
+      INTEGER           :: stat
+      CHARACTER(LEN=255) :: ErrMsg, ThisLoc
+
+      !=========================================================================
+      ! Initialize
+      !=========================================================================
+      RC = CC_SUCCESS
+      stat = 0
+      ThisLoc = ' -> at CC_CheckAllocate (in Headers/error_mod.F90)'
+
+      !=========================================================================
+      ! Perform allocation if array is not already allocated
+      !=========================================================================
+      IF (.NOT. ALLOCATED(array)) THEN
+         ALLOCATE(array(size), STAT=stat)
+
+         IF (stat /= 0) THEN
+            ErrMsg = 'Failed to allocate ' // TRIM(varName)
+            CALL CC_Error(ErrMsg, RC, ThisLoc)
+            RETURN
+         ENDIF
+      ENDIF
+
+   END FUNCTION CC_CheckAllocate
+
+   !>
+   !! \brief CC_CheckDeallocate
+   !!
+   !! This function safely deallocates arrays and returns appropriate error codes
+   !!
+   !! \param array Array to deallocate
+   !! \param varName Name of the variable being deallocated (for error messages)
+   !! \return RC Return code (CC_SUCCESS or CC_FAILURE)
+   !!
+   !! \ingroup core_modules
+   !!!>
+   FUNCTION CC_CheckDeallocate(array, varName) RESULT(RC)
+      !
+      ! !INPUT PARAMETERS:
+      !
+      CLASS(*), ALLOCATABLE, INTENT(INOUT) :: array    !< Array to deallocate
+      CHARACTER(LEN=*),      INTENT(IN)    :: varName  !< Variable name for messages
+      !
+      ! !RETURN VALUE:
+      !
+      INTEGER :: RC
+      !
+      ! !LOCAL VARIABLES:
+      !
+      INTEGER          :: stat
+      CHARACTER(LEN=255) :: ErrMsg, ThisLoc
+
+      !=========================================================================
+      ! Initialize
+      !=========================================================================
+      RC = CC_SUCCESS
+      stat = 0
+      ThisLoc = ' -> at CC_CheckDeallocate (in Headers/error_mod.F90)'
+
+      !=========================================================================
+      ! Perform deallocation if array is allocated
+      !=========================================================================
+      IF (ALLOCATED(array)) THEN
+         DEALLOCATE(array, STAT=stat)
+
+         IF (stat /= 0) THEN
+            ErrMsg = 'Failed to deallocate ' // TRIM(varName)
+            CALL CC_Error(ErrMsg, RC, ThisLoc)
+            RETURN
+         ENDIF
+      ENDIF
+
+   END FUNCTION CC_CheckDeallocate
    !EOC
 END MODULE Error_Mod

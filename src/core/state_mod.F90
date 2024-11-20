@@ -9,7 +9,6 @@
 module state_mod
    use precision_mod
    use Config_Opt_Mod, only : ConfigType
-   use GridState_Mod,  only : GridStateType
    use MetState_Mod,   only : MetStateType
    use ChemState_Mod,  only : ChemStateType
    use EmisState_Mod,  only : EmisStateType
@@ -18,7 +17,6 @@ module state_mod
    IMPLICIT NONE
 
    ! PUBLIC
-   type(GridStateType), PUBLIC :: GridState
    type(MetStateType),  PUBLIC :: MetState
    type(ChemStateType), PUBLIC :: ChemState
    type(ConfigType),    PUBLIC :: Config
