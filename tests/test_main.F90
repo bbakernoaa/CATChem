@@ -36,7 +36,7 @@ program test_main
    write(*,*) ''
 
    ! Read input file and initialize grid
-   call cc_read_config(Config, GridState, EmisState, ChemState, rc, configFile)
+   call cc_read_config(Config, EmisState, ChemState, rc, configFile)
    if (rc /= CC_SUCCESS) then
       errMsg = 'Error reading configuration file: ' // TRIM( configFile )
       call cc_emit_error(errMsg, rc, thisLoc)
@@ -99,14 +99,8 @@ program test_main
    call assert_close(ChemState%ChemSpecies(1)%radius, 0.8_fp, msg="dust1 radius")
    call assert_close(ChemState%ChemSpecies(1)%density, 2500.0_fp, msg="dust1 density")
 
-   ! write grid info
-   write(*,*) 'Grid info:'
-   write(*,*) 'Number of grid nx = ', GridState%NX
-   write(*,*) 'Number of grid ny = ', GridState%NY
-   write(*,*) 'Number of grid levels = ', GridState%number_of_levels
-
    ! initialize met
-   call cc_init_met(GridState, MetState, rc)
+   call cc_init_met(MetState, rc)
    if (rc /= CC_SUCCESS) then
       errMsg = 'Error initializing meteorology'
       call cc_emit_error(errMsg, rc, thisLoc)

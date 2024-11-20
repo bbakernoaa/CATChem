@@ -35,7 +35,7 @@ program test_plumerise
    write(*,*) '  PLUMERISE TEST'
 
    ! Read input file and initialize grid
-   call cc_read_config(Config, GridState, EmisState, ChemState, rc, configFile)
+   call cc_read_config(Config, EmisState, ChemState, rc, configFile)
    if (rc /= CC_success) then
       errMsg = 'Error reading configuration file: ' // TRIM( configFile )
       call cc_emit_error(errMsg, rc, thisLoc)
@@ -44,8 +44,9 @@ program test_plumerise
 
    ! Allocate MetState
    MetState%nSOIL = 4
+   MetState%nLEVS = 127
    print*, 'Allocating MetState'
-   call cc_allocate_metstate(GridState, MetState, rc)
+   call cc_allocate_metstate(MetState, rc)
    if (rc /= CC_success) then
       errMsg = 'Error in "cc_allocate_metstate"'
       call cc_emit_error(errMsg, rc, thisLoc)
@@ -62,7 +63,7 @@ program test_plumerise
    endif
 
    ! Allocate EmisState
-   call cc_allocate_emisstate(GridState, EmisState, rc)
+   call cc_allocate_emisstate(MetState, EmisState, rc)
    if (rc /= CC_success) then
       errMsg = 'Error in "cc_allocate_emisstate"'
       call cc_emit_error(errMsg, rc, thisLoc)
