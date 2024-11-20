@@ -11,7 +11,6 @@ module CATChem
    ! CATChem States
    !---------------
    use ChemState_Mod,  only: ChemStateType    !< Chemical State
-   use GridState_Mod,  only: GridStateType    !< Grid State
    use DiagState_Mod,  only: DiagStateType    !< Diagnostic State
    use EmisState_Mod,  only: EmisStateType    !< Emission State
    use MetState_Mod,   only: MetStateType     !< Meteorology State
@@ -50,6 +49,8 @@ module CATChem
    use Error_Mod, only: CC_FAILURE                      !< CATCHem Failure return code
    use Error_Mod, only: CC_SUCCESS                      !< CATChem Successful return code
    use Error_Mod, only: cc_emit_warning => CC_Warning   !< Method for emitting warnings
+   use Error_Mod, only: cc_checkdeallocate => CC_CheckDeallocate !< Method for checking deallocation
+   use Error_Mod, only: cc_checkallocate => CC_CheckAllocate !< Method for checking allocation
    !
    use init_mod, only: cc_init_diag => Init_Diag        !< Method for initializing the diag state
    use init_mod, only: cc_init_met => Init_Met          !< Method for initializing the met state
