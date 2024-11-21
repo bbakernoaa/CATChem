@@ -7,85 +7,121 @@ MODULE ReadEmissions
    public :: ReadASCIIPointEmissions
 
 
-  ! Define a derived type to hold the data for each emission entry
-  ! This may need to go into the Emissions State type???
-  type :: VolcanicEmissionData
-    real :: vlat
-    real :: vlon
-    real :: vbase
-    real :: vtop
-    real :: VEmis
-    integer :: nPts
-    character(len=20) :: vstart
-    character(len=20) :: vend
-  end type VolcanicEmissionData
+   ! Define a derived type to hold the data for each emission entry
+   ! This may need to go into the Emissions State type???
+   type :: VolcanicEmissionData
+      real :: vlat
+      real :: vlon
+      real :: VEmis
+      integer :: vbase
+      integer :: vtop
+      integer :: nPts
+      character(len=255) :: emissfile
+      character(len=255) :: label
+   end type VolcanicEmissionData
+
+   integer :: rc
+   character(len=1055) :: filename
+   character(len=1055) :: label
+
+   type(VolcanicEmissionData), allocatable :: VolcanicEmiss(:)
+   allocate(VolcanicEmiss(9))
+
+   !filename="./so2_volcanic_emissions_Carns.20220101.rc"
+   !label="volcano"
+
+   call ReadASCIIPointEmissions(filename, label, VolcanicEmiss, rc )
 
 contains
 
 
-subroutine ReadASCIIPointEmissions(nymd, filename, VolcanicEmissions, rc )
 
-   implicit none
+   subroutine ReadASCIIPointEmissions (filename, label, VolcanicEmissions, rc )
 
-      integer, intent(in)            :: nymd  !! Need to do something with this???
-      character(*), intent(in) :: filename, label
+      implicit none
 
       integer, intent(out) :: rc
-
-      type(VolcanicEmissionData), allocatable, intent(out) :: VolcanicEmissions(:)
-      integer, intent(out) :: num_emiss_sources
+      integer :: num_emiss_sources=0
+      integer :: num_lines=0
+      integer :: num_skip=0
       integer :: i
-      character(*) :: line
+      character(1056) :: line
+      character(len=1055), intent(in) :: filename
+      character(len=1055), intent(in) :: label
+      character(len=255) :: errmsg
+
+      type(VolcanicEmissionData), allocatable :: VolcanicEmissions(:)
       type(VolcanicEmissionData), allocatable :: temp_emissions(:)
 
-    ! Open the file
-    open(unit=10, file=filename, status='old', action='read', iostat=rc)
-    if (rc /= 0) then
-       print *, "Error opening file:", filename
-       num_emissions = 0
-       return
-    end if
 
-    ! Count the number of lines in the file
-    num_emissions = 0
-    do
-       read(10, '(A)', iostat=rc) line
-       ! if (rc /= 0) exit
-       num_emiss_sources = num_emiss_sources + 1
-    end do
+      ! Open the file
+      open(unit=10, file=filename, status='old', action='read', iostat=rc)
 
-    ! Rewind the file to start reading data
-    rewind(10)
+      if (rc /= 0) then
+         print *, "Error opening file:", filename, "  RC=", rc
+         return
+      end if
 
-    ! Allocate the array to hold all entries
-    allocate(temp_emissions(num_emiss_sources))
+      ! Count the number of lines in the file
+      readloop:  do while (rc >= 0)
 
-    ! Read each line and store data in the array
-    ! Need a way to generalize this, first several lines are commented out
-    do i = 1, num_emiss_sources
-       read(10, *, iostat=rc) &
-            temp_emissions(i)%vlat, &
+         read(10, '(A)', iostat=rc) line
+         num_lines = num_lines+1
+         line = trim(line)
+
+         if (rc /= 0) then
+            print *, "Error reading file:", filename, "  RC=", rc
+            return
+         end if
+
+         if (line(1:1)=="#") then
+            num_skip = num_skip + 1
+            continue
+         else if (line==trim(label)//"::") then
+            num_skip = num_skip + 1
+            continue
+         else if (line(1:2)=="::") then
+            exit
+         else
+            num_emiss_sources = num_emiss_sources + 1
+         end if
+
+      end do readloop
+
+      rewind(10)
+
+      ! Allocate the array to hold all entries
+      allocate(temp_emissions(num_emiss_sources))
+
+      do i = 1, num_skip
+         read(10, '(A)', iostat=rc) line
+         if (rc /= 0) return
+      end do
+
+      do i = 1, num_emiss_sources
+         read(10, *, iostat=rc, iomsg=errmsg) temp_emissions(i)%vlat, &
             temp_emissions(i)%vlon, &
-            temp_emissions(i)%vbase, &
-            temp_emissions(i)%vtop, &
             temp_emissions(i)%vemis, &
-            temp_emissions(i)%vstart, &
-            temp_emissions(i)%vend
-       if (rc /= 0) then
-          print *, "Error reading line", i
-          num_emiss_sources = i - 1
-          stop 1
-       end if
-    end do
+            temp_emissions(i)%vbase, &
+            temp_emissions(i)%vtop
+         if (rc /= 0) then
+            print *, "Error reading file:", trim(filename), "  RC=", rc
+            print *, "Error message:", trim(errmsg)
+            return
+         end if
+      end do
 
-    ! Close the file and transfer data to output array
-    close(10)
-    VolcanicEmissions = temp_emissions
+      ! Close the file and transfer data to output array
+      close(10)
 
-      where(vStart < 0) vStart = 000000
-      where(vEnd < 0)   vEnd   = 240000
+      temp_emissions%nPts = num_emiss_sources
+      temp_emissions%emissfile = trim(filename)
+      temp_emissions%label = trim(label)
+
+      VolcanicEmissions = temp_emissions
 
 
-end subroutine ReadASCIIPointEmissions
+   end subroutine ReadASCIIPointEmissions
 
-end module ReadEmissions
+
+end MODULE ReadEmissions
