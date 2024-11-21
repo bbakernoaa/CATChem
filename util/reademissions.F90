@@ -2,9 +2,9 @@ MODULE ReadEmissions
 
    implicit none
 
-   !private
+   private
 
-   !public :: ReadASCIIPointEmissions
+   public :: ReadASCIIPointEmissions
 
 
    ! Define a derived type to hold the data for each emission entry
@@ -27,8 +27,8 @@ MODULE ReadEmissions
    type(VolcanicEmissionData), allocatable :: VolcanicEmiss(:)
    allocate(VolcanicEmiss(9))
 
-   filename="./so2_volcanic_emissions_Carns.20220101.rc"
-   label="volcano"
+   !filename="./so2_volcanic_emissions_Carns.20220101.rc"
+   !label="volcano"
 
    call ReadASCIIPointEmissions(filename, label, VolcanicEmiss, rc )
 
