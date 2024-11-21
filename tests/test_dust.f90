@@ -35,7 +35,7 @@ program test_dust
    !----------------------------
 
    ! Read input file and initialize grid
-   call cc_read_config(Config, GridState, EmisState, ChemState, rc, configFile)
+   call cc_read_config(Config, EmisState, ChemState, rc, configFile)
    if (rc /= CC_success) then
       errMsg = 'Error reading configuration file: ' // TRIM( configFile )
       call cc_emit_error(errMsg, rc, thisLoc)

@@ -41,9 +41,17 @@ MODULE MetState_Mod
       INTEGER               :: nSOIL             !< # number of soil layers
       INTEGER               :: nLNDTYPE          !< # of landtypes in box (I,J)
 
+      ! Location Specific Fields
+      !-------------------------
+      real(fp) :: LAT               !< Latitude [degrees]
+      real(fp) :: LON               !< Longitude [degrees]
+
       ! TIMESTEP
       !---------
-      REAL(fp), ALLOCATABLE :: TSTEP             !< Time step [s]
+      REAL(fp) :: TSTEP             !< Time step [s]
+      REAL(fp) :: JDAY              !< Julian Day of year
+      REAL(fp) :: JDAY_FRAC         !< Fractional Julian Day of year
+      real(fp) :: HR                !< Hour of Day in UTC
 
       ! Logicals
       !---------
@@ -51,11 +59,12 @@ MODULE MetState_Mod
       LOGICAL           :: IsWater               !< Is this a water grid box?
       LOGICAL           :: IsIce                 !< Is this a ice grid box?
       LOGICAL           :: IsSnow                !< Is this a snow grid box?
+      LOGICAL           :: IsLocalNoon           ! Is it local noon (between 11 and 13 local solar time?
       LOGICAL,  ALLOCATABLE :: InStratMeso(:)    !< Are we in the stratosphere or mesosphere?
       LOGICAL,  ALLOCATABLE :: InStratosphere(:) !< Are we in the stratosphere?
       LOGICAL,  ALLOCATABLE :: InTroposphere(:)  !< Are we in the troposphere?
       LOGICAL,  ALLOCATABLE :: InPbl(:)          !< Are we in the PBL?
-      LOGICAL,  ALLOCATABLE :: IsLocalNoon       ! Is it local noon (between 11 and 13 local solar time?
+
 
       ! Land Specific Fields
       !---------------------
@@ -69,8 +78,9 @@ MODULE MetState_Mod
       REAL(fp)              :: FRLAND          !< Fraction of land [1]
       REAL(fp)              :: FRLANDIC        !< Fraction of land ice [1]
       REAL(fp)              :: FROCEAN         !< Fraction of ocean [1]
-      REAL(fp)              :: FRSEAICE        !< Sfc sea ice fraction
-      REAL(fp)              :: FRSNO           !< Sfc snow fraction
+      REAL(fp)              :: FRSEAICE        !< Sfc sea ice fraction [1]
+      REAL(fp)              :: FRSNO           !< Sfc snow fraction [1]
+      REAL(fp)              :: FRURBAN         !< Fraction of urban [1]
       REAL(fp)              :: LAI             !< Leaf area index [m2/m2] (online) Dominant
       REAL(fp)              :: GVF             !< Green Vegetative Fraction
       REAL(fp)              :: RDRAG           !< Drag Partition [1]

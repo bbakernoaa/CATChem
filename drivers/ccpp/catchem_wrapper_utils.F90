@@ -13,7 +13,6 @@
 !> \ingroup catchem_ccpp_group
 !!!>
 module catchem_wrapper_utils
-module catchem_wrapper_utils
 
     use CATChem, only: ConfigType, MetStateType, ChemStateType, &
                       EmisStateType, DiagStateType, cc_read_config, &
@@ -27,7 +26,6 @@ module catchem_wrapper_utils
 
     public :: read_catchem_config
     public :: allocate_catchem_container
-    public :: check_allocation_error
     public :: transform_ccpp_to_catchem
 
 contains
@@ -201,7 +199,11 @@ contains
     !!
     !! \ingroup catchem_ccpp_group
     !!!>
-    subroutine transform_ccpp_to_catchem(im, kme, &
+    subroutine transform_ccpp_to_catchem(nHorz, nVert, sfc_index, top_index, lat, lon, &      ! Grid Information
+                                        fcst_iter, dt, jdate, tile_num, area, xcosz, &  ! Grid Information
+                                        aero_rad_freq_opt, aero_feedback_opt, plmrise_freq_opt, & ! Model Options
+                                        lwi, dluse, soiltyp, vegtype_frac,
+
       temp, spechum, pfull, phalf, &
       u, v, delp, zh, kh, prsl, prslk, &
       u10m, v10m, tskin, ps, precip, &

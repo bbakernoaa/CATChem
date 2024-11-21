@@ -68,6 +68,13 @@
   dimensions = (horizontal_loop_extent)
   type = integer
   intent = in
+[nsoil]
+  standard_name = vertical_dimension_of_soil_internal_to_land_surface_scheme
+  long_name = number of soil layers internal to land surface model
+  units = count
+  dimensions = ()
+  type = integer
+  intent = in
 [u10m]
   standard_name = x_wind_at_10m
   long_name = 10 meter u wind speed
@@ -92,6 +99,38 @@
   type = real
   kind = kind_phys
   intent = in
+[pblh]
+  standard_name = atmosphere_boundary_layer_thickness
+  long_name = PBL thickness
+  units = m
+  dimensions = (horizontal_loop_extent)
+  type = real
+  kind = kind_phys
+  intent = in
+[tskin]
+  standard_name = surface_skin_temperature
+  long_name = surface skin temperature
+  units = K
+  dimensions = (horizontal_loop_extent)
+  type = real
+  kind = kind_phys
+  intent = in
+[t2m]
+  standard_name = air_temperature_at_2m
+  long_name = 2 meter temperature
+  units = K
+  dimensions = (horizontal_loop_extent)
+  type = real
+  kind = kind_phys
+  intent = in
+[dpt2m]
+  standard_name = dewpoint_temperature_at_2m
+  long_name = 2 meter dewpoint temperature
+  units = K
+  dimensions = (horizontal_loop_extent)
+  type = real
+  kind = kind_phys
+  intent = in
 [rlat]
   standard_name = latitude
   long_name = latitude
@@ -108,14 +147,7 @@
   type = real
   kind = kind_phys
   intent = in
-[tskin]
-  standard_name = surface_skin_temperature
-  long_name = surface skin temperature
-  units = K
-  dimensions = (horizontal_loop_extent)
-  type = real
-  kind = kind_phys
-  intent = in
+
 [hf2d]
   standard_name = instantaneous_surface_upward_sensible_heat_flux
   long_name = surface upward sensible heat flux valid for current call
