@@ -65,13 +65,12 @@ program test_suvolcanic
    SUVolcanicEmissionsState%Activate = .true.
 
    ! Meteorological State
+   allocate(MetState%HGHTE(MetState%NLEVS))
    allocate(MetState%DELP(MetState%NLEVS))
-   allocate(MetState%ZMID(MetState%NLEVS))
-
 
    do i = 1, MetState%NLEVS
       MetState%DELP(i)=101300 - I*1000       ! Need to change to something more reasonable and check units.
-      MetState%ZMID(i) = (MetState%NLEVS*100 - I*100)   ! m
+      MetState%HGHTE(i) = (MetState%NLEVS*100 + I*100)   ! m
    end do
 
    SUVolcanicEmissionsState%SchemeOpt = 1
@@ -129,10 +128,8 @@ contains
 
          write(*,*) 'SUVolcanicEmissionsState%Activate = ', SUVolcanicEmissionsState_%Activate
          write(*,*) 'SUVolcanicEmissionsState%SchemeOpt = ', SUVolcanicEmissionsState_%SchemeOpt
-
-!!! Change below
-         !write(*,*) 'MetState%AIRDEN =', MetState_%AIRDEN
-         !write(*,*) 'DryDepState%drydepf = ', DryDepState_%drydep_frequency
+         write(*,*) 'MetState%DELP =', MetState_%DELP
+         write(*,*) 'MetState%HGHTE = ', MetState_%HGHTE
 
       end if
 

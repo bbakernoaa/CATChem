@@ -74,7 +74,8 @@ contains
       REAL, intent(inout)                      :: vLat     ! latitude specified in file [degree]
       REAL, intent(inout)                      :: VLon     ! longitude specified in file [degree]
 
-      REAL, parameter :: fMassSulfur = 32.     !  gram molecular weights of species
+      ! should these be pulled from ChemSpeciesState?
+      REAL, parameter :: fMassSulfur = 32.     !  gram molecular weights of species 
       REAL, parameter :: fMassSO2 = 64.     !  gram molecular weights of species
       REAL, parameter :: fMassSO4 = 96.     !  gram molecular weights of species
 
