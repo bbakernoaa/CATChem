@@ -66,7 +66,7 @@ CONTAINS
    !! \ingroup catchem_suvolcanicemissions_process
    !!
    !!!>
-   SUBROUTINE CCPR_SUVolcanicEmissions_Init( Config, SUVolcanicEmisionsState, ChemState, RC )
+   SUBROUTINE CCPR_SUVolcanicEmissions_Init( Config, SUVolcanicEmissionsState, ChemState, RC )
       ! USE
 
 
@@ -78,7 +78,7 @@ CONTAINS
 
       ! INPUT/OUTPUT PARAMETERS
       !------------------------
-      TYPE(SUVolcanicEmissionsStateType)          :: SUVolcanicEmissionsState ! Volcanic state
+      TYPE(SUVolcanicEmissionsStateType)    :: SUVolcanicEmissionsState ! Volcanic state
       INTEGER,         INTENT(INOUT) :: RC       ! Success or failure
 
       ! Error handling
@@ -89,8 +89,9 @@ CONTAINS
       ! LOCAL VARIABLES
       !----------------
 
-
       ! Put any local variables here
+
+
 
       !=================================================================
       ! CCPR_DryDep_Init begins here!
@@ -104,12 +105,6 @@ CONTAINS
          ! Activate Process
          !------------------
          SUVolcanicEmissionsState%Activate = .true.
-         allocate(SUVolcanicEmissionsState, STAT=RC)
-         IF ( RC /= CC_SUCCESS ) THEN
-            ErrMsg = 'Could not Allocate SUVolcanicEmissionsState'
-            CALL CC_Error( ErrMsg, RC, ThisLoc )
-         ENDIF
-         SUVolcanicEmissionsState=ZERO
 
          ! Set scheme option
          !------------------
@@ -146,45 +141,87 @@ CONTAINS
       ! INPUT/OUTPUT PARAMETERS
       TYPE(DiagStateType), INTENT(INOUT)      :: DiagState       !< DiagState Instance
       TYPE(SUVolcanicEmissionsStateType), INTENT(INOUT)  :: SUVolcanicEmissionsState  !< SUVolcanicEmissionsState Instance
-      TYPE(ChemStateType),  INTENT(INOUT)     :: ChemState       !< ChemState Instance
+      TYPE(ChemStateType), INTENT(INOUT)     :: ChemState       !< ChemState Instance
 
       ! OUTPUT PARAMETERS
       INTEGER, INTENT(OUT) :: RC                                 ! Return Code
 
       ! LOCAL VARIABLES
       CHARACTER(LEN=255) :: ErrMsg, thisLoc
-      INTEGER :: km
-      REAL(fp) :: dqa                       ! Change in Species due to drydep
+      INTEGER :: i                          ! loop index
+      INTEGER :: hms                        ! Model time [secs]
+
+      INTEGER, dimension(:), allocatable   :: vStart      ! Emissions Start time [sec]
+      INTEGER, dimension(:), allocatable   :: vEnd        ! Emissions end time [sec]
+      INTEGER                              :: nVolc       ! number of volcanic sources
+      INTEGER, dimension(:), allocatable   :: iPoint, jPoint ! sub-domain - we only run this at the place/time of eruption??
+      INTEGER                 :: nSO2     ! index of SO2 relative to other sulfate tracers
+
+      REAL, dimension(:), allocatable      :: vSO2   ! volcanic emissions  [kg]
+      REAL, dimension(:,:,:),pointer  :: SO2       ! SO2 [kg kg-1]
+      REAL, dimension(:,:,:),pointer  :: SU_emis   ! SU emissions, kg/m2/s
+      REAL, dimension(:), allocatable        :: vCloud    ! top elevation of emissions [m]
+      REAL, dimension(:), allocatable        :: vElev     ! bottom elevation of emissions [m]
+      REAL, dimension(:), allocatable        :: vLat     ! latitude specified in file [degree]
+      REAL, dimension(:), allocatable        :: VLon     ! longitude specified in file [degree]
+      REAL, dimension(:,:), allocatable      :: area     ! longitude specified in file [degree]
+
+
       REAL(fp) :: SpecConc                  ! Temporary Species concentration
 
       ! Initialize
       RC = CC_SUCCESS
       errMsg = ''
       thisLoc = ' -> at CCPr_SUVolcanicEmissions_Run &
-             & (in process/SUVolcanicEmissions/ccpr_SUVolcanicEmissions_mod.F90)'
+      & (in process/SUVolcanicEmissions/ccpr_SUVolcanicEmissions_mod.F90)'
 
-      km = MetState%NLEVS
 
-      ! Run the DryDep Scheme
+!      Get pointwise SO2 and altitude of volcanoes from a daily file data base
+!      if(index(self%volcano_srcfilen,'volcanic_') /= 0) then
+!         call ReadASCIIPointEmissions (YMD, fname, nVolc, vLat, vLon, &
+!            vElev, vCloud, vSO2, vStart, vEnd, label, RC)
+!      call ReadASCIIPointEmissions (fname, label, SUVolcanicEmissionsState, RC)
+
+      nSO2 = ChemState%nSpeciesSUVolcanic  !HC'd sulfate tracer number in GOCART???
+
+      ! Run  SUVolcanic
       !-------------------------
       if (SUVolcanicEmissionsState%Activate) then
-         ! Run the DryDep Scheme
+         ! Run the GOCART SUVolcanic Scheme
          !-------------------------
          if (SUVolcanicEmissionsState%SchemeOpt == 1) then
             ! Run the SU Volcanic Scheme - Only Applicable to AEROSOL species
             !-------------------------
 
-            ! Below is not needed if only SO2 is reported??
             if (ChemState%nSpeciesSUVolcanic > 0) then
 
                ! loop through aerosol species
                do i = 1, ChemState%nSpeciesSUVolcanic
 
+                  ! Right now, GOCART has SO2 as the only volcanic species
+                  !  Need to look up which is the index for SO2 concentrations
                   call CCPr_Scheme_GOCART_SUVolcanicEmissions( MetState%NLEVS,   &
-                     MetState%ZMID,    &
-                     MetState%DELP,    &
-                     g0,               &
+                     MetState%TSTEP, &
+                     VStart, &
+                     VEnd, &
+                     nVolc, &
+                     iPoint, &
+                     jPoint, &
+                     HMS, &
+                     g0, &
+                     MetState%BXHEIGHT, &
+                     MetState%DELP, &
+                     area, &
+                     vSO2, &    !volcanic contribution to so2 emissions
+                     nSO2, &    ! tracer number for so2 within sulfur trace
+                     SO2, &     !total so2 concentration intent(inout)
+                     SU_emis, & !total emission rate for each sulfur species, !SU_emis(:,:,nSO2), nSO2=2, nDMS=1, nSO4=3, nMSA=4
+                     vCloud, &
+                     vElev, &
+                     vLat, &
+                     VLon, &
                      RC)
+                  !  nso2 is used to define SU_emis:  SU_emis(:,:,nSO2)
 
                end do ! do i = 1, ChemState%nSpeciesSUVolcanic
 
@@ -192,11 +229,9 @@ CONTAINS
 
          endif  ! if (SUVolcanicEmissionsState%SchemeOpt == 1)
 
-         ! TO DO:  apply dry dep velocities/freq to chem species
          write(*,*) 'TODO: Need to figure out how to add back to the chemical species state '
 
       endif   !  if (SUVolcanicEmissionsState%Activate)
-
 
    end subroutine CCPr_SUVolcanicEmissions_Run
 
@@ -228,19 +263,19 @@ CONTAINS
       thisLoc = ' -> at CCPr_SUVolcanicEmissions_Finalize &
       &(in process/SUVolcanicEmissions/ccpr_SUVolcanicEmissions_mod.F90)'
 
-! This will not need to be deallocated, leaving in as placeholders; need to change
-
-      DEALLOCATE( SUVolcanicEmissionsState%drydep_vel, STAT=RC )
-      IF ( RC /= CC_SUCCESS ) THEN
-         ErrMsg = 'Could not Deallocate SUVolcanicEmissionsState%drydep_vel'
-         CALL CC_Error( ErrMsg, RC, ThisLoc )
-      ENDIF
+!      DEALLOCATE(SUVolcanicEmissionsStateType%SU_emiss, STAT=RC)
+!      IF ( RC /= CC_SUCCESS ) THEN
+!         ErrMsg = 'Could not Deallocate SUVolcanicEmissionsStateType%SU_emiss(:,:,nSO2)'
+!         CALL CC_Error( ErrMsg, RC, ThisLoc )
+!      ENDIF
+!      DEALLOCATE(SUVolcanicEmissionsStateType%vSO2, STAT=RC)
+!      IF ( RC /= CC_SUCCESS ) THEN
+!         ErrMsg = 'Could not Deallocate SUVolcanicEmissionsStateType%vSO2'
+!         CALL CC_Error( ErrMsg, RC, ThisLoc )
+!      ENDIF
 
 
    end subroutine CCPr_SUVolcanicEmissions_Finalize
 
 
 END MODULE CCPR_SUVolcanicEmissions_Mod
-
-
-

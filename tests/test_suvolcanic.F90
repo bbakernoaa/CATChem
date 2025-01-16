@@ -16,7 +16,6 @@ program test_suvolcanic
    INTEGER:: rc          ! Success or failure
 
    character(len=:), allocatable :: title
-   integer :: i ! loop counter
 
    ! Error handling
    CHARACTER(LEN=512) :: errMsg
@@ -50,7 +49,7 @@ program test_suvolcanic
 
 
    title = 'Volcanic Test 1 | Read Config'
-   SUVolcanicEmissions%Activate = .false.
+   SUVolcanicEmissionsState%Activate = .false.
    call print_info(Config, SUVolcanicEmissionsState, MetState, title)
    write (*,*) '-- '
    write (*,*) 'Completed ', title
@@ -65,16 +64,14 @@ program test_suvolcanic
    SUVolcanicEmissionsState%Activate = .true.
 
    ! Meteorological State
-   allocate(MetState%HGHTE(MetState%NLEVS))
+   allocate(MetState%BXHEIGHT(MetState%NLEVS))
    allocate(MetState%DELP(MetState%NLEVS))
+   MetState%NLEVS = 2
 
-   do i = 1, MetState%NLEVS
-      MetState%DELP(i)=101300 - I*1000       ! Need to change to something more reasonable and check units.
-      MetState%HGHTE(i) = (MetState%NLEVS*100 + I*100)   ! m
-   end do
+   MetState%DELP(1:MetState%NLEVS)= 10000      ! Need to change to something more reasonable and check units.
+   MetState%BXHEIGHT(1:MetState%NLEVS) = 100  ! temporary, change to something more reasonable and check units
 
    SUVolcanicEmissionsState%SchemeOpt = 1
-  
 
    ! Allocate DiagState
    call cc_allocate_diagstate(Config, DiagState, ChemState, RC)
@@ -85,15 +82,15 @@ program test_suvolcanic
 
    title = "SUVolcanic Test 2 | Test GOCART SUVolcanic defaults"
 
-   call cc_drydep_init(Config, DryDepState, ChemState, rc)
+   call cc_suvolcanic_init(Config, SUVolcanicEmissionsState, ChemState, rc)
    if (rc /= CC_SUCCESS) then
-      errMsg = 'Error in cc_drydep_init'
+      errMsg = 'Error in cc_suvolcanic_init'
       call cc_emit_error(errMsg, rc, thisLoc)
       stop 1
    end if
 
-   ! commenting out for now
-   call cc_suvolcanicemissions_run(MetState, DiagState, DryDepState, ChemState, rc)
+   call cc_suvolcanic_run(MetState, DiagState, &
+      SUVolcanicEmissionsState, ChemState, rc)
    if (rc /= CC_SUCCESS) then
       errMsg = 'Error in _suvolcanicemissions_run'
       call cc_emit_error(errMsg, rc, thisLoc)
@@ -101,9 +98,12 @@ program test_suvolcanic
    end if
 
    call print_info(Config, SUVolcanicEmissionsState, MetState, title)
-   ! Need to update below 10/29/2024
- !  call assert(DiagState%drydep_frequency(1) > 0.0_fp, "Test GOCART DryDep Scheme (no resuspension)")
-
+   call cc_suvolcanic_finalize( SUVolcanicEmissionsState, rc)
+   if (rc /= CC_SUCCESS) then
+      errMsg = 'Error in _suvolcanic_finalize'
+      call cc_emit_error(errMsg, rc, thisLoc)
+      stop 1
+   end if
 
 contains
 
@@ -111,7 +111,7 @@ contains
 
       type(ConfigType), intent(in) :: Config_
       type(MetStateType), intent(in) :: MetState_
-      type(DryDepStateType), intent(in) :: DryDepState_
+      type(SUVolcanicEmissionsStateType), intent(in) :: SUVolcanicEmissionsState_
       character(len=*), intent(in) :: title_
 
       write(*,*) '======================================='
@@ -122,14 +122,14 @@ contains
       write(*,*) '*************'
       write(*,*) 'Config%suvolcanicemissions_activate = ', Config_%suvolcanicemissions_activate
       write(*,*) 'Config%suvolcanicemissions_scheme = ', Config_%suvolcanicemissions_scheme
-    
+
 
       if (SUVolcanicEmissionsState_%Activate) then
 
          write(*,*) 'SUVolcanicEmissionsState%Activate = ', SUVolcanicEmissionsState_%Activate
          write(*,*) 'SUVolcanicEmissionsState%SchemeOpt = ', SUVolcanicEmissionsState_%SchemeOpt
          write(*,*) 'MetState%DELP =', MetState_%DELP
-         write(*,*) 'MetState%HGHTE = ', MetState_%HGHTE
+         write(*,*) 'MetState%BXHEIGHT = ', MetState_%BXHEIGHT
 
       end if
 

@@ -1190,7 +1190,7 @@ CONTAINS
       RC      = CC_SUCCESS
       thisLoc = ' -> at Config_Process_SeaSalt (in CATChem/src/core/config_mod.F90)'
       errMsg = ''
-      
+
       key   = "process%seasalt%activate"
       v_bool = MISSING_BOOL
       CALL QFYAML_Add_Get( ConfigInput, TRIM( key ), v_bool, "", RC )
@@ -1447,7 +1447,7 @@ CONTAINS
          v_int = 1 ! default is one
          RETURN
       ENDIF
-      Config%dSUVolcanicEmissions_scheme = v_int
+      Config%SUVolcanicEmissions_scheme = v_int
 
 
       write(*,*) "SUVolcanicEmissions Configuration"

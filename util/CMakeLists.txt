@@ -1,6 +1,6 @@
-set(_srcs CCPr_SUVolcanicEmissions_Mod.F90 ccpr_scheme_GOCART_SUVolcanicEmissions_mod.F90)
+set(_srcs reademissions.F90 prepmetvars.F90)
 
-set(_lib CATChem_process_suvolcanic)
+set(_lib reademissions)
 
 add_library(${_lib} ${_srcs})
 target_link_libraries(${_lib} PUBLIC CATChem_core)

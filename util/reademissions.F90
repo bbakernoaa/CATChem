@@ -1,5 +1,10 @@
 MODULE ReadEmissions
 
+!
+! Author: LDH  (13 Jan 2025)
+!
+
+
    implicit none
 
    private
@@ -25,12 +30,10 @@ MODULE ReadEmissions
    character(len=1055) :: label
 
    type(VolcanicEmissionData), allocatable :: VolcanicEmiss(:)
-   allocate(VolcanicEmiss(9))
 
    !filename="./so2_volcanic_emissions_Carns.20220101.rc"
    !label="volcano"
-
-   call ReadASCIIPointEmissions(filename, label, VolcanicEmiss, rc )
+   !call ReadASCIIPointEmissions(filename, label, VolcanicEmiss, rc )
 
 contains
 
@@ -52,6 +55,7 @@ contains
 
       type(VolcanicEmissionData), allocatable :: VolcanicEmissions(:)
       type(VolcanicEmissionData), allocatable :: temp_emissions(:)
+      allocate(VolcanicEmiss(9))
 
 
       ! Open the file
