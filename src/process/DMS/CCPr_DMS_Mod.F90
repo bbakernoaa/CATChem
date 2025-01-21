@@ -20,7 +20,7 @@ MODULE CCPR_DMS_mod
    PUBLIC :: CCPR_DMS_Init
    PUBLIC :: CCPR_DMS_Run
    PUBLIC :: CCPR_DMS_Finalize
-
+   PUBLIC :: DMSStateType
 
    !> \brief DMSStateType
    !!
@@ -64,7 +64,7 @@ CONTAINS
 
    SUBROUTINE CCPR_DMS_Init( Config, DMSState, ChemState, RC )
       ! USE
-      
+
 
       IMPLICIT NONE
       ! INPUT PARAMETERS
@@ -126,10 +126,11 @@ CONTAINS
    SUBROUTINE CCPr_DMS_Run( MetState, DiagState, DMSState, ChemState, RC )
 
       ! USE
-      USE MetState_Mod
-      USE ChemState_Mod
-      USE constants
-      USE precision_MOD
+      !USE MetState_Mod
+      !USE ChemState_Mod
+      !USE precision_MOD
+      USE constants, only : g0
+      USE CCPr_Scheme_GOCART_DMS_Mod, only : CCPR_Scheme_GOCART_DMS
 
       IMPLICIT NONE
       ! INPUT PARAMETERS
@@ -168,18 +169,18 @@ CONTAINS
             !-------------------------
 
             call CCPr_Scheme_GOCART_DMS(MetState%NLEVS, &
-                    MetState%TSTEP, &
-                    g0, &
-                    MetState%T, &
-                    MetState%U10M, &
-                    MetState%V10M, &
-                    MetState%LWI, &
-                    MetState%DELP, &
-                    dmso_conc, &
-                    dms, &
-                    SU_emis, &
-                    ndms, &
-                    RC)
+               MetState%TSTEP, &
+               g0, &
+               MetState%T, &
+               MetState%U10M, &
+               MetState%V10M, &
+               MetState%LWI, &
+               MetState%DELP, &
+               dmso_conc, &
+               dms, &
+               SU_emis, &
+               ndms, &
+               RC)
 
          endif
 

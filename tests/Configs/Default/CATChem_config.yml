@@ -50,6 +50,6 @@ process:
   SUVolcanicEmissions:
     activate: true
     scheme_opt: 1
-  dms:
+  DMS:
     activate: true
     scheme_opt: 1

@@ -1,4 +1,4 @@
-module PrepMetVars
+module PrepMetVars_Mod
 
    implicit none
 
@@ -87,4 +87,4 @@ CONTAINS
    end subroutine PrepAnyMetVarForGOCART
 
 
-end module PrepMetVars
+end module PrepMetVars_Mod

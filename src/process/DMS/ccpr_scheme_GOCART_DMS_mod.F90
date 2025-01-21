@@ -32,10 +32,11 @@ contains
    !! Note that other state types may be required, e.g. one specific to the process group.
    !!!>
    subroutine CCPr_Scheme_GOCART_DMS(km, cdt, g0, tmpu, u10m, v10m, lwi, delp, &
-                                             dmso_conc, dms, SU_emis, ndms, RC)
+      dmso_conc, dms, SU_emis, ndms, RC)
 
       ! Uses
       USE GOCART2G_process, only: DMSemission
+      USE PrepMetVars_Mod, only: PrepAnyMetVarForGOCART
 
       IMPLICIT NONE
 
@@ -94,17 +95,17 @@ contains
       thisLoc = ' -> at CCPr_Scheme_GOCART_DMS (in CCPr_Scheme_GOCART_DMS_mod.F90)'
 
       ! km is vertical levels, use 0 for single level, flat 2d field
-      call PrepAnyMetVarsForGOCART(km, delp, GOCART_DELP)
-      call PrepAnyMetVarsForGOCART(km, tmpu, GOCART_TMPU)
-      call PrepAnyMetVarsForGOCART(0, u10m, GOCART_U10)
-      call PrepAnyMetVarsForGOCART(0, v10m, GOCART_V10)
-      call PrepAnyMetVarsForGOCART(0, lwi, GOCART_LWI)
+      call PrepAnyMetVarForGOCART(km, delp, GOCART_DELP)
+      call PrepAnyMetVarForGOCART(km, tmpu, GOCART_TMPU)
+      call PrepAnyMetVarForGOCART(0, u10m, GOCART_U10)
+      call PrepAnyMetVarForGOCART(0, v10m, GOCART_V10)
+      call PrepAnyMetVarForGOCART(0, lwi, GOCART_LWI)
 
-            call DMSemission (km, cdt, g0, &
-                    GOCART_TMPU, GOCART_U10, &
-                    GOCART_V10, GOCART_LWI, &
-                    GOCART_DELP, fMassDMS, dmso_conc, &
-                    dms, SU_emis, ndms, rc)
+      call DMSemission (km, cdt, g0, &
+         GOCART_TMPU, GOCART_U10, &
+         GOCART_V10, GOCART_LWI, &
+         GOCART_DELP, fMassDMS, dmso_conc, &
+         dms, SU_emis, ndms, rc)
 
 
       if (associated(GOCART_TMPU)) nullify(GOCART_TMPU)
@@ -117,10 +118,3 @@ contains
 
 
 end module CCPr_Scheme_GOCART_DMS_Mod
-
-
-
-
-
-
-

@@ -70,8 +70,6 @@ add_test(
   COMMAND test_drydep
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-message(STATUS "Fortran module directory: ${CMAKE_BINARY_DIR}/include")
-
 add_executable(test_suvolcanic test_suvolcanic.F90)
 target_link_libraries(test_suvolcanic PRIVATE CATChem_core)
 target_link_libraries(test_suvolcanic PRIVATE CATChem)
@@ -83,3 +81,18 @@ add_test(
   NAME test_suvolcanic
   COMMAND test_suvolcanic
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_executable(test_dms test_dms.F90)
+target_link_libraries(test_dms PRIVATE CATChem_core)
+target_link_libraries(test_dms PRIVATE CATChem)
+target_link_libraries(test_dms PRIVATE CATChem_process_DMS)
+target_link_libraries(test_dms PRIVATE testing)
+set_target_properties(test_dms PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include)
+
+add_test(
+  NAME test_dms
+  COMMAND test_dms
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+message(STATUS "Fortran module directory: ${CMAKE_BINARY_DIR}/include")
+

@@ -254,7 +254,7 @@ CONTAINS
       real    :: v_real
       logical :: v_logical
 
-      Character(len=17) :: tags(17)
+      Character(len=17) :: tags(19)
 
       RC = CC_SUCCESS
 
@@ -273,6 +273,8 @@ CONTAINS
          'is_gas           ', &
          'is_advected      ', &
          'is_photolysis    ', &
+         'is_suvolcanic    ', &
+         'is_dms           ', &
          'mw_g             ', &
          'viscosity        ', &
          'density          ', &
@@ -420,6 +422,16 @@ CONTAINS
          ENDIF
          ChemState%ChemSpecies(n)%is_drydep = v_logical
          write(*,*) '|  is_drydep: ', ChemState%ChemSpecies(n)%is_drydep
+
+         key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'is_suvolcanic'
+         v_logical = MISSING_BOOL
+         CALL QFYAML_Add_Get( ConfigInput, TRIM(key), v_logical, "", RC )
+         IF (RC /= CC_SUCCESS) then
+            ! assume that if is_suvolcanic isn't in the species.yaml file assume false
+            ChemState%ChemSpecies(n)%is_suvolcanic = MISSING_BOOL
+         ENDIF
+         ChemState%ChemSpecies(n)%is_suvolcanic = v_logical
+         write(*,*) '|  is_suvolcanic: ', ChemState%ChemSpecies(n)%is_suvolcanic
 
          key = TRIM(ChemState%SpeciesNames(n)) // '%' // 'is_dms'
          v_logical = MISSING_BOOL
