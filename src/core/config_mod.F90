@@ -1566,7 +1566,3 @@ CONTAINS
 
 
 END MODULE config_mod
-
-
-
-

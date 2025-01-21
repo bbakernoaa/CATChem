@@ -75,7 +75,8 @@ target_link_libraries(test_suvolcanic PRIVATE CATChem_core)
 target_link_libraries(test_suvolcanic PRIVATE CATChem)
 target_link_libraries(test_suvolcanic PRIVATE CATChem_process_suvolcanic)
 target_link_libraries(test_suvolcanic PRIVATE testing)
-set_target_properties(test_suvolcanic PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include)
+set_target_properties(test_suvolcanic PROPERTIES Fortran_MODULE_DIRECTORY
+                                                 ${CMAKE_BINARY_DIR}/include)
 
 add_test(
   NAME test_suvolcanic
@@ -95,4 +96,3 @@ add_test(
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 message(STATUS "Fortran module directory: ${CMAKE_BINARY_DIR}/include")
-
