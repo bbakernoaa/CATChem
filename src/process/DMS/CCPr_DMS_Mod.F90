@@ -38,6 +38,7 @@ MODULE CCPR_DMS_mod
 
    TYPE :: DMSStateType
       LOGICAL                         :: Activate              ! Activate Process (True/False)
+      INTEGER                         :: SchemeOpt              ! SchemeOption (True/False)
 
       ! Process Specific Parameters
 
@@ -142,8 +143,15 @@ CONTAINS
       ! OUTPUT PARAMETERS
       INTEGER, INTENT(OUT) :: RC                                 ! Return Code
 
+
       ! LOCAL VARIABLES
       CHARACTER(LEN=255) :: ErrMsg, thisLoc
+      INTEGER            :: NDMS
+      REAL, dimension(:,:), pointer      :: dmso_conc   ! concentration of DMS
+      REAL, dimension(:,:,:),pointer  :: DMS       ! DMS [kg kg-1]
+      REAL, dimension(:,:,:),pointer  :: SU_emis   ! SU emissions, kg/m2/s
+
+
 
       ! Initialize
       RC = CC_SUCCESS
@@ -163,8 +171,8 @@ CONTAINS
                     MetState%TSTEP, &
                     g0, &
                     MetState%T, &
-                    MetState%U10, &
-                    MetState%v10, &
+                    MetState%U10M, &
+                    MetState%V10M, &
                     MetState%LWI, &
                     MetState%DELP, &
                     dmso_conc, &

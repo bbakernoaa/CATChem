@@ -42,7 +42,6 @@ contains
       ! Arguments
       INTEGER, intent(in) :: km            ! number of vertical levels
       integer, intent(in) :: ndms      ! index of DMS relative to other sulfate tracers
-      real, intent(in)    :: fMassDMS  ! gram molecular weight of DMS
 
       REAL, intent(in)                      :: g0
       REAL, intent(in)                      :: cdt               ! model timestep [sec]
@@ -90,28 +89,16 @@ contains
 !   real, dimension(:,:,:), intent(inout)  :: dms ! dms [kg kg-1]
 !   real, pointer, dimension(:,:,:), intent(inout)  :: SU_emis   ! SU emissions, kg/m2/s
 
-
       ! Initialize
       errMsg = ''
       thisLoc = ' -> at CCPr_Scheme_GOCART_DMS (in CCPr_Scheme_GOCART_DMS_mod.F90)'
-      RC = CC_SUCCESS
 
-      !------------------
-      ! Begin Scheme Code
-      !------------------
-
-      ! Begin GOCART Code
-      ! GOCART Options comes in from DMSState
-      ! Diagnostic Variables are added through DiagState below
-
-      ! Run the DMS Scheme
-      !-------------------------
-      if (DMSState%Activate) then
-         ! Run the DMS Scheme
-         !-------------------------
-         if (DMSState%SchemeOpt == 1) then
-            ! Run the DMS Scheme
-            !-------------------------
+      ! km is vertical levels, use 0 for single level, flat 2d field
+      call PrepAnyMetVarsForGOCART(km, delp, GOCART_DELP)
+      call PrepAnyMetVarsForGOCART(km, tmpu, GOCART_TMPU)
+      call PrepAnyMetVarsForGOCART(0, u10m, GOCART_U10)
+      call PrepAnyMetVarsForGOCART(0, v10m, GOCART_V10)
+      call PrepAnyMetVarsForGOCART(0, lwi, GOCART_LWI)
 
             call DMSemission (km, cdt, g0, &
                     GOCART_TMPU, GOCART_U10, &
@@ -119,9 +106,6 @@ contains
                     GOCART_DELP, fMassDMS, dmso_conc, &
                     dms, SU_emis, ndms, rc)
 
-         endif
-
-      endif
 
       if (associated(GOCART_TMPU)) nullify(GOCART_TMPU)
       if (associated(GOCART_DELP)) nullify(GOCART_DELP)
@@ -132,8 +116,7 @@ contains
    end subroutine CCPr_Scheme_GOCART_DMS
 
 
-end module CCPr_Scheme_GOCART_DryDep_Mod
-
+end module CCPr_Scheme_GOCART_DMS_Mod
 
 
 
