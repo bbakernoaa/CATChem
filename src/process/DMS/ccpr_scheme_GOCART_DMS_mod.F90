@@ -31,7 +31,7 @@ contains
    !!
    !! Note that other state types may be required, e.g. one specific to the process group.
    !!!>
-   subroutine CCPr_Scheme_GOCART_DMS(km, cdt, g0, tmpu, u10m, v10m, oro, delp, &
+   subroutine CCPr_Scheme_GOCART_DMS(km, cdt, g0, tmpu, u10m, v10m, lwi, delp, &
                                              dmso_conc, dms, SU_emis, ndms, RC)
 
       ! Uses
@@ -40,7 +40,7 @@ contains
       IMPLICIT NONE
 
       ! Arguments
-      INTEGER, intent(in)                     :: km            ! number of vertical levels
+      INTEGER, intent(in) :: km            ! number of vertical levels
       integer, intent(in) :: ndms      ! index of DMS relative to other sulfate tracers
       real, intent(in)    :: fMassDMS  ! gram molecular weight of DMS
 
@@ -113,8 +113,11 @@ contains
             ! Run the DMS Scheme
             !-------------------------
 
-            call DMSemission (km, cdt, g0, tmpu, u10m, v10m, oro, delp, &
-                           fMassDMS, dmso_conc, dms, SU_emis, ndms, rc)
+            call DMSemission (km, cdt, g0, &
+                    GOCART_TMPU, GOCART_U10, &
+                    GOCART_V10, GOCART_LWI, &
+                    GOCART_DELP, fMassDMS, dmso_conc, &
+                    dms, SU_emis, ndms, rc)
 
          endif
 

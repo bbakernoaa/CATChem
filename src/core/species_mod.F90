@@ -40,8 +40,9 @@ module species_mod
       logical :: is_photolysis        !< if true, species undergoes photolysis
       logical :: is_gocart_aero       !< if true, species is a GOCART aerosol species
       logical :: is_dust              !< if true, species is a dust
+      logical :: is_dms               !< if true, species is DMS
       logical :: is_seasalt           !< if true, species is a seasalt
-      logical :: is_suvolcanic
+      logical :: is_suvolcanic        !< if true, species if volcanic sulfur
 
       ! Numerical properties
       real(kind=fp) :: mw_g                 !< gaseous molecular weight
@@ -60,7 +61,8 @@ module species_mod
       integer :: drydep_index         !< drydep index in drydep array
       integer :: photolysis_index     !< photolysis index in photolysis array
       integer :: gocart_aero_index    !< gocart_aero index in gocart_aero array
-      integer :: suvolcanic_index         !< drydep index in drydep array
+      integer :: suvolcanic_index     !< volcanic sulfur index in drydep array
+      integer :: dms_index            !< dms index in sulfur array
 
       ! Concentration
       real(kind=fp), ALLOCATABLE :: conc(:)             !< species concentration [v/v] or kg/kg

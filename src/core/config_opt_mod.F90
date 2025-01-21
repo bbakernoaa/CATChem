@@ -47,6 +47,8 @@ MODULE Config_Opt_Mod
    !! - `drydep_resuspension` : Activate resuspension
    !! - `SUVolcanicEmissions_activate` : Activate SU Volcanic process
    !! - `SUVolcanicEmissions_scheme` : Scheme option for SU Volcanic process
+   !! - `DMS_activate` : Activate DMS emissions
+   !! - `DMS_scheme` : Scheme option DMS process
    !!
    !! \ingroup core_modules
    !!!>
@@ -107,6 +109,10 @@ MODULE Config_Opt_Mod
       ! SUVolcanicEmissions Process
       LOGICAL                     :: SUVolcanicEmissions_activate
       INTEGER                     :: SUVolcanicEmissions_scheme
+
+      ! DMS Process
+      LOGICAL                     :: DMS_activate
+      INTEGER                     :: DMS_scheme
 
    END TYPE ConfigType
 
@@ -185,6 +191,10 @@ CONTAINS
       ! SU Volcanic Process
       Config%SUVolcanicEmissions_activate = .FALSE.
       Config%SUVolcanicEmissions_scheme = 1
+
+      ! DMS Process
+      Config%DMS_activate = .FALSE.
+      Config%DMS_scheme = 1
 
    END SUBROUTINE Set_Config
    !> \brief Cleanup the Config options

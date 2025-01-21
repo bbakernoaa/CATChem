@@ -47,3 +47,9 @@ process:
     activate: true
     scheme_opt: 1
     resuspension: false
+  SUVolcanicEmissions:
+    activate: true
+    scheme_opt: 1
+  dms:
+    activate: true
+    scheme_opt: 1
