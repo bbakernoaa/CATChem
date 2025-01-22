@@ -100,9 +100,9 @@ contains
       !ALLOCATE(GOCART_U10)
       !ALLOCATE(GOCART_V10)
       !ALLOCATE(GOCART_LWI)
-     
-      call INCR_REAL_RANK3(delp, GOCART_DELP) 
-      call INCR_REAL_RANK3(tmpu, GOCART_TMPU) 
+
+      call INCR_REAL_RANK3(delp, GOCART_DELP)
+      call INCR_REAL_RANK3(tmpu, GOCART_TMPU)
       call INCR_REAL_RANK2(u10m, GOCART_U10)
       call INCR_REAL_RANK2(v10m, GOCART_V10)
       call INCR_REAL_RANK2(real(LWI), GOCART_LWI)
