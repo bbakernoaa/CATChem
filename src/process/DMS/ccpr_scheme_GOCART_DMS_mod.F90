@@ -36,7 +36,7 @@ contains
 
       ! Uses
       USE GOCART2G_process, only: DMSemission
-      USE PrepMetVars_Mod, only: PrepAnyMetVarForGOCART
+      USE PrepMetVars_Mod
 
       IMPLICIT NONE
 
@@ -44,13 +44,13 @@ contains
       INTEGER, intent(in) :: km            ! number of vertical levels
       integer, intent(in) :: ndms      ! index of DMS relative to other sulfate tracers
 
-      REAL, intent(in)                      :: g0
-      REAL, intent(in)                      :: cdt               ! model timestep [sec]
-      REAL,  intent(in)               :: u10m                   ! 10-m u-wind component [m/sec]
-      REAL,  intent(in)               :: v10m                   ! 10-m v-wind component [m/sec]
+      REAL, intent(in)    :: g0
+      REAL, intent(in)    :: cdt               ! model timestep [sec]
+      REAL, intent(in)    :: u10m                   ! 10-m u-wind component [m/sec]
+      REAL, intent(in)    :: v10m                   ! 10-m v-wind component [m/sec]
 
-      REAL, intent(in),dimension(:,:),pointer  :: DMSO_CONC      ! DMS source concentration [units??]
-      REAL, allocatable, intent(in), DIMENSION(:) :: tmpu   ! Temperature [K]
+      REAL, dimension(:,:),pointer  :: DMSO_CONC      ! DMS source concentration [units??]
+      REAL, allocatable, DIMENSION(:) :: tmpu   ! Temperature [K]
       REAL, allocatable, DIMENSION(:) :: delp   ! Pressure Thickness for layer [Pa]
 
       INTEGER, intent(in)       :: lwi                   ! orography flag; Land, ocean, ice mask
@@ -95,18 +95,29 @@ contains
       thisLoc = ' -> at CCPr_Scheme_GOCART_DMS (in CCPr_Scheme_GOCART_DMS_mod.F90)'
 
       ! km is vertical levels, use 0 for single level, flat 2d field
-      call PrepAnyMetVarForGOCART(km, delp, GOCART_DELP)
-      call PrepAnyMetVarForGOCART(km, tmpu, GOCART_TMPU)
-      call PrepAnyMetVarForGOCART(0, u10m, GOCART_U10)
-      call PrepAnyMetVarForGOCART(0, v10m, GOCART_V10)
-      call PrepAnyMetVarForGOCART(0, lwi, GOCART_LWI)
+      !ALLOCATE(GOCART_DELP)
+      !ALLOCATE(GOCART_TMPU)
+      !ALLOCATE(GOCART_U10)
+      !ALLOCATE(GOCART_V10)
+      !ALLOCATE(GOCART_LWI)
+     
+      call INCR_REAL_RANK3(delp, GOCART_DELP) 
+      call INCR_REAL_RANK3(tmpu, GOCART_TMPU) 
+      call INCR_REAL_RANK2(u10m, GOCART_U10)
+      call INCR_REAL_RANK2(v10m, GOCART_V10)
+      call INCR_REAL_RANK2(real(LWI), GOCART_LWI)
+      !call INCREASE_RANK_SCALAR(lwi, GOCART_LWI)
+      !call INCREASE_RANK_ARRAY(delp, GOCART_DELP)
+      !call INCREASE_RANK_ARRAY(tmpu, GOCART_TMPU)
+      !call INCREASE_RANK_SCALAR(u10m, GOCART_U10)
+      !call INCREASE_RANK_SCALAR(v10m, GOCART_V10)
+      !call INCREASE_RANK_SCALAR(lwi, GOCART_LWI)
 
       call DMSemission (km, cdt, g0, &
          GOCART_TMPU, GOCART_U10, &
          GOCART_V10, GOCART_LWI, &
          GOCART_DELP, fMassDMS, dmso_conc, &
          dms, SU_emis, ndms, rc)
-
 
       if (associated(GOCART_TMPU)) nullify(GOCART_TMPU)
       if (associated(GOCART_DELP)) nullify(GOCART_DELP)

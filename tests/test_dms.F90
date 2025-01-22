@@ -73,7 +73,7 @@ program test_DMS
    MetState%T(1:MetState%NLEVS) = 100  ! temporary, change to something more reasonable and check units
    MetState%U10M = 1.0_fp
    MetState%V10M = 1.0_fp
-   MetState%LWI = 1.0_fp
+   MetState%LWI = 0
 
 
    do i = 1, MetState%NLEVS
