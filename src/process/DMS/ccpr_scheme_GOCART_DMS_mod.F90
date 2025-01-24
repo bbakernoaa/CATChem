@@ -31,6 +31,7 @@ contains
    !!
    !! Note that other state types may be required, e.g. one specific to the process group.
    !!!>
+
    subroutine CCPr_Scheme_GOCART_DMS(km, cdt, g0, tmpu, u10m, v10m, lwi, delp, &
       dmso_conc, dms, SU_emis, ndms, RC)
 
@@ -72,46 +73,15 @@ contains
       real, pointer :: GOCART_V10(:,:)
 
 
-!!! BELOW IS FROM GOCART DMSemission
-!! !INPUT PARAMETERS:
-!   integer, intent(in) :: km  ! number model layers, and number of species respectively
-!   real, intent(in)    :: cdt ! model time step [seconds]
-!   real, intent(in)    :: grav ! gravity [m sec-1]
-!   real, pointer, dimension(:,:,:), intent(in)  :: tmpu  ! temperature [K]
-!   real, pointer, dimension(:,:), intent(in)    :: u10m  ! 10-m u-wind component [m s-1]
-!   real, pointer, dimension(:,:), intent(in)    :: v10m  ! 10-m v-wind component [m s-1]
-!   real, pointer, dimension(:,:), intent(in)    :: oro   ! orography flag
-!   real, pointer, dimension(:,:,:), intent(in)  :: delp  ! pressure thickness [Pa]
-!   real, dimension(:,:), intent(in) :: dmso_conc ! DMS source [1]
-!   integer, intent(in) :: ndms      ! index of DMS relative to other sulfate tracers
-!   real, intent(in)    :: fMassDMS  ! gram molecular weight of DMS
-!
-!! !INOUT PARAMETERS:
-!   real, dimension(:,:,:), intent(inout)  :: dms ! dms [kg kg-1]
-!   real, pointer, dimension(:,:,:), intent(inout)  :: SU_emis   ! SU emissions, kg/m2/s
-
       ! Initialize
       errMsg = ''
       thisLoc = ' -> at CCPr_Scheme_GOCART_DMS (in CCPr_Scheme_GOCART_DMS_mod.F90)'
-
-      ! km is vertical levels, use 0 for single level, flat 2d field
-      !ALLOCATE(GOCART_DELP)
-      !ALLOCATE(GOCART_TMPU)
-      !ALLOCATE(GOCART_U10)
-      !ALLOCATE(GOCART_V10)
-      !ALLOCATE(GOCART_LWI)
 
       call INCR_REAL_RANK3(delp, GOCART_DELP)
       call INCR_REAL_RANK3(tmpu, GOCART_TMPU)
       call INCR_REAL_RANK2(u10m, GOCART_U10)
       call INCR_REAL_RANK2(v10m, GOCART_V10)
       call INCR_REAL_RANK2(real(LWI), GOCART_LWI)
-      !call INCREASE_RANK_SCALAR(lwi, GOCART_LWI)
-      !call INCREASE_RANK_ARRAY(delp, GOCART_DELP)
-      !call INCREASE_RANK_ARRAY(tmpu, GOCART_TMPU)
-      !call INCREASE_RANK_SCALAR(u10m, GOCART_U10)
-      !call INCREASE_RANK_SCALAR(v10m, GOCART_V10)
-      !call INCREASE_RANK_SCALAR(lwi, GOCART_LWI)
 
       call DMSemission (km, cdt, g0, &
          GOCART_TMPU, GOCART_U10, &

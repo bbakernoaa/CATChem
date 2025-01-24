@@ -126,9 +126,6 @@ CONTAINS
    SUBROUTINE CCPr_DMS_Run( MetState, DiagState, DMSState, ChemState, RC )
 
       ! USE
-      !USE MetState_Mod
-      !USE ChemState_Mod
-      !USE precision_MOD
       USE constants, only : g0
       USE CCPr_Scheme_GOCART_DMS_Mod, only : CCPR_Scheme_GOCART_DMS
 
@@ -137,9 +134,9 @@ CONTAINS
       TYPE(MetStateType),  INTENT(IN) :: MetState       ! MetState Instance
 
       ! INPUT/OUTPUT PARAMETERS
-      TYPE(DiagStateType), INTENT(INOUT)      :: DiagState       ! DiagState Instance
+      TYPE(DiagStateType), INTENT(INOUT)   :: DiagState       ! DiagState Instance
       TYPE(DMSStateType), INTENT(INOUT)    :: DMSState     ! DMSState Instance
-      TYPE(ChemStateType),  INTENT(INOUT)     :: ChemState       ! ChemState Instance
+      TYPE(ChemStateType),  INTENT(INOUT)  :: ChemState       ! ChemState Instance
 
       ! OUTPUT PARAMETERS
       INTEGER, INTENT(OUT) :: RC                                 ! Return Code
@@ -148,11 +145,9 @@ CONTAINS
       ! LOCAL VARIABLES
       CHARACTER(LEN=255) :: ErrMsg, thisLoc
       INTEGER            :: NDMS
-      REAL, dimension(:,:), pointer      :: dmso_conc   ! concentration of DMS
+      REAL, dimension(:,:), pointer   :: dmso_conc   ! concentration of DMS
       REAL, dimension(:,:,:),pointer  :: DMS       ! DMS [kg kg-1]
       REAL, dimension(:,:,:),pointer  :: SU_emis   ! SU emissions, kg/m2/s
-
-
 
       ! Initialize
       RC = CC_SUCCESS
