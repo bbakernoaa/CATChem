@@ -1,0 +1,12 @@
+###
+#
+#=====================
+#Diagnostics settings
+#=====================
+grouping:
+  dust:
+    species:
+      compute_diagnostics: false
+      surface_pm25: false
+      is_aero: false
+
