@@ -7,6 +7,7 @@
 !!!>
 
 MODULE CCPR_Aero_Diags_mod
+
    USE Precision_mod
    USE Error_Mod
    USE DiagState_Mod, Only : DiagStateType
@@ -21,6 +22,7 @@ MODULE CCPR_Aero_Diags_mod
    PUBLIC :: CCPR_Aerosol_Diags_Init
    PUBLIC :: CCPR_Aerosol_Diags_Run
    PUBLIC :: CCPR_Aerosol_Diags_Finalize
+   PUBLIC :: AeroDiagStateType
 
    !!
    !!
@@ -104,6 +106,7 @@ CONTAINS
 
    end subroutine CCPR_Aero_Diags_Init
 
+
    !>
    !! \brief Run the Aerosol Diagnostics scheme
    !!
@@ -155,7 +158,6 @@ CONTAINS
          endif
 
       endif
-
 
    end subroutine CCPr_Aero_Diags_Run
 
