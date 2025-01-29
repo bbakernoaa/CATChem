@@ -1,11 +1,19 @@
+MODULE CCPR_GOCART_AEROSOL_DIAGS_MOD
+
+   IMPLICIT NONE
+
+   PRIVATE
+
+   PUBLIC :: CCPR_GOCART_AERO_DIAGS
 
 
-   subroutine GOCART_Aerosol_Diagnostics( )
+CONTAINS
 
 
+   subroutine CCPR_GOCART_Aero_Diags( )
 
    ! Uses
-   USE GOCART2G_MIEMOD, only : GOCART2G_Mie
+   USE GOCART2G_MIEMOD, ONLY : GOCART2G_Mie
 
    IMPLICIT NONE
 
@@ -18,10 +26,7 @@
 !                                  fluxu, fluxv, conc, extcoef, scacoef, bckcoef,&
 !                                  exttaufm, scataufm, angstrom, aerindx, NO3nFlag, rc )
 !
-
-
-
-
+!
 !! !INPUT PARAMETERS:
 !   type(GOCART2G_Mie),  intent(in) :: mie        ! mie table
 !   integer, intent(in) :: km, nbegin, nbins
@@ -71,11 +76,16 @@
 !                                                 !  0 - all is well
 !                                                 !  1 -
 
-!
 
 
 
-   end subroutine GOCART_Aerosol_Diagnostics
+   end subroutine CCPR_GOCART_Aero_Diags
+
+
+
+
+END MODULE CCPR_GOCART_AEROSOL_DIAGS_MOD
+
 
 
 
