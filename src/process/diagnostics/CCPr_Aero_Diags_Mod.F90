@@ -14,6 +14,7 @@ MODULE CCPR_Aero_Diags_mod
    USE MetState_Mod,  Only : MetStateType
    USE ChemState_Mod, Only : ChemStateType
    USE Config_Opt_Mod, Only : ConfigType
+   USE Constants
 
    IMPLICIT NONE
 

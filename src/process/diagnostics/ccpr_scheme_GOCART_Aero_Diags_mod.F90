@@ -12,20 +12,87 @@ CONTAINS
 
    subroutine CCPR_GOCART_Aero_Diags( )
 
-   ! Uses
-   USE GOCART2G_MIEMOD, ONLY : GOCART2G_Mie
+      ! Uses
+      USE GOCART2G_Process, ONLY : Aero_Compute_Diags
+      USE PrepMetVars_Mod
 
-   IMPLICIT NONE
+      IMPLICIT NONE
+
+      TYPE(GOCART2G_Mie), INTENT(IN) :: mie        ! mie table
+      INTEGER, INTENT(IN) :: km, nbegin, nbins
+      INTEGER, INTENT(IN) :: klid
+      REAL, INTENT(IN) :: g0
+      REAL, DIMENSION(:), INTENT(IN) :: wavelengths_profile
+      REAL, DIMENSION(:), INTENT(IN) :: wavelengths_vertint
+      REAL, DIMENSION(:,:,:,:), INTENT(IN) :: aerosol
+
+      REAL, ALLOCATABLE, DIMENSION(:) :: TMPU
+      REAL, ALLOCATABLE, DIMENSION(:) :: RHOA
+      REAL, ALLOCATABLE, DIMENSION(:) :: DELP
+      REAL, ALLOCATABLE, DIMENSION(:) :: RH
+      REAL, ALLOCATABLE, DIMENSION(:) :: UWND, VWND
+      REAL, ALLOCATABLE, DIMENSION(:) :: PLE
+      REAL :: TROPP
+
+      REAL, POINTER, DIMENSION(:,:,:) :: GOCART_TMPU, GOCART_RHOA
+      REAL, POINTER, DIMENSION(:,:,:) :: GOCART_DELP, GOCART_RH
+      REAL, POINTER, DIMENSION(:,:,:) :: GOCART_U, GOCART_V
+      REAL, POINTER, DIMENSION(:,:,:) :: GOCART_PLE
+      REAL, POINTER, DIMENSION(:,:) :: GOCART_TROPP
+ 
+      REAL :: sfcmass, colmass, mass, conc, sfcmass25, 
+      REAL :: colmass25, aerindx
+      REAL :: fluxu     ! Column mass flux in x direction
+      REAL :: fluxv     ! Column mass flux in y direction
+      REAL :: angstrom  ! 470-870 nm Angstrom parameter
+      REAL, DIMENSION(:) :: exttau
+      REAL, DIMENSION(:) :: stexttau
+      REAL, DIMENSION(:) :: scatau
+      REAL, DIMENSION(:) :: stscatau
+      REAL, DIMENSION(:) :: mass25
+      REAL, DIMENSION(:) :: exttau25
+      REAL, DIMENSION(:) :: scatau25
+      REAL, DIMENSION(:,:) :: extcoef   ! 3d ext. coefficient, 1/m
+      REAL, DIMENSION(:,:) :: scacoef   ! 3d scat.coefficient, 1/m
+      REAL, DIMENSION(:,:) :: bckcoef   ! 3d backscatter coefficient, m-1 sr-1
+      REAL, DIMENSION(:) :: exttaufm  ! fine mode (sub-micron) ext. AOT at 550 nm
+      REAL, DIMENSION(:) :: scataufm  ! fine mode (sub-micron) sct. AOT at 550 nm
 
 
-!   subroutine Aero_Compute_Diags( mie, km, klid, begin, nbins, rlow, rup, &
+      TYPE, PRIVATE :: ArgsType
+        REAL, DIMENSION(:,:) :: sfcmass
+        REAL, DIMENSION(:,:) :: colmass
+        REAL, DIMENSION(:,:) :: mass
+        REAL, DIMENSION(:,:) :: conc
+        REAL, DIMENSION(:,:,:) :: exttau
+        REAL, DIMENSION(:,:,:) :: stexttau
+        REAL, DIMENSION(:,:,:) :: scatau
+        REAL, DIMENSION(:,:,:) :: stscatau
+        REAL, DIMENSION(:,:) :: sfcmass25
+        REAL, DIMENSION(:,:) :: colmass25
+        REAL, DIMENSION(:,:,:) :: mass25
+        REAL, DIMENSION(:,:,:) :: exttau25
+        REAL, DIMENSION(:,:,:) :: scatau25
+        REAL, DIMENSION(:,:) :: aerindx
+        REAL, DIMENSION(:,:) :: fluxu     ! Column mass flux in x direction
+        REAL, DIMENSION(:,:) :: fluxv     ! Column mass flux in y direction
+        REAL, DIMENSION(:,:,:,:) :: extcoef   ! 3d ext. coefficient, 1/m
+        REAL, DIMENSION(:,:,:,:) :: scacoef   ! 3d scat.coefficient, 1/m
+        REAL, DIMENSION(:,:,:,:) :: bckcoef   ! 3d backscatter coefficient, m-1 sr-1
+        REAL, DIMENSION(:,:,:) :: exttaufm  ! fine mode (sub-micron) ext. AOT at 550 nm
+        REAL, DIMENSION(:,:,:) :: scataufm  ! fine mode (sub-micron) sct. AOT at 550 nm
+        REAL, DIMENSION(:,:)   :: angstrom  ! 470-870 nm Angstrom parameter
+      END TYPE ArgsType
+
+
+
+!   subroutine Aero_Compute_Diags( mie, km, klid, nbegin, nbins, rlow, rup, &
 !                                  wavelengths_profile, wavelengths_vertint, aerosol, &
-!                                  grav, tmpu, rhoa, rh, u, v, delp, ple,tropp, &
+!                                  grav, tmpu, rhoa, rh, u, v, delp, ple, tropp, &
 !                                  sfcmass, colmass, mass, exttau, stexttau, scatau, stscatau,&
 !                                  sfcmass25, colmass25, mass25, exttau25, scatau25, &
 !                                  fluxu, fluxv, conc, extcoef, scacoef, bckcoef,&
 !                                  exttaufm, scataufm, angstrom, aerindx, NO3nFlag, rc )
-!
 !
 !! !INPUT PARAMETERS:
 !   type(GOCART2G_Mie),  intent(in) :: mie        ! mie table
@@ -46,7 +113,6 @@ CONTAINS
 !   real, pointer, dimension(:,:,:), intent(in) :: ple   ! level edge air pressure [Pa]
 !   real, pointer, dimension(:,:), intent(in)   :: tropp ! tropopause pressure [Pa]
 !   logical, optional, intent(in)               :: NO3nFlag
-!
 !! !OUTPUT PARAMETERS:
 !!  Total mass
 !   real, optional, dimension(:,:), intent(inout)   :: sfcmass   ! sfc mass concentration kg/m3
@@ -78,10 +144,29 @@ CONTAINS
 
 
 
+      CALL INCR_REAL_RANK3(tmpu, GOCART_TMPU)
+      CALL INCR_REAL_RANK3(rhoa, GOCART_RHOA)
+      CALL INCR_REAL_RANK3(delp, GOCART_DELP)
+      CALL INCR_REAL_RANK3(rh, GOCART_RH)
+      CALL INCR_REAL_RANK3(uwind, GOCART_U)
+      CALL INCR_REAL_RANK3(vwind, GOCART_V)
+      CALL INCR_REAL_RANK3(ple, GOCART_PLE)
+
+      CALL INCR_REAL_RANK2(tropp, GOCART_TROPP)
+
+
+
+!   subroutine Aero_Compute_Diags( mie, km, klid, nbegin, nbins, rlow, rup, &
+!                                  wavelengths_profile, wavelengths_vertint, aerosol, &
+!                                  grav, tmpu, rhoa, rh, u, v, delp, ple, tropp, &
+!                                  sfcmass, colmass, mass, exttau, stexttau, scatau, stscatau,&
+!                                  sfcmass25, colmass25, mass25, exttau25, scatau25, &
+!                                  fluxu, fluxv, conc, extcoef, scacoef, bckcoef,&
+!                                  exttaufm, scataufm, angstrom, aerindx, NO3nFlag, rc )
+
+
 
    end subroutine CCPR_GOCART_Aero_Diags
-
-
 
 
 END MODULE CCPR_GOCART_AEROSOL_DIAGS_MOD
