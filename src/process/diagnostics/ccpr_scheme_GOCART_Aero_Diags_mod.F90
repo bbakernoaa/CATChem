@@ -19,8 +19,9 @@ CONTAINS
       IMPLICIT NONE
 
       TYPE(GOCART2G_Mie), INTENT(IN) :: mie        ! mie table
+
       INTEGER, INTENT(IN) :: km, nbegin, nbins
-      INTEGER, INTENT(IN) :: klid
+      INTEGER, INTENT(IN) :: klid, rc
       REAL, INTENT(IN) :: g0
       REAL, DIMENSION(:), INTENT(IN) :: wavelengths_profile
       REAL, DIMENSION(:), INTENT(IN) :: wavelengths_vertint
@@ -227,14 +228,72 @@ CONTAINS
         ArgsType%NO3nFlag = cc_no3nflag
       end if
 
-   
-   CALL Aero_Compute_Diags( mie, km, klid, nbegin, nbins, rlow, rup, &
+      if (present(cc_rc)) then
+        ArgsType%RC = cc_rc
+      end if
+
+!!  Total mass
+!   real, optional, dimension(:,:), intent(inout)   :: sfcmass   ! sfc mass concentration kg/m3
+!   real, optional, dimension(:,:), intent(inout)   :: colmass   ! col mass density kg/m2
+!   real, optional, dimension(:,:,:), intent(inout) :: mass      ! 3d mass mixing ratio kg/kg
+!   real, optional, dimension(:,:,:), intent(inout) :: conc      ! 3d mass concentration, kg/m3
+!!  Total optical properties
+!   real, optional, dimension(:,:,:), intent(inout)   :: exttau    ! ext. AOT at 550 nm
+!   real, optional, dimension(:,:,:), intent(inout)   :: stexttau  ! stratospheric ext. AOT at 550 nm
+!   real, optional, dimension(:,:,:), intent(inout)   :: scatau    ! sct. AOT at 550 nm
+!   real, optional, dimension(:,:,:), intent(inout)   :: stscatau  ! stratospheric sct. AOT at 550 nm
+!   real, optional, dimension(:,:), intent(inout)   :: sfcmass25 ! sfc mass concentration kg/m3 (pm2.5)
+!   real, optional, dimension(:,:), intent(inout)   :: colmass25 ! col mass density kg/m2 (pm2.5)
+!   real, optional, dimension(:,:,:), intent(inout) :: mass25    ! 3d mass mixing ratio kg/kg (pm2.5)
+!   real, optional, dimension(:,:,:), intent(inout)   :: exttau25  ! ext. AOT at 550 nm (pm2.5)
+!   real, optional, dimension(:,:,:), intent(inout)   :: scatau25  ! sct. AOT at 550 nm (pm2.5)
+!   real, optional, dimension(:,:),  intent(inout)  :: aerindx   ! TOMS UV AI
+!   real, optional, dimension(:,:), intent(inout)   :: fluxu     ! Column mass flux in x direction
+!   real, optional, dimension(:,:), intent(inout)   :: fluxv     ! Column mass flux in y direction
+!   real, optional, dimension(:,:,:,:), intent(inout) :: extcoef   ! 3d ext. coefficient, 1/m
+!   real, optional, dimension(:,:,:,:), intent(inout) :: scacoef   ! 3d scat.coefficient, 1/m
+!   real, optional, dimension(:,:,:,:), intent(inout) :: bckcoef   ! 3d backscatter coefficient, m-1 sr-1
+!   real, optional, dimension(:,:,:), intent(inout)   :: exttaufm  ! fine mode (sub-micron) ext. AOT at 550 nm
+!   real, optional, dimension(:,:,:), intent(inout)   :: scataufm  ! fine mode (sub-micron) sct. AOT at 550 nm
+!   real, optional, dimension(:,:), intent(inout)   :: angstrom  ! 470-870 nm Angstrom parameter
+!   integer, optional, intent(out)   :: rc        ! Error return code:
+!                                                 !  0 - all is well
+!                                                 !  1 -
+  
+      if ( PRESENT(cc_sfcmass) .OR. &
+         PRESENT(cc_colmass) .OR. &
+         PRESENT(cc_mass) .OR. &
+         PRESENT(cc_conc) .OR. &
+         PRESENT(cc_exttau) .OR. &
+         PRESENT(cc_stexttau) .OR. &
+         PRESENT(cc_scatau) .OR. &
+         PRESENT(cc_stscatau) .OR. &
+         PRESENT(cc_sfcmass25) .OR. &
+         PRESENT(cc_colmass25) .OR. &
+         PRESENT(cc_mass25) .OR. &
+         PRESENT(cc_exttau25) .OR. &
+         PRESENT(cc_scatau25) .OR. &
+         PRESENT(cc_aerindx) .OR. &
+         PRESENT(cc_fluxu) .OR. &
+         PRESENT(cc_fluxv) .OR. &
+         PRESENT(cc_extcoef) .OR. & 
+         PRESENT(cc_scacoef) .OR. &
+         PRESENT(cc_bckcoef) .OR. &
+         PRESENT(cc_exttaufm) .OR. &
+         PRESENT(cc_scataufm) ) then
+
+         CALL Aero_Compute_Diags( mie, km, klid, nbegin, nbins, rlow, rup, &
                                   wavelengths_profile, wavelengths_vertint, aerosol, &
-                                  grav, tmpu, rhoa, rh, u, v, delp, ple, tropp, 
-                                  sfcmass, colmass, mass, exttau, stexttau, scatau, stscatau,&
-                                  sfcmass25, colmass25, mass25, exttau25, scatau25, &
-                                  fluxu, fluxv, conc, extcoef, scacoef, bckcoef,&
-                                  exttaufm, scataufm, angstrom, aerindx, NO3nFlag, rc )
+                                  grav, tmpu, rhoa, rh, u, v, delp, ple, tropp, &
+                                  ArgsType)
+
+      else
+ 
+         CALL Aero_Compute_Diags( mie, km, klid, nbegin, nbins, rlow, rup, &
+                                  wavelengths_profile, wavelengths_vertint, aerosol, &
+                                  grav, tmpu, rhoa, rh, u, v, delp, ple, tropp)
+
+      end if
 
 
 
