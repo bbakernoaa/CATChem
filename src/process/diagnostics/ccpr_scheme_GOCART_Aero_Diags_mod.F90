@@ -40,24 +40,24 @@ CONTAINS
       REAL, POINTER, DIMENSION(:,:,:) :: GOCART_PLE
       REAL, POINTER, DIMENSION(:,:) :: GOCART_TROPP
  
-      REAL :: sfcmass, colmass, mass, conc, sfcmass25, 
-      REAL :: colmass25, aerindx
-      REAL :: fluxu     ! Column mass flux in x direction
-      REAL :: fluxv     ! Column mass flux in y direction
-      REAL :: angstrom  ! 470-870 nm Angstrom parameter
-      REAL, DIMENSION(:) :: exttau
-      REAL, DIMENSION(:) :: stexttau
-      REAL, DIMENSION(:) :: scatau
-      REAL, DIMENSION(:) :: stscatau
-      REAL, DIMENSION(:) :: mass25
-      REAL, DIMENSION(:) :: exttau25
-      REAL, DIMENSION(:) :: scatau25
-      REAL, DIMENSION(:,:) :: extcoef   ! 3d ext. coefficient, 1/m
-      REAL, DIMENSION(:,:) :: scacoef   ! 3d scat.coefficient, 1/m
-      REAL, DIMENSION(:,:) :: bckcoef   ! 3d backscatter coefficient, m-1 sr-1
-      REAL, DIMENSION(:) :: exttaufm  ! fine mode (sub-micron) ext. AOT at 550 nm
-      REAL, DIMENSION(:) :: scataufm  ! fine mode (sub-micron) sct. AOT at 550 nm
-
+      REAL :: cc_sfcmass, cc_colmass, cc_mass, cc_conc, cc_sfcmass25, 
+      REAL :: cc_colmass25, cc_aerindx
+      REAL :: cc_fluxu     ! Column mass flux in x direction
+      REAL :: cc_fluxv     ! Column mass flux in y direction
+      REAL :: cc_angstrom  ! 470-870 nm Angstrom parameter
+      REAL, DIMENSION(:) :: cc_exttau
+      REAL, DIMENSION(:) :: cc_stexttau
+      REAL, DIMENSION(:) :: cc_scatau
+      REAL, DIMENSION(:) :: cc_stscatau
+      REAL, DIMENSION(:) :: cc_mass25
+      REAL, DIMENSION(:) :: cc_exttau25
+      REAL, DIMENSION(:) :: cc_scatau25
+      REAL, DIMENSION(:,:) :: cc_extcoef   ! 3d ext. coefficient, 1/m
+      REAL, DIMENSION(:,:) :: cc_scacoef   ! 3d scat.coefficient, 1/m
+      REAL, DIMENSION(:,:) :: cc_bckcoef   ! 3d backscatter coefficient, m-1 sr-1
+      REAL, DIMENSION(:) :: cc_exttaufm  ! fine mode (sub-micron) ext. AOT at 550 nm
+      REAL, DIMENSION(:) :: cc_scataufm  ! fine mode (sub-micron) sct. AOT at 550 nm
+      LOGICAL :: cc_NO3nFlag
 
       TYPE, PRIVATE :: ArgsType
         REAL, DIMENSION(:,:) :: sfcmass
@@ -82,6 +82,7 @@ CONTAINS
         REAL, DIMENSION(:,:,:) :: exttaufm  ! fine mode (sub-micron) ext. AOT at 550 nm
         REAL, DIMENSION(:,:,:) :: scataufm  ! fine mode (sub-micron) sct. AOT at 550 nm
         REAL, DIMENSION(:,:)   :: angstrom  ! 470-870 nm Angstrom parameter
+        LOGICAL :: NO3nFlag
       END TYPE ArgsType
 
 
@@ -154,15 +155,86 @@ CONTAINS
 
       CALL INCR_REAL_RANK2(tropp, GOCART_TROPP)
 
+      if (present(cc_sfcmass)) then
+        CALL INCR_REAL_RANK2(cc_sfcmass, ArgsType%sfcmass)
+      end if
 
+      if (present(cc_colmass)) then
+        CALL INCR_REAL_RANK2(cc_colmass, ArgsType%colmass)
+      end if
 
-!   subroutine Aero_Compute_Diags( mie, km, klid, nbegin, nbins, rlow, rup, &
-!                                  wavelengths_profile, wavelengths_vertint, aerosol, &
-!                                  grav, tmpu, rhoa, rh, u, v, delp, ple, tropp, &
-!                                  sfcmass, colmass, mass, exttau, stexttau, scatau, stscatau,&
-!                                  sfcmass25, colmass25, mass25, exttau25, scatau25, &
-!                                  fluxu, fluxv, conc, extcoef, scacoef, bckcoef,&
-!                                  exttaufm, scataufm, angstrom, aerindx, NO3nFlag, rc )
+      if (present(cc_mass)) then
+        CALL INCR_REAL_RANK2(cc_mass, ArgsType%mass)
+      end if
+
+      if (present(cc_conc) then
+        CALL INCR_REAL_RANK2(cc_conc, ArgsType%conc)
+      end if
+
+      if (present(cc_exttau)) then
+        CALL INCR_REAL_RANK3(cc_exttau, ArgsType%exttau)
+      end if
+
+      if (present(cc_stextau)) then
+        CALL INCR_REAL_RANK3(cc_stextau, ArgsType%stextau)
+      end if
+
+      if (present(cc_scatau)) then
+        CALL INCR_REAL_RANK3(cc_scatau, ArgsType%scatau)
+      end if
+
+      if (present(cc_stscatau)) then
+        CALL INCR_REAL_RANK3(cc_stscatau, ArgsType%stscatau)
+      end if
+
+      if (present(cc_aerindx)) then
+        CALL INCR_REAL_RANK2(cc_aerindx, ArgsType%aerindx)
+      end if
+
+      if (present(cc_fluxu)) then
+        CALL INCR_REAL_RANK2(cc_fluxu, ArgsType%fluxu)
+      end if
+
+      if (present(cc_fluxv)) then
+        CALL INCR_REAL_RANK2(cc_fluxv, ArgsType%fluxv)
+      end if
+
+      if (present(cc_extcoef)) then
+        CALL INCR_REAL_RANK4(cc_extcoef, ArgsType%extcoef)
+      end if
+
+      if (present(cc_scacoef)) then
+        CALL INCR_REAL_RANK4(cc_scacoef, ArgsType%scacoef)
+      end if
+
+      if (present(cc_bckcoef)) then
+        CALL INCR_REAL_RANK4(cc_bckcoef, ArgsType%bckcoef)
+      end if
+
+      if (present(cc_exttaufm)) then
+        CALL INCR_REAL_RANK3(cc_exttaufm, ArgsType%exttaufm)
+      end if
+
+      if (present(cc_scataufm)) then
+        CALL INCR_REAL_RANK3(cc_scataufm, ArgsType%scataufm)
+      end if
+
+      if (present(cc_angstrom)) then
+        CALL INCR_REAL_RANK2(cc_angstrom, ArgsType%angstrom)
+      end if
+ 
+      if (present(CC_NO3nflag)) then
+        ArgsType%NO3nFlag = cc_no3nflag
+      end if
+
+   
+   CALL Aero_Compute_Diags( mie, km, klid, nbegin, nbins, rlow, rup, &
+                                  wavelengths_profile, wavelengths_vertint, aerosol, &
+                                  grav, tmpu, rhoa, rh, u, v, delp, ple, tropp, 
+                                  sfcmass, colmass, mass, exttau, stexttau, scatau, stscatau,&
+                                  sfcmass25, colmass25, mass25, exttau25, scatau25, &
+                                  fluxu, fluxv, conc, extcoef, scacoef, bckcoef,&
+                                  exttaufm, scataufm, angstrom, aerindx, NO3nFlag, rc )
 
 
 
@@ -170,7 +242,6 @@ CONTAINS
 
 
 END MODULE CCPR_GOCART_AEROSOL_DIAGS_MOD
-
 
 
 

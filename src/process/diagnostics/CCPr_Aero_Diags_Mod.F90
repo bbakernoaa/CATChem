@@ -85,7 +85,7 @@ CONTAINS
       ! CCPR_Aerosol_Diags_Init begins here!
       !=================================================================
       ErrMsg = ''
-      ThisLoc = ' -> at CCPR_Aerosol_Diags_INIT (in process/diagnostics/ccpr_aero_diags_mod.F90)'
+      ThisLoc = ' -> at CCPR_Aero_Diags_INIT (in process/diagnostics/ccpr_aero_diags_mod.F90)'
 
       ! First check if process is activated in config | if not don't allocate arrays or pointers
       if (Config%AeroDiags_activate) then
@@ -117,7 +117,7 @@ CONTAINS
    !! \param [INOUT] ChemState - The ChemState object
    !! \param [OUT] RC Return code
    !!!>
-   SUBROUTINE CCPr_AeroDiags_Run( MetState, DiagState, AeroDiagsState, ChemState, RC )
+   SUBROUTINE CCPr_Aero_Diags_Run( MetState, DiagState, AeroDiagsState, ChemState, RC )
 
       ! USE
       USE constants, only : g0
