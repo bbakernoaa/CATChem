@@ -145,7 +145,6 @@ CONTAINS
 !                                                 !  1 -
 
 
-
       CALL INCR_REAL_RANK3(tmpu, GOCART_TMPU)
       CALL INCR_REAL_RANK3(rhoa, GOCART_RHOA)
       CALL INCR_REAL_RANK3(delp, GOCART_DELP)
@@ -232,6 +231,7 @@ CONTAINS
         ArgsType%RC = cc_rc
       end if
 
+
 !!  Total mass
 !   real, optional, dimension(:,:), intent(inout)   :: sfcmass   ! sfc mass concentration kg/m3
 !   real, optional, dimension(:,:), intent(inout)   :: colmass   ! col mass density kg/m2
@@ -259,7 +259,8 @@ CONTAINS
 !   integer, optional, intent(out)   :: rc        ! Error return code:
 !                                                 !  0 - all is well
 !                                                 !  1 -
-  
+ 
+
       if ( PRESENT(cc_sfcmass) .OR. &
          PRESENT(cc_colmass) .OR. &
          PRESENT(cc_mass) .OR. &
@@ -301,6 +302,7 @@ CONTAINS
 
 
 END MODULE CCPR_GOCART_AEROSOL_DIAGS_MOD
+
 
 
 
