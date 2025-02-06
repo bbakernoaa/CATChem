@@ -1,3 +1,4 @@
+
 MODULE CCPR_GOCART_AEROSOL_DIAGS_MOD
 
    IMPLICIT NONE
@@ -10,7 +11,10 @@ MODULE CCPR_GOCART_AEROSOL_DIAGS_MOD
 CONTAINS
 
 
-   subroutine CCPR_GOCART_Aero_Diags( )
+   subroutine CCPR_GOCART_Aero_Diags(km, nbegin, nbins, klid, &
+                   rlow, rup, wavelengths_profile, &
+                   wavelengths_vertint, aerosol, g0, &
+                   tmpu, rhoa, rh, u, v, delp, ple, tropp )
 
       ! Uses
       USE GOCART2G_Process, ONLY : Aero_Compute_Diags
@@ -152,7 +156,6 @@ CONTAINS
       CALL INCR_REAL_RANK3(uwind, GOCART_U)
       CALL INCR_REAL_RANK3(vwind, GOCART_V)
       CALL INCR_REAL_RANK3(ple, GOCART_PLE)
-
       CALL INCR_REAL_RANK2(tropp, GOCART_TROPP)
 
       if (present(cc_sfcmass)) then
@@ -285,20 +288,24 @@ CONTAINS
 
          CALL Aero_Compute_Diags( mie, km, klid, nbegin, nbins, rlow, rup, &
                                   wavelengths_profile, wavelengths_vertint, aerosol, &
-                                  grav, tmpu, rhoa, rh, u, v, delp, ple, tropp, &
-                                  ArgsType)
+                                  g0, gocart_tmpu, gocart_rhoa, gocart_rh, &
+                                  gocart_u, gocart_v, gocart_delp, gocart_ple, &
+                                  gocart_tropp, ArgsType)
 
       else
  
          CALL Aero_Compute_Diags( mie, km, klid, nbegin, nbins, rlow, rup, &
                                   wavelengths_profile, wavelengths_vertint, aerosol, &
-                                  grav, tmpu, rhoa, rh, u, v, delp, ple, tropp)
+                                  g0, gocart_tmpu, gocart_rhoa, gocart_rh, &
+                                  gocart_u, gocart_v, gocart_delp, gocart_ple, &
+                                  gocart_tropp)
 
-      end if
+      endif
 
 
 
    end subroutine CCPR_GOCART_Aero_Diags
+
 
 
 END MODULE CCPR_GOCART_AEROSOL_DIAGS_MOD

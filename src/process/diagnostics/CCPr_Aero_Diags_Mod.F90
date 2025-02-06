@@ -94,7 +94,6 @@ CONTAINS
          !------------------
          AeroDiagsState%Activate = .true.
 
-
          ! Set scheme option
          !------------------
          AeroDiagsState%SchemeOpt = config%AeroDiags_Scheme
@@ -153,8 +152,19 @@ CONTAINS
             ! Run the Aerosol Diagnostics Scheme
             !-------------------------
 
-            call CCPr_Scheme_GOCART_Aero_Diags(
-               RC)
+            call CCPr_Scheme_GOCART_Aero_Diags(MetState%NLEVS, &
+                    klid, nbegin, nbins, rlow, rup, &
+                    wavelengths_profile, wavelengths_vertint, &
+                    aerosol, g0, &
+                    MetState%T,&
+                    MetState%AIRDEN, &
+                    MetState%RH, &
+                    MetState%UWND, &
+                    MetState%VWND, &
+                    MetState%DELP, &
+                    MetState%PEDGE_DRY, &
+                    MetState%TROPP, &
+                    RC)
 
          endif
 
