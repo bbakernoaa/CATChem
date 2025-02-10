@@ -9,8 +9,8 @@ grouping:
       is_aero: true
       aerosol_diagnostics: true
         mass_diagnostics: false
-          sfcmass: false
-          colmass: false
+          sfc_mass: false
+          col_mass: false
           mass: false
           conc: false
         optical_diagnostics: true
