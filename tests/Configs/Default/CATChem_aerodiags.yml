@@ -6,7 +6,29 @@
 grouping:
   dust:
     species:
-      compute_diagnostics: false
-      surface_pm25: false
-      is_aero: false
-
+      is_aero: true
+      aerosol_diagnostics: true
+        mass_diagnostics: false
+          sfcmass: false
+          colmass: false
+          mass: false
+          conc: false
+        optical_diagnostics: true
+          extinction_tau: true
+          strat_extinction_tau: true
+          scattering_tau: true
+          strat_scattering_tau: true
+          sfc_mass25: true
+          column_mass25: true
+          mass25: true
+          extinction_tau25: true
+          scattering_tau25: true
+          aerosol_index: true
+          column_flux_u: true
+          column_flux_v: true
+          extinction_coef: true
+          scattering_coef: true
+          backscatter_coef: true
+          extinction_tau_finemode: true
+          scattering_tau_finemode: true
+          angstrom_parameter: true
