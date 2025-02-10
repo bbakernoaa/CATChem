@@ -1,6 +1,7 @@
 
 MODULE CCPR_GOCART_AEROSOL_DIAGS_MOD
 
+
    IMPLICIT NONE
 
    PRIVATE
@@ -15,6 +16,7 @@ CONTAINS
                    rlow, rup, wavelengths_profile, &
                    wavelengths_vertint, aerosol, g0, &
                    tmpu, rhoa, rh, u, v, delp, ple, tropp )
+
 
       ! Uses
       USE GOCART2G_Process, ONLY : Aero_Compute_Diags

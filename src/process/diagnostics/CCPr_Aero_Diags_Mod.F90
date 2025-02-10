@@ -96,7 +96,21 @@ CONTAINS
 
          ! Set scheme option
          !------------------
-         AeroDiagsState%SchemeOpt = config%AeroDiags_Scheme
+         AeroDiagsState%SchemeOpt = Config%AeroDiags_Scheme
+
+         ! Add read DiagState config file
+         AeroDiagsState%cc_sfcmass    = AeroDiagConfig%SfcMass
+         AeroDiagsState%cc_colmass    = AeroDiagConfig%ColMass
+         AeroDiagsState%cc_mass    = AeroDiagConfig%Mass
+         AeroDiagsState%cc_conc    = AeroDiagConfig%Conc
+         AeroDiagsState%cc_sfcmass25    = AeroDiagConfig%SfcMass25
+         AeroDiagsState%cc_colmass25    = AeroDiagConfig%ColMass25
+         AeroDiagsState%cc_aerindx    = AeroDiagConfig%AerosolIndex
+         AeroDiagsState%cc_fluxu      = AeroDiagConfig%FluxU
+         AeroDiagsState%cc_fluxv      = AeroDiagConfig%FluxV
+         AeroDiagsState%cc_angstrom   = AeroDiagConfig%cc_angstrom
+         AeroDiagsState%cc_NO3nFlag = AeroDiagConfig%NO3nFlag
+
 
       else
 
