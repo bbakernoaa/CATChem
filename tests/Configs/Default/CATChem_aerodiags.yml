@@ -14,7 +14,7 @@ grouping:
           mass: false
           conc: false
         optical_diagnostics: true
-          extinction_tau: true
+          extinction_tau: true       #change tau to AOT???
           strat_extinction_tau: true
           scattering_tau: true
           strat_scattering_tau: true
