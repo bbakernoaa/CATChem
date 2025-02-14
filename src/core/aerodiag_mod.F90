@@ -32,9 +32,7 @@ module aerodiag_mod
       character(len=50) :: description !< description of aerosol diagnostics
 
       ! Logcial switches
-      logical :: is_gocart_aero       !< if true, species is a GOCART aerosol species
-      logical :: is_dust              !< if true, species is a dust
-      logical :: is_dms               !< if true, species is DMS
+      logical :: is_aero       !< if true, species is an aerosol species
 
       ! Numerical properties
       real(kind=fp) :: mw_g                 !< gaseous molecular weight
@@ -49,7 +47,7 @@ module aerodiag_mod
       real(kind=fp) :: BackgroundVV        !< Background conc [v/v]
 
       ! Indices
-      integer :: gocart_aero_index    !< gocart_aero index in gocart_aero array
+      integer :: aero_index    !< aero index in aero array
 
       ! Concentration
       real(kind=fp), ALLOCATABLE :: conc(:)             !< species concentration [v/v] or kg/kg
