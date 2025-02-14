@@ -7,28 +7,28 @@ grouping:
   dust:
     species:
       is_aero: true
-      aerosol_diagnostics: true
+      aerosol_diagnostics: false
         mass_diagnostics: false
           sfc_mass: false
           col_mass: false
           mass: false
           conc: false
-        optical_diagnostics: true
-          extinction_tau: true       #change tau to AOT???
-          strat_extinction_tau: true
-          scattering_tau: true
-          strat_scattering_tau: true
-          sfc_mass25: true
-          column_mass25: true
-          mass25: true
-          extinction_tau25: true
-          scattering_tau25: true
-          aerosol_index: true
-          column_flux_u: true
-          column_flux_v: true
-          extinction_coef: true
-          scattering_coef: true
-          backscatter_coef: true
-          extinction_tau_finemode: true
-          scattering_tau_finemode: true
-          angstrom_parameter: true
+        optical_diagnostics: false
+          extinction_aod: false
+          strat_extinction_aod: false
+          scattering_aod: false
+          strat_scattering_aod: false
+          sfc_mass_pm25: false
+          column_mass_pm25: false
+          mass_pm25: false
+          extinction_aod_pm25: false
+          scattering_aod_pm25: false
+          aerosol_index: false
+          column_flux_u: false
+          column_flux_v: false
+          extinction_coef: false
+          scattering_coef: false
+          backscatter_coef: false
+          extinction_aod_finemode: false
+          scattering_aod_finemode: false
+          angstrom_parameter: false

@@ -124,6 +124,8 @@ CONTAINS
 
       endif
 
+     ! TODO:  Add diagnostics for SUVolcanic, DMS
+
 
 
    end subroutine Diag_Allocate

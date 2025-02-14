@@ -23,14 +23,14 @@ MODULE CCPR_Aero_Diags_mod
    PUBLIC :: CCPR_Aerosol_Diags_Init
    PUBLIC :: CCPR_Aerosol_Diags_Run
    PUBLIC :: CCPR_Aerosol_Diags_Finalize
-   PUBLIC :: AeroDiagStateType
+   PUBLIC :: AeroDiagsStateType
 
    !!
    !!
    !! \param Activate Activate Aerosol Diagnostics (True/False)
    !!!>
 
-   TYPE :: AeroDiagStateType
+   TYPE :: AeroDiagsStateType
       LOGICAL                         :: Activate              ! Activate Process (True/False)
       INTEGER                         :: SchemeOpt             ! Diagnostics Scheme (True/False)
 
@@ -41,7 +41,7 @@ MODULE CCPR_Aero_Diags_mod
       ! Module specific variables/arrays/data pointers come below
       !=================================================================
 
-   END TYPE AeroDiagStateType
+   END TYPE AeroDiagsStateType
 
 CONTAINS
 
@@ -64,6 +64,7 @@ CONTAINS
       ! INPUT PARAMETERS
       !-----------------
       TYPE(ConfigType), POINTER       :: Config    ! Module options
+      TYPE(AeroDiagConfigType), POINTER       :: AeroDiagConfig    ! Module options
 
       ! INPUT/OUTPUT PARAMETERS
       !------------------------
@@ -99,18 +100,73 @@ CONTAINS
          AeroDiagsState%SchemeOpt = Config%AeroDiags_Scheme
 
          ! Add read DiagState config file
-         AeroDiagsState%cc_sfcmass    = AeroDiagConfig%SfcMass
-         AeroDiagsState%cc_colmass    = AeroDiagConfig%ColMass
-         AeroDiagsState%cc_mass    = AeroDiagConfig%Mass
-         AeroDiagsState%cc_conc    = AeroDiagConfig%Conc
-         AeroDiagsState%cc_sfcmass25    = AeroDiagConfig%SfcMass25
-         AeroDiagsState%cc_colmass25    = AeroDiagConfig%ColMass25
-         AeroDiagsState%cc_aerindx    = AeroDiagConfig%AerosolIndex
-         AeroDiagsState%cc_fluxu      = AeroDiagConfig%FluxU
-         AeroDiagsState%cc_fluxv      = AeroDiagConfig%FluxV
-         AeroDiagsState%cc_angstrom   = AeroDiagConfig%cc_angstrom
-         AeroDiagsState%cc_NO3nFlag = AeroDiagConfig%NO3nFlag
+         if (AeroDiagConfig%aerosol_diagnostics) then
+            AeroDiagsState%aerosol_diagnostics    = 
+         end if
 
+         AeroDiagsState%mass_diagnostics
+         = AeroDiagConfig%mass_diagnostics
+         AeroDiagsState%optical_diagnostics
+         = AeroDiagConfig%optical_diagnostics
+         AeroDiagsState%sfcmass
+         = AeroDiagConfig%SfcMass
+         AeroDiagsState%colmass
+         = AeroDiagConfig%ColMass
+         AeroDiagsState%mass
+         = AeroDiagConfig%Mass
+         AeroDiagsState%conc
+         = AeroDiagConfig%Conc
+         AeroDiagsState%extinction_aod
+         = AeroDiagConfig%extinction_aod
+         AeroDiagsState%strat_extinction_aod
+         = AeroDiagConfig%strat_extinction_aod
+
+         AeroDiagsState%scattering_aod
+         = AeroDiagConfig%scattering_aod
+
+         AeroDiagsState%strat_scattering_aod
+         = AeroDiagConfig%strat_scattering_aod
+
+         AeroDiagsState%sfcmasspm25
+         = AeroDiagConfig%SfcMasspm25
+         AeroDiagsState%colmasspm25
+         = AeroDiagConfig%ColMasspm25
+         AeroDiagsState%aerindx
+         = AeroDiagConfig%AerosolIndex
+         AeroDiagsState%fluxu
+         = AeroDiagConfig%FluxU
+
+         if (AeroDiagsState%fluxv) then
+            AeroDiagConfig%FluxV
+         end if
+
+         if ( AeroDiagConfig%extinction_coef) then
+            AeroDiagsState%extinction_coef
+         end if
+
+         if ( AeroDiagConfig%scattering_coef) then
+            AeroDiagsState%scattering_coef
+         end if
+
+         if (AeroDiagConfig%backscatter_coef) then
+            AeroDiagsState%backscatter_coef
+         end if
+
+         if (AeroDiagConfig%extinction_aod_finemode) then
+            AeroDiagsState%extinction_aod_finemode
+         end if
+
+         if (AeroDiagConfig%scattering_aod_finemode) then
+            AeroDiagsState%scattering_aod_finemode
+         end if
+
+         if (AeroDiagConfig%Angstrom) then
+            AeroDiagsState%angstrom
+         end if
+
+         if ( AeroDiagConfig%NO3nFlag ) then
+           AeroDiagsState%NO3nFlag
+         end if
 
       else
 

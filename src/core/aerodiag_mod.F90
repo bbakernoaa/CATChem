@@ -24,54 +24,56 @@ module aerodiag_mod
    !! \param RC The return code.
    !!
    !!!>
-   type, public :: AeroDiagsType
+   type, public :: AeroDiagsStateType
 
-      ! Names
-      character(len=30) :: long_name  !< long name for aerosol diagnostics used for netcdf attribute "long_name"
-      character(len=30) :: short_name !< short name for aerosol diagnostics
-      character(len=50) :: description !< description of aerosol diagnostics
+      ! Create aerosol diagnostics 
+      real(kind=fp) :: aerosol_diagnostics ! turn on aerosol diagnostics?
+      real(kind=fp) :: mass_diagnostics    ! turn on mass diagnostics?
+      real(kind=fp) :: optical_diagnostics ! turn on optical diagnostics?
+      real(kind=fp) :: sfc_mass    ! sfc mass concentration (kg/m3)
+      real(kind=fp) :: col_mass    ! col mass density (kg/m2)
+      real(kind=fp) :: mass       ! 3d mass mixing ratio (kg/kg)
+      real(kind=fp) :: conc       ! 3d mass concentration (kg/m3)
+      real(kind=fp) :: extinction_aod     ! extinction AOD at 550 nm     (m)
+      real(kind=fp) :: strat_extinction_aod   ! stratospheric ext. AOD at 550 nm (m)
+      real(kind=fp) :: scattering_aod     ! scattering AOD at 550 nm  (m)
+      real(kind=fp) :: strat_scattering_aod   ! stratospheric sct. AOD at 550 nm (m)
+      real(kind=fp) :: sfc_mass_pm25  ! surface mass concentration of PM2.5 (kg/m3)
+      real(kind=fp) :: column_mass_pm25  ! column mass density of PM2.5 (kg/m2)
+      real(kind=fp) :: mass_pm25     ! 3d mass mixing ratio of PM2.5 (kg/kg)
+      real(kind=fp) :: extinction_aod_pm25 ! ext. AOD at 550 nm (m)
+      real(kind=fp) :: scattering_aod_pm25 ! sct. AOD at 550 nm (m)
+      real(kind=fp) :: aerosol_index       ! TOMS UV Aerosol Index 
+      real(kind=fp) :: column_flux_u       ! column mass flux in E-W direction (units?)
+      real(kind=fp) :: column_flux_v       ! column mass flux in N-S direction (units?)
+      real(kind=fp) :: extinction_coef    ! extinction coefficient (1/m)
+      real(kind=fp) :: scattering_coef    ! scattering coefficient (1/m)
+      real(kind=fp) :: backscatter_coef    ! backscatter coefficient (m-1 sr-1)
+      real(kind=fp) :: extinction_aod_finemode   ! fine mode (sub micron) extinction AOD at 550 nm
+      real(kind=fp) :: scattering_aod_finemode   ! fine mode (sub micron) scattering AOD at 550 nm
+      real(kind=fp) :: angstrom_parameter   ! 470-870 nm Angstrom parameter
 
-      ! Logcial switches
-      logical :: is_aero       !< if true, species is an aerosol species
 
-      ! Numerical properties
-      real(kind=fp) :: mw_g                 !< gaseous molecular weight
-      real(kind=fp) :: density              !< particle density (kg/m3)
-      real(kind=fp) :: radius               !< mean molecular diameter in meters
-      real(kind=fp) :: lower_radius         !< lower radius in meters
-      real(kind=fp) :: upper_radius         !< upper radius in meters
-      real(kind=fp) :: viscosity            !< kinematic viscosity (m2/s)
+   end type AeroDiagsStateType
 
-
-      ! Default background concentration
-      real(kind=fp) :: BackgroundVV        !< Background conc [v/v]
-
-      ! Indices
-      integer :: aero_index    !< aero index in aero array
-
-      ! Concentration
-      real(kind=fp), ALLOCATABLE :: conc(:)             !< species concentration [v/v] or kg/kg
-
-   end type AeroDiagsType
-
-   !
-   ! !DEFINED PARAMETERS:
-   !
-   !=========================================================================
-   ! Missing species concentration value if not in restart file and special
-   ! background value not defined
-   !=========================================================================
-   REAL(fp), PARAMETER, PUBLIC :: MISSING_VV  = 1.0e-20_fp ! Missing spc conc
 
 contains
 
-   subroutine init(AeroDiags_State)
-      type(SpeciesType), intent(inout) :: AeroDiags_State
-      character(len=*), intent(in) :: species_name
-      integer, intent(in) :: atomic_num
+   subroutine init(AeroDiagsState)
 
-      AeroDiags_State%short_name = species_name
-      AeroDiags_State%mw_g = atomic_num
+
+      type(AeroDiagsStateType), intent(inout) :: AeroDiagsState
+      AeroDiagsState%aerosol_diagnostics = 
+      AeroDiagsState%mass_diagnostics = 
+      AeroDiagsState%optical_diagnostics = 
+      AeroDiagsState%sfc_mass = 
+      AeroDiagsState%col_mass = 
+      AeroDiagsState%mass = 
+      AeroDiagsState%conc = 
+      AeroDiagsState%extinction_aod = 
+      AeroDiagsState%strat_extinction_aod = 
+
+
    end subroutine init
 
 
