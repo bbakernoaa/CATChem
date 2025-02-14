@@ -63,15 +63,32 @@ contains
 
 
       type(AeroDiagsStateType), intent(inout) :: AeroDiagsState
-      AeroDiagsState%aerosol_diagnostics = 
-      AeroDiagsState%mass_diagnostics = 
-      AeroDiagsState%optical_diagnostics = 
-      AeroDiagsState%sfc_mass = 
-      AeroDiagsState%col_mass = 
-      AeroDiagsState%mass = 
-      AeroDiagsState%conc = 
-      AeroDiagsState%extinction_aod = 
-      AeroDiagsState%strat_extinction_aod = 
+
+      AeroDiagsState%aerosol_diagnostics 
+      AeroDiagsState%mass_diagnostics  
+      AeroDiagsState%optical_diagnostics  
+      AeroDiagsState%sfc_mass  
+      AeroDiagsState%col_mass  
+      AeroDiagsState%mass  
+      AeroDiagsState%conc  
+      AeroDiagsState%extinction_aod  
+      AeroDiagsState%strat_extinction_aod  
+      AeroDiagsState%scattering_aod 
+      AeroDiagsState%strat_scattering_aod  
+      AeroDiagsState%sfc_mass_pm25 
+      AeroDiagsState%column_mass_pm25 
+      AeroDiagsState%mass_pm25 
+      AeroDiagsState%extinction_aod_pm25 
+      AeroDiagsState%scattering_aod_pm25  
+      AeroDiagsState%aerosol_index 
+      AeroDiagsState%column_flux_u 
+      AeroDiagsState%column_flux_v 
+      AeroDiagsState%extinction_coef 
+      AeroDiagsState%scattering_coef 
+      AeroDiagsState%backscatter_coef 
+      AeroDiagsState%extinction_aod_finemode  
+      AeroDiagsState%scattering_aod_finemode  
+      AeroDiagsState%angstrom_parameter  
 
 
    end subroutine init
