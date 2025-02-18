@@ -254,7 +254,7 @@ CONTAINS
       real    :: v_real
       logical :: v_logical
 
-      Character(len=17) :: tags(19)
+      Character(len=17) :: tags(20)
 
       RC = CC_SUCCESS
 
@@ -1565,4 +1565,77 @@ CONTAINS
    END SUBROUTINE Config_Process_DMS
 
 
+   SUBROUTINE Config_AeroDiags_State( filename, GridState, ChemState, RC )
+
+      USE Config_Opt_Mod, ONLY : ConfigType
+      USE Error_Mod
+
+      CHARACTER(LEN=*), INTENT(IN) :: filename
+
+      INTEGER, INTENT(INOUT) :: RC
+
+      TYPE(QFYAML_t)     :: ConfigInput, ConfigAnchored
+
+      CHARACTER(LEN=255) :: thisLoc ! where am i
+      CHARACTER(LEN=512) :: errMsg  ! error message
+
+      integer :: n
+      CHARACTER(LEN=QFYAML_NamLen) :: key
+      CHARACTER(LEN=QFYAML_StrLen) :: v_str
+      real    :: v_real
+      logical :: v_logical
+
+      Character(len=23) :: tags(19)
+
+      RC = CC_SUCCESS
+
+      thisLoc = ' -> at Config_AeroDiags_State (in module core/config_mod.F90)'
+
+      tags = (/'sfc_mass               ', &
+         'col_mass               ', &
+         'mass                   ', &
+         'conc                   ', &
+         'extinction_aod         ', &
+         'strat_extinction_aod   ', &
+         'scattering_aod         ', &
+         'strat_scattering_aod   ', &
+         'sfc_mass_pm25          ', &
+         'column_mass_pm25       ', &
+         'mass_pm25              ', &
+         'extinction_aod_pm25    ', &
+         'scattering_aod_pm25    ', &
+         'aerosol_index          ', &
+         'column_flux_u          ', &
+         'column_flux_v          ', &
+         'extinction_coef        ', &
+         'scattering_coef        ', &
+         'backscatter_coef       ', &
+         'extinction_aod_finemode', &
+         'scattering_aod_finemode', &
+         'angstrom_parameter     '/)
+
+
+
+
+      !========================================================================
+      ! Initialize the QFYAML Species YAML object
+      !========================================================================
+      CALL QFYAML_Species_Init(filename, ConfigInput, ConfigAnchored, speciesName, RC )
+      IF (RC /= 0) THEN
+         errMsg = 'Error in "Config_AeroDiags_State"!'
+         call CC_Error(errMsg, RC, thisLoc)
+         call QFYAML_CleanUp(ConfigInput)
+         RETURN
+      ENDIF
+
+
+
+   END SUBROUTINE Config_AeroDiags_State
+
+
+
 END MODULE config_mod
+
+
+
+
