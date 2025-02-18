@@ -114,6 +114,10 @@ MODULE Config_Opt_Mod
       LOGICAL                     :: DMS_activate
       INTEGER                     :: DMS_scheme
 
+      ! Aerosol Diagnostic process
+      LOGICAL                     :: AeroDiags_activate
+      INTEGER                     :: AeroDiags_scheme
+
    END TYPE ConfigType
 
 CONTAINS
@@ -195,6 +199,10 @@ CONTAINS
       ! DMS Process
       Config%DMS_activate = .FALSE.
       Config%DMS_scheme = 1
+
+      ! Aerosol Diagnostics Process
+      Config%aerodiags_activate = .FALSE.
+      Config%aerodiags_scheme = 1
 
    END SUBROUTINE Set_Config
    !> \brief Cleanup the Config options
