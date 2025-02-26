@@ -191,6 +191,15 @@ CONTAINS
          RETURN
       ENDIF
 
+      call Config_Process_AeroDiags(ConfigInput, Config, RC)
+      IF ( RC /= CC_SUCCESS ) THEN
+         errMsg = 'Error in "Config_Process_AeroDiags"!'
+         CALL CC_Error( errMsg, RC, thisLoc  )
+         CALL QFYAML_CleanUp( ConfigInput         )
+         CALL QFYAML_CleanUp( ConfigAnchored )
+         RETURN
+      ENDIF
+
 
       !========================================================================
       ! Config ChemState
