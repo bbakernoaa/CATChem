@@ -341,9 +341,17 @@
   type = real
   kind = kind_phys
 [soilmoist]
+  standard_name = soil_temperature
+  long_name = volumetric fraction of soil moisture for lsm
+  units =
+  dimensions = (horizontal_loop_extent,vertical_dimension_of_soil)
+  type = real
+  kind = kind_phys
+  intent = inout
+[soiltemp]
   standard_name = volume_fraction_of_condensed_water_in_soil
   long_name = volumetric fraction of soil moisture for lsm
-  units = frac
+  units = 'K'
   dimensions = (horizontal_loop_extent,vertical_dimension_of_soil)
   type = real
   kind = kind_phys
@@ -357,7 +365,13 @@
   type = real
   kind = kind_phys
   intent = in
-real(kind=kind_phys): units = Pa
+[prslp]
+  standard_name = us_standard_air_pressure_at_sea_level
+  long_name = standard atmospheric pressure at sea level
+  units = Pa
+  type = real
+  kind = kind_phys
+  intent = in
 [pr3d]
   standard_name = air_pressure_at_interface
   long_name = air pressure at model layer interfaces
@@ -655,6 +669,13 @@ real(kind=kind_phys): units = Pa
   type = real
   kind = kind_phys
   intent = in
+[DustFlx]
+  standard_name = instantaneous_dust_emission_flux
+  long_name = instantaneous dust emission flux
+  units = kg m-2 s-1
+  dimensions = (horizontal_loop_extent,5)
+  type = real
+  kind = kind_phys
 # Chemistry Diagnostics <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 [drydep]
   standard_name = instantaneous_dry_deposition

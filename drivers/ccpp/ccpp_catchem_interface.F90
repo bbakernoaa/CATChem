@@ -159,14 +159,13 @@ contains
      do_catchem, & ! CATChem Flag on
      ktau, dt, julian, jdate, idat, & ! Time information
      xcosz, &
-     ntrac, ntchm, ntaero, chemarr, chemarr_phys, & ! Chemical tracer information
      lwi, dluse, frlanduse, gvf, oro, frice, frocean, SoilMoist, SoilTemp & ! land water specific variables
      ustar, u10m, v10m, tskin, t2m, dpt2m, hf2d, lf2d, znt, dswsfc, & ! land surface variables
-     pblh, soiltyp, tslb, snowdepth, frsnow, recmol, psih, albedo, & ! land surface variables
-     psfc, pr3d, ph3d, phl3d, prl3d, tk3d, q3d, exch, us3d, vs3d, w, & ! State Variables
+     pblh, kpbl, hpbl_thetav, soiltyp, tslb, snowdepth, frsnow, recmol, psim, psih, albedo, & ! land surface variables
+     psfc, prslp, pr3d, ph3d, phl3d, prl3d, tk3d, q3d, exch, us3d, vs3d, w, & ! State Variables
      aer_ra_feedback_in, aer_ra_frq_in, & ! radiation
      rainc_cpl, rain_cpl, cldf, chem_conv_tr_in, dqdt, & ! cloud variables
-     ntrac, ntc, chemarr_phys, chemarr, kemit_in, pert_scale_anthro, & ! Chemistry Variables
+     ntrac, ntchm, ntaero, chemarr_phys, chemarr, kemit_in, pert_scale_anthro, & ! Chemistry Variables
      emis_amp_anthro, emi_in, dust_in, & ! Chemistry Variables
      drydep, wetdpl, &  ! Chemistry Diagnostics
      abem, pert_scale_plume, ca_emis_plume, biomass_burn_opt_in, plumerise_flag_in, & ! Fires
@@ -174,15 +173,6 @@ contains
      ca_sgs_emis, ca_sgs, & ! Cellular Automata
      emis_amp_seas, do_sppt_emis, sppt_wts, ca_sgs_gbbepx_frp, emis_amp_dust, pert_scale_dust, & ! SPPT
      errmsg, errflg)
-
-     !! kpbl
-     !! hpbl_thetav
-     !! prslp
-     !! sncovr1_lnd
-     !! albedo
-     !! soiltemp
-     !! tslb
-
 
      implicit none
 
@@ -227,6 +217,33 @@ contains
      real(kind_phys), dimension(im, kte, ntrac), intent(inout) :: chemarr_phys
      real(kind_phys), dimension(im, kte, ntrac), intent(inout) :: chemarr
 
+     ! Emissions
+     real(kind_phys), dimension(im, kte, 3), intent(in) :: emi_in ! 3 should be temporary... need to replace with either an input namelist option or have it be a pointer with variable dimension
+     real(kind_phys), dimension(im, kte, ntrac), intent(in) :: kemit_in !> emission inputs
+     real(kind_phys), dimension(im, kte), intent(in) :: dust_in         !> dust emission inputs
+     real(kind_phys), dimension(im), intent(in) :: pert_scale_anthro !> anthropogenic emission perturbation scale factor
+     real(kind_phys), dimension(im), intent(in) :: pert_scale_plume !> plume emission perturbation scale factor
+     real(kind_phys), dimension(im), intent(in) :: pert_scale_dust !> dust emission perturbation scale factor
+     real(kind_phys), dimension(im), intent(in) :: emis_amp_anthro !> anthropogenic emission amplitude
+     real(kind_phys), dimension(im), intent(in) :: emis_amp_plume !> plume emission amplitude
+     real(kind_phys), dimension(im), intent(in) :: emis_amp_seas !> seasonal emission amplitude
+     real(kind_phys), dimension(im), intent(in) :: emis_amp_dust !> dust emission amplitude
+     integer(kind_phys), intent(in) :: biomass_burn_opt_in !> biomass burning option
+     integer(kind_phys), intent(in) :: plumerise_flag_in !> plume rise flag
+     integer(kind_phys), intent(in) :: plumerisefire_freq_in !> plume rise fire frequency
+     real(kind_phys), dimension(im, kte), intent(inout) :: drydep !> dry deposition
+     real(kind_phys), dimension(im, kte), intent(inout) :: wetdpl !> wet deposition
+     real(kind_phys), dimension(im, kte), intent(inout) :: abem !> aerosol backscatter extinction mass
+     real(kind_phys), dimension(im, kte), intent(in) :: ca_emis_plume !> plume emission
+     logical, dimension(im, kte), intent(in) :: ca_sgs_emis !> SGS emission
+     logical, dimension(im, kte), intent(in) :: ca_sgs !> SGS
+     real(kind_phys), dimension(im, kte), intent(in) :: ca_sgs_gbbepx_frp !> SGS GBBEPx FRP
+     real(kind_phys), dimension(im, kte), intent(in) :: fire_GBBEPx !> GBBEPx fire emissions
+     real(kind_phys), dimension(im, kte), intent(in) :: fire_MODIS !> MODIS fire emissions
+     real(kind_phys), dimension(im, kte), intent(in) :: ebu !> EBU
+     real(kind_phys), dimension(im, kte), intent(in) :: sppt_wts !> SPPT weights
+     logical, intent(in) :: do_sppt_emis !> SPPT emission flag
+
      ! land surface information
      integer, dimension(im), intent(in)                :: lwi           !> sea land ice mask (sea = 0, land = 1, ice = 2)
      integer, dimension(im), intent(in)                :: soiltyp       !> soil type
@@ -240,9 +257,11 @@ contains
      real(kind_phys), dimension(im), intent(in)        :: oro           !> height above mean sea level (m)
 
      real(kind_phys), dimension(im, nsoil), intent(in) :: soilmoist     !> volumetric fraction of soil moisture for lsm
+     real(kind_phys), dimension(im, nsoil), intent(in) :: soiltemp      !> soil temperature (K)
      real(kind_phys), dimension(im,nsoil), intent(in)  :: tslb          !> soil temperature (K)
      real(kind_phys), dimension(im), intent(in)        :: snowdepth     !> water equivalent snow depth (mm)
      real(kind_phys), dimension(im), intent(in)        :: psfc          !> pressure at the surface (Pa)
+     real(kind_phys), dimension(im), intent(in)        :: prslp         !> sea level pressure (Pa)
      real(kind_phys), dimension(im), intent(in)        :: pblh          !> PBL Thickness determined by the PBL scheme (m)
      real(kind_phys), dimension(im), intent(in)        :: kpbl          !> PBL level
      real(kind_phys), dimension(im), intent(in)        :: hpbl_thetav   !> PBL Height based on modified parcel method (m)
@@ -260,7 +279,6 @@ contains
      real(kind_phys), dimension(im), intent(in)        :: dswsfc        !> downward short wave flux (W m-2)
      real(kind_phys), dimension(im), intent(in)        :: recmol        !> one over obukhov length (m-1)
      real(kind_phys), dimension(im), intent(in)        :: albedo        !> surface albedo
-     real(kind_phys), dimension(im), intent(in)        :: prslp         !> sea level pressure (Pa)
 
      real(kind_phys), dimension(im, kte), intent(in) :: pr3d            !> air pressure at model layer interfaces (Pa)
      real(kind_phys), dimension(im, kte), intent(in) :: prl3d           !> pressure at the model level (Pa)
@@ -280,17 +298,14 @@ contains
      real(kind_phys), dimension(im, kte), intent(in)   :: dqdt            !> instantaneous_water_vapor_specific_humidity_tendency_due_to_convection
      integer, intent(in)                               :: chem_conv_tr_in !> catchem convective transport option
 
-     ! Emissions
-     real(kind_phys), dimension(im, kte, 3), intent(in) :: emi2_in ! 3 should be temporary... need to replace with either an input namelist option or have it be a pointer with variable dimension
-
      ! Radiation
      integer, intent(in) :: aer_ra_feedback_in  !> catchem aer radiation feedback option
      integer, intent(in) :: aer_ra_frq_in       !> catchem_aer_ra_frq
+
      ! Output
      !-------
      character(len=*), intent(out) :: errmsg
      integer, intent(out) :: errflg
-     real(kind_phys), dimension(im, kte, 3), intent(out) :: emi2_out ! 3 should be temporary... need to replace with either an input namelist option or have it be a pointer with variable dimension
 
      ! Local
      !------
@@ -300,7 +315,9 @@ contains
      call transform_ccpp_to_catchem(im, kte, kme, ntrac, ntc, ntr, &
         gq0, qgrs, MetState, ChemState, DiagState, EmisState)
 
+     ! Run CATChem
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      ! -- volume to mass fraction conversion table (ppm -> ug/kg)
      ppm2ugkg = 1._kind_phys
      ppm2ugkg(p_sulf) = 1.e+03_kind_phys*mw_so4_aer/mwdry
@@ -338,8 +355,6 @@ contains
         ids, ide, jds, jde, kds, kde, &
         ims, ime, jms, jme, kms, kme, &
         its, ite, jts, jte, kts, kte)
-     !write (*,*) 'hli test2 ktau',call_gocart
-
      if (call_gocart) then
         call gocart_chem_driver(ktau, dt, dtstep, gmt, julday, xcosz, &
            t_phy, moist, chem, rho_phy, dz8w, p8w, backg_oh, oh_t, &

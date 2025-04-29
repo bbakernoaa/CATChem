@@ -199,29 +199,35 @@ contains
     !!
     !! \ingroup catchem_ccpp_group
     !!!>
-    subroutine transform_ccpp_to_catchem(nHorz, nVert, sfc_index, top_index, lat, lon, &      ! Grid Information
-                                        fcst_iter, dt, jdate, tile_num, area, xcosz, &  ! Grid Information
+    subroutine transform_ccpp_to_catchem(nVert, nVertInterface, nsoil, nlndcat, nsoilcat, lat, lon, &      ! Grid Information
+                                        ktau, dt, jdate, tile_num, area, xcosz, &  ! Grid Information
                                         aero_rad_freq_opt, aero_feedback_opt, plmrise_freq_opt, & ! Model Options
-                                        lwi, dluse, soiltyp, vegtype_frac,
+                                        lwi, dluse, soiltyp, vegtype_frac, &  ! Model Options
+                                        im, kme, nVert, nVertInterface, nsoil, nlndcat, nsoilcat, &  ! Model Options
+                                        temp, spechum, pfull, phalf, &  ! Meteorological Variables
+                                        u, v, delp, zh, kh, prsl, prslk, &  ! Meteorological Variables
+                                        u10m, v10m, tskin, ps, precip, &  ! Meteorological Variables
+                                        slmsk, snowh, vegtype, soiltyp, &  ! Surface Variables
+                                        hf, zpbl, coszen, albedo, emis, &  ! Surface Variables
+                                        ustar, shflx, lhflx, &  ! Near-Surface Meteorology
+                                        snowc, vegfrac, &  ! Surface Variables
+                                        swdn, swup, lwdn, lwup, &  ! Radiation Fluxes
+                                        swdnc, swupc, lwdnc, lwupc, &  ! Radiation Fluxes
+                                        MetState, ChemState, EmisState, DiagState, &  ! CATChem States
+                                        errmsg, errflg)  ! Error Handling
+                                        MetState, ChemState, EmisState, DiagState)
 
-      temp, spechum, pfull, phalf, &
-      u, v, delp, zh, kh, prsl, prslk, &
-      u10m, v10m, tskin, ps, precip, &
-      slmsk, snowh, vegtype, soiltyp, &
-      hf, zpbl, coszen, albedo, emis, &
-      ustar, shflx, lhflx, &
-      snowc, vegfrac, &
-      swdn, swup, lwdn, lwup, &
-      swdnc, swupc, lwdnc, lwupc, &
-      MetState, ChemState, &
-      errmsg, errflg)
-
-      use CATChem, only: MetStateType, ChemStateType
+      use CATChem, only: MetStateType, ChemStateType, DiagStateType, EmisStateType
 
       implicit none
       !! Transform CCPP meteorological arrays to CATChem states
       integer,  intent(in)    :: im              !> number of horizontal points
       integer,  intent(in)    :: kme             !> number of vertical levels
+      integer, intent(in)     :: nVert           !> number of vertical levels
+      integer, intent(in)     :: nVertInterface  !> number of vertical levels
+      integer, intent(in)     :: nsoil           !> number of soil levels
+      integer, intent(in)     :: nlndcat         !> number of land categories
+      integer, intent(in)     :: nsoilcat        !> number of soil categories
 
       ! 3D/Layer Variables (dim(:,:))
       real(kind=phys), intent(in) :: temp(:,:)       !> temperature (K)
@@ -273,9 +279,13 @@ contains
       real(kind=phys), intent(in) :: lwdnc(:)        !> clear-sky downward longwave radiation (W/m2)2)
       real(kind=phys), intent(in) :: lwupc(:)        !> clear-sky upward longwave radiation (W/m2)
 
+      ! Emissions
+      real(kind=phys), intent(in) :: emi_in(:)         !> emissions
       ! CATChem States
       type(MetStateType),  intent(inout) :: MetState(:)    !> CATChem meteorology state
       type(ChemStateType), intent(inout) :: ChemState(:)   !> CATChem chemistry state
+      type(EmisStateType), intent(inout) :: EmisState(:)   !> CATChem emission state
+      type(DiagStateType), intent(inout) :: DiagState(:)   !> CATChem diagnostic state
 
       ! Error handling
       character(len=*), intent(out) :: errmsg    !> error message
@@ -296,7 +306,7 @@ contains
       endif
 
       ! Transform data for each horizontal point
-      do i = 1, im
+      horiz: do i = 1, im
         ! Verify vertical dimension
         if (MetState(i)%nLEVS /= kme) then
         errmsg = 'Vertical dimension mismatch'
@@ -305,7 +315,7 @@ contains
         endif
 
         ! 3D/Layer Variables
-        do k = 1, kme
+        vert: do k = 1, kme
             MetState(i)%temp(k)    = temp(i,k)
             MetState(i)%spechum(k) = spechum(i,k)
             MetState(i)%pfull(k)   = pfull(i,k)
@@ -317,7 +327,7 @@ contains
             MetState(i)%kh(k)      = kh(i,k)
             MetState(i)%prsl(k)    = prsl(i,k)
             MetState(i)%prslk(k)   = prslk(i,k)
-        end do
+        end do vert
 
         ! Surface Variables
         MetState(i)%ps       = ps(i)
@@ -357,7 +367,7 @@ contains
         MetState(i)%lwdnc    = lwdnc(i)
         MetState(i)%lwupc    = lwupc(i)
 
-      end do
+      end do horiz
 
     end subroutine transform_ccpp_to_catchem
 
