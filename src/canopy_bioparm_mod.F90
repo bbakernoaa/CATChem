@@ -1579,7 +1579,7 @@ contains
                 ROOTA = (6.326_rk + 7.718_rk)/2.0_rk
                 ROOTB = (1.567_rk + 1.262_rk)/2.0_rk
 
-            else if (VTYPE .ge. 8 .and. VTYPE .le. 10) then !VIIRS/MODIS Cat 8-10 Savannas and Grasslands
+            else if (VTYPE .ge. 8 .and. VTYPE .le. 11) then !VIIRS/MODIS Cat 8-10 Savannas and Grasslands
                 !--> Avearge Arctic C3 Grass, Cool C3 Grass, Warm C4 Grass)
 
                 EF = (EF12+EF13+EF14)/3.0_rk
