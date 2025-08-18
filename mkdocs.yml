@@ -281,7 +281,7 @@ nav:
 
   - API Reference:
     - api/index.md
-    - Auto-Generated API: CATChem/
+    - Auto-Generated API: CATChem/group__catchem.md
 
   - Guides:
     - guides/index.md
