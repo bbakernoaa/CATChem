@@ -5,6 +5,7 @@ This section covers the configuration management APIs that handle YAML-based set
 ## Overview
 
 The Configuration system provides:
+
 - **ConfigManager**: YAML configuration file parsing and management
 - **ConfigData**: Runtime configuration data access
 - **Parameter validation**: Type checking and constraint validation
@@ -30,7 +31,7 @@ call config_mgr%get_config_data(config_data, rc)
 call config_mgr%validate_config(rc)
 ```
 
-**Auto-Generated Documentation:** [Config Manager Reference](../CATChem/namespaceconfig__manager__mod.md)
+**Auto-Generated Documentation:** [Config Manager Reference](../CATChem/namespaceconfigmanager__mod.md)
 
 ### ConfigData
 
@@ -85,6 +86,7 @@ processes:
 ### Data Types
 
 **Supported Types:**
+
 - `integer` - Integer values
 - `real` - Floating-point values
 - `logical` - Boolean values
@@ -333,6 +335,8 @@ if (rc /= CC_SUCCESS) then
 endif
 call error_mgr%pop_context()
 ```
+
+**Auto-Generated Documentation:** [Error Handling Reference](../CATChem/namespaceerror__mod.md)
 
 ## Best Practices
 

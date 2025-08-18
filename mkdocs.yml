@@ -1,5 +1,5 @@
-site_name: CATChem - Chemical Transport Model
-site_description: Community Atmospheric Transport Chemistry Model
+site_name: CATChem Library and Modelling Component
+site_description: CATChem (Configurable Atmospheric Chemistry)
 site_author: CATChem Development Team
 site_url: https://catchem.readthedocs.io
 
@@ -206,14 +206,11 @@ extra:
 
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/NOAA-GSL/CATChem
+      link: https://github.com/UFS-Community/CATChem
       name: CATChem on GitHub
     - icon: fontawesome/solid/globe
-      link: https://gsl.noaa.gov
-      name: NOAA Global Systems Laboratory
-    - icon: fontawesome/solid/envelope
-      link: mailto:gsl.help@noaa.gov
-      name: Contact GSL
+      link: https://ufs.epic.noaa.gov/
+      name: UFS - Unified Forecast System
 
   analytics:
     provider: google
@@ -295,3 +292,9 @@ nav:
     - Configuration Management: guides/configuration-management.md
     - Performance Optimization: guides/performance.md
     - Integration Patterns: guides/integration-patterns.md
+
+  - UFS-Chem:
+    - ufschem/index.md
+
+  - Community Engagement:
+    - community/index.md
