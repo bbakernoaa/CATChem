@@ -1,6 +1,6 @@
 # Model Overview
 
-CATChem is a modern atmospheric chemistry transport model designed for operational weather prediction and research applications.
+CATChem is a modern atmospheric chemistry library and modeling component that can be integrated into atmospheric chemistry models used for operational weather, smoke, and air quality prediction and research applications.
 
 ## Architecture
 
@@ -22,6 +22,7 @@ flowchart TB
 
 ### State Management
 The **StateContainer** is the central data repository that manages:
+
 - Chemical species concentrations
 - Meteorological fields (temperature, pressure, wind, etc.)
 - Diagnostic variables
@@ -29,7 +30,8 @@ The **StateContainer** is the central data repository that manages:
 - Memory allocation and cleanup
 
 ### Process System
-CATChem implements atmospheric physics as discrete **Processes**:
+CATChem implements atmospheric chemistry and physics as discrete **processes**:
+
 - Each process handles a specific physical/chemical phenomenon
 - Processes operate independently on the StateContainer
 - Clean interfaces enable easy testing and development
@@ -37,16 +39,17 @@ CATChem implements atmospheric physics as discrete **Processes**:
 
 ### Column Virtualization
 The **Column Interface** provides efficient 1D processing:
+
 - Atmospheric columns processed independently
 - Automatic parallelization across columns
 - Optimized memory access patterns
 - Linear scaling to thousands of cores
 
-## Supported Physics
+## Supported Processes
 
 ### Transport Processes
 - **Gravitational Settling**: Stokes law with slip correction
-- **Vertical Mixing**: YSU boundary layer parameterization
+- **Vertical Mixing**: Host model responsibility
 - **Horizontal Advection**: Host model responsibility
 
 ### Chemical Processes
@@ -171,11 +174,9 @@ processes:
 - Performance benchmarking
 - Regression testing
 
-### Verification and Validation
-- Analytical solution comparisons
-- Laboratory data validation
+### Verification and Evaluation
 - Intermodel comparisons
-- Observational validation
+- Observational evaluation
 
 ### Error Handling
 - Robust error detection and reporting
