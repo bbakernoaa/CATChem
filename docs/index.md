@@ -174,7 +174,7 @@ flowchart TB
 
 - **GitHub Repository**: [UFS-Community/CATChem](https://github.com/UFS-Community/CATChem)
 - **Documentation**: [https://catchem.readthedocs.io](https://catchem.readthedocs.io)
-- **Issue Tracker**: [GitHub Issues](https://github.com/UFS-Community//CATChem/issues)
+- **Issue Tracker**: [GitHub Issues](https://github.com/UFS-Community/CATChem/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/UFS-Community/CATChem/discussions)
 
 ## 📄 License
