@@ -25,7 +25,7 @@ More information coming soon!
 ### Emission Processes
 - [Biogenic Emissions](../processes/biogenic_emission/biogenic_emission.md) - Biogenic emissions from vegetation
 - [Dust Emissions](../processes/dust/dust.md) - Windblown dust emissions
-- [Sea Salt](../processes/seasalt/index.md) - Marine aerosol processes
+- [Sea Salt Emissions](../processes/seasalt/index.md) - Marine aerosol processes
 - [External Emission Plume Rise](../processes/EXTERNAL_DATA_PLUME_RISE_SOLUTION.md) - Complete solution for external emission data and plume rise
 - [External Emissions](../processes/external_emission_data/external_emission_data.md) - Data management for external emissions in CATChem
      -  [Integration Guide](../processes/external_emission_data/INTEGRATION_GUIDE.md) - Integration Guide for external emissions

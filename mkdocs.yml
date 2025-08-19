@@ -223,34 +223,19 @@ nav:
     - What's New: whats-new.md
     - License: license.md
 
-  - Quick Start:
-    - quick-start/index.md
-    - Installation: quick-start/installation.md
-    - First Run: quick-start/first-run.md
-    - Basic Configuration: quick-start/configuration.md
-    - Examples: quick-start/examples.md
-
   - User Guide:
     - user-guide/index.md
-    - Model Overview: user-guide/model-overview.md
+    - Overview: user-guide/overview.md
     - Configuration System: user-guide/configuration.md
     - Input Files: user-guide/input-files.md
-    - Running CATChem: user-guide/running.md
-    - Output Files: user-guide/output-files.md
     - Processes:
-      - user-guide/processes/index.md
-      - Atmospheric Chemistry: user-guide/processes/chemistry.md
-      - Emissions: user-guide/processes/emissions.md
-      - Dry Deposition: user-guide/processes/drydep.md
-      - Wet Deposition: user-guide/processes/wetdep.md
-      - Settling: user-guide/processes/settling.md
-      - Vertical Mixing: user-guide/processes/verticalmixing.md
-      - Dust Processes: user-guide/processes/dust.md
-      - Sea Salt: user-guide/processes/seasalt.md
-      - Plume Rise: user-guide/processes/plumerise.md
-    - Diagnostics: user-guide/diagnostics.md
-    - Performance Tuning: user-guide/performance.md
-    - Troubleshooting: user-guide/troubleshooting.md
+      - Process Overview: processes/index.md
+      - Settling: processes/settling_process.md
+      - Plume Rise: processes/plume_rise/plume_rise.md
+      - Biogenic Emissions: processes/biogenic_emission/biogenic_emission.md
+      - Dust Emissions: processes/dust/dust.md
+      - Sea Salt Emissions: processes/seasalt/index.md
+      - External Emissions: processes/external_emission_data/external_emission_data.md
 
   - Developer Guide:
     - developer-guide/index.md
