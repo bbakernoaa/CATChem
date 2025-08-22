@@ -523,52 +523,6 @@ subroutine calculate_budget(species_name, budget, diagnostics, rc)
 end subroutine calculate_budget
 ```
 
-## Visualization and Analysis
-
-### Real-time Visualization
-
-```yaml
-visualization:
-  real_time_plots:
-    enabled: true
-    update_frequency: "hourly"
-    plots:
-      - type: "timeseries"
-        variables: ["O3", "NO2", "PM25"]
-        locations: ["urban", "rural", "background"]
-
-      - type: "spatial_map"
-        variable: "O3"
-        level: "surface"
-
-      - type: "vertical_profile"
-        variable: "temperature"
-        location: [40.0, -75.0]
-
-  output_formats: ["png", "svg", "interactive_html"]
-```
-
-### Post-processing Integration
-
-```python
-# Example Python integration
-import catchem_diagnostics as cd
-
-# Load diagnostic data
-diag_data = cd.load_diagnostics("catchem_output.nc")
-
-# Create analysis
-analysis = cd.DiagnosticAnalysis(diag_data)
-
-# Generate standard plots
-analysis.plot_timeseries("O3", save_as="o3_timeseries.png")
-analysis.plot_budget("NOx", save_as="nox_budget.png")
-
-# Custom analysis
-correlation = analysis.correlate("O3", "temperature")
-print(f"O3-Temperature correlation: {correlation}")
-```
-
 ## Troubleshooting
 
 ### Common Issues
@@ -614,7 +568,6 @@ catchem_diagnostic_summary --input output.nc --output summary.html
 - [Configuration Management](configuration-management.md)
 - [Performance Guide](performance.md)
 - [Process Infrastructure](process-infrastructure.md)
-- [Output File Format](../user-guide/output-files.md)
 
 ---
 

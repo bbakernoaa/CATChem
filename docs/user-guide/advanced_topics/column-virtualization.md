@@ -80,23 +80,6 @@ end do
 !$OMP END PARALLEL DO
 ```
 
-## Performance Benefits
-
-<div class="performance-metric">
-  <span>Processing Speed</span>
-  <span class="performance-metric__value">8-12x faster</span>
-</div>
-
-<div class="performance-metric">
-  <span>Memory Efficiency</span>
-  <span class="performance-metric__value">60% reduction</span>
-</div>
-
-<div class="performance-metric">
-  <span>Cache Performance</span>
-  <span class="performance-metric__value">3x better locality</span>
-</div>
-
 ## Implementation Guide
 
 ### 1. Column-Aware Process Design
@@ -306,6 +289,5 @@ debug:
 
 ## See Also
 
-- [Performance Tuning](../user-guide/performance.md)
 - [Process Architecture](../developer-guide/processes/index.md)
 - [StateContainer Guide](statecontainer.md)

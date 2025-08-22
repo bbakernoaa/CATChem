@@ -5,6 +5,7 @@ The StateManager is CATChem's unified data management system, providing centrali
 ## Overview
 
 The StateManager coordinates:
+
 - **Meteorological State**: Temperature, pressure, winds, etc. (MetState)
 - **Chemical State**: Atmospheric constituent concentrations (ChemState)
 - **State Validation**: Consistency checks and validation utilities
