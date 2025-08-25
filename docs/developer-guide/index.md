@@ -12,6 +12,10 @@ CATChem is designed with modern software engineering principles:
 - **Comprehensive Testing**: Unit tests, integration tests, and validation benchmarks
 - **Documentation-Driven**: Extensive documentation and clear APIs
 
+See our [**Contributor Guide**](contributing.md) to learn the basics on how to contribute!
+
+Before getting started, review our [**Coding Standards**](coding-standards.md) to learn how we ensure consistency, maintainability, and performance across the codebase.
+
 ## Quick Navigation
 
 <div class="grid cards" markdown>
@@ -40,6 +44,12 @@ CATChem is designed with modern software engineering principles:
 
   Testing framework, validation, and quality assurance
 
+- [:material-book-open-variant-outline: **Documentation**](documentation.md)
+
+  ---
+
+  All code includes comprehensive documentation
+
 </div>
 
 ## Architecture Overview
@@ -62,24 +72,30 @@ flowchart TB
     K --> L["Output"]
 ```
 
+Refer to the [**Developer Architecture Guide**](architecture.md) to learn about software architecture, design principles, and implementation patterns for developers
+
 ### Key Design Principles
 
-1. **Separation of Concerns**
+**Separation of Concerns**
+
    - Host model handles I/O and grid management
-   - CATChem focuses on atmospheric chemistry and transport
+   - CATChem focuses on atmospheric chemistry and composition processes
    - Clear interfaces between components
 
-2. **Column Virtualization**
+**Column Virtualization**
+
    - Default processing mode for optimal performance
    - Automatic load balancing and memory optimization
    - Maintains physical correctness while improving efficiency
 
-3. **Process-Based Architecture**
+**Process-Based Architecture**
+
    - Each atmospheric process is independent
    - Pluggable schemes within processes
    - Clear dependency management
 
-4. **Modern Error Handling**
+**Modern Error Handling**
+
    - Context-aware error reporting
    - Structured error codes and messages
    - Graceful degradation and recovery
@@ -89,8 +105,9 @@ flowchart TB
 ### 1. Setting Up Development Environment
 
 ```bash
-# Clone with development branches
-git clone -b develop https://github.com/NOAA-GSL/CATChem.git
+# Create a fork of the CATChem repository: https://github.com/UFS-Community/CATChem.git
+# Clone the develop branch from your fork
+git clone -b develop https://github.com/Your-Fork/CATChem.git
 cd CATChem
 
 # Create development build
@@ -126,6 +143,8 @@ git push origin feature/my-new-process
 
 All code must include comprehensive documentation:
 
+Documentation updates should be included in the same pull request with your code updates.
+
 ```fortran
 !> \file MyProcess_Mod.F90
 !! \brief Brief description of the process
@@ -150,6 +169,7 @@ All code must include comprehensive documentation:
 !!
 subroutine calculate_settling_velocity(nz, temperature, velocity, rc)
 ```
+Learn more about contributing to CATChem documentation in the [**Developer Documentation Guide**](documentation.md).
 
 ## Key Concepts
 
@@ -172,6 +192,8 @@ concentrations => chem_state%concentrations
 config => container%get_config_ptr()
 ```
 
+Refer to the [**Developer State Management Guide**](core/state-management.md) to learn more.
+
 ### Process Interface
 
 All processes inherit from `ProcessInterface`:
@@ -186,6 +208,8 @@ contains
 end type
 ```
 
+Refer to the [**Process Development Guide**](processes/index.md) to learn more.
+
 ### Column Virtualization
 
 Processes can implement column processing for performance:
@@ -197,6 +221,8 @@ contains
    procedure :: supports_column_processing => my_process_supports_column
 end type
 ```
+
+Refer to the [**Developer Column Virtualization Guide**] (core/column-virtualization.md) to learn more.
 
 ### Error Handling
 
@@ -222,55 +248,71 @@ endif
 call error_mgr%pop_context()
 ```
 
+Refer to the [**Developer Error Handling Guide**](core/error-handling.md) to learn more.
+
+Refer to the [**Developer Core Systems Guide**](core/index.md) to learn about more core systems in CATChem.
+
 ## Contributing Guidelines
 
 ### Code Standards
 
-1. **Fortran Style**
+**Fortran Style**
+
+   - Follow the [**Fortran Style Guide**](coding-standards.md#fortran)
    - Use modern Fortran (2008+) features
-   - Follow the [Fortran Style Guide](coding-standards.md)
    - Use meaningful variable names
    - Include comprehensive comments
 
-2. **Performance**
+**Performance**
+
+   - Follow the [**Performance Guidelines**](coding-standards.md#performance)
    - Prefer column processing over 3D processing
    - Use intent declarations correctly
    - Avoid unnecessary allocations
    - Profile performance-critical code
 
-3. **Testing**
+**Testing**
+
+   - Follow the [**Testing Standards**](coding-standards.md#testing)
    - Write unit tests for all new functionality
    - Include integration tests for processes
    - Validate against analytical solutions where possible
    - Test error conditions and edge cases
 
+Learn more in the [**Developer Coding Standards Guide**](coding_standards.md).
+
 ### Review Process
 
-1. **Pre-Review Checklist**
-   - [ ] Code compiles without warnings
-   - [ ] All tests pass
-   - [ ] Documentation updated
-   - [ ] Style checks pass
-   - [ ] Performance regression tests
+**Pre-Review Checklist**
 
-2. **Code Review**
-   - Technical correctness
-   - Architecture consistency
-   - Performance implications
-   - Documentation quality
-   - Test coverage
+   - [x] Code compiles without warnings
+   - [x] All tests pass
+   - [x] Documentation updated
+   - [x] Style checks pass
+   - [x] Performance regression tests
 
-3. **Integration**
-   - Continuous Integration (CI) checks
-   - Performance benchmarks
-   - Documentation build
-   - Release notes update
+**Code Review**
+
+   - [x] Technical and scientific correctness
+   - [x] Architecture consistency
+   - [x] Performance implications
+   - [x] Documentation quality
+   - [x] Test coverage
+
+**Integration**
+
+   - [x] Continuous Integration (CI) checks
+   - [x] Performance benchmarks
+   - [x] Documentation build
+   - [x] Release notes update
+
+Learn more in the [**Contributor Guide Under Review Process**](contributing.md#review_process).
 
 ## Tools and Utilities
 
 ### Development Tools
 
-- **CMake**: Modern build system with testing integration
+- **CMake**: [**Modern build system**](core/build-system.md) with testing integration
 - **CTest**: Automated testing framework
 - **Doxygen**: API documentation generation
 - **lcov**: Code coverage analysis
@@ -308,56 +350,32 @@ gdb ./catchem_test
 
 ### Performance Optimization
 
-- [Column Virtualization Guide](core/column-virtualization.md)
-- [Memory Management Best Practices](performance.md)
-- [Profiling and Benchmarking](performance.md#profiling)
+- [**Column Virtualization Guide**](core/column-virtualization.md)
+- [**Memory Management Best Practices**](performance.md)
+- [**Profiling and Benchmarking**](performance.md#profiling)
 
-### Integration Patterns
+### [**CATChem Integration Into Host Models**](integration/index.md)
 
-- [CCPP Integration](integration/ccpp.md)
-- [NUOPC Coupling](integration/nuopc.md)
-- [FV3 Integration](integration/fv3.md)
+- [**CCPP Integration**](integration/ccpp.md)
+- [**NUOPC Coupling**](integration/nuopc.md)
+- [**FV3 Integration**](integration/fv3.md)
 
 ### Extending the Framework
 
-- [Creating New Process Types](processes/creating.md)
-- [Adding Diagnostic Variables](core/diagnostics.md)
-- [Custom Configuration Options](core/configuration.md)
+- [**Creating New Process Types**](processes/creating.md)
+- [**Adding Diagnostic Variables**](core/diagnostics.md)
+- [**Custom Configuration Options**](core/configuration.md)
+- [**Adding Or Updating Tests**](testing.md)
 
 ## Getting Help
 
 ### Community Resources
 
-- **GitHub Discussions**: [Technical discussions and Q&A](https://github.com/NOAA-GSL/CATChem/discussions)
-- **Issue Tracker**: [Bug reports and feature requests](https://github.com/NOAA-GSL/CATChem/issues)
-- **Developer Meetings**: Monthly virtual meetings (contact team for details)
-
-### Internal Resources
-
-- **NOAA GSL Team**: [gsl.help@noaa.gov](mailto:gsl.help@noaa.gov)
-- **Architecture Reviews**: Required for major changes
-- **Mentorship Program**: Available for new contributors
-
-## Roadmap
-
-### Short Term (6 months)
-- Enhanced diagnostic system
-- Improved column virtualization
-- Additional chemistry mechanisms
-- Performance optimizations
-
-### Medium Term (1 year)
-- GPU acceleration support
-- Advanced parallelization
-- Machine learning integration
-- Cloud-native deployment
-
-### Long Term (2+ years)
-- Exascale computing support
-- Real-time data assimilation
-- Coupled earth system integration
-- Interactive web interfaces
+- **GitHub Discussions**: [**Technical discussions and Q&A**](https://github.com/UFS-Community/CATChem/discussions)
+- **Issue Tracker**: [**Bug reports and feature requests**](https://github.com/UFS-Community/CATChem/issues)
+- **Developer Meetings**: Bi-weekly virtual meetings (contact team for details)
+- **Community Meetings**: Bi-monthly virtual meetings (contact team for details)
 
 ---
 
-Ready to start developing? Check out the [Process Development Guide](processes/index.md) to create your first CATChem process!
+Ready to start developing? Check out the [**Process Development Guide**](processes/index.md) to create your first CATChem process!

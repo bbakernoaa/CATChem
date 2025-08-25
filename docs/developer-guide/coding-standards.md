@@ -2,7 +2,7 @@
 
 CATChem coding standards ensure consistency, maintainability, and performance across the codebase.
 
-## Fortran Standards
+## Fortran Standards {#fortran}
 
 ### Language Version
 - **Target**: Fortran 2008 with selected 2018 features
@@ -219,7 +219,7 @@ subroutine my_procedure(data, rc)
 end subroutine
 ```
 
-## Performance Guidelines
+## Performance Guidelines {#performance}
 
 ### Memory Management
 ```fortran
@@ -264,7 +264,7 @@ real(fp) :: value = 1.0_fp
 real(fp), parameter :: BOLTZMANN_CONSTANT = 1.380649e-23_fp
 ```
 
-## Testing Standards
+## Testing Standards {#testing}
 
 ### Unit Test Structure
 ```fortran
@@ -303,11 +303,11 @@ end program
 ## Code Review Guidelines
 
 ### Pre-Review Checklist
-- [ ] Code follows naming conventions
-- [ ] All procedures are documented
-- [ ] Unit tests are included
-- [ ] No compiler warnings
-- [ ] Performance considerations addressed
+- [x] Code follows naming conventions
+- [x] All procedures are documented
+- [x] Unit tests are included
+- [x] No compiler warnings
+- [x] Performance considerations addressed
 
 ### Review Criteria
 - **Correctness**: Does the code do what it's supposed to?

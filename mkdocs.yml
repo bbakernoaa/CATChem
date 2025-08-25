@@ -247,9 +247,9 @@ nav:
 
   - Developer Guide:
     - developer-guide/index.md
-    - Architecture Overview: developer-guide/architecture.md
-    - Build System: developer-guide/build-system.md
+    - Contributing Guide: developer-guide/contributing.md
     - Coding Standards: developer-guide/coding-standards.md
+    - Architecture Overview: developer-guide/architecture.md
     - Process Development:
       - developer-guide/processes/index.md
       - Process Architecture: developer-guide/processes/architecture.md
@@ -263,14 +263,16 @@ nav:
       - Diagnostic System: developer-guide/core/diagnostics.md
       - Error Handling: developer-guide/core/error-handling.md
       - Configuration System: developer-guide/core/configuration.md
+      - Build System: developer-guide/core/build-system.md
     - Integration:
       - developer-guide/integration/index.md
       - CCPP Integration: developer-guide/integration/ccpp.md
       - NUOPC Integration: developer-guide/integration/nuopc.md
       - FV3 Integration: developer-guide/integration/fv3.md
     - Testing: developer-guide/testing.md
-    - Documentation: developer-guide/documentation.md
-    - Contributing: developer-guide/contributing.md
+    - Documentation Guide: developer-guide/documentation.md
+    - Performance Guide: developer-guide/performance.md
+
 
   - API Reference:
     - api/index.md

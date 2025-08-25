@@ -1,6 +1,6 @@
-# Contributing to CATChem
+# Contributing Guide to CATChem
 
-Thank you for your interest in contributing to CATChem! This guide will help you get started with contributing to the Community Atmospheric Transport Chemistry Model.
+This guide will help you get started with learning the basics on how to contribute to the CATChem library and modeling component. Thank you for your interest in contributing!
 
 ## Overview
 
@@ -16,7 +16,7 @@ CATChem is a community-driven project that welcomes contributions from:
 
 ### Code Contributions
 
-- **New atmospheric processes** (chemistry, emissions, transport, deposition)
+- **New atmospheric processes** (chemistry, emissions, transport, losses)
 - **Performance optimizations** and algorithm improvements
 - **Bug fixes** and error handling improvements
 - **Testing infrastructure** and validation tools
@@ -43,6 +43,7 @@ CATChem is a community-driven project that welcomes contributions from:
 ### 1. Development Environment Setup
 
 **Prerequisites:**
+
 - Modern Fortran compiler (Intel 2019+, GNU 9+)
 - MPI implementation (OpenMPI, Intel MPI)
 - NetCDF-Fortran and HDF5 libraries
@@ -51,8 +52,9 @@ CATChem is a community-driven project that welcomes contributions from:
 
 **Environment Setup:**
 ```bash
-# Clone the repository
-git clone https://github.com/NOAA-GSL/CATChem.git
+# Create a fork of the CATChem repository: https://github.com/UFS-Community/CATChem.git
+# Clone the develop branch from your fork
+git clone https://github.com/Your-Fork/CATChem.git
 cd CATChem
 
 # Create development branch
@@ -69,6 +71,8 @@ make -j 8
 ```
 
 ### 2. Code Style and Standards
+
+Review our [**Coding Standards Documentation**](coding-standards.md) for more details.
 
 **Fortran Coding Standards:**
 ```fortran
@@ -148,6 +152,8 @@ module ProcessInterface_Mod
 end module ProcessInterface_Mod
 ```
 
+Learn more about contributing to CATChem documentation in the [**Developer Documentation Guide**](documentation.md)
+
 ### 3. Testing Requirements
 
 **Unit Tests:**
@@ -184,11 +190,14 @@ cd tests
 ./run_integration_tests.sh
 ```
 
+Learn more about testing requirements in the [**Developer Testing Guide**](testing.md)
+
 ## Development Workflow
 
 ### 1. Issue-Driven Development
 
 **Before Starting:**
+
 1. **Check existing issues** - Look for related work
 2. **Create or comment on issue** - Describe your planned contribution
 3. **Get feedback** - Discuss approach with maintainers
@@ -197,6 +206,7 @@ cd tests
 ### 2. Branch Strategy
 
 **Branch Naming:**
+
 - `feature/descriptive-name` - New features
 - `bugfix/issue-number-description` - Bug fixes
 - `docs/topic-name` - Documentation updates
@@ -226,6 +236,7 @@ git checkout -b docs/process-generator-tutorial
 ```
 
 **Types:**
+
 - `feat` - New feature
 - `fix` - Bug fix
 - `docs` - Documentation changes
@@ -265,6 +276,7 @@ Addresses #789"
 ### 4. Pull Request Process
 
 **Before Submitting:**
+
 1. **Rebase on main** - Ensure clean history
 2. **Run all tests** - Unit, integration, and performance tests
 3. **Update documentation** - Include relevant docs updates
@@ -300,6 +312,7 @@ Addresses #456
 ```
 
 **Review Process:**
+
 1. **Automated checks** - CI/CD pipeline runs automatically
 2. **Code review** - At least one maintainer review required
 3. **Testing** - Reviewers may run additional tests
@@ -310,14 +323,15 @@ Addresses #456
 ### Process Development
 
 **New Process Checklist:**
-- [ ] Use the [process generator](processes/generator-tutorial.md)
-- [ ] Extend `ProcessInterface` base class
-- [ ] Implement all required lifecycle methods
-- [ ] Add configuration validation
-- [ ] Include comprehensive error handling
-- [ ] Write unit and integration tests
-- [ ] Document the process thoroughly
-- [ ] Add examples and usage guides
+
+- [x] Use the [**process generator**](processes/generator-tutorial.md)
+- [x] Extend `ProcessInterface` base class
+- [x] Implement all required lifecycle methods
+- [x] Add configuration validation
+- [x] Include comprehensive error handling
+- [x] Write unit and integration tests
+- [x] Document the process thoroughly
+- [x] Add examples and usage guides
 
 **Process Documentation:**
 ```markdown
@@ -343,11 +357,11 @@ Comparison with observations or other models.
 
 ## References
 Scientific literature and validation sources.
-```
 
 ### Performance Contributions
 
 **Performance Guidelines:**
+
 - **Profile before optimizing** - Use built-in profiling tools
 - **Benchmark changes** - Document performance improvements
 - **Consider all architectures** - Test on Intel, AMD, ARM systems
@@ -363,6 +377,7 @@ cd tests/performance
 ### Documentation Contributions
 
 **Documentation Standards:**
+
 - **Clear and concise** - Write for your target audience
 - **Complete examples** - Include working code/config examples
 - **Cross-references** - Link to related documentation
@@ -388,17 +403,19 @@ Common issues and solutions.
 Related documentation and external resources.
 ```
 
-## Review Process
+## Review Process {#review_process}
 
 ### Code Review Guidelines
 
 **For Authors:**
+
 - **Small, focused PRs** - Easier to review and understand
 - **Clear descriptions** - Explain what and why, not just how
 - **Respond promptly** - Address reviewer comments quickly
 - **Test thoroughly** - Don't rely solely on CI/CD
 
 **For Reviewers:**
+
 - **Be constructive** - Provide helpful suggestions
 - **Focus on important issues** - Don't nitpick style if tools handle it
 - **Test if needed** - Run code locally for complex changes
@@ -406,27 +423,39 @@ Related documentation and external resources.
 
 ### Review Criteria
 
+**Pre-Review Checklist**
+
+- [x] Code compiles without warnings
+- [x] All tests pass
+- [x] Documentation updated
+- [x] Style checks pass
+- [x] Performance regression tests
+
 **Code Quality:**
-- Follows coding standards and conventions
-- Includes appropriate error handling
-- Has adequate test coverage
-- Is well-documented and commented
+
+- [x] Follows coding standards and conventions
+- [x] Includes appropriate error handling
+- [x] Has adequate test coverage
+- [x] Is well-documented and commented
 
 **Scientific Accuracy:**
-- Implements processes correctly
-- Includes proper validation
-- Maintains physical consistency
-- References appropriate literature
+
+- [x] Implements processes correctly
+- [x] Includes proper validation
+- [x] Maintains physical consistency
+- [x] References appropriate literature
 
 **Performance:**
-- Doesn't introduce significant performance regressions
-- Uses efficient algorithms and data structures
-- Considers memory usage and scalability
+
+- [x] Doesn't introduce significant performance regressions
+- [x] Uses efficient algorithms and data structures
+- [x] Considers memory usage and scalability
 
 **Integration:**
-- Works with existing codebase
-- Doesn't break existing functionality
-- Follows established patterns and interfaces
+
+- [x] Works with existing codebase
+- [x] Doesn't break existing functionality
+- [x] Follows established patterns and interfaces
 
 ## Release Process
 
@@ -447,11 +476,13 @@ CATChem follows semantic versioning (MAJOR.MINOR.PATCH):
 ### Contributing to Releases
 
 **Feature Freeze:**
+
 - No new features after feature freeze date
 - Bug fixes and documentation updates only
 - Testing and validation focus
 
 **Release Candidates:**
+
 - Community testing period
 - Issue reporting and fixing
 - Documentation finalization
@@ -460,24 +491,26 @@ CATChem follows semantic versioning (MAJOR.MINOR.PATCH):
 
 ### Code of Conduct
 
-CATChem follows the [Contributor Covenant Code of Conduct](https://www.contributor-covenant.org/). All community members are expected to uphold these standards.
+CATChem follows the [**Contributor Covenant Code of Conduct**](https://www.contributor-covenant.org/). All community members are expected to uphold these standards.
 
 ### Communication Channels
 
-- **GitHub Issues** - Bug reports and feature requests
-- **GitHub Discussions** - General questions and community discussion
-- **Developer Meetings** - Monthly video calls (see calendar)
-- **Email Lists** - Release announcements and important updates
+- [**GitHub Issues**](https://github.com/UFS-Community/CATChem/issues) - Bug reports and feature requests
+- [**GitHub Discussions**](https://github.com/UFS-Community/CATChem/discussions) - General questions and community discussion
+- **Developer Meetings**: Bi-weekly virtual meetings (contact team for details)
+- **Community Meetings**: Bi-monthly virtual meetings (contact team for details)
 
 ### Getting Help
 
 **For Contributors:**
+
 - Check existing documentation and issues first
-- Use GitHub Discussions for general questions
+- Use [**GitHub Discussions**](https://github.com/UFS-Community/CATChem/discussions) for general questions
 - Join developer meetings for complex discussions
 - Contact maintainers directly for urgent issues
 
 **For Users:**
+
 - Start with user documentation and tutorials
 - Search existing issues for known problems
 - Create new issues with detailed problem descriptions
@@ -505,24 +538,24 @@ Active contributors may be invited to become maintainers:
 
 ### Development Resources
 
-- [Developer Guide](index.md)
-- [Build System Documentation](build-system.md)
-- [Testing Guide](testing.md)
-- [Performance Guide](performance.md)
-- [Process Generator Tutorial](processes/generator-tutorial.md)
+- [**Developer Guide**](index.md)
+- [**Build System Documentation**](core/build-system.md)
+- [**Testing Guide**](testing.md)
+- [**Performance Guide**](performance.md)
+- [**Process Generator Tutorial**](processes/generator-tutorial.md)
 
 ### Community Resources
 
-- [CATChem GitHub Repository](https://github.com/NOAA-GSL/CATChem)
-- [Issue Tracker](https://github.com/NOAA-GSL/CATChem/issues)
-- [Discussions Forum](https://github.com/NOAA-GSL/CATChem/discussions)
-- [Developer Documentation](https://catchem.readthedocs.io/en/latest/developer-guide/)
+- [**CATChem GitHub Repository**](https://github.com/NOAA-GSL/CATChem)
+- [**Issue Tracker**](https://github.com/NOAA-GSL/CATChem/issues)
+- [**Discussions Forum**](https://github.com/NOAA-GSL/CATChem/discussions)
+- [**Developer Documentation**](https://catchem.readthedocs.io/en/latest/developer-guide/)
 
 ### Scientific Resources
 
-- [Process Documentation](../processes/index.md)
-- [Validation Studies](../validation/index.md)
-- [Scientific References](../references.md)
+- [**Process Documentation**](../processes/index.md)
+- [**Evaluation Studies**](../evaluation/index.md)
+- [**Scientific References**](../references.md)
 
 ---
 
