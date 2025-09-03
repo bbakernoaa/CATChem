@@ -18,6 +18,43 @@ flowchart TB
     I --> J["Output System"]
 ```
 
+## Quick Start
+
+=== "Installation"
+
+    ```bash
+    # Clone the repository
+    git clone https://github.com/UFS-Community/CATChem.git
+    cd CATChem
+
+    # Build with CMake
+    mkdir build && cd build
+    cmake ..
+    make -j$(nproc)
+    ```
+
+=== "Testing"
+
+    ```bash
+    # Run a test case
+    cd build
+    ctest -R test_CATChemCore
+
+    ```
+
+=== "Integration"
+
+    ```fortran
+    ! Integrate with your model
+    use CATChemAPI_Mod
+
+    type(CATChemType) :: catchem
+
+    call catchem%init(config_file, rc)
+    call catchem%run(dt, met_fields, chem_fields, rc)
+    call catchem%finalize(rc)
+    ```
+
 ## Core Components
 
 ### State Management

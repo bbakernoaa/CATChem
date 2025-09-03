@@ -43,19 +43,17 @@ CATChem (Configurable ATmospheric Chemistry) is a library and modeling component
 
     # Build with CMake
     mkdir build && cd build
-    cmake -DCMAKE_BUILD_TYPE=Release ..
+    cmake ..
     make -j$(nproc)
     ```
 
-=== "First Run"
+=== "Testing"
 
     ```bash
     # Run a test case
     cd build
-    ctest -R test_settling
+    ctest -R test_CATChemCore
 
-    # Run with sample configuration
-    ./catchem_driver --config ../parm/config/catchem_test.yml
     ```
 
 === "Integration"

@@ -113,11 +113,7 @@ cd CATChem
 # Create development build
 mkdir build-dev
 cd build-dev
-cmake -DCMAKE_BUILD_TYPE=Debug \
-      -DENABLE_TESTING=ON \
-      -DENABLE_COVERAGE=ON \
-      -DENABLE_PROFILING=ON \
-      ..
+cmake ..
 make -j$(nproc)
 ```
 
