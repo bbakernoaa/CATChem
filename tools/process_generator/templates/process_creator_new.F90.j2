@@ -20,6 +20,7 @@ module {{ config.class_name }}ProcessCreator_Mod
 
    public :: create_{{ config.name }}_process
    public :: register_{{ config.name }}_process
+   public :: validate_{{ config.name }}_config_data
    public :: get_{{ config.name }}_default_config
 
 contains
@@ -77,6 +78,33 @@ contains
       )
 
    end subroutine register_{{ config.name }}_process
+
+   !> Validate {{ config.name }} process configuration
+   !!
+   !! This function validates the process configuration against the
+   !! process requirements and constraints.
+   !!
+   !! @param[in] config_data Configuration data (YAML, namelist, etc.)
+   !! @return .true. if valid, .false. otherwise
+   function validate_{{ config.name }}_config_data(config_data) result(is_valid)
+      character(len=*), intent(in) :: config_data
+      logical :: is_valid
+
+      ! TODO: Implement configuration validation
+      ! This should parse the config_data and validate:
+      ! - Scheme selection is valid
+      ! - Parameters are within acceptable ranges
+      ! - Required fields are present
+      ! - No conflicting options
+
+      is_valid = .true.
+
+      ! Placeholder validation
+      if (len_trim(config_data) == 0) then
+         is_valid = .false.
+      end if
+
+   end function validate_{{ config.name }}_config_data
 
    !> Get default configuration for {{ config.name }} process
    !!

@@ -1,5 +1,5 @@
 # SeaSalt Process CMakeLists.txt
-# Generated on: 2025-08-29T16:37:23.797475
+# Generated on: 2025-09-03T16:55:41.541208
 # Author: Barry Baker & Wei Li
 # Description: Process for computing sea salt aerosol emissions over ocean surfaces
 
@@ -68,13 +68,13 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
 )
 
 # Add subdirectories
-#if(BUILD_TESTING)
-#    # Add tests subdirectory - tests are located in tests/process/seasalt/
-#    set(TESTS_DIR "${CMAKE_SOURCE_DIR}/tests/process/seasalt")
-#    if(EXISTS "${TESTS_DIR}/CMakeLists.txt")
-#        add_subdirectory("${TESTS_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/tests")
-#    endif()
-#endif()
+if(BUILD_TESTING)
+    # Add tests subdirectory - tests are located in tests/process/seasalt/
+    set(TESTS_DIR "${CMAKE_SOURCE_DIR}/tests/process/seasalt")
+    if(EXISTS "${TESTS_DIR}/CMakeLists.txt")
+        add_subdirectory("${TESTS_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/tests")
+    endif()
+endif()
 
 if(BUILD_EXAMPLES)
     add_subdirectory(examples)

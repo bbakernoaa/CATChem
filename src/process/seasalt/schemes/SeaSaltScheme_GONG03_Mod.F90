@@ -17,32 +17,25 @@
 !! - Memory management and array allocation
 !! - Integration with host model time stepping
 !!
-!! Generated on: 2025-08-29T16:37:23.755985
+!! Generated on: 2025-09-03T16:55:41.508707
 !! Author: Barry Baker
 !! Reference: Gong [2003]
 module SeaSaltScheme_GONG03_Mod
 
-   use iso_fortran_env, only: fp => real64
+   use precision_mod, only: fp
+   use SeaSaltCommon_Mod, only: SeaSaltSchemeGONG03Config
 
    implicit none
    private
 
    ! Public interface - pure science only
    public :: compute_gong03
-   public :: gong03_params_t
 
    ! Physical constants (modify as needed for your scheme)
    real(fp), parameter :: R_GAS = 8.314_fp           ! Universal gas constant [J/mol/K]
    real(fp), parameter :: T_STANDARD = 303.15_fp    ! Standard reference temperature [K]
    real(fp), parameter :: DEFAULT_SCALING = 1.0e-9_fp ! Default emission scaling factor
    real(fp), parameter :: PI = 3.14159265359_fp     ! Pi constant
-
-   !> Science parameters for gong03 scheme
-   !! Host model is responsible for initializing and validating these
-   type :: gong03_params_t
-      real(fp) :: scale_factor  ! Emission scale factor
-      real(fp) :: weibull_flag  ! Apply Weibull distribution for particle size
-   end type gong03_params_t
 
 contains
 
@@ -90,7 +83,7 @@ contains
       ! Arguments
       integer, intent(in) :: num_layers
       integer, intent(in) :: num_species
-      type(gong03_params_t), intent(in) :: params
+      type(SeaSaltSchemeGONG03Config), intent(in) :: params
       real(fp), intent(in) :: frocean(num_layers)
       real(fp), intent(in) :: frseaice(num_layers)
       real(fp), intent(in) :: sst(num_layers)
@@ -202,7 +195,7 @@ contains
    !> Example helper function for species-specific scaling
    pure function compute_species_scaling_gong03(species_idx, params) result(scaling)
       integer, intent(in) :: species_idx
-      type(gong03_params_t), intent(in) :: params
+      type(SeaSaltSchemeGONG03Config), intent(in) :: params
       real(fp) :: scaling
 
       ! Species-specific scaling - customize for your scheme

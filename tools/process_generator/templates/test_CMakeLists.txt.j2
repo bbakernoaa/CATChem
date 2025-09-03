@@ -5,11 +5,8 @@ cmake_minimum_required(VERSION 3.12)
 
 # Test executables
 set(TEST_SOURCES
-    test_unit_{{ config.name }}.F90
-    test_integration_{{ config.name }}.F90
-{% for scheme in config.schemes %}
-    test_scheme_{{ scheme.name }}.F90
-{% endfor %}
+    unit/test_{{ config.name }}_unit.F90
+    integration/test_{{ config.name }}_integration.F90
 )
 
 # Create test executables
@@ -41,13 +38,13 @@ endforeach()
 
 # Test data files
 configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_data/{{ config.name }}_config.yaml"
+    "${CMAKE_SOURCE_DIR}/tests/Configs/Default/CATChem_new_config.yml"
     "${CMAKE_CURRENT_BINARY_DIR}/{{ config.name }}_config.yaml"
     COPYONLY
 )
 
-# Additional test data files
-file(GLOB TEST_DATA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test_data/*")
+# Additional test data files - copy other config files that might be needed
+file(GLOB TEST_DATA_FILES "${CMAKE_SOURCE_DIR}/tests/Configs/Default/*.yml")
 foreach(test_data_file ${TEST_DATA_FILES})
     get_filename_component(filename ${test_data_file} NAME)
     configure_file(
@@ -57,35 +54,25 @@ foreach(test_data_file ${TEST_DATA_FILES})
     )
 endforeach()
 
-# Custom test targets
-add_custom_target(test_{{ config.name }}_unit
-    COMMAND test_unit_{{ config.name }}
-    DEPENDS test_unit_{{ config.name }}
+# Custom test targets with unique names
+add_custom_target(run_{{ config.name }}_unit
+    COMMAND test_{{ config.name }}_unit
+    DEPENDS test_{{ config.name }}_unit
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     COMMENT "Running unit tests for {{ config.name }} process"
 )
 
-add_custom_target(test_{{ config.name }}_integration
-    COMMAND test_integration_{{ config.name }}
-    DEPENDS test_integration_{{ config.name }}
+add_custom_target(run_{{ config.name }}_integration
+    COMMAND test_{{ config.name }}_integration
+    DEPENDS test_{{ config.name }}_integration
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     COMMENT "Running integration tests for {{ config.name }} process"
 )
 
-add_custom_target(test_{{ config.name }}_all
-    DEPENDS test_{{ config.name }}_unit test_{{ config.name }}_integration
+add_custom_target(run_{{ config.name }}_all
+    DEPENDS run_{{ config.name }}_unit run_{{ config.name }}_integration
     COMMENT "Running all tests for {{ config.name }} process"
 )
-
-# Scheme-specific test targets
-{% for scheme in config.schemes %}
-add_custom_target(test_{{ config.name }}_scheme_{{ scheme.name }}
-    COMMAND test_scheme_{{ scheme.name }}
-    DEPENDS test_scheme_{{ scheme.name }}
-    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-    COMMENT "Running tests for {{ scheme.name }} scheme"
-)
-{% endfor %}
 
 # Test coverage (if available)
 if(CODE_COVERAGE)
@@ -103,7 +90,7 @@ if(CODE_COVERAGE)
             COMMAND ${LCOV_PATH} --directory . --capture --output-file coverage_{{ config.name }}.info
             COMMAND ${LCOV_PATH} --remove coverage_{{ config.name }}.info '/usr/*' --output-file coverage_{{ config.name }}.info
             COMMAND ${GENHTML_PATH} -o coverage_{{ config.name }}_html coverage_{{ config.name }}.info
-            DEPENDS test_{{ config.name }}_all
+            DEPENDS run_{{ config.name }}_all
             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
             COMMENT "Generating test coverage report for {{ config.name }} process"
         )
@@ -112,7 +99,7 @@ endif()
 
 # Performance benchmarks
 add_custom_target(benchmark_{{ config.name }}
-    DEPENDS test_integration_{{ config.name }}
+    DEPENDS run_{{ config.name }}_integration
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     COMMENT "Running performance benchmarks for {{ config.name }} process"
 )
@@ -122,8 +109,8 @@ find_program(VALGRIND_PATH valgrind)
 if(VALGRIND_PATH)
     add_custom_target(memcheck_{{ config.name }}
         COMMAND ${VALGRIND_PATH} --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes
-                ./test_integration_{{ config.name }}
-        DEPENDS test_integration_{{ config.name }}
+                ./test_{{ config.name }}_integration
+        DEPENDS test_{{ config.name }}_integration
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
         COMMENT "Running memory check for {{ config.name }} process"
     )
@@ -135,7 +122,8 @@ if(INSTALL_TESTS)
         RUNTIME DESTINATION bin/tests
     )
 
-    install(FILES test_data/{{ config.name }}_config.yaml
+    install(FILES "${CMAKE_SOURCE_DIR}/tests/Configs/Default/CATChem_new_config.yml"
         DESTINATION share/tests/{{ config.name }}
+        RENAME {{ config.name }}_config.yaml
     )
 endif()

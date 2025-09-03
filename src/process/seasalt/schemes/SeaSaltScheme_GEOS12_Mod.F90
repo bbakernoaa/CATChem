@@ -17,31 +17,25 @@
 !! - Memory management and array allocation
 !! - Integration with host model time stepping
 !!
-!! Generated on: 2025-08-29T16:37:23.764479
+!! Generated on: 2025-09-03T16:55:41.510087
 !! Author: Barry Baker
 !! Reference: Jaeglé et al. [2011]
 module SeaSaltScheme_GEOS12_Mod
 
-   use iso_fortran_env, only: fp => real64
+   use precision_mod, only: fp
+   use SeaSaltCommon_Mod, only: SeaSaltSchemeGEOS12Config
 
    implicit none
    private
 
    ! Public interface - pure science only
    public :: compute_geos12
-   public :: geos12_params_t
 
    ! Physical constants (modify as needed for your scheme)
    real(fp), parameter :: R_GAS = 8.314_fp           ! Universal gas constant [J/mol/K]
    real(fp), parameter :: T_STANDARD = 303.15_fp    ! Standard reference temperature [K]
    real(fp), parameter :: DEFAULT_SCALING = 1.0e-9_fp ! Default emission scaling factor
    real(fp), parameter :: PI = 3.14159265359_fp     ! Pi constant
-
-   !> Science parameters for geos12 scheme
-   !! Host model is responsible for initializing and validating these
-   type :: geos12_params_t
-      real(fp) :: scale_factor  ! Emission scale factor
-   end type geos12_params_t
 
 contains
 
@@ -87,7 +81,7 @@ contains
       ! Arguments
       integer, intent(in) :: num_layers
       integer, intent(in) :: num_species
-      type(geos12_params_t), intent(in) :: params
+      type(SeaSaltSchemeGEOS12Config), intent(in) :: params
       real(fp), intent(in) :: frocean(num_layers)
       real(fp), intent(in) :: frseaice(num_layers)
       real(fp), intent(in) :: sst(num_layers)
@@ -195,7 +189,7 @@ contains
    !> Example helper function for species-specific scaling
    pure function compute_species_scaling_geos12(species_idx, params) result(scaling)
       integer, intent(in) :: species_idx
-      type(geos12_params_t), intent(in) :: params
+      type(SeaSaltSchemeGEOS12Config), intent(in) :: params
       real(fp) :: scaling
 
       ! Species-specific scaling - customize for your scheme
