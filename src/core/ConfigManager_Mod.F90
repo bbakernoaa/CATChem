@@ -46,7 +46,7 @@
 !!
 module ConfigManager_Mod
    use iso_c_binding, only: c_associated
-   use iso_fortran_env, only: real64
+   use Precision_Mod, only: fp
    use Error_Mod, only : CC_SUCCESS, CC_FAILURE, ERROR_INVALID_CONFIG, ERROR_INVALID_INPUT, ErrorManagerType
    use yaml_interface_mod, only : yaml_node_t, yaml_load_file, yaml_load_string, yaml_destroy_node, &
                                   yaml_get_string, yaml_get_integer, yaml_get_real, yaml_get_logical, &
@@ -57,12 +57,12 @@ module ConfigManager_Mod
    private
 
    ! Define precision types
-   integer, parameter :: fp = real64  ! Default floating-point precision
 
    public :: ConfigManagerType
    public :: ConfigDataType      ! Modern YAML-based configuration data structure
    public :: ConfigSchemaType
    public :: ConfigPresetType
+   public :: CONFIG_STRATEGY_STRICT, CONFIG_STRATEGY_PERMISSIVE, CONFIG_STRATEGY_FALLBACK
 
    !> \brief Configuration loading strategies
    integer, parameter :: CONFIG_STRATEGY_STRICT = 1    !< Fail on any validation error
@@ -1397,7 +1397,7 @@ contains
       logical :: file_exists, success
       character(len=256) :: emission_directory, scaling_method
       integer :: n_emission_sources
-      real(fp) :: global_scaling_factor
+      real(8) :: global_scaling_factor
 
       rc = CC_SUCCESS
 

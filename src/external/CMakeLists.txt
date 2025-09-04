@@ -22,6 +22,9 @@ find_package(NetCDF REQUIRED COMPONENTS Fortran)
 
 target_link_libraries(${_lib} NetCDF::NetCDF_Fortran)
 
+# Add yaml-cpp as a subdirectory so its target is available
+add_subdirectory(yaml-cpp)
+
 set_target_properties(
   ${_lib}
   PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
@@ -34,7 +37,6 @@ set_target_properties(
 # Set MUSICA build options before adding the subdirectory
 set(MICM_ENABLE_TESTS OFF)
 set(MICM_ENABLE_EXAMPLES OFF)
-
 set(MUSICA_BUILD_C_CXX_INTERFACE ON)
 set(MUSICA_BUILD_FORTRAN_INTERFACE ON)
 set(MUSICA_ENABLE_INSTALL OFF)

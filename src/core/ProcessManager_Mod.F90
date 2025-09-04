@@ -126,6 +126,12 @@ contains
       integer :: i, local_rc
       type(GridManagerType), pointer :: grid_mgr
 
+      ! If there are no processes, succeed immediately
+      if (this%num_processes == 0) then
+         rc = CC_SUCCESS
+         return
+      endif
+
       rc = CC_SUCCESS
 
       ! Get grid manager from container
@@ -141,7 +147,7 @@ contains
             select type(proc => this%processes(i))
             class is (ColumnProcessInterface)
                ! Run column-based process
-               call this%run_process_on_columns(i, container, rc)
+               call this%run_process_on_columns(i, container, local_rc)
             class default
                ! Run traditional 3D process
                call this%processes(i)%run(container, local_rc)

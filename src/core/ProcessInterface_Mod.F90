@@ -213,6 +213,7 @@ contains
    subroutine process_activate(this)
       class(ProcessInterface), intent(inout) :: this
       this%is_active = .true.
+      this%is_initialized = .true.
    end subroutine process_activate
 
    !> \brief Deactivate the process
@@ -563,7 +564,7 @@ contains
 
       ! Get chemical state and error manager
       chem_state => container%get_chem_state_ptr()
-      error_mgr => container%get_error_manager()
+      error_mgr = container%get_error_manager()
 
       if (.not. associated(chem_state)) then
          rc = CC_FAILURE

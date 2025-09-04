@@ -164,6 +164,14 @@ contains
       call this%error_mgr%push_context('core_init', 'Initializing CATChem core')
 
       this%is_initialized = .true.
+ 
+      ! Initialize configuration data to ensure it's in a valid state
+      call this%config%init(rc)
+      if (rc /= CC_SUCCESS) then
+         call this%error_mgr%report_error(rc, 'Failed to initialize config data', rc)
+         call this%error_mgr%pop_context()
+         return
+      endif
 
       call this%error_mgr%pop_context()
 
@@ -214,14 +222,6 @@ contains
          endif
       endif
 
-      ! Initialize configuration data
-      call this%config%init(local_rc)
-      if (local_rc /= CC_SUCCESS) then
-         call this%error_mgr%report_error(local_rc, 'Failed to initialize config data', rc)
-         call this%error_mgr%pop_context()
-         return
-      endif
-
       ! Validate configuration
       is_valid = this%config%validate(this%error_mgr, local_rc)
       if (local_rc /= CC_SUCCESS .or. .not. is_valid) then
@@ -231,33 +231,45 @@ contains
       endif
 
       ! Initialize components in dependency order
+      write(*,*) 'Entering core_configure'
+      
+      write(*,*) 'Calling setup_grid'
       call this%setup_grid(local_rc)
+      write(*,*) 'Exited setup_grid'
       if (local_rc /= CC_SUCCESS) then
          rc = local_rc
          call this%error_mgr%pop_context()
          return
       endif
 
+      write(*,*) 'Calling setup_state'
       call this%setup_state(local_rc)
+      write(*,*) 'Exited setup_state'
       if (local_rc /= CC_SUCCESS) then
          rc = local_rc
          call this%error_mgr%pop_context()
          return
       endif
 
+      write(*,*) 'Calling setup_diagnostics'
       call this%setup_diagnostics(local_rc)
+      write(*,*) 'Exited setup_diagnostics'
       if (local_rc /= CC_SUCCESS) then
          rc = local_rc
          call this%error_mgr%pop_context()
          return
       endif
 
+      write(*,*) 'Calling setup_processes'
       call this%setup_processes(local_rc)
+      write(*,*) 'Exited setup_processes'
       if (local_rc /= CC_SUCCESS) then
          rc = local_rc
          call this%error_mgr%pop_context()
          return
       endif
+      
+      write(*,*) 'Exiting core_configure'
 
       this%is_configured = .true.
 
@@ -270,6 +282,8 @@ contains
       class(CATChemCoreType), intent(inout) :: this
       integer, intent(out) :: rc
 
+      write(*,*) 'Entering core_setup_grid'
+
       rc = CC_SUCCESS
 
       call this%error_mgr%push_context('core_setup_grid', 'Setting up grid manager')
@@ -279,10 +293,13 @@ contains
       if (rc /= CC_SUCCESS) then
          call this%error_mgr%report_error(rc, 'Failed to initialize grid manager', rc)
          call this%error_mgr%pop_context()
+         write(*,*) 'Exiting core_setup_grid'
          return
       endif
 
       call this%error_mgr%pop_context()
+      
+      write(*,*) 'Exiting core_setup_grid'
 
    end subroutine core_setup_grid
 
@@ -294,7 +311,9 @@ contains
       integer :: local_rc
       type(MetStateType), pointer :: met_ptr
       type(ChemStateType), pointer :: chem_ptr
-      type(ErrorManagerType), pointer :: error_mgr_ptr
+      type(ErrorManagerType), pointer :: error_mgr_ref
+
+      write(*,*) 'Entering core_setup_state'
 
       rc = CC_SUCCESS
 
@@ -305,36 +324,49 @@ contains
       if (local_rc /= CC_SUCCESS) then
          call this%error_mgr%report_error(local_rc, 'Failed to initialize state manager', rc)
          call this%error_mgr%pop_context()
+         write(*,*) 'Exiting core_setup_state'
          return
       endif
 
       ! Initialize meteorological state
       met_ptr => this%state_mgr%get_met_state_ptr()
       if (associated(met_ptr)) then
-         error_mgr_ptr => this%state_mgr%get_error_manager()
-         call met_ptr%init(this%nx, this%ny, this%nz, error_mgr_ptr, local_rc)
-         if (local_rc /= CC_SUCCESS) then
-            call this%error_mgr%report_error(local_rc, 'Failed to initialize met state', rc)
-            call this%error_mgr%pop_context()
-            return
-         endif
+          error_mgr_ref = this%state_mgr%get_error_manager()
+          call met_ptr%init(this%nx, this%ny, this%nz, error_mgr_ref, local_rc)
+          if (local_rc /= CC_SUCCESS) then
+             call this%error_mgr%report_error(local_rc, 'Failed to initialize met state', rc)
+             call this%error_mgr%pop_context()
+             write(*,*) 'Exiting core_setup_state'
+             return
+          endif
+      else
+          ! Log the fact that met_ptr is null, but don't fail the whole process
+          ! This allows the core to continue functioning even if met state is not available
+          write(*,*) 'WARNING: MetState pointer is null, skipping met state initialization'
+          ! Continue with the rest of the setup
       endif
 
       ! Initialize chemistry state
       chem_ptr => this%state_mgr%get_chem_state_ptr()
       if (associated(chem_ptr)) then
-         error_mgr_ptr => this%state_mgr%get_error_manager()
+         error_mgr_ref = this%state_mgr%get_error_manager()
          ! Initialize with a reasonable default number of species
          ! In production, this would come from configuration
-         call chem_ptr%init(50, error_mgr_ptr, local_rc)
+         call chem_ptr%init(50, error_mgr_ref, local_rc)
          if (local_rc /= CC_SUCCESS) then
             call this%error_mgr%report_error(local_rc, 'Failed to initialize chem state', rc)
             call this%error_mgr%pop_context()
+            write(*,*) 'Exiting core_setup_state'
             return
          endif
       endif
 
+      ! Mark state manager as configured
+      call this%state_mgr%set_configured()
+
       call this%error_mgr%pop_context()
+      
+      write(*,*) 'Exiting core_setup_state'
 
    end subroutine core_setup_state
 
@@ -342,6 +374,8 @@ contains
    subroutine core_setup_diagnostics(this, rc)
       class(CATChemCoreType), intent(inout) :: this
       integer, intent(out) :: rc
+
+      write(*,*) 'Entering core_setup_diagnostics'
 
       rc = CC_SUCCESS
 
@@ -352,6 +386,7 @@ contains
       if (rc /= CC_SUCCESS) then
          call this%error_mgr%report_error(rc, 'Failed to initialize diagnostic manager', rc)
          call this%error_mgr%pop_context()
+         write(*,*) 'Exiting core_setup_diagnostics'
          return
       endif
 
@@ -359,6 +394,8 @@ contains
       call this%state_mgr%set_diagnostic_manager(this%diag_mgr)
 
       call this%error_mgr%pop_context()
+      
+      write(*,*) 'Exiting core_setup_diagnostics'
 
    end subroutine core_setup_diagnostics
 
@@ -369,6 +406,8 @@ contains
 
       integer :: local_rc
 
+      write(*,*) 'Entering core_setup_processes'
+
       rc = CC_SUCCESS
 
       call this%error_mgr%push_context('core_setup_processes', 'Setting up process manager')
@@ -378,10 +417,13 @@ contains
       if (local_rc /= CC_SUCCESS) then
          call this%error_mgr%report_error(local_rc, 'Failed to initialize process manager', rc)
          call this%error_mgr%pop_context()
+         write(*,*) 'Exiting core_setup_processes'
          return
       endif
 
       call this%error_mgr%pop_context()
+      
+      write(*,*) 'Exiting core_setup_processes'
 
    end subroutine core_setup_processes
 

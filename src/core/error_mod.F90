@@ -408,25 +408,27 @@ CONTAINS
    end function error_context_to_string
 
    !> \brief Initialize error manager
-   subroutine error_manager_init(this, verbose, track_performance)
-      implicit none
-      class(ErrorManagerType), intent(inout) :: this
-      logical, intent(in), optional :: verbose
-      logical, intent(in), optional :: track_performance
-
-      ! Allocate context stack
-      if (.not. allocated(this%context_stack)) then
-         allocate(this%context_stack(this%max_stack_depth))
-      endif
-
-      this%stack_depth = 0
-      this%total_errors = 0
-      this%total_warnings = 0
-      this%errors_by_severity = 0
-      this%errors_by_category = 0
-
-      if (present(verbose)) this%verbose_errors = verbose
-      if (present(track_performance)) this%track_performance = track_performance
+   subroutine error_manager_init(this, verbose, track_performance, rc)
+       implicit none
+       class(ErrorManagerType), intent(inout) :: this
+       logical, intent(in), optional :: verbose
+       logical, intent(in), optional :: track_performance
+       integer, intent(out), optional :: rc
+   
+       ! Allocate context stack
+       if (.not. allocated(this%context_stack)) then
+           allocate(this%context_stack(this%max_stack_depth))
+       endif
+   
+       this%stack_depth = 0
+       this%total_errors = 0
+       this%total_warnings = 0
+       this%errors_by_severity = 0
+       this%errors_by_category = 0
+   
+       if (present(verbose)) this%verbose_errors = verbose
+       if (present(track_performance)) this%track_performance = track_performance
+       if (present(rc)) rc = CC_SUCCESS
    end subroutine error_manager_init
 
    !> \brief Push context onto error context stack
@@ -438,6 +440,9 @@ CONTAINS
       character(len=*), intent(in), optional :: file_name
       integer, intent(in), optional :: line_number
 
+      if (.not. allocated(this%context_stack)) then
+         allocate(this%context_stack(this%max_stack_depth))
+      endif
       if (this%stack_depth < this%max_stack_depth) then
          this%stack_depth = this%stack_depth + 1
          call this%context_stack(this%stack_depth)%init(routine_name, description, file_name, line_number)

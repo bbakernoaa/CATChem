@@ -77,9 +77,17 @@ contains
    subroutine virtual_met_cleanup(this)
       class(VirtualMetType), intent(inout) :: this
 
+      print *, '[DEBUG] Entering virtual_met_cleanup'
+      if (associated(this%T)) then
+         print *, '[DEBUG] Cleaning up T, associated before nullify'
+      else
+         print *, '[DEBUG] T not associated'
+      endif
+
       ! Generated cleanup code from MetState field definitions
 #include "virtualmet_cleanup.inc"
 
+      print *, '[DEBUG] Exiting virtual_met_cleanup'
    end subroutine virtual_met_cleanup
 
    !=========================================================================
@@ -107,6 +115,14 @@ contains
       this%lat = lat
       this%lon = lon
       this%area = area
+
+      ! Allocate meteorological field arrays for testing
+      if (nlev > 0) then
+         if (.not. associated(this%met%T)) then
+            allocate(this%met%T(nlev))
+            this%met%T = 288.15_fp  ! Initialize with default temperature value
+         endif
+      endif
 
       ! Allocate chemical and emission data arrays
       if (nlev > 0 .and. nspec_chem > 0) then
@@ -236,17 +252,27 @@ contains
    subroutine virtual_column_cleanup(this)
       class(VirtualColumnType), intent(inout) :: this
 
+      print *, '[DEBUG] Entering virtual_column_cleanup'
+
       ! Clean up meteorological pointers
       call this%met%cleanup()
 
       ! Deallocate chemical and emission data
-      if (allocated(this%chem_data)) deallocate(this%chem_data)
-      if (allocated(this%emis_data)) deallocate(this%emis_data)
+      if (allocated(this%chem_data)) then
+         print *, '[DEBUG] Deallocating chem_data'
+         deallocate(this%chem_data)
+      endif
+      if (allocated(this%emis_data)) then
+         print *, '[DEBUG] Deallocating emis_data'
+         deallocate(this%emis_data)
+      endif
 
       this%nlev = 0
       this%nspec_chem = 0
       this%nspec_emis = 0
       this%is_valid = .false.
+
+      print *, '[DEBUG] Exiting virtual_column_cleanup'
    end subroutine virtual_column_cleanup
 
 end module VirtualColumn_Mod

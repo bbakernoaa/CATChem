@@ -1,5 +1,5 @@
 module testing_mod
-   use iso_fortran_env, only: rk => real32
+   use precision_mod, only: fp
 
    implicit none
 
@@ -31,11 +31,11 @@ contains
 
    !> Error out if `a` and `b` are not within `tol` of each other.
    subroutine assert_close(a, b, tol, msg)
-      real(rk), intent(in) :: a, b
-      real(rk), intent(in), optional :: tol  !< Absolute tolerance, defaults to TINY
-      character(len=*), intent(in), optional :: msg  !< Brief description of the assertion
+       real(fp), intent(in) :: a, b
+       real(fp), intent(in), optional :: tol  !< Absolute tolerance, defaults to TINY
+       character(len=*), intent(in), optional :: msg  !< Brief description of the assertion
 
-      real(rk) :: diff, tol_
+      real(fp) :: diff, tol_
       character(len=:), allocatable :: msg_
 
       if (.not. present(msg)) then
@@ -45,7 +45,7 @@ contains
       end if
 
       if (.not. present(tol)) then
-         tol_ = tiny(1.0_rk)
+         tol_ = tiny(1.0_fp)
       else
          tol_ = tol
       end if

@@ -80,6 +80,7 @@ module StateManager_Mod
 
       ! Simple metadata
       logical :: is_initialized = .false.              !< Initialization status
+      logical :: is_configured = .false.               !< Configuration status
       character(len=256) :: name = ''                  !< Container name
 
    contains
@@ -88,6 +89,7 @@ module StateManager_Mod
       procedure :: cleanup => manager_cleanup
       procedure :: finalize => manager_finalize
       procedure :: is_ready => manager_is_ready
+      procedure :: set_configured => manager_set_configured
 
       ! State object accessors
       procedure :: get_config_ptr => manager_get_config_ptr
@@ -151,6 +153,7 @@ contains
       if (.not. allocated(this%chem_state)) allocate(this%chem_state)
 
       this%is_initialized = .true.
+      this%is_configured = .false.
 
    end subroutine manager_init
 
@@ -167,6 +170,7 @@ contains
       if (allocated(this%chem_state)) deallocate(this%chem_state)
 
       this%is_initialized = .false.
+      this%is_configured = .false.
       this%name = ''
 
    end subroutine manager_cleanup
@@ -176,11 +180,18 @@ contains
       class(StateManagerType), intent(in) :: this
       logical :: ready
 
-      ready = this%is_initialized .and. &
+      ready = this%is_initialized .and. this%is_configured .and. &
               allocated(this%config) .and. &
               allocated(this%met_state) .and. &
               allocated(this%chem_state)
    end function manager_is_ready
+
+   !> \brief Mark the state manager as configured
+   subroutine manager_set_configured(this)
+      class(StateManagerType), intent(inout) :: this
+
+      this%is_configured = .true.
+   end subroutine manager_set_configured
 
    !> \brief Get pointer to config for modification
    function manager_get_config_ptr(this) result(config_ptr)
