@@ -1,6 +1,6 @@
-# Configuration System
+# Configuration System Developer Guide
 
-CATChem uses a flexible YAML-based configuration system that provides type-safe parameter management, validation, and hierarchical organization.
+CATChem uses a flexible YAML-based configuration system that provides type-safe parameter management, validation, and hierarchical organization. Everything you need to know about the configuration system to develop, modify, and extend CATChem is described in this guide.
 
 ## Overview
 

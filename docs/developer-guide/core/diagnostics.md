@@ -1,6 +1,6 @@
-# Diagnostic System
+# Diagnostic System Developer Guide
 
-CATChem's diagnostic system provides comprehensive monitoring, analysis, and output capabilities for atmospheric chemistry simulations.
+CATChem's diagnostic system provides comprehensive monitoring, analysis, and output capabilities for atmospheric chemistry simulations. Everything you need to know about the diagnostics system to develop, modify, and extend CATChem is described in this guide.
 
 ## Overview
 

@@ -1,20 +1,22 @@
 # Process Development
 
-This section covers developing new processes and schemes for CATChem.
+This section covers developing new processes and schemes for CATChem. See the **[CATChem User Guide](../../user-guide/index.md#process-documentation)** for a description of all processes available in CATChem.
+
+!!! note "The process generator code is currently being developed. Please check back frequently for updates to the documentation on how to use the process generator. Further updates on this section will be coming soon!"
 
 ## Quick Links
 
+- **[Architecture Overview](architecture.md)** - Understanding process design patterns
+- **[Generator System Overview](generator-system-overview.md)** - Complete system documentation
 - **[Process Generator Tutorial](generator-tutorial.md)** - Complete guide to using the automated process generator
 - **[Generator Demo](generator-demo.md)** - Hands-on example with a real process
-- **[Generator System Overview](generator-system-overview.md)** - Complete system documentation
-- **[Architecture Overview](architecture.md)** - Understanding process design patterns
 - **[Creating Custom Processes](creating.md)** - Manual process development
 - **[Templates and Patterns](templates.md)** - Code templates and best practices
 - **[Testing Processes](testing.md)** - Testing strategies and frameworks
 
 ## Overview
 
-CATChem processes are modular components that implement specific atmospheric physics or chemistry. Each process follows a standardized interface and lifecycle.
+CATChem processes are modular components that implement specific atmospheric transport, chemical, emission, or loss schemes. Each process follows a standardized interface and lifecycle.
 
 ## Process Architecture
 
@@ -166,7 +168,7 @@ Document your process:
 ```fortran
 !> @brief My atmospheric process
 !>
-!> This process implements [physical description].
+!> This process implements [chemical description].
 !>
 !> @author Your Name
 !> @date 2025

@@ -27,6 +27,7 @@ python util/catchem_generate_process.py \
 ```
 
 This command generates:
+
 - Process module: `src/process/drydep/DryDepositionProcess_Mod.F90`
 - Scheme modules: `src/process/drydep/schemes/`
 - Test files: `tests/test_drydeposition.F90`
@@ -184,13 +185,6 @@ python util/catchem_generate_process.py \
     --description "Gas-liquid phase chemistry in clouds and fog"
 ```
 
-**Special Features for Multi-Phase:**
-- Automatic phase partitioning code
-- Henry's law constant calculations
-- Mass transfer coefficient computation
-- Phase equilibrium solvers
-- Conservation checking across phases
-
 **Generated Multi-Phase Structure:**
 ```fortran
 type, extends(ProcessInterface) :: AqueousChemistryProcessType
@@ -347,6 +341,7 @@ processes:
 Classic three-resistance model based on Wesely (1989).
 
 **Parameters:**
+
 - `reference_height`: Reference height for meteorological data (m)
 - `surface_roughness`: Surface roughness length (m)
 - `canopy_height`: Vegetation canopy height (m, optional)
@@ -356,6 +351,7 @@ Classic three-resistance model based on Wesely (1989).
 Size-dependent scheme for particles (Zhang et al., 2001).
 
 **Parameters:**
+
 - `particle_density`: Particle density (kg/m³)
 - `particle_diameter`: Particle diameter (m)
 
@@ -373,6 +369,7 @@ call drydep_process%run(container, rc)
 ## Diagnostics
 
 Available diagnostic outputs:
+
 - `deposition_velocity`: Species-specific deposition velocities (m/s)
 - `surface_flux`: Deposition flux to surface (kg/m²/s)
 - `aerodynamic_resistance`: Aerodynamic resistance (s/m)
@@ -461,8 +458,8 @@ Edit `util/templates/process_main.f90.j2` to add custom methods:
 
 ### 2. Process Design
 
-- **Single responsibility**: Each process should handle one physical/chemical mechanism
-- **Scheme modularity**: Use schemes for different algorithms, not different physics
+- **Single responsibility**: Each process should handle one chemical operation or task
+- **Scheme modularity**: Use schemes for different algorithms, not different operations or tasks
 - **State dependencies**: Minimize dependencies between state components
 
 ### 3. Configuration
@@ -511,18 +508,22 @@ python util/catchem_generate_process.py \
 ### Common Issues
 
 **1. Import errors in generated code**
+
 - Check that all dependencies are properly specified
 - Verify module names follow CATChem conventions
 
 **2. Build failures**
+
 - Ensure CMake files are properly updated
 - Check that all required dependencies are available
 
 **3. Test failures**
+
 - Verify test data paths are correct
 - Check that reference data matches expected format
 
 **4. Documentation not generated**
+
 - Ensure output directory has write permissions
 - Check that all template files are present
 
@@ -531,7 +532,7 @@ python util/catchem_generate_process.py \
 1. **Check generated logs**: Use `--verbose` flag for detailed output
 2. **Dry run first**: Use `--dry-run` to preview without creating files
 3. **Community support**: Post questions on GitHub Discussions
-4. **Developer docs**: See `/docs/developer-guide/processes/` for more details
+4. ****[Process Development Guide](index.md)****: See Process Development Guide for more details
 
 ## Next Steps
 
@@ -544,7 +545,8 @@ After generating your process:
 5. **Update documentation**: Add scientific references and validation data
 6. **Submit PR**: Contribute your process back to the community!
 
-For more detailed guidance on implementing the physics, see:
-- [Process Architecture Guide](architecture.md)
-- [Creating Custom Processes](creating.md)
-- [Testing Guide](testing.md)
+For more detailed guidance on implementing chemistry, see:
+
+- **[Process Architecture Guide](architecture.md)**
+- **[Creating Custom Processes](creating.md)**
+- **[Testing Guide](testing.md)**

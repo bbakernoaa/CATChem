@@ -187,7 +187,7 @@ make -j 8 && make install
 
 ```bash
 # Clone repository
-git clone https://github.com/NOAA-GSL/CATChem.git
+git clone https://github.com/UFS-Community/CATChem.git
 cd CATChem
 
 # Setup environment
@@ -355,7 +355,7 @@ From: ubuntu:22.04
 
     # Build CATChem
     cd /opt
-    git clone https://github.com/NOAA-GSL/CATChem.git
+    git clone https://github.com/UFS-Community/CATChem.git
     cd CATChem
     mkdir build && cd build
 
@@ -565,11 +565,13 @@ mpirun -np 4 valgrind --tool=callgrind ./catchem_driver config.yml
 ### Cloud Systems
 
 **AWS ParallelCluster:**
+
 - Use Intel or ARM optimized AMIs
 - Configure EFA for high-performance networking
 - Consider spot instances for cost optimization
 
 **Google Cloud:**
+
 - Use HPC-optimized machine types
 - Configure with Cloud filestore for shared storage
 - Consider preemptible instances
@@ -580,12 +582,10 @@ For HPC-specific installation issues:
 
 1. **Check system documentation** for your specific HPC system
 2. **Contact system administrators** for module and configuration help
-3. **File issues** on the CATChem GitHub repository
-4. **Join discussions** on GitHub Discussions
+3. **File issues** on the **[CATChem GitHub Issues](https://github.com/ufs-community/CATChem/issues)**
+4. **Join discussions** on **[GitHub Discussions](https://github.com/ufs-community/CATChem/discussions)**
 
 ## References
 
 - [Build System Documentation](build-system.md)
-- [Performance Guide](performance.md)
-- [Container Guide](containers.md)
-- [Testing Guide](testing.md)
+- [Performance Guide](advanced_topics/performance.md)

@@ -38,8 +38,8 @@ The CATChem build system is designed with the following principles:
 
 ```bash
 # Clone the repository
-git clone https://github.com/CATChem/cc_restructure.git
-cd cc_restructure
+git clone https://github.com/UFS-Community/CATChem.git
+cd CATChem
 
 # Create build directory
 mkdir build && cd build
@@ -48,7 +48,7 @@ mkdir build && cd build
 cmake ..
 make -j4
 
-# Run tests
+# Run a test case
 make test
 ```
 
@@ -314,4 +314,4 @@ make VERBOSE=1
 4. **Enable testing during development**
 5. **Use appropriate build types (Debug vs Release)**
 
-For more advanced build configuration and platform-specific instructions, see the [HPC Installation Guide](hpc-installation.md) and [Container Deployment Guide](containers.md).
+For more advanced build configuration and platform-specific instructions, see the [HPC Installation Guide](hpc-installation.md).

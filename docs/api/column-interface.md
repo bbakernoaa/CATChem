@@ -258,8 +258,8 @@ endif
 
 - [State Management API](state-management.md) - Data container interfaces
 - [Process Interface API](process-interface.md) - Column-capable process development
-- [Performance Guide](../guides/performance.md) - Optimization strategies
-- [Column Virtualization Guide](../guides/column-virtualization.md) - Architecture details
+- [Performance Guide](../user-guide/advanced_topics/performance.md) - Optimization strategies
+- [Column Virtualization Guide](../user-guide/advanced_topics/column-virtualization.md) - Architecture details
 
 ---
 

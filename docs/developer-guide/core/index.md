@@ -1,6 +1,6 @@
 # Core Systems
 
-This section covers CATChem's core infrastructure components.
+This section covers everything you need to know about CATChem's core infrastructure components in order to develop, modify, and extend CATChem.
 
 ## Overview
 

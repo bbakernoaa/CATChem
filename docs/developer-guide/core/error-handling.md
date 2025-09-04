@@ -1,6 +1,6 @@
-# Error Handling
+# Error Handling Developer Guide
 
-CATChem implements a comprehensive error handling system that provides robust error management, graceful degradation, and detailed error reporting.
+CATChem implements a comprehensive error handling system that provides robust error management, graceful degradation, and detailed error reporting. Everything you need to know about the error handling system to develop, modify, and extend CATChem is described in this guide.
 
 ## Overview
 

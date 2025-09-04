@@ -34,7 +34,8 @@ end do
 ```
 
 **Benefits:**
-- 10x faster column processing
+
+- Faster column processing
 - Better cache utilization
 - Vectorization opportunities
 - Reduced memory bandwidth
@@ -42,12 +43,14 @@ end do
 ### Memory Optimization
 
 **State Container Design:**
+
 - Contiguous memory layout
 - Minimal copying between processes
 - Efficient species indexing
 - Cache-friendly data structures
 
 **Allocation Strategy:**
+
 - Pre-allocated buffers
 - Pool-based memory management
 - Minimal runtime allocations
@@ -193,6 +196,7 @@ end do
 ### MPI Scaling
 
 **Domain Decomposition:**
+
 - 2D horizontal decomposition
 - Load balancing based on computational cost
 - Minimal communication overhead
@@ -220,6 +224,7 @@ monitoring:
 ```
 
 **Key Metrics:**
+
 - Time per timestep
 - Memory high-water mark
 - Load balancing efficiency
@@ -242,11 +247,13 @@ python compare_performance.py --baseline v2.0 --current HEAD
 ### Memory Bandwidth Limitation
 
 **Symptoms:**
+
 - Low CPU utilization
 - High memory access times
 - Poor scaling with threads
 
 **Solutions:**
+
 - Optimize data layout
 - Reduce memory allocations
 - Use compiler prefetch hints
@@ -254,11 +261,13 @@ python compare_performance.py --baseline v2.0 --current HEAD
 ### Load Imbalance
 
 **Symptoms:**
+
 - Some processes finish much earlier
 - Poor parallel efficiency
 - Idle cores during execution
 
 **Solutions:**
+
 - Dynamic load balancing
 - Better domain decomposition
 - Work stealing algorithms
@@ -266,11 +275,13 @@ python compare_performance.py --baseline v2.0 --current HEAD
 ### Cache Misses
 
 **Symptoms:**
+
 - High L3 cache miss rate
 - Memory stalls
 - Poor single-thread performance
 
 **Solutions:**
+
 - Column virtualization
 - Data structure optimization
 - Loop blocking/tiling
@@ -279,38 +290,43 @@ python compare_performance.py --baseline v2.0 --current HEAD
 
 ### Development Guidelines
 
-1. **Profile Early and Often**
-   - Use built-in profiling
-   - Test with realistic problem sizes
-   - Focus on hot spots
+**Profile Early and Often**
 
-2. **Memory-First Design**
-   - Design for cache efficiency
-   - Minimize allocations
-   - Use contiguous data structures
+- Use built-in profiling
+- Test with realistic problem sizes
+- Focus on hot spots
 
-3. **Parallel-Aware Algorithms**
-   - Minimize synchronization
-   - Design for NUMA systems
-   - Consider false sharing
+**Memory-First Design**
+
+- Design for cache efficiency
+- Minimize allocations
+- Use contiguous data structures
+
+**Parallel-Aware Algorithms**
+
+- Minimize synchronization
+- Design for NUMA systems
+- Consider false sharing
 
 ### Configuration Guidelines
 
-1. **Right-Size Resources**
-   - Match threads to cores
-   - Consider memory bandwidth
-   - Balance computation vs I/O
+**Right-Size Resources**
 
-2. **Optimize for Use Case**
-   - Operational vs research
-   - Real-time vs batch
-   - Accuracy vs speed trade-offs
+- Match threads to cores
+- Consider memory bandwidth
+- Balance computation vs I/O
+
+**Optimize for Use Case**
+- Operational vs research
+- Real-time vs batch
+- Accuracy vs speed trade-offs
 
 ## Platform-Specific Optimization
 
 ### Intel Xeon Systems
 
 **Optimizations:**
+
 - Use Intel MKL for linear algebra
 - Enable AVX-512 instructions
 - NUMA-aware thread placement
@@ -318,6 +334,7 @@ python compare_performance.py --baseline v2.0 --current HEAD
 ### AMD EPYC Systems
 
 **Optimizations:**
+
 - Consider CCX boundaries
 - Optimize for memory bandwidth
 - Use AMD BLIS/LIBFLAME
@@ -349,12 +366,14 @@ gpu:
 ### Benchmarking Suite
 
 **Standard Benchmarks:**
+
 - Single column chemistry
 - Regional domain (100x100)
 - Global domain (720x360)
 - Scaling tests (1-1000 cores)
 
 **Performance Targets:**
+
 - Single timestep: < 0.1s (regional)
 - Memory usage: < 2GB per process
 - Parallel efficiency: > 80% (to 256 cores)
@@ -362,7 +381,7 @@ gpu:
 ### Continuous Integration
 
 **Automated Performance Testing:**
-- Nightly performance runs
+
 - Regression detection
 - Performance trend analysis
 - Comparison with baselines
@@ -387,6 +406,7 @@ mpiP ./catchem_driver
 ### Performance Metrics Analysis
 
 **Key Performance Indicators:**
+
 - Time per timestep
 - Memory bandwidth utilization
 - Cache hit rates
@@ -395,7 +415,7 @@ mpiP ./catchem_driver
 
 ## References
 
-- [Column Virtualization Guide](core/column-virtualization.md)
-- [State Management](core/state-management.md)
-- [Build System Optimization](build-system.md)
-- [Testing Performance](testing.md#performance-testing)
+- **[Column Virtualization Guide](core/column-virtualization.md)**
+- **[State Management](core/state-management.md)**
+- **[Build System Optimization](../user-guide/build-system.md)**
+- **[Testing Performance](testing.md#performance-testing)**

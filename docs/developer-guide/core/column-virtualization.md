@@ -1,6 +1,6 @@
-# Column Virtualization
+# Column Virtualization Developer Guide
 
-CATChem's column virtualization system enables efficient atmospheric chemistry processing by treating 3D atmospheric problems as a collection of independent 1D columns.
+CATChem's column virtualization system enables efficient atmospheric chemistry processing by treating 3D atmospheric problems as a collection of independent 1D columns. Everything you need to know about the column virtualization system to develop, modify, and extend CATChem is described in this guide.
 
 ## Overview
 
@@ -77,20 +77,23 @@ end module ColumnProcessor_Mod
 
 ### Performance Advantages
 
-1. **Memory Efficiency**
-   - Working with small 1D arrays instead of large 3D arrays
-   - Better cache locality and reduced memory bandwidth requirements
-   - Lower memory footprint enables larger problem sizes
+**Memory Efficiency**
 
-2. **Parallelization**
-   - Columns are independent and can be processed in parallel
-   - Simple OpenMP parallelization over horizontal grid points
-   - Scalable to many-core architectures
+- Working with small 1D arrays instead of large 3D arrays
+- Better cache locality and reduced memory bandwidth requirements
+- Lower memory footprint enables larger problem sizes
 
-3. **Algorithm Simplicity**
-   - Physics algorithms work with familiar 1D vertical profiles
-   - Easier to develop and debug process implementations
-   - Natural mapping to atmospheric physics equations
+**Parallelization**
+
+- Columns are independent and can be processed in parallel
+- Simple OpenMP parallelization over horizontal grid points
+- Scalable to many-core architectures
+
+**Algorithm Simplicity**
+
+- Physics algorithms work with familiar 1D vertical profiles
+- Easier to develop and debug process implementations
+- Natural mapping to atmospheric physics equations
 
 ### Code Example: Parallel Processing
 

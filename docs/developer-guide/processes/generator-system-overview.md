@@ -7,12 +7,14 @@ The CATChem Process Generator is now a comprehensive system for creating well-st
 ### 1. Enhanced Generator Features
 
 ✅ **Comprehensive Documentation Generation**
+
 - Creates organized directory structure: `docs/processes/[process_name]/`
 - Generates multiple documentation files: `index.md`, `schemes.md`, `examples.md`
 - Automatically updates main process index
 - Includes implementation guides and troubleshooting
 
 ✅ **Improved Template System**
+
 - Enhanced documentation template with step-by-step implementation guide
 - Includes configuration examples, testing instructions, and references
 - Supports multi-phase processes with specialized templates
@@ -37,12 +39,14 @@ docs/
 ### 2. Complete Tutorial System
 
 ✅ **Generator Tutorial** (`generator-tutorial.md`)
+
 - Comprehensive guide covering basic to advanced usage
 - Configuration file examples
 - Best practices and troubleshooting
 - Template customization instructions
 
 ✅ **Hands-on Demo** (`generator-demo.md`)
+
 - Step-by-step walkthrough with a real example
 - Shows generated code structure
 - Explains next steps after generation
@@ -50,6 +54,7 @@ docs/
 ### 3. Documentation Integration
 
 ✅ **Proper Documentation Placement**
+
 - Generated docs go to `docs/processes/[process_name]/`
 - Main documentation index automatically updated
 - Cross-references to developer guides
@@ -84,12 +89,6 @@ python util/catchem_generate_process.py \
     --schemes cb6_aqueous
 ```
 
-**Generated Documentation includes:**
-- Multi-phase implementation patterns
-- Phase partitioning examples
-- Mass conservation checking
-- MICM solver integration
-
 ### Configuration-Based Generation
 ```yaml
 # process_config.yaml
@@ -113,18 +112,21 @@ python util/catchem_generate_process.py --config process_config.yaml
 ## Key Features
 
 ### 1. Smart Documentation Generation
+
 - **Automatic cross-referencing** to developer guides
 - **Step-by-step implementation** instructions in generated docs
 - **Testing integration** with build system
 - **Scientific reference** placeholders
 
 ### 2. Comprehensive Templates
+
 - **Process type awareness** - different templates for different physics
 - **Multi-phase support** - specialized patterns for complex chemistry
 - **Scheme modularity** - consistent patterns across all algorithms
 - **Error handling** - built-in validation and error management
 
 ### 3. Developer Experience
+
 - **Clear tutorials** with real examples
 - **Hands-on demos** for immediate learning
 - **Best practices** guidance throughout
@@ -183,18 +185,21 @@ After using the generator:
 ## Benefits for the CATChem Community
 
 ### For Process Developers
-- **Faster development** - Skip boilerplate, focus on physics
+
+- **Faster development** - Skip boilerplate, focus on chemistry
 - **Consistent patterns** - Follow established architecture automatically
 - **Built-in best practices** - Error handling, testing, documentation included
 - **Learning tool** - Generated code teaches CATChem patterns
 
 ### For Process Users
+
 - **Consistent interface** - All processes work the same way
 - **Rich documentation** - Every process has complete docs
 - **Easy configuration** - YAML-based setup for all processes
 - **Comprehensive testing** - Built-in validation and testing
 
 ### For the Project
+
 - **Maintainability** - Consistent code structure across processes
 - **Documentation coverage** - Every process has complete documentation
 - **Testing coverage** - Built-in unit tests for all processes
@@ -202,7 +207,7 @@ After using the generator:
 
 ## Integration with Presentation
 
-The process generator system directly supports the architecture presented in our slides:
+The process generator system directly supports the CATChem modern software design:
 
 - **Modern Architecture** ✅ - Generated code follows modern Fortran patterns
 - **Process Interface** ✅ - Standardized lifecycle methods
@@ -222,6 +227,6 @@ The enhanced process generator system transforms CATChem development:
 2. **Ensures consistency** - All processes follow the same patterns
 3. **Improves documentation** - Every process has comprehensive docs
 4. **Enhances testing** - Built-in validation for all processes
-5. **Accelerates development** - Focus on physics, not infrastructure
+5. **Accelerates development** - Focus on chemistry, not infrastructure
 
-This supports CATChem's goal of being a truly community-driven atmospheric modeling platform.
+This supports CATChem's goal of being a truly community-driven atmospheric chemistry library and modeling component.

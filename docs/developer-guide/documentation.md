@@ -31,24 +31,25 @@ flowchart TB
 
 ```
 docs/
-├── index.md                    # Main landing page
-├── quick-start/               # Getting started guides
+├── index.md                  # Main landing page
 ├── user-guide/               # End-user documentation
-├── developer-guide/          # Technical documentation
+├── processes/                # Process-specific documentation used in the user-guide
+├── developer-guide/          # Technical documentation for developers
 ├── api/                      # API reference
-├── guides/                   # Deep-dive technical guides
-├── processes/               # Process-specific documentation
-├── assets/                  # Images, stylesheets, scripts
-└── mkdocs.yml              # Documentation configuration
+├── ufschem/                  # How CATChem is integrated into the UFS to create UFS-Chem
+├── community/                # How to get involved?
+├── evaluation/               # How CATChem and UFS-Chem are evaluated
+├── assets/                   # Images, stylesheets, scripts
+└── ../mkdocs.yml             # Documentation configuration
 ```
 
 ## ✏️ Writing Documentation
 
 ### Markdown Standards
 
-CATChem follows the [CommonMark](https://commonmark.org/) specification with Material theme extensions:
+CATChem follows the **[CommonMark](https://commonmark.org/)** specification with Material theme extensions:
 
-```markdown
+~~~markdown
 # Document Title
 
 Brief introduction with context and purpose.
@@ -77,7 +78,7 @@ def example_function():
 
 === "Tab 2"
     Content for tab 2
-```
+~~~
 
 ### Material Theme Features
 
@@ -97,7 +98,7 @@ def example_function():
 ```
 
 **Code Annotations:**
-```markdown
+~~~markdown
 ```python title="example.py"
 def function_name():  # (1)!
     return "value"    # (2)!
@@ -105,10 +106,10 @@ def function_name():  # (1)!
 
 1. Function definition
 2. Return statement
-```
+~~~
 
 **Tabbed Content:**
-```markdown
+~~~markdown
 === "Linux"
     ```bash
     ./configure --prefix=/usr/local
@@ -118,7 +119,7 @@ def function_name():  # (1)!
     ```bash
     ./configure --prefix=/opt/local
     ```
-```
+~~~
 
 ### Fortran API Documentation
 
@@ -147,6 +148,7 @@ subroutine example_subroutine(input_param, output_param, rc)
 ```
 
 **Doxygen Tags:**
+
 - `@brief` - Short description
 - `@param[in|out|inout]` - Parameter documentation
 - `@return` - Return value description
@@ -254,16 +256,19 @@ jobs:
 
 ### User Documentation
 
-**Purpose:** Enable users to effectively use CATChem
-**Audience:** Researchers, operational forecasters, students
-**Location:** `docs/user-guide/`
+- **Purpose:** Enable users to effectively use CATChem
+- **Audience:** Researchers, operational forecasters, students
+- **Location:** `docs/user-guide/`
 
 **Content Guidelines:**
+
 - Task-oriented organization
 - Step-by-step procedures
 - Real-world examples
 - Troubleshooting guides
 - Performance tips
+- Build system details
+- Advanced topics section providing greater detail
 
 **Example Structure:**
 ```markdown
@@ -300,19 +305,19 @@ Before running CATChem, ensure you have:
 
 ### Developer Documentation
 
-**Purpose:** Enable developers to contribute to CATChem
-**Audience:** Software developers, model developers, contributors
-**Location:** `docs/developer-guide/`
+- **Purpose:** Enable developers to contribute to CATChem
+- **Audience:** Software developers, model developers, contributors
+- **Location:** `docs/developer-guide/`
 
 **Content Guidelines:**
+
 - Architecture explanations
 - Code patterns and conventions
 - API documentation
 - Testing strategies
-- Build system details
 
 **Example Structure:**
-```markdown
+~~~markdown
 # Process Architecture
 
 CATChem uses a modular process architecture for atmospheric chemistry components.
@@ -335,51 +340,42 @@ contains
   procedure(finalize_interface), deferred :: finalize
 end type
 ```
-```
+~~~
 
 ### API Documentation
 
-**Purpose:** Comprehensive reference for all modules and procedures
-**Audience:** Developers integrating with CATChem
-**Location:** `docs/api/` (auto-generated)
+- **Purpose:** Comprehensive reference for all modules and procedures
+- **Audience:** Developers integrating with CATChem
+- **Location:** `docs/api/` (auto-generated)
 
 **Auto-generated from source code using Doxygen:**
+
 - Module documentation
 - Type definitions
 - Procedure signatures
 - Parameter descriptions
 - Usage examples
 
-### Guides and Tutorials
-
-**Purpose:** Deep-dive explanations and hands-on learning
-**Audience:** All users seeking detailed understanding
-**Location:** `docs/guides/`
-
-**Content Guidelines:**
-- Concept explanations
-- Hands-on tutorials
-- Best practices
-- Common patterns
-- Advanced topics
-
 ## 🎯 Documentation Standards
 
 ### Writing Style
 
 **Clarity and Conciseness:**
+
 - Use active voice
 - Write clear, concise sentences
 - Use consistent terminology
 - Define technical terms
 
 **Structure:**
+
 - Use descriptive headings
 - Organize content logically
 - Include table of contents for long documents
 - Use bullet points and numbered lists
 
 **Code Examples:**
+
 - Provide complete, runnable examples
 - Use realistic data and scenarios
 - Include expected output
@@ -405,6 +401,7 @@ The `StateContainer` is documented in the [API reference](../api/CATChem/state_m
 ### Images and Diagrams
 
 **Formats:**
+
 - Use PNG for screenshots and complex diagrams
 - Use SVG for simple diagrams (if Pandoc compatibility not required)
 - Use Mermaid for flow charts and system diagrams
@@ -436,6 +433,7 @@ plugins:
 ```
 
 **SEO Optimization:**
+
 - Descriptive page titles
 - Meta descriptions
 - Structured headings
@@ -466,6 +464,7 @@ extra:
 ```
 
 **Performance Monitoring:**
+
 - Page load times
 - Search usage
 - Popular content
@@ -476,13 +475,14 @@ extra:
 ### Review Process
 
 **Documentation Review Checklist:**
-- [ ] Technical accuracy verified
-- [ ] Links tested and working
-- [ ] Code examples tested
-- [ ] Spelling and grammar checked
-- [ ] Consistent style and formatting
-- [ ] Cross-references updated
-- [ ] Screenshots current
+
+- [x] Technical accuracy verified
+- [x] Links tested and working
+- [x] Code examples tested
+- [x] Spelling and grammar checked
+- [x] Consistent style and formatting
+- [x] Cross-references updated
+- [x] Screenshots current
 
 ### Automated Checks
 
@@ -507,6 +507,7 @@ cspell "docs/**/*.md"
 ### Accessibility
 
 **Accessibility Guidelines:**
+
 - Use descriptive link text
 - Provide alt text for images
 - Use proper heading hierarchy
@@ -518,6 +519,7 @@ cspell "docs/**/*.md"
 ### Tracking Success
 
 **Key Metrics:**
+
 - Documentation coverage
 - User engagement
 - Search success rate
@@ -553,6 +555,7 @@ doxygen -g
 ```
 
 **Link Errors:**
+
 - Verify file paths are correct
 - Check case sensitivity on Unix systems
 - Ensure files exist in repository
@@ -560,21 +563,23 @@ doxygen -g
 ### Getting Help
 
 **Resources:**
-- [MkDocs Documentation](https://www.mkdocs.org/)
-- [Material Theme Documentation](https://squidfunk.github.io/mkdocs-material/)
-- [Doxygen Manual](https://www.doxygen.nl/manual/)
-- [CATChem Issues](https://github.com/NOAA-GSL/CATChem/issues)
+
+- **[MkDocs Documentation](https://www.mkdocs.org/)**
+- **[Material Theme Documentation](https://squidfunk.github.io/mkdocs-material/)**
+- **[Doxygen Manual](https://www.doxygen.nl/manual/)**
+- **[CATChem Issues](https://github.com/UFS-Community/CATChem/issues)**
 
 **Contact:**
-- Development team: [GitHub Discussions](https://github.com/NOAA-GSL/CATChem/discussions)
-- Documentation issues: [GitHub Issues](https://github.com/NOAA-GSL/CATChem/issues)
+
+- Development team: **[GitHub Discussions](https://github.com/UFS-Community/CATChem/discussions)**
+- Documentation issues: **[GitHub Issues](https://github.com/UFS-Community/CATChem/issues)**
 
 ## 📚 Related Resources
 
-- [Writing Guide](contributing.md#documentation)
-- [Build System](build-system.md)
-- [Testing Documentation](testing.md#documentation-testing)
-- [API Standards](coding-standards.md#documentation)
+- **[Writing Guide](contributing.md#documentation)**
+- **[Build System](../user-guide/build-system.md)**
+- **[Testing Documentation](testing.md#documentation-testing)**
+- **[API Standards](coding-standards.md#documentation)**
 
 ---
 

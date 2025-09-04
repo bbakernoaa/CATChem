@@ -1,6 +1,6 @@
-# State Management
+# State Management Developer Guide
 
-CATChem's state management system provides a modern, flexible architecture for handling model state data through the StateContainer pattern with dependency injection.
+CATChem's state management system provides a modern, flexible architecture for handling model state data through the StateContainer pattern with dependency injection. Everything you need to know about the state management system to develop, modify, and extend CATChem is described in this guide.
 
 ## Overview
 

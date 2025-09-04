@@ -1,12 +1,12 @@
 # Creating New Processes
 
-This guide walks you through the complete process of creating a new atmospheric process in CATChem, from initial design to testing and integration.
+This guide walks you through the complete process of creating a new atmospheric process in CATChem manually, from initial design to testing and integration. Please only use this guide for processes where the **[Process Generator](generator-tutorial.md)** is not applicable.
 
 ## Planning Your Process
 
 Before writing code, carefully plan your process implementation:
 
-### 1. Define the Physical Process
+### 1. Define the Chemical Process
 
 - **What does it do?** (e.g., "Calculate dry deposition of gas-phase species")
 - **What inputs does it need?** (meteorology, species concentrations, surface properties)
@@ -677,15 +677,15 @@ make catchem_profile
 
 Before integrating your process:
 
-- [ ] All unit tests pass
-- [ ] Integration tests pass
-- [ ] Documentation is complete
-- [ ] Code follows style guidelines
-- [ ] Error handling is robust
-- [ ] Configuration is validated
-- [ ] Diagnostics are working
-- [ ] Memory leaks are checked
-- [ ] Performance is acceptable
+- [x] All unit tests pass
+- [x] Integration tests pass
+- [x] Documentation is complete
+- [x] Code follows style guidelines
+- [x] Error handling is robust
+- [x] Configuration is validated
+- [x] Diagnostics are working
+- [x] Memory leaks are checked
+- [x] Performance is acceptable
 
 ## Common Pitfalls
 

@@ -1,4 +1,4 @@
-# Testing
+# Testing Developer Guide
 
 Comprehensive testing strategy for CATChem development.
 
