@@ -21,10 +21,10 @@ set(_core_srcs
   VirtualColumn_Mod.F90
   ColumnInterface_Mod.F90
   GridManager_Mod.F90
+  DiagnosticManager_Mod.F90
   StateManager_Mod.F90
   ChemSpeciesUtils_Mod.F90
   EmissionConfigValidator_Mod.F90
-  DiagnosticManager_Mod.F90
   ProcessInterface_Mod.F90
   ProcessFactory_Mod.F90
   ProcessRegistry_Mod.F90

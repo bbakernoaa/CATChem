@@ -16,6 +16,8 @@ module ProcessInterface_Mod
    use ColumnInterface_Mod, only : ColumnProcessorType
    use VirtualColumn_Mod, only : VirtualColumnType
    use ExtEmisData_Mod, only : ExtEmisDataType
+   use DiagnosticManager_Mod, only: DiagnosticManagerType
+   use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DiagnosticFieldType, DiagnosticDataType
 
    implicit none
    private
@@ -30,9 +32,9 @@ module ProcessInterface_Mod
    !!
    type, abstract :: ProcessInterface
       private
-      character(len=64) :: name = ''         !< Process name
-      character(len=64) :: version = ''      !< Version string
-      character(len=256) :: description = '' !< Process description
+      character(len=64), public :: name = ''         !< Process name
+      character(len=64), public :: version = ''      !< Version string  
+      character(len=256), public :: description = '' !< Process description
       logical :: is_initialized = .false.    !< Initialization status
       logical :: is_active = .false.         !< Active status
       real(fp) :: dt = 0.0_fp                !< Process timestep
@@ -61,6 +63,7 @@ module ProcessInterface_Mod
       ! Diagnostic support
       procedure :: register_diagnostics => process_register_diagnostics
       procedure :: update_diagnostics => process_update_diagnostics
+      procedure :: register_diagnostic_field => process_register_diagnostic_field
 
       ! Common atmospheric process utilities
       procedure :: apply_emission_scaling => process_apply_emission_scaling
@@ -104,6 +107,14 @@ module ProcessInterface_Mod
       procedure :: enable_column_processing => column_process_enable
       procedure :: disable_column_processing => column_process_disable
       procedure :: is_column_processing_enabled => column_process_is_enabled
+
+      ! Generic column diagnostic update interface - automatically dispatches based on argument types
+      generic :: update_column_diagnostics => update_scalar_diagnostic_column, &
+                                              update_1d_diagnostic_column, &
+                                              update_2d_diagnostic_column
+      procedure :: update_scalar_diagnostic_column => column_update_scalar_diagnostic
+      procedure :: update_1d_diagnostic_column => column_update_1d_diagnostic
+      procedure :: update_2d_diagnostic_column => column_update_2d_diagnostic
    end type ColumnProcessInterface
 
    ! Abstract interfaces that must be implemented by concrete processes
@@ -143,18 +154,18 @@ module ProcessInterface_Mod
       end subroutine
 
       !> \brief Process a single virtual column
-      subroutine column_run_interface(this, column, rc)
-         import :: ColumnProcessInterface, VirtualColumnType
+      subroutine column_run_interface(this, column, container, rc)
+         import :: ColumnProcessInterface, VirtualColumnType, StateManagerType
          class(ColumnProcessInterface), intent(inout) :: this
          type(VirtualColumnType), intent(inout) :: column
+         type(StateManagerType), intent(inout) :: container
          integer, intent(out) :: rc
       end subroutine
 
       !> \brief Finalize column processing
-      subroutine column_finalize_interface(this, container, rc)
-         import :: ColumnProcessInterface, StateManagerType
+      subroutine column_finalize_interface(this, rc)
+         import :: ColumnProcessInterface
          class(ColumnProcessInterface), intent(inout) :: this
-         type(StateManagerType), intent(inout) :: container
          integer, intent(out) :: rc
       end subroutine
    end interface
@@ -202,6 +213,7 @@ contains
    subroutine process_activate(this)
       class(ProcessInterface), intent(inout) :: this
       this%is_active = .true.
+      this%is_initialized = .true.
    end subroutine process_activate
 
    !> \brief Deactivate the process
@@ -299,6 +311,53 @@ contains
       ! Default implementation does nothing
       ! Concrete processes should override this method to update their diagnostic values
    end subroutine process_update_diagnostics
+
+   !> \brief Utility to register a single diagnostic field with create, initialize, and register steps
+   !!
+   !! This utility method encapsulates the common pattern of creating a diagnostic field,
+   !! initializing its data storage, and registering it with the diagnostic registry.
+   !! This eliminates code duplication in process-specific diagnostic registration routines.
+   !!
+   !! \param[in] this ProcessInterface instance
+   !! \param[inout] registry Diagnostic registry to register the field with
+   !! \param[in] field_name Name of the diagnostic field
+   !! \param[in] description Human-readable description of the field
+   !! \param[in] units Physical units of the field (e.g., 'kg/m2/s', 'ppbv')
+   !! \param[in] field_type Field data type (DIAG_REAL_2D, DIAG_REAL_3D, etc.)
+   !! \param[in] process_name Name of the process registering the field
+   !! \param[in] dimensions Array dimensions for data storage [nx, ny] or [nx, ny, nz]
+   !! \param[out] rc Return code
+   subroutine process_register_diagnostic_field(this, registry, field_name, description, &
+                                                units, field_type, process_name, dimensions, rc)
+      use DiagnosticInterface_Mod, only: DiagnosticFieldType, DiagnosticRegistryType
+      
+      class(ProcessInterface), intent(in) :: this
+      type(DiagnosticRegistryType), intent(inout) :: registry
+      character(len=*), intent(in) :: field_name
+      character(len=*), intent(in) :: description
+      character(len=*), intent(in) :: units
+      integer, intent(in) :: field_type
+      character(len=*), intent(in) :: process_name
+      integer, intent(in) :: dimensions(:)
+      integer, intent(out) :: rc
+      
+      type(DiagnosticFieldType) :: diag_field
+      
+      rc = CC_SUCCESS
+      
+      ! Create the diagnostic field
+      call diag_field%create(field_name, description, units, field_type, process_name, rc)
+      if (rc /= CC_SUCCESS) return
+      
+      ! Initialize data storage for field
+      call diag_field%initialize_data(dimensions, rc)
+      if (rc /= CC_SUCCESS) return
+      
+      ! Register the field with the registry
+      call registry%register_field(diag_field, rc)
+      if (rc /= CC_SUCCESS) return
+      
+   end subroutine process_register_diagnostic_field
 
    !========================================================================
    ! Common Atmospheric Process Utilities
@@ -505,7 +564,7 @@ contains
 
       ! Get chemical state and error manager
       chem_state => container%get_chem_state_ptr()
-      error_mgr => container%get_error_manager()
+      error_mgr = container%get_error_manager()
 
       if (.not. associated(chem_state)) then
          rc = CC_FAILURE
@@ -811,6 +870,254 @@ contains
       write(*, '(A)') trim(message)
 
    end subroutine process_calculate_column_integrals
+
+   !========================================================================
+   ! ColumnProcessInterface Diagnostic Implementation
+   !========================================================================
+
+   !> Update a scalar diagnostic field for column processing
+   !!
+   !! This method handles updating scalar diagnostic values from column processing
+   !! to the global diagnostic storage managed by DiagnosticManager.
+   !!
+   !! \param[inout] this ColumnProcessInterface instance
+   !! \param[in] field_name Name of the diagnostic field to update
+   !! \param[in] scalar_value The scalar value to store
+   !! \param[in] i_col Column i-index (x-direction) 
+   !! \param[in] j_col Column j-index (y-direction)
+   !! \param[in] container StateManager for accessing diagnostic manager
+   !! \param[out] rc Return code
+   subroutine column_update_scalar_diagnostic(this, field_name, scalar_value, i_col, j_col, container, rc)
+      class(ColumnProcessInterface), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      real(fp), intent(in) :: scalar_value
+      integer, intent(in) :: i_col, j_col
+      type(StateManagerType), intent(inout) :: container
+      integer, intent(out) :: rc
+      
+      type(DiagnosticManagerType), pointer :: diag_mgr => null()
+      type(DiagnosticRegistryType), pointer :: registry => null()
+      type(DiagnosticFieldType), pointer :: diag_field => null()
+      type(DiagnosticDataType), pointer :: diag_data => null()
+      real(fp), pointer :: field_data_2d(:,:) => null()
+      character(len=64) :: process_name
+      
+      rc = CC_SUCCESS
+      
+      ! Get DiagnosticManager from container
+      diag_mgr => container%get_diagnostic_manager()
+      if (.not. associated(diag_mgr)) then
+         rc = CC_FAILURE
+         return
+      end if
+      
+      ! Get process name for registry lookup
+      process_name = this%get_name()
+      
+      ! Get process registry from DiagnosticManager
+      call diag_mgr%get_process_registry(trim(process_name), registry, rc)
+      if (rc /= CC_SUCCESS .or. .not. associated(registry)) then
+         rc = CC_FAILURE
+         return
+      end if
+      
+      ! Get the specific diagnostic field from registry
+      diag_field => registry%get_field_ptr(field_name)
+      if (.not. associated(diag_field)) then
+         rc = CC_FAILURE  ! Field not found
+         return
+      end if
+      
+      ! Verify field is ready and get data storage
+      if (.not. diag_field%is_ready()) then
+         rc = CC_FAILURE  ! Field not initialized
+         return
+      end if
+      diag_data => diag_field%get_data_ptr()
+      if (.not. associated(diag_data)) then
+         rc = CC_FAILURE
+         return
+      end if
+      
+      ! Get pointer to 2D field data and update
+      field_data_2d => diag_data%get_real_2d_ptr()
+      if (.not. associated(field_data_2d)) then
+         rc = CC_FAILURE  ! Wrong data type or not allocated
+         return
+      end if
+      
+      ! Update the field at column position
+      field_data_2d(i_col, j_col) = scalar_value
+      
+   end subroutine column_update_scalar_diagnostic
+
+   !> Update a 1D diagnostic field for column processing
+   !!
+   !! This method handles updating 1D diagnostic arrays (e.g., vertical profiles)
+   !! from column processing to the global diagnostic storage.
+   !!
+   !! \param[inout] this ColumnProcessInterface instance
+   !! \param[in] field_name Name of the diagnostic field to update
+   !! \param[in] array_1d The 1D array data to store
+   !! \param[in] i_col Column i-index (x-direction)
+   !! \param[in] j_col Column j-index (y-direction)
+   !! \param[in] container StateManager for accessing diagnostic manager
+   !! \param[out] rc Return code
+   subroutine column_update_1d_diagnostic(this, field_name, array_1d, i_col, j_col, container, rc)
+      class(ColumnProcessInterface), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      real(fp), intent(in) :: array_1d(:)
+      integer, intent(in) :: i_col, j_col
+      type(StateManagerType), intent(inout) :: container
+      integer, intent(out) :: rc
+      
+      ! Local variables for diagnostic system integration
+      type(DiagnosticManagerType), pointer :: diag_mgr => null()
+      type(DiagnosticRegistryType), pointer :: registry => null()
+      type(DiagnosticFieldType), pointer :: diag_field => null()
+      type(DiagnosticDataType), pointer :: diag_data => null()
+      real(fp), pointer :: field_data_3d(:,:,:) => null()
+      character(len=64) :: process_name
+      integer :: k, n_dim3
+      
+      rc = CC_SUCCESS
+      n_dim3 = size(array_1d)
+      
+      ! Get DiagnosticManager from container
+      diag_mgr => container%get_diagnostic_manager()
+      if (.not. associated(diag_mgr)) then
+         rc = CC_FAILURE
+         return
+      end if
+      
+      ! Get process name for registry lookup
+      process_name = this%get_name()
+      
+      ! Get process registry from DiagnosticManager
+      call diag_mgr%get_process_registry(trim(process_name), registry, rc)
+      if (rc /= CC_SUCCESS) return
+      if (.not. associated(registry)) then
+         rc = CC_FAILURE
+         return
+      end if
+      
+      ! Get the specific diagnostic field from registry
+      diag_field => registry%get_field_ptr(field_name)
+      if (.not. associated(diag_field)) then
+         rc = CC_FAILURE  ! Field not found
+         return
+      end if
+      
+      ! Verify field is ready and get data storage
+      if (.not. diag_field%is_ready()) then
+         rc = CC_FAILURE  ! Field not initialized
+         return
+      end if
+      diag_data => diag_field%get_data_ptr()
+      if (.not. associated(diag_data)) then
+         rc = CC_FAILURE
+         return
+      end if
+      
+      ! Get pointer to 3D field data and validate
+      field_data_3d => diag_data%get_real_3d_ptr()
+      if (.not. associated(field_data_3d)) then
+         rc = CC_FAILURE  ! Wrong data type or not allocated
+         return
+      end if
+      
+      ! Validate dimensions
+      if (size(field_data_3d, 3) /= n_dim3) then
+         rc = CC_FAILURE  ! Dimension mismatch
+         return
+      end if
+      
+      ! Update the field at column position
+      do k = 1, n_dim3
+         field_data_3d(i_col, j_col, k) = array_1d(k)
+      end do
+      
+   end subroutine column_update_1d_diagnostic
+
+   !> Update a 2D diagnostic field for column processing
+   !!
+   !! This method handles updating 2D diagnostic arrays (e.g., level-species matrices)
+   !! from column processing to the global diagnostic storage. Since DiagnosticInterface
+   !! currently supports up to 3D arrays, 2D column data is stored using flattened indexing.
+   !!
+   !! \param[inout] this ColumnProcessInterface instance
+   !! \param[in] field_name Name of the diagnostic field to update
+   !! \param[in] array_2d The 2D array data to store
+   !! \param[in] i_col Column i-index (x-direction)
+   !! \param[in] j_col Column j-index (y-direction)
+   !! \param[in] container StateManager for accessing diagnostic manager
+   !! \param[out] rc Return code
+   subroutine column_update_2d_diagnostic(this, field_name, array_2d, i_col, j_col, container, rc)
+      class(ColumnProcessInterface), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      real(fp), intent(in) :: array_2d(:,:)
+      integer, intent(in) :: i_col, j_col
+      type(StateManagerType), intent(inout) :: container
+      integer, intent(out) :: rc
+      
+      ! Local variables for diagnostic system integration
+      type(DiagnosticManagerType), pointer :: diag_mgr => null()
+      type(DiagnosticRegistryType), pointer :: registry => null()
+      type(DiagnosticFieldType), pointer :: diag_field => null()
+      type(DiagnosticDataType), pointer :: diag_data => null()
+      real(fp), pointer :: field_data_3d(:,:,:) => null()
+      character(len=64) :: process_name
+      integer :: k, l, n_levels, n_species, flat_index
+      
+      rc = CC_SUCCESS
+      
+      n_levels = size(array_2d, 1)   ! levels dimension
+      n_species = size(array_2d, 2)  ! species dimension
+      
+      ! Get DiagnosticManager from container
+      diag_mgr => container%get_diagnostic_manager()
+      if (.not. associated(diag_mgr)) then
+         rc = CC_FAILURE
+         return
+      end if
+      
+      ! Get process name for registry lookup
+      process_name = this%get_name()
+      
+      ! Get process registry from DiagnosticManager
+      call diag_mgr%get_process_registry(trim(process_name), registry, rc)
+      if (rc /= CC_SUCCESS) return
+      if (.not. associated(registry)) then
+         rc = CC_FAILURE
+         return
+      end if
+      
+      ! Get diagnostic field
+      diag_field => registry%get_field_ptr(field_name)
+      if (.not. associated(diag_field) .or. .not. diag_field%is_ready()) then
+         rc = CC_FAILURE
+         return
+      end if
+      
+      ! Get 3D data storage (flattened storage for 2D column data)
+      diag_data => diag_field%get_data_ptr()
+      field_data_3d => diag_data%get_real_3d_ptr()
+      if (.not. associated(field_data_3d)) then
+         rc = CC_FAILURE
+         return
+      end if
+      
+      ! Update field using flattened indexing
+      ! The 3rd dimension contains flattened (level, species) pairs
+      ! Mapping: flat_index = (level-1) * n_species + species
+      do l = 1, n_species
+         do k = 1, n_levels
+            flat_index = (k-1) * n_species + l
+            field_data_3d(i_col, j_col, flat_index) = array_2d(k, l)
+         end do
+      end do
+      
+   end subroutine column_update_2d_diagnostic
 
 
 end module ProcessInterface_Mod

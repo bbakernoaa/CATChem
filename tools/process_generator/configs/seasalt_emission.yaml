@@ -1,0 +1,153 @@
+name: "seasalt"
+description: "Process for computing sea salt aerosol emissions over ocean surfaces"
+class_name: "SeaSalt"
+process_type: "emission"
+author: "Barry Baker & Wei Li"
+
+# Explicit process behavior configuration with species filtering
+process_behavior:
+  type: "source" #is not doing anything now
+  tendency_mode: "additive" #is not doing anything now
+  species_filter:
+    #type: "all_species"
+    type: "by_metadata"
+    metadata_flags:
+      - "is_seasalt"  # Filter for species with is_aero=true property
+    #type: "by_list"
+    #species_list:
+    #  - "SEASALT_FINE"      # Fine mode sea salt (< 1 μm)
+    #  - "SEASALT_COARSE"    # Coarse mode sea salt (1-10 μm)
+    #  - "SEASALT_SUPER"     # Super-coarse mode sea salt (> 10 μm)
+  tendency_calculation: "rates" #is not doing anything now
+  timestep_dependency: "independent" #is not doing anything now
+  spatial_scope: "column" #is not doing anything now
+  #only 'column' is supported for now
+  parallelization: "column"  #column: (extends(ColumnProcessInterface); use VirtualColumnType ) or global: (extends(ProcessInterface))  
+  memory_requirements: "low" #is not doing anything now
+
+schemes:
+  gong97:
+    name: "gong97"
+    class_name: "GONG97"
+    description: "Gong 1997 sea salt emission scheme"
+    algorithm_type: "explicit"
+    affects_full_column: false
+    reference: "Gong et al. [1997]"
+    author: "Barry Baker"
+
+    required_met_fields:
+      - FROCEAN
+      - FRSEAICE
+      - SST
+      - U10M
+      - V10M
+
+    required_species_properties:         
+      - density              
+      - radius               
+      - lower_radius       
+      - upper_radius          
+
+    parameters:
+      scale_factor:
+        default: 1.0
+        min: 0.1
+        max: 10.0
+        description: "Emission scale factor"
+      weibull_flag:
+        default: false
+        description: "Apply Weibull distribution for particle size"
+
+    diagnostics:
+      - name: "seasalt_mass_emission_per_bin"
+        description: "Sea salt mass emission flux per bin"
+        units: "ug/m2/s"
+      - name: "seasalt_number_emission_per_bin"
+        description: "Sea salt number emission flux per bin"
+        units: "#/m2/s"
+
+
+  gong03:
+    name: "gong03"
+    class_name: "GONG03"
+    description: "Gong 2003 sea salt emission scheme with improved sub- and super-micron treatment"
+    algorithm_type: "explicit"
+    affects_full_column: false
+    reference: "Gong [2003]"
+    author: "Barry Baker"
+
+    required_met_fields:
+      - FROCEAN
+      - FRSEAICE
+      - SST
+      - U10M
+      - V10M
+    
+    required_species_properties:         
+      - density              
+      - radius               
+      - lower_radius       
+      - upper_radius
+
+    parameters:
+      scale_factor:
+        default: 1.0
+        min: 0.1
+        max: 10.0
+        description: "Emission scale factor"
+      weibull_flag:
+        default: false
+        description: "Apply Weibull distribution for particle size"
+
+    diagnostics:
+      - name: "seasalt_mass_emission_per_bin"
+        description: "Sea salt mass emission flux per bin"
+        units: "ug/m2/s"
+      - name: "seasalt_number_emission_per_bin"
+        description: "Sea salt number emission flux per bin"
+        units: "#/m2/s"
+
+  geos12:
+    name: "geos12"
+    class_name: "GEOS12"
+    description: "GEOS-Chem 2012 sea salt emission scheme with observational constraints"
+    algorithm_type: "explicit"
+    affects_full_column: false
+    reference: "Jaeglé et al. [2011]"
+    author: "Barry Baker"
+
+    required_met_fields:
+      - FROCEAN
+      - FRSEAICE
+      - SST
+      - USTAR
+
+    required_species_properties:         
+      - density              
+      - radius               
+      - lower_radius       
+      - upper_radius
+
+    parameters:
+      scale_factor:
+        default: 1.0
+        min: 0.1
+        max: 10.0
+        description: "Emission scale factor"
+
+    diagnostics:
+      - name: "seasalt_mass_emission_per_bin"
+        description: "Sea salt mass emission flux per bin"
+        units: "ug/m2/s"
+      - name: "seasalt_number_emission_per_bin"
+        description: "Sea salt number emission flux per bin"
+        units: "#/m2/s"
+
+diagnostics:
+  - name: "seasalt_mass_emission_total"
+    description: "Sea salt mass emission flux total"
+    units: "ug/m2/s"
+  - name: "seasalt_number_emission_total"
+    description: "Sea salt number emission flux total"
+    units: "#/m2/s"
+

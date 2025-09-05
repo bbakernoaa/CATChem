@@ -43,7 +43,7 @@ module DiagnosticManager_Mod
                         ERROR_INVALID_INPUT, ERROR_NOT_FOUND, ERROR_MEMORY_ALLOCATION
    use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DiagnosticFieldType, &
                                       DiagnosticDataType
-   use StateManager_Mod, only: StateManagerType
+   ! Removed StateManager_Mod import to break circular dependency
 
    implicit none
    private
@@ -57,6 +57,9 @@ module DiagnosticManager_Mod
    !! the CATChem framework.
    type :: DiagnosticManagerType
       private
+
+      ! Error management
+      type(ErrorManagerType), pointer :: error_mgr => null()
 
       ! Process registries management
       type(DiagnosticRegistryType), allocatable :: process_registries(:)
@@ -110,28 +113,28 @@ contains
    !> \brief Initialize diagnostic manager
    !!
    !! \param[inout] this DiagnosticManagerType instance
-   !! \param[inout] container StateManager for integration
+   !! \param[inout] error_mgr ErrorManager for error handling
    !! \param[out] rc Return code
-   subroutine diagnostic_manager_init(this, container, rc)
+   subroutine diagnostic_manager_init(this, error_mgr, rc)
       class(DiagnosticManagerType), intent(inout) :: this
-      type(StateManagerType), intent(inout) :: container
+      type(ErrorManagerType), intent(inout), target :: error_mgr
       integer, intent(out) :: rc
-
-      type(ErrorManagerType), pointer :: error_mgr
 
       rc = CC_SUCCESS
 
-      ! Get error manager from container
-      error_mgr => container%get_error_manager()
-      call error_mgr%push_context('diagnostic_manager_init', 'Initializing diagnostic manager')
+      ! Store ErrorManager reference for internal use
+      this%error_mgr => error_mgr
+
+      ! Initialize diagnostic manager
+      call this%error_mgr%push_context('diagnostic_manager_init', 'Initializing diagnostic manager')
 
       ! Allocate process arrays
       if (.not. allocated(this%process_registries)) then
          allocate(this%process_registries(this%max_processes), stat=rc)
          if (rc /= 0) then
-            call error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
+            call this%error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
                                         'Failed to allocate process registries', rc)
-            call error_mgr%pop_context()
+            call this%error_mgr%pop_context()
             return
          endif
       endif
@@ -139,9 +142,9 @@ contains
       if (.not. allocated(this%process_names)) then
          allocate(this%process_names(this%max_processes), stat=rc)
          if (rc /= 0) then
-            call error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
+            call this%error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
                                         'Failed to allocate process names', rc)
-            call error_mgr%pop_context()
+            call this%error_mgr%pop_context()
             return
          endif
       endif
@@ -153,7 +156,7 @@ contains
       ! TODO: Read configuration from container's ConfigManager
       ! For now, use defaults
 
-      call error_mgr%pop_context()
+      call this%error_mgr%pop_context()
 
    end subroutine diagnostic_manager_init
 
@@ -218,25 +221,20 @@ contains
    !!
    !! \param[inout] this DiagnosticManagerType instance
    !! \param[in] process_name Name of the process to register
-   !! \param[inout] container StateManager for error reporting
    !! \param[out] rc Return code
-   subroutine diagnostic_manager_register_process(this, process_name, container, rc)
+   subroutine diagnostic_manager_register_process(this, process_name, rc)
       class(DiagnosticManagerType), intent(inout) :: this
       character(len=*), intent(in) :: process_name
-      type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
-      type(ErrorManagerType), pointer :: error_mgr
       integer :: i
 
       rc = CC_SUCCESS
 
-      error_mgr => container%get_error_manager()
-
       ! Check if process already registered
       do i = 1, this%num_processes
          if (trim(this%process_names(i)) == trim(process_name)) then
-            call error_mgr%report_error(ERROR_INVALID_INPUT, &
+            call this%error_mgr%report_error(ERROR_INVALID_INPUT, &
                                         'Process already registered: ' // trim(process_name), rc)
             return
          endif
@@ -244,7 +242,7 @@ contains
 
       ! Check capacity
       if (this%num_processes >= this%max_processes) then
-         call error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
+         call this%error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
                                      'Maximum number of processes reached', rc)
          return
       endif
@@ -254,7 +252,7 @@ contains
       this%process_names(this%num_processes) = trim(process_name)
 
       ! Initialize process registry
-      call this%process_registries(this%num_processes)%init(process_name, error_mgr, rc)
+      call this%process_registries(this%num_processes)%init(process_name, this%error_mgr, rc)
 
    end subroutine diagnostic_manager_register_process
 
@@ -427,36 +425,32 @@ contains
    !> \brief Collect diagnostics from all processes
    !!
    !! \param[inout] this DiagnosticManagerType instance
-   !! \param[inout] container StateManager for state access
    !! \param[out] rc Return code
-   subroutine diagnostic_manager_collect_all(this, container, rc)
+   subroutine diagnostic_manager_collect_all(this, rc)
       class(DiagnosticManagerType), intent(inout) :: this
-      type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
-      type(ErrorManagerType), pointer :: error_mgr
       integer :: i, local_rc
 
       rc = CC_SUCCESS
 
       if (.not. this%collection_enabled) return
 
-      error_mgr => container%get_error_manager()
-      call error_mgr%push_context('diagnostic_manager_collect_all', &
+      call this%error_mgr%push_context('diagnostic_manager_collect_all', &
                                   'Collecting diagnostics from all processes')
 
       ! Collect from each process
       do i = 1, this%num_processes
-         call this%collect_process_diagnostics(this%process_names(i), container, local_rc)
+         call this%collect_process_diagnostics(this%process_names(i), local_rc)
          if (local_rc /= CC_SUCCESS) then
-            call error_mgr%report_error(local_rc, &
+            call this%error_mgr%report_error(local_rc, &
                                         'Failed to collect diagnostics from: ' // &
                                         trim(this%process_names(i)), rc)
             ! Continue with other processes
          endif
       enddo
 
-      call error_mgr%pop_context()
+      call this%error_mgr%pop_context()
 
    end subroutine diagnostic_manager_collect_all
 
@@ -464,12 +458,10 @@ contains
    !!
    !! \param[inout] this DiagnosticManagerType instance
    !! \param[in] process_name Name of the process
-   !! \param[inout] container StateManager for state access
    !! \param[out] rc Return code
-   subroutine diagnostic_manager_collect_process(this, process_name, container, rc)
+   subroutine diagnostic_manager_collect_process(this, process_name, rc)
       class(DiagnosticManagerType), intent(inout) :: this
       character(len=*), intent(in) :: process_name
-      type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
       type(DiagnosticRegistryType), pointer :: registry
@@ -488,14 +480,10 @@ contains
    !> \brief Write diagnostic output
    !!
    !! \param[inout] this DiagnosticManagerType instance
-   !! \param[inout] container StateManager for state access
    !! \param[out] rc Return code
-   subroutine diagnostic_manager_write_output(this, container, rc)
+   subroutine diagnostic_manager_write_output(this, rc)
       class(DiagnosticManagerType), intent(inout) :: this
-      type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
-
-      type(ErrorManagerType), pointer :: error_mgr
 
       rc = CC_SUCCESS
 
@@ -504,15 +492,14 @@ contains
       ! Check if it's time to output
       if (mod(this%current_timestep, this%output_frequency) /= 0) return
 
-      error_mgr => container%get_error_manager()
-      call error_mgr%push_context('diagnostic_manager_write_output', &
+      call this%error_mgr%push_context('diagnostic_manager_write_output', &
                                   'Writing diagnostic output')
 
       ! TODO: Implement actual file output
       ! This would write diagnostic data to NetCDF files or other formats
       ! For now, placeholder
 
-      call error_mgr%pop_context()
+      call this%error_mgr%pop_context()
 
    end subroutine diagnostic_manager_write_output
 
@@ -575,26 +562,21 @@ contains
 
    !> \brief Validate diagnostic manager state
    !!
-   !! \param[in] this DiagnosticManagerType instance
-   !! \param[inout] container StateManager for error reporting
+   !! \param[inout] this DiagnosticManagerType instance
    !! \param[out] rc Return code
-   subroutine diagnostic_manager_validate_state(this, container, rc)
-      class(DiagnosticManagerType), intent(in) :: this
-      type(StateManagerType), intent(inout) :: container
+   subroutine diagnostic_manager_validate_state(this, rc)
+      class(DiagnosticManagerType), intent(inout) :: this
       integer, intent(out) :: rc
 
-      type(ErrorManagerType), pointer :: error_mgr
       integer :: i, local_rc
 
       rc = CC_SUCCESS
 
-      error_mgr => container%get_error_manager()
-
       ! Validate each process registry
       do i = 1, this%num_processes
-         call this%process_registries(i)%validate(error_mgr, local_rc)
+         call this%process_registries(i)%validate(this%error_mgr, local_rc)
          if (local_rc /= CC_SUCCESS) then
-            call error_mgr%report_error(local_rc, &
+            call this%error_mgr%report_error(local_rc, &
                                         'Validation failed for process: ' // &
                                         trim(this%process_names(i)), rc)
             return

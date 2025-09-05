@@ -1,0 +1,5 @@
+# CATChem Configuration (Generated)
+# This is a placeholder - full YAML serialization not yet implemented
+nSpecies: 50
+nEmissionCategories: 10
+nEmissionSpecies: 50

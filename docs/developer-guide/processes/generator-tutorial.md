@@ -15,26 +15,34 @@ The CATChem Process Generator is a powerful tool that automates the creation of 
 
 ## Quick Start
 
-The process generator is located in `util/catchem_generate_process.py`. Here's the simplest way to create a new process:
+The process generator is located in `tools/process_generator/process_generator.py`. Here's the simplest way to create a new process:
 
 ```bash
-cd /path/to/catchem
-python util/catchem_generate_process.py \
-    --name DryDeposition \
-    --type loss \
-    --schemes resistance,zhang2001 \
-    --species O3,NO2,SO2,PM25
+cd /path/to/catchem/tools/process_generator
+python process_generator.py generate --config configs/seasalt_emission.yaml
 ```
 
 This command generates:
 
-- Process module: `src/process/drydep/DryDepositionProcess_Mod.F90`
-- Scheme modules: `src/process/drydep/schemes/`
-- Test files: `tests/test_drydeposition.F90`
+- Process module: `src/process/seasalt/ProcessSeaSaltInterface_Mod.F90`
+- Common module: `src/process/seasalt/SeaSaltCommon_Mod.F90` 
+- Scheme modules: `src/process/seasalt/schemes/`
+- Test files: `tests/process/seasalt/`
 - CMake files: Updated automatically
-- Documentation: `docs/processes/drydeposition/`
+- Documentation: `docs/processes/seasalt/`
 
 ## Generator Overview
+
+### Command Structure
+
+```bash
+python process_generator.py COMMAND [OPTIONS]
+
+Commands:
+  generate    Generate complete process implementation
+  validate    Validate configuration file
+  template    Create template configuration file
+```
 
 ### Supported Process Types
 
@@ -456,51 +464,80 @@ Edit `util/templates/process_main.f90.j2` to add custom methods:
 - **Scheme names**: snake_case (e.g., `resistance`, `zhang2001`, `cb6_full`)
 - **File names**: Follow process name + suffix
 
-### 2. Process Design
+### 2. MetState Field Usage
+
+```yaml
+# Good: Use standard MetState field names
+schemes:
+  - name: my_scheme
+    required_met_fields: [FROCEAN, SST, USTAR, T, QV]  # Standard field names
+    affects_full_column: false  # Surface-only processing
+
+# Check available fields first
+# python process_generator.py fields --type all --verbose
+```
+
+### 3. Process Design
 
 - **Single responsibility**: Each process should handle one chemical operation or task
 - **Scheme modularity**: Use schemes for different algorithms, not different operations or tasks
 - **State dependencies**: Minimize dependencies between state components
+- **Field requirements**: Use `affects_full_column` attribute correctly
 
-### 3. Configuration
+### 4. Configuration
 
 ```yaml
-# Good: Clear, organized configuration
-processes:
-  - name: settling
-    scheme: stokes
-    species: [PM25, PM10, DUST_1, DUST_2]
+# Good: Clear, organized configuration with field discovery
+schemes:
+  - name: gong97
+    description: "Gong 1997 sea salt emission scheme"
+    required_met_fields: [FROCEAN, FRSEAICE, SST, U10M, V10M]  # Discovered automatically
+    affects_full_column: false  # Surface-only emission
     parameters:
-      particle_density: 2650.0  # kg/m³
-    diagnostics: [settling_velocity, particle_flux]
+      scale_factor:
+        default: 1.0
+        description: "Emission scale factor"
 
 # Avoid: Unclear or overly complex configuration
-processes:
-  - name: settling
+schemes:
+  - name: gong97
     everything_enabled: true
-    params: {d: 2650, v: all, diag: yes}
+    params: {sf: 1.0, all_fields: yes}
 ```
 
-### 4. Testing
+### 5. Field Discovery Integration
+
+```bash
+# Always check field availability first
+python process_generator.py fields --type all
+
+# Validate configuration with automatic field discovery
+python process_generator.py validate --config my_process.yaml
+
+# Generate with explicit MetState path if needed
+python process_generator.py generate --config my_process.yaml --metstate ../../src/core/metstate_mod.F90
+```
+
+### 6. Testing
 
 Always generate with unit tests enabled:
 ```bash
-python util/catchem_generate_process.py \
-    --name MyProcess \
-    --type transformation \
-    # ... other options
-    --include-tests  # Always include this
+python process_generator.py generate --config my_process.yaml  # Tests included by default
 ```
 
-### 5. Documentation
+### 7. Documentation
 
 Use descriptive names and include scientific background:
-```bash
-python util/catchem_generate_process.py \
-    --name AtmosphericChemistry \
-    --description "Gas-phase atmospheric chemistry using CB6 mechanism" \
-    --include-theory \
-    --include-validation
+```yaml
+process:
+  name: "seasalt"
+  description: "Process for computing sea salt aerosol emissions over ocean surfaces"
+  author: "Barry Baker & Wei Li"
+  
+schemes:
+  - name: gong97
+    description: "Gong 1997 sea salt emission scheme"
+    reference: "Gong et al. [1997]"
 ```
 
 ## Troubleshooting

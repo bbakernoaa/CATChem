@@ -70,16 +70,18 @@ module ChemState_Mod
       INTEGER              :: nSpeciesGas       ! Number of Gas Species
       INTEGER              :: nSpeciesAero      ! Number of Aerosol Species
       INTEGER              :: nSpeciesAeroDryDep ! Number of Aerosol Species for Dry Dep
+      INTEGER              :: nSpeciesDryDep    ! Number of DryDep Species
       INTEGER              :: nSpeciesTracer    ! Number of Tracer Species
       INTEGER              :: nSpeciesDust      ! Number of Dust Species
       INTEGER              :: nSpeciesSeaSalt   ! Number of SeaSalt Species
       INTEGER, ALLOCATABLE :: SpeciesIndex(:)   ! Total Species Index
       INTEGER, ALLOCATABLE :: TracerIndex(:)    ! Tracer Species Index
       INTEGER, ALLOCATABLE :: AeroIndex(:)      ! Aerosol Species Index
+      INTEGER, ALLOCATABLE :: AeroDryDepIndex(:) ! Aerosol DryDep Species Index
       INTEGER, ALLOCATABLE :: GasIndex(:)       ! Gas Species Index
       INTEGER, ALLOCATABLE :: DustIndex(:)      ! Dust Species Index
       INTEGER, ALLOCATABLE :: SeaSaltIndex(:)   ! SeaSalt Species Index
-      INTEGER, ALLOCATABLE :: DryDepIndex(:)   ! SeaSalt Species Index
+      INTEGER, ALLOCATABLE :: DryDepIndex(:)   ! DryDep Species Index
       CHARACTER(len=50), ALLOCATABLE :: SpeciesNames(:)  ! Species Names
 
       !---------------------------------------------------------------------
@@ -162,6 +164,7 @@ CONTAINS
       ! Initialize to zero before counting species
       ChemState%nSpeciesAero = 0
       ChemState%nSpeciesAeroDryDep = 0
+      ChemState%nSpeciesDryDep = 0
       ChemState%nSpeciesDust = 0
       ChemState%nSpeciesGas = 0
       ChemState%nSpeciesSeaSalt = 0
@@ -185,6 +188,11 @@ CONTAINS
             ChemState%nSpeciesTracer = ChemState%nSpeciesTracer + 1
          endif
          if (ChemState%ChemSpecies(i)%is_drydep .eqv. .true.) then
+            ChemState%nSpeciesAeroDryDep = ChemState%nSpeciesAeroDryDep + 1
+            ChemState%nSpeciesDryDep = ChemState%nSpeciesDryDep + 1
+         endif
+         if (ChemState%ChemSpecies(i)%is_drydep .eqv. .true. .and. &
+             ChemState%ChemSpecies(i)%is_aerosol .eqv. .true.) then
             ChemState%nSpeciesAeroDryDep = ChemState%nSpeciesAeroDryDep + 1
          endif
       enddo
@@ -543,6 +551,7 @@ CONTAINS
       this%nSpeciesGas = 0
       this%nSpeciesAero = 0
       this%nSpeciesAeroDryDep = 0
+      this%nSpeciesDryDep = 0
       this%nSpeciesTracer = 0
       this%nSpeciesDust = 0
       this%nSpeciesSeaSalt = 0
@@ -619,6 +628,15 @@ CONTAINS
             return
          endif
 
+         allocate(this%AeroDryDepIndex(max_species), stat=allocStat)
+         if (allocStat /= 0) then
+            call error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
+                                        'Failed to allocate AeroDryDepIndex', rc, &
+                                        thisLoc, 'Check available memory')
+            call error_mgr%pop_context()
+            return
+         endif
+
          allocate(this%SpeciesNames(max_species), stat=allocStat)
          if (allocStat /= 0) then
             call error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
@@ -675,6 +693,7 @@ CONTAINS
       if (allocated(this%DustIndex)) deallocate(this%DustIndex)
       if (allocated(this%SeaSaltIndex)) deallocate(this%SeaSaltIndex)
       if (allocated(this%DryDepIndex)) deallocate(this%DryDepIndex)
+      if (allocated(this%AeroDryDepIndex)) deallocate(this%AeroDryDepIndex)
       if (allocated(this%SpeciesNames)) deallocate(this%SpeciesNames)
       if (allocated(this%ChemSpecies)) deallocate(this%ChemSpecies)
 
@@ -683,6 +702,7 @@ CONTAINS
       this%nSpeciesGas = 0
       this%nSpeciesAero = 0
       this%nSpeciesAeroDryDep = 0
+      this%nSpeciesDryDep = 0
       this%nSpeciesTracer = 0
       this%nSpeciesDust = 0
       this%nSpeciesSeaSalt = 0
@@ -759,6 +779,7 @@ CONTAINS
       this%nSpeciesGas = 0
       this%nSpeciesAero = 0
       this%nSpeciesAeroDryDep = 0
+      this%nSpeciesDryDep = 0
       this%nSpeciesTracer = 0
       this%nSpeciesDust = 0
       this%nSpeciesSeaSalt = 0
@@ -771,6 +792,7 @@ CONTAINS
       if (allocated(this%DustIndex)) this%DustIndex = 0
       if (allocated(this%SeaSaltIndex)) this%SeaSaltIndex = 0
       if (allocated(this%DryDepIndex)) this%DryDepIndex = 0
+      if (allocated(this%AeroDryDepIndex)) this%AeroDryDepIndex = 0
       if (allocated(this%SpeciesNames)) this%SpeciesNames = ''
 
    end subroutine chemstate_reset
@@ -815,6 +837,9 @@ CONTAINS
       if (allocated(this%DryDepIndex)) then
          memory_bytes = memory_bytes + size(this%DryDepIndex) * 4
       endif
+      if (allocated(this%AeroDryDepIndex)) then
+         memory_bytes = memory_bytes + size(this%AeroDryDepIndex) * 4
+      endif
       if (allocated(this%SpeciesNames)) then
          memory_bytes = memory_bytes + size(this%SpeciesNames) * 50  ! character arrays
       endif
@@ -837,6 +862,7 @@ CONTAINS
       write(*,'(A,I0)') 'Dust species: ', this%nSpeciesDust
       write(*,'(A,I0)') 'Sea salt species: ', this%nSpeciesSeaSalt
       write(*,'(A,I0)') 'Tracer species: ', this%nSpeciesTracer
+      write(*,'(A,I0)') 'DryDep species: ', this%nSpeciesDryDep
       write(*,'(A,L1)') 'Arrays allocated: ', this%is_allocated()
       write(*,'(A,I0,A)') 'Memory usage: ', this%get_memory_usage(), ' bytes'
       write(*,'(A)') '========================'

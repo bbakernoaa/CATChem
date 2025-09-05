@@ -14,6 +14,8 @@ This section covers developing new processes and schemes for CATChem. See the **
 - **[Templates and Patterns](templates.md)** - Code templates and best practices
 - **[Testing Processes](testing.md)** - Testing strategies and frameworks
 
+## What's New
+
 ## Overview
 
 CATChem processes are modular components that implement specific atmospheric transport, chemical, emission, or loss schemes. Each process follows a standardized interface and lifecycle.

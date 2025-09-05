@@ -46,22 +46,23 @@
 !!
 module ConfigManager_Mod
    use iso_c_binding, only: c_associated
-   use iso_fortran_env, only: real64
+   use Precision_Mod, only: fp
    use Error_Mod, only : CC_SUCCESS, CC_FAILURE, ERROR_INVALID_CONFIG, ERROR_INVALID_INPUT, ErrorManagerType
    use yaml_interface_mod, only : yaml_node_t, yaml_load_file, yaml_load_string, yaml_destroy_node, &
                                   yaml_get_string, yaml_get_integer, yaml_get_real, yaml_get_logical, &
-                                  yaml_has_key, yaml_get, yaml_set, yaml_is_map, yaml_get_size
+                                  yaml_has_key, yaml_get, yaml_set, yaml_is_map, yaml_is_sequence, &
+                                  yaml_get_size, yaml_get_string_array, yaml_get_all_keys
 
    implicit none
    private
 
    ! Define precision types
-   integer, parameter :: fp = real64  ! Default floating-point precision
 
    public :: ConfigManagerType
    public :: ConfigDataType      ! Modern YAML-based configuration data structure
    public :: ConfigSchemaType
    public :: ConfigPresetType
+   public :: CONFIG_STRATEGY_STRICT, CONFIG_STRATEGY_PERMISSIVE, CONFIG_STRATEGY_FALLBACK
 
    !> \brief Configuration loading strategies
    integer, parameter :: CONFIG_STRATEGY_STRICT = 1    !< Fail on any validation error
@@ -98,34 +99,6 @@ module ConfigManager_Mod
       character(len=255) :: Output_Directory = './'  !< Output data directory
    end type FilePathConfig
 
-   !> \brief Dust process configuration
-   type :: DustConfig
-      logical :: activate = .false.                  !< Enable dust emission process
-      integer :: scheme = 1                          !< Dust emission scheme selection
-      integer :: drag_opt = 1                        !< Fengsha drag parameterization option
-      integer :: moist_opt = 1                       !< Fengsha moisture parameterization option
-      integer :: horizflux_opt = 1                   !< Horizontal flux calculation option
-      real(fp) :: alpha = 1.0_fp                     !< Dust emission tuning parameter alpha
-      real(fp) :: beta = 1.0_fp                      !< Dust emission tuning parameter beta
-      real(fp) :: scale_factor = 1.0_fp              !< Overall dust emission scale factor
-   end type DustConfig
-
-   !> \brief Sea salt process configuration
-   type :: SeaSaltConfig
-      logical :: activate = .false.                  !< Enable sea salt emission process
-      integer :: scheme = 1                          !< Sea salt emission scheme selection
-      logical :: weibull = .false.                   !< Use Weibull distribution for sea salt
-      logical :: hoppel = .false.                    !< Use Hoppel parameterization
-      real(fp) :: scale_factor = 1.0_fp              !< Scale factor for sea salt emissions
-   end type SeaSaltConfig
-
-   !> \brief Dry deposition process configuration
-   type :: DryDepConfig
-      logical :: activate = .false.                  !< Enable dry deposition process
-      integer :: scheme = 1                          !< Dry deposition scheme selection
-      logical :: resuspension = .false.              !< Turn on resuspension
-      real(fp) :: scale_factor = 1.0_fp              !< Scale factor for dry deposition
-   end type DryDepConfig
 
    !> \brief External emissions configuration
    type :: ExternalEmisConfig
@@ -135,13 +108,6 @@ module ConfigManager_Mod
       logical :: dynamic_mapping = .true.             !< Enable dynamic species mapping
       real(fp) :: global_scale_factor = 1.0_fp        !< Global scaling factor
    end type ExternalEmisConfig
-
-   !> \brief Plume rise process configuration
-   type :: PlumeRiseConfig
-      logical :: activate = .false.                  !< Enable plume rise calculations
-      integer :: scheme = 1                          !< Plume rise scheme selection
-      real(fp) :: scale_factor = 1.0_fp              !< Scale factor for plume rise
-   end type PlumeRiseConfig
 
    !> \brief Modernized configuration data structure
    !!
@@ -160,11 +126,7 @@ module ConfigManager_Mod
       ! Configuration categories
       type(RuntimeConfig) :: runtime                    !< Runtime and MPI settings
       type(FilePathConfig) :: file_paths                !< File paths and data sources
-      type(DustConfig) :: dust                          !< Dust process configuration
-      type(SeaSaltConfig) :: seasalt                    !< Sea salt process configuration
-      type(DryDepConfig) :: drydep                      !< Dry deposition process configuration
       type(ExternalEmisConfig) :: external_emissions    !< External emissions configuration
-      type(PlumeRiseConfig) :: plumerise                !< Plume rise process configuration
 
       ! Metadata
       character(len=64) :: config_version = '2.0'       !< Configuration version
@@ -1225,10 +1187,7 @@ contains
       write(*, '(A,L1)') 'Validated: ', this%is_validated
       write(*, '(A,I0)') 'Number of CPUs: ', this%runtime%numCPUs
       write(*, '(A,A)') 'Simulation name: ', trim(this%runtime%SimulationName)
-      write(*, '(A,L1)') 'Dust activated: ', this%dust%activate
-      write(*, '(A,L1)') 'Sea salt activated: ', this%seasalt%activate
       write(*, '(A,L1)') 'External emissions activated: ', this%external_emissions%activate
-      write(*, '(A,L1)') 'Dry deposition activated: ', this%drydep%activate
       write(*, '(A)') '============================'
 
    end subroutine config_data_print_summary
@@ -1259,10 +1218,6 @@ contains
       ! Deep copy all components
       this%runtime = source%runtime
       this%file_paths = source%file_paths
-      this%dust = source%dust
-      this%seasalt = source%seasalt
-      this%drydep = source%drydep
-      this%plumerise = source%plumerise
       this%external_emissions = source%external_emissions
       this%config_version = source%config_version
       this%source_file = source%source_file
@@ -1289,29 +1244,9 @@ contains
       ! Parse file paths
       call yaml_get(this%yaml_data, 'output/directory', this%config_data%file_paths%Output_Directory, rc, './')
 
-      ! Parse dust configuration
-      if (yaml_has_key(this%yaml_data, 'processes/dust')) then
-         call yaml_get(this%yaml_data, 'processes/dust/scale_factor', this%config_data%dust%scale_factor, rc, 1.0_fp)
-      endif
-
-      ! Parse sea salt configuration
-      if (yaml_has_key(this%yaml_data, 'processes/sea_salt')) then
-         call yaml_get(this%yaml_data, 'processes/sea_salt/scale_factor', this%config_data%seasalt%scale_factor, rc, 1.0_fp)
-      endif
-
-      ! Parse dry deposition configuration
-      if (yaml_has_key(this%yaml_data, 'processes/dry_deposition')) then
-         call yaml_get(this%yaml_data, 'processes/dry_deposition/scale_factor', this%config_data%drydep%scale_factor, rc, 1.0_fp)
-      endif
-
       ! Parse external emissions configuration
       if (yaml_has_key(this%yaml_data, 'external_emissions')) then
          call yaml_get(this%yaml_data, 'external_emissions/global_scale_factor', this%config_data%external_emissions%global_scale_factor, rc, 1.0_fp)
-      endif
-
-      ! Parse plume rise configuration
-      if (yaml_has_key(this%yaml_data, 'processes/plume_rise')) then
-         call yaml_get(this%yaml_data, 'processes/plume_rise/scale_factor', this%config_data%plumerise%scale_factor, rc, 1.0_fp)
       endif
 
       ! Mark configuration as validated
@@ -1331,25 +1266,13 @@ contains
 
       type(yaml_node_t) :: species_config
       logical :: file_exists, success, already_found
+      logical :: list_success, keys_success
       integer :: i, count, total_size, j
       character(len=256) :: key, temp_name, test_key
       character(len=64), allocatable :: candidate_species(:)
+      character(len=64) :: temp_species_array(100)
+      character(len=64) :: all_yaml_keys(100)
       integer :: n_candidates
-
-      ! Common chemical species patterns to look for
-      character(len=32), parameter :: species_patterns(30) = [ &
-          "so2   ", "so4   ", "dms   ", "msa   ", "bc1   ", "bc2   ", &
-          "oc1   ", "oc2   ", "dust1 ", "dust2 ", "dust3 ", "dust4 ", &
-          "dust5 ", "seas1 ", "seas2 ", "seas3 ", "seas4 ", "seas5 ", &
-          "nh3   ", "nh4   ", "nh4a  ", "no3an1", "no3an2", "no3an3", &
-          "co    ", "co2   ", "ch4   ", "h2o2  ", "hno3  ", "pan   " ]
-
-      ! Additional base names for extended search (uniform 8-char length)
-      character(len=8), parameter :: base_names(20) = [ &
-          "so      ", "bc      ", "oc      ", "dust    ", "seas    ", &
-          "no      ", "nh      ", "co      ", "o3      ", "hno     ", &
-          "pan     ", "h2o     ", "ch      ", "dms     ", "msa     ", &
-          "acetone ", "benzene ", "toluene ", "isoprene", "monoterp" ]
 
       rc = CC_SUCCESS
       num_species = 0
@@ -1391,41 +1314,35 @@ contains
       allocate(candidate_species(max(total_size, 100)))
       n_candidates = 0
 
-      ! First pass: Check common species patterns
-      do i = 1, size(species_patterns)
-         if (yaml_has_key(species_config, trim(species_patterns(i)))) then
-            n_candidates = n_candidates + 1
-            candidate_species(n_candidates) = trim(species_patterns(i))
-         endif
-      end do
-
-      ! If we found fewer species than expected, try broader search patterns
-      if (n_candidates < total_size / 2) then
-         write(*, '(A)') 'INFO: Performing extended species search...'
-
-         ! Try numbered variations (1-10) for common base names
-         do i = 1, size(base_names)
-            do count = 1, 10
-               write(test_key, '(A,I0)') trim(base_names(i)), count
-               if (yaml_has_key(species_config, trim(test_key))) then
-                  ! Check if we already have this species
-                  already_found = .false.
-                  do j = 1, n_candidates
-                     if (trim(candidate_species(j)) == trim(test_key)) then
-                        already_found = .true.
-                        exit
-                     endif
-                  end do
-
-                  if (.not. already_found) then
-                     n_candidates = n_candidates + 1
-                     if (n_candidates <= size(candidate_species)) then
-                        candidate_species(n_candidates) = trim(test_key)
-                     endif
-                  endif
-               endif
+      ! SOLUTION: Direct YAML parsing - get all top-level keys as species
+      ! This is the proper architectural approach - no hardcoded patterns needed!
+      
+      ! First, look for explicit species metadata (preferred for structured configs)
+      if (yaml_has_key(species_config, 'species_list')) then
+         list_success = yaml_get_string_array(species_config, 'species_list', temp_species_array, n_candidates)
+         if (list_success .and. n_candidates > 0) then
+            do i = 1, min(n_candidates, size(candidate_species))
+               candidate_species(i) = temp_species_array(i)
             end do
-         end do
+            n_candidates = min(n_candidates, size(candidate_species))
+            write(*, '(A,I0,A)') 'INFO: Found ', n_candidates, ' species from metadata'
+         else
+            n_candidates = 0
+         endif
+      else
+         ! Direct approach: Get all top-level keys from YAML (these are the species)
+         keys_success = yaml_get_all_keys(species_config, all_yaml_keys, n_candidates)
+         if (keys_success .and. n_candidates > 0) then
+            write(*, '(A,I0,A)') 'INFO: Found ', n_candidates, ' species from YAML keys:'
+            do i = 1, min(n_candidates, size(candidate_species))
+               candidate_species(i) = trim(all_yaml_keys(i))
+               write(*, '(A,I0,A,A)') '  ', i, ': ', trim(candidate_species(i))
+            end do
+            n_candidates = min(n_candidates, size(candidate_species))
+         else
+            write(*, '(A)') 'ERROR: Failed to read YAML keys'
+            n_candidates = 0
+         endif
       endif
 
       num_species = n_candidates
@@ -1480,7 +1397,7 @@ contains
       logical :: file_exists, success
       character(len=256) :: emission_directory, scaling_method
       integer :: n_emission_sources
-      real(fp) :: global_scaling_factor
+      real(8) :: global_scaling_factor
 
       rc = CC_SUCCESS
 

@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
 from datetime import datetime
+import re
 
 # Configure logging
 logging.basicConfig(
@@ -59,6 +60,181 @@ class SchemeBehavior:
 
 
 @dataclass
+class MetFieldClassification:
+    """Classification for meteorological field types based on MetState definition."""
+    
+    def __init__(self, metstate_file: Optional[str] = None):
+        """Initialize with optional MetState file path for automatic field discovery."""
+        self.metstate_file = metstate_file
+        self._fields_cache = None
+        
+        # Fallback hardcoded lists for when MetState file is not available
+        self._fallback_2d_surface = [
+            'FROCEAN', 'FRSEAICE', 'FRLAKE', 'FRLAND', 'SST', 'TSK', 'SKINTEMP',
+            'U10M', 'V10M', 'T2M', 'Q2M', 'PS', 'SLP', 'USTAR', 'PBLH',
+            'SNOWH', 'ALBEDO', 'EMISS', 'HFX', 'QFX', 'LH', 'MOL', 'TS', 'TSKIN',
+            'QV2M', 'PHIS', 'SUNCOS', 'SWGDN', 'HFLUX', 'EFLUX', 'PRECCON',
+            'PRECLSC', 'PRECANV', 'TO3', 'TROPP', 'TropHt', 'Z0', 'LAI', 'AREA_M2'
+        ]
+        self._fallback_3d_atmospheric = [
+            'T', 'QV', 'P', 'PLE', 'DELP', 'U', 'V', 'OMEGA', 'W',
+            'RH', 'CLOUD', 'QC', 'QR', 'QI', 'QS', 'QG', 'PMID', 'AIRDEN', 
+            'THETA', 'SPHU', 'AIRNUMDEN', 'MAIRDEN', 'AVGW', 'DELP_DRY',
+            'DAIRMASS', 'AIRVOL', 'PEDGE_DRY', 'PEDGE', 'PMID_DRY', 'Z',
+            'ZMID', 'BXHEIGHT', 'TV', 'CLDF', 'CMFMC', 'DQRCU', 'DQRLSAN',
+            'DTRAIN', 'QL', 'PFICU', 'PFILSAN', 'PFLCU', 'PFLLSAN',
+            'TAUCLI', 'TAUCLW', 'F_OF_PBL', 'F_UNDER_PBLTOP'
+        ]
+        self._fallback_categorical = [
+            'SOILM', 'FRLANDUSE', 'FRSOIL', 'FRLAI', 'FRZ0', 'LU_INDEX', 
+            'VEGFRA', 'SOILTYP', 'SLOPETYP', 'XLAND', 'IVGTYP', 'ISLTYP', 
+            'VEGETATION_TYPE'
+        ]
+
+    def _parse_metstate_fields(self) -> Dict[str, tuple]:
+        """Parse MetState file to extract field definitions."""
+        if self._fields_cache is not None:
+            return self._fields_cache
+            
+        if not self.metstate_file or not Path(self.metstate_file).exists():
+            logger.warning(f"MetState file not found: {self.metstate_file}, using fallback classifications")
+            self._fields_cache = {}
+            return self._fields_cache
+            
+        try:
+            # Use the same parsing logic as generate_metstate_macros.py
+            fields_cache = {}
+            
+            with open(self.metstate_file, 'r') as f:
+                lines = f.readlines()
+
+            in_type = False
+            for line in lines:
+                if 'TYPE, PUBLIC :: MetStateType' in line:
+                    in_type = True
+                elif in_type and 'end type' in line.lower():
+                    break
+                elif in_type:
+                    # Match real(fp), allocatable :: name(dimensions)
+                    import re
+                    m = re.match(r'\s*REAL\(fp\),\s*ALLOCATABLE\s*::\s*(\w+)\s*\(([^)]*)\)', line, re.IGNORECASE)
+                    if m:
+                        name = m.group(1)
+                        dims = m.group(2)
+                        rank = dims.count(',') + 1
+                        fields_cache[name] = (rank, dims)
+                        
+            self._fields_cache = fields_cache
+            logger.info(f"Parsed {len(fields_cache)} fields from MetState file")
+            return self._fields_cache
+            
+        except Exception as e:
+            logger.warning(f"Error parsing MetState file {self.metstate_file}: {e}, using fallback classifications")
+            self._fields_cache = {}
+            return self._fields_cache
+
+    def get_field_type(self, field_name: str) -> str:
+        """Get the type of a meteorological field."""
+        fields = self._parse_metstate_fields()
+        
+        if field_name in fields:
+            rank, dims = fields[field_name]
+            
+            # Categorize based on rank and known categorical fields
+            if rank == 2:
+                return '2d_surface'
+            elif rank == 3:
+                # Check if it's a categorical 3D field (special dimensions)
+                if field_name in ['SOILM', 'FRLANDUSE', 'FRSOIL', 'FRLAI', 'FRZ0']:
+                    return 'categorical'
+                else:
+                    return '3d_atmospheric'
+            else:
+                # Scalar or other rank
+                return '2d_surface'  # Default
+        else:
+            # Use fallback classification
+            if field_name in self._fallback_2d_surface:
+                return '2d_surface'
+            elif field_name in self._fallback_3d_atmospheric:
+                return '3d_atmospheric'
+            elif field_name in self._fallback_categorical:
+                return 'categorical'
+            else:
+                # Default to 2d_surface for unknown fields
+                return '2d_surface'
+
+    def get_array_size(self, field_name: str, affects_full_column: bool) -> str:
+        """Get the array size specification for a field based on affects_full_column."""
+        field_type = self.get_field_type(field_name)
+        
+        if field_type == 'categorical':
+            return '(:)'  # Always 1D array for categorical
+        elif field_type == '2d_surface':
+            return ''  # Always scalar for 2D surface fields
+        elif field_type == '3d_atmospheric':
+            if affects_full_column:
+                return '(:)'  # 1D array for full column
+            else:
+                return ''  # Scalar for surface only
+        else:
+            return ''  # Default to scalar
+            
+    def get_all_2d_fields(self) -> List[str]:
+        """Get all 2D surface fields."""
+        fields = self._parse_metstate_fields()
+        result = []
+        
+        # From parsed fields
+        for field_name, (rank, dims) in fields.items():
+            if rank == 2:
+                result.append(field_name)
+                
+        # Add fallback fields not found in parsed file
+        for field_name in self._fallback_2d_surface:
+            if field_name not in result:
+                result.append(field_name)
+                
+        return sorted(result)
+        
+    def get_all_3d_atmospheric_fields(self) -> List[str]:
+        """Get all 3D atmospheric fields (excluding categorical)."""
+        fields = self._parse_metstate_fields()
+        result = []
+        
+        # From parsed fields
+        categorical_3d = {'SOILM', 'FRLANDUSE', 'FRSOIL', 'FRLAI', 'FRZ0'}
+        for field_name, (rank, dims) in fields.items():
+            if rank == 3 and field_name not in categorical_3d:
+                result.append(field_name)
+                
+        # Add fallback fields not found in parsed file
+        for field_name in self._fallback_3d_atmospheric:
+            if field_name not in result:
+                result.append(field_name)
+                
+        return sorted(result)
+        
+    def get_all_categorical_fields(self) -> List[str]:
+        """Get all categorical fields."""
+        fields = self._parse_metstate_fields()
+        result = []
+        
+        # From parsed fields
+        categorical_3d = {'SOILM', 'FRLANDUSE', 'FRSOIL', 'FRLAI', 'FRZ0'}
+        for field_name, (rank, dims) in fields.items():
+            if field_name in categorical_3d:
+                result.append(field_name)
+                
+        # Add fallback fields not found in parsed file
+        for field_name in self._fallback_categorical:
+            if field_name not in result:
+                result.append(field_name)
+                
+        return sorted(result)
+
+
+@dataclass
 class SchemeConfig:
     """Configuration for a process scheme."""
     name: str
@@ -68,20 +244,12 @@ class SchemeConfig:
     reference: str = ""
     parameters: Dict[str, Any] = field(default_factory=dict)
     required_met_fields: List[str] = field(default_factory=list)
+    required_species_properties: List[str] = field(default_factory=list)
     scheme_diagnostics: List[Dict[str, str]] = field(default_factory=list)
     algorithm_type: str = "explicit"
+    affects_full_column: bool = False  # Whether scheme affects full atmospheric column
     scheme_type: str = ""  # Optional legacy field
     scheme_behavior: Optional[SchemeBehavior] = None
-    """Configuration for a process scheme."""
-    name: str
-    class_name: str
-    description: str
-    author: str = ""
-    reference: str = ""
-    parameters: Dict[str, Any] = field(default_factory=dict)
-    required_met_fields: List[str] = field(default_factory=list)
-    diagnostics: List[Dict[str, Any]] = field(default_factory=list)
-    algorithm_type: str = "explicit"  # explicit, implicit, mixed
 
 
 @dataclass
@@ -93,7 +261,7 @@ class ProcessConfig:
     author: str
     version: str = "1.0.0"
     license: str = "Apache 2.0"
-
+    
     # Process behavior configuration (replaces hardcoded process_type)
     process_behavior: Optional[ProcessBehavior] = None
 
@@ -121,6 +289,13 @@ class ProcessConfig:
     output_dir: str = ""
     src_base_dir: str = "src/process"
 
+    @property
+    def enable_column_processing(self) -> bool:
+        """Determine if column processing is enabled based on parallelization strategy."""
+        if self.process_behavior and self.process_behavior.parallelization:
+            return self.process_behavior.parallelization == "column"
+        return True  # Default to column processing if not specified
+
 
 class ProcessValidationError(Exception):
     """Exception raised for process configuration validation errors."""
@@ -130,17 +305,38 @@ class ProcessValidationError(Exception):
 class ProcessGenerator:
     """Main process generator class."""
 
-    def __init__(self, template_dir: Optional[str] = None):
+    def __init__(self, template_dir: Optional[str] = None, metstate_file: Optional[str] = None):
         """Initialize the process generator.
 
         Args:
             template_dir: Directory containing Jinja2 templates. If None,
                          uses default templates in same directory as this script.
+            metstate_file: Path to MetState file for automatic field discovery. If None,
+                          tries to find it automatically relative to the script location.
         """
         if template_dir is None:
             template_dir = str(Path(__file__).parent / "templates")
 
         self.template_dir = Path(template_dir)
+        
+        # Try to find MetState file automatically if not provided
+        if metstate_file is None:
+            script_dir = Path(__file__).resolve().parent
+            # Look for metstate_mod.F90 relative to process generator
+            potential_paths = [
+                script_dir.parent.parent / "src" / "core" / "metstate_mod.F90",  # From tools/process_generator
+                script_dir / "../../src/core/metstate_mod.F90",  # Alternative relative path
+            ]
+            for path in potential_paths:
+                if path.exists():
+                    metstate_file = str(path)
+                    logger.info(f"Found MetState file automatically: {metstate_file}")
+                    break
+        
+        self.metstate_file = metstate_file
+        if metstate_file and not Path(metstate_file).exists():
+            logger.warning(f"MetState file not found: {metstate_file}")
+        
         self.env = Environment(
             loader=FileSystemLoader(str(self.template_dir)),
             autoescape=select_autoescape(['html', 'xml']),
@@ -155,6 +351,9 @@ class ProcessGenerator:
         self.env.filters['camel_case'] = self._camel_case
         self.env.filters['fortran_string'] = self._fortran_string
         self.env.filters['fortran_boolean'] = self._fortran_boolean
+        self.env.filters['infer_diagnostic_type'] = self._infer_diagnostic_type
+        self.env.filters['infer_diagnostic_properties'] = self._infer_diagnostic_properties
+        self.env.filters['analyze_required_dimensions'] = self._analyze_required_dimensions
 
     @staticmethod
     def _upper_snake_case(s: str) -> str:
@@ -186,6 +385,350 @@ class ProcessGenerator:
     def _fortran_boolean(b: bool) -> str:
         """Convert boolean to Fortran logical."""
         return ".true." if b else ".false."
+
+    def _infer_diagnostic_type(self, diagnostic: Dict[str, Any], config: ProcessConfig, scheme_config: SchemeConfig = None) -> str:
+        """Infer diagnostic data type from configuration and context."""
+        result = self._infer_diagnostic_properties(diagnostic, config, scheme_config)
+        return result['data_type']
+
+    def _infer_diagnostic_properties(self, diagnostic: Dict[str, Any], config: ProcessConfig, scheme_config: SchemeConfig = None) -> Dict[str, Any]:
+        """Infer diagnostic data type and dimensions from configuration and context."""
+        name = diagnostic.get('name', '')
+        units = diagnostic.get('units', '')
+        description = diagnostic.get('description', '')
+        
+        # Default result structure
+        result = {
+            'data_type': 'DIAG_REAL_2D',
+            'dimensions': ['nx', 'ny'],
+            'dimension_vars': ['dims_2d'],
+            'fortran_dims': 'dims_2d',
+            'dimension_source': 'grid_manager',  # How to get the dimensions
+            'dimension_type': 'scalar',  # 'scalar', '1d', '2d', '3d'
+            'dimension_name': None       # Primary dimension name for 1D arrays
+        }
+        
+        # 1. Check for explicit specifications
+        if 'data_type' in diagnostic:
+            result['data_type'] = diagnostic['data_type']
+        if 'dimensions' in diagnostic:
+            result['dimensions'] = diagnostic['dimensions']
+            result['fortran_dims'] = self._format_fortran_dims(diagnostic['dimensions'])
+            # Update dimension type based on number of dimensions
+            if len(diagnostic['dimensions']) == 0:
+                result['dimension_type'] = 'scalar'
+            elif len(diagnostic['dimensions']) == 1:
+                result['dimension_type'] = '1d'
+                result['dimension_name'] = diagnostic['dimensions'][0]
+            elif len(diagnostic['dimensions']) == 2:
+                result['dimension_type'] = '2d'
+            else:
+                result['dimension_type'] = '3d'
+            return result
+        
+        # 2. Infer from field name and description patterns (continuous variables)
+        name_lower = name.lower()
+        desc_lower = description.lower()
+        
+        # Check for species/bin/distribution patterns in name or description
+        if ('_per_bin' in name or '_per_species' in name or '_per_mode' in name or '_distribution' in name or
+            'per bin' in desc_lower or 'per species' in desc_lower or 'per mode' in desc_lower or 
+            'distribution' in desc_lower or 'size resolved' in desc_lower):
+            result.update({
+                'data_type': 'DIAG_REAL_3D',
+                'dimensions': ['nx', 'ny', 'n_species'],
+                'dimension_vars': ['dims_3d_species'],
+                'fortran_dims': 'dims_3d_species',
+                'dimension_source': 'process_config',
+                'dimension_type': '1d',
+                'dimension_name': 'n_species'
+            })
+        
+        # Check for level/vertical patterns in name or description
+        elif (('_per_level' in name or '_profile' in name or '_vertical' in name or 
+               '_column' in name or '_layer' in name) or
+              ('level' in desc_lower or 'levels' in desc_lower or 'vertical' in desc_lower or
+               'profile' in desc_lower or 'column' in desc_lower or 'layer' in desc_lower or
+               'atmospheric' in desc_lower)):
+            result.update({
+                'data_type': 'DIAG_REAL_3D',
+                'dimensions': ['nx', 'ny', 'nz'],
+                'dimension_vars': ['dims_3d_levels'],
+                'fortran_dims': 'dims_3d_levels',
+                'dimension_source': 'grid_manager',
+                'dimension_type': '1d',
+                'dimension_name': 'n_levels'
+            })
+        
+        elif '_per_soil_layer' in name or '_soil_profile' in name:
+            result.update({
+                'data_type': 'DIAG_REAL_3D',
+                'dimensions': ['nx', 'ny', 'n_soil_layers'],
+                'dimension_vars': ['dims_soil'],
+                'fortran_dims': 'dims_soil',
+                'dimension_source': 'process_config',
+                'dimension_type': '1d',
+                'dimension_name': 'n_soil_layers'
+            })
+        
+        # Check for column integrated patterns in name or description
+        elif (('_column_integrated' in name or '_vertically_integrated' in name) or
+              ('column integrated' in desc_lower or 'vertically integrated' in desc_lower or
+               'integrated' in desc_lower)):
+            # Column-integrated quantity - still 2D but from 3D process
+            result.update({
+                'data_type': 'DIAG_REAL_2D',
+                'dimensions': ['nx', 'ny'],
+                'dimension_vars': ['dims_2d'],
+                'fortran_dims': 'dims_2d',
+                'dimension_source': 'grid_manager',
+                'dimension_type': 'scalar',
+                'dimension_name': None
+            })
+        
+        # Check for flux/total patterns in name or description  
+        elif (('_total' in name or '_integrated' in name or 'flux' in name) or
+              ('total' in desc_lower or 'integrated' in desc_lower or 'flux' in desc_lower or
+               'surface' in desc_lower or 'emission' in desc_lower)):
+            # Check if it's a surface flux or column-integrated quantity
+            if scheme_config and getattr(scheme_config, 'affects_full_column', False):
+                # 3D process producing 2D output (column-integrated)
+                result.update({
+                    'data_type': 'DIAG_REAL_2D',
+                    'dimensions': ['nx', 'ny'],
+                    'dimension_vars': ['dims_2d'],
+                    'fortran_dims': 'dims_2d',
+                    'dimension_source': 'grid_manager',
+                    'dimension_type': 'scalar',
+                    'dimension_name': None
+                })
+            else:
+                # Surface process producing 2D output
+                result.update({
+                    'data_type': 'DIAG_REAL_2D',
+                    'dimensions': ['nx', 'ny'],
+                    'dimension_vars': ['dims_2d'],
+                    'fortran_dims': 'dims_2d',
+                    'dimension_source': 'grid_manager',
+                    'dimension_type': 'scalar',
+                    'dimension_name': None
+                })
+        
+        # 4. Infer from units
+        elif units in ['unitless', 'dimensionless', 'index', 'category', '1', '-']:
+            # Likely categorical or index data
+            if 'probability' in name.lower() or 'fraction' in name.lower():
+                result.update({
+                    'data_type': 'DIAG_REAL_2D',
+                    'dimensions': ['nx', 'ny'],
+                    'dimension_vars': ['dims_2d'],
+                    'fortran_dims': 'dims_2d',
+                    'dimension_source': 'grid_manager',
+                    'dimension_type': 'scalar',
+                    'dimension_name': None
+                })
+            else:
+                result.update({
+                    'data_type': 'DIAG_INTEGER_2D',
+                    'dimensions': ['nx', 'ny'],
+                    'dimension_vars': ['dims_2d'],
+                    'fortran_dims': 'dims_2d',
+                    'dimension_source': 'grid_manager',
+                    'dimension_type': 'scalar',
+                    'dimension_name': None
+                })
+        
+        # 5. Infer from process characteristics
+        elif hasattr(config, 'process_type'):
+            if config.process_type in ['emission', 'deposition']:
+                # Most emissions/deposition are surface processes
+                if scheme_config and getattr(scheme_config, 'affects_full_column', False):
+                    # Full column emissions (rare)
+                    result.update({
+                        'data_type': 'DIAG_REAL_3D',
+                        'dimensions': ['nx', 'ny', 'nz'],
+                        'dimension_vars': ['dims_3d_levels'],
+                        'fortran_dims': 'dims_3d_levels',
+                        'dimension_source': 'grid_manager',
+                        'dimension_type': '1d',
+                        'dimension_name': 'n_levels'
+                    })
+                else:
+                    # Surface emissions (common)
+                    if config.has_size_bins or (hasattr(config, 'species') and len(config.species) > 1):
+                        # Multi-species or size-resolved emissions
+                        result.update({
+                            'data_type': 'DIAG_REAL_3D',
+                            'dimensions': ['nx', 'ny', 'n_species'],
+                            'dimension_vars': ['dims_3d'],
+                            'fortran_dims': 'dims_3d',
+                            'dimension_source': 'process_config',
+                            'dimension_type': '1d',
+                            'dimension_name': 'n_species'
+                        })
+            elif config.process_type in ['chemistry', 'transport']:
+                # Usually affect full column
+                result.update({
+                    'data_type': 'DIAG_REAL_3D',
+                    'dimensions': ['nx', 'ny', 'nz'],
+                    'dimension_vars': ['dims_3d_levels'],
+                    'fortran_dims': 'dims_3d_levels',
+                    'dimension_source': 'grid_manager',
+                    'dimension_type': '1d',
+                    'dimension_name': 'n_levels'
+                })
+        
+        # 6. Infer from standard units
+        elif '/m2/' in units:  # Surface flux units (per square meter)
+            # Keep 2D inference (already set as default) - scalar per grid cell
+            result.update({
+                'dimension_type': 'scalar',
+                'dimension_name': None
+            })
+        elif '/m3/' in units:  # Volume concentration units (per cubic meter)
+            result.update({
+                'data_type': 'DIAG_REAL_3D',
+                'dimensions': ['nx', 'ny', 'nz'],
+                'dimension_vars': ['dims_3d_levels'],
+                'fortran_dims': 'dims_3d_levels',
+                'dimension_source': 'grid_manager',
+                'dimension_type': '1d',
+                'dimension_name': 'n_levels'
+            })
+        
+        # 7. Check diagnostic location (process vs scheme level)
+        elif scheme_config:  # Scheme-specific diagnostic
+            # Often more detailed (per-bin, per-level)
+            if result['data_type'] == 'DIAG_REAL_2D':  # Upgrade to 3D if still 2D
+                if config.has_size_bins or (hasattr(config, 'species') and len(config.species) > 1):
+                    result.update({
+                        'data_type': 'DIAG_REAL_3D',
+                        'dimensions': ['nx', 'ny', 'n_species'],
+                        'dimension_vars': ['dims_3d'],
+                        'fortran_dims': 'dims_3d',
+                        'dimension_source': 'process_config',
+                        'dimension_type': '1d',
+                        'dimension_name': 'n_species'
+                    })
+        
+        return result
+
+    def _analyze_required_dimensions(self, config: ProcessConfig) -> Dict[str, bool]:
+        """Analyze which dimension arrays are actually needed for a process configuration."""
+        required_dims = {
+            'dims_2d': False,
+            'dims_3d_species': False,
+            'dims_3d_levels': False,
+            'dims_soil': False,
+            'dims_landuse': False,
+            'dims_vegetation': False
+        }
+        
+        # Always need 2D for most surface diagnostics
+        required_dims['dims_2d'] = True
+        
+        # Check common diagnostics
+        if hasattr(config, 'diagnostics') and config.diagnostics:
+            for diagnostic in config.diagnostics:
+                diag_props = self._infer_diagnostic_properties(diagnostic, config)
+                fortran_dims = diag_props.get('fortran_dims', 'dims_2d')
+                if fortran_dims in required_dims:
+                    required_dims[fortran_dims] = True
+        
+        # Check scheme-specific diagnostics
+        if hasattr(config, 'schemes') and config.schemes:
+            for scheme in config.schemes:
+                if hasattr(scheme, 'scheme_diagnostics') and scheme.scheme_diagnostics:
+                    for diagnostic in scheme.scheme_diagnostics:
+                        diag_props = self._infer_diagnostic_properties(diagnostic, config, scheme)
+                        fortran_dims = diag_props.get('fortran_dims', 'dims_2d')
+                        if fortran_dims in required_dims:
+                            required_dims[fortran_dims] = True
+        
+        return required_dims
+
+    def _format_fortran_dims(self, dimensions: List[str]) -> str:
+        """Format dimension list for Fortran array declaration."""
+        if len(dimensions) == 1:
+            return 'dims_1d'
+        elif len(dimensions) == 2:
+            return 'dims_2d'
+        elif len(dimensions) == 3:
+            # Determine specific 3D dimension type based on third dimension
+            third_dim = dimensions[2].lower()
+            if 'nz' in third_dim or 'n_levels' in third_dim:
+                return 'dims_3d_levels'
+            elif 'n_soil' in third_dim:
+                return 'dims_soil'
+            elif 'n_landuse' in third_dim or 'n_veg' in third_dim:
+                return 'dims_landuse'
+            elif 'n_categories' in third_dim or 'n_types' in third_dim:
+                return 'dims_3d'  # Default for species/bins
+            else:
+                return 'dims_3d'  # Default for species/bins
+        elif len(dimensions) == 4:
+            return 'dims_4d'
+        else:
+            return f"[{', '.join(dimensions)}]"
+
+    def _get_dimension_source_and_access(self, dim_name: str) -> tuple:
+        """
+        Get the source manager and access pattern for a given dimension.
+        
+        Returns:
+            tuple: (source_manager, access_pattern, variable_declaration)
+        """
+        
+        # All dimensions come from GridManager for consistency
+        grid_mapping = {
+            'nx': ('grid_manager', 'nx', 'integer :: nx, ny, nz'),
+            'ny': ('grid_manager', 'ny', 'integer :: nx, ny, nz'),  
+            'nz': ('grid_manager', 'nz', 'integer :: nx, ny, nz'),
+            'nlev': ('grid_manager', 'nz', 'integer :: nx, ny, nz'),
+        }
+        
+        if dim_name in grid_mapping:
+            return grid_mapping[dim_name]
+        else:
+            # Default to process config for unknown dimensions
+            return ('process_config', f'process_config%{dim_name}', 
+                   f'integer :: {dim_name}')
+        
+    def _generate_dimension_access_code(self, diagnostics: List[Dict], template_vars: Dict) -> str:
+        """Generate code for accessing dimensional information."""
+        
+        required_dims = set()
+        grid_needed = False
+        
+        # Collect all required dimensions
+        for diag in diagnostics:
+            if 'dimensions' in diag:
+                for dim in diag['dimensions']:
+                    if dim not in ['nx', 'ny']:  # Skip basic grid dims
+                        required_dims.add(dim)
+                        source, _, _ = self._get_dimension_source_and_access(dim)
+                        if source == 'grid_manager':
+                            grid_needed = True
+        
+        code_lines = []
+        
+        if grid_needed:
+            code_lines.extend([
+                "      ! Get grid manager pointer for dimension access",
+                "      type(GridManagerType), pointer :: grid_mgr",
+                "      grid_mgr => state_manager%get_grid_manager()",
+                ""
+            ])
+            
+            # Get basic grid dimensions
+            code_lines.extend([
+                "      ! Get basic grid dimensions", 
+                "      integer :: nx, ny, nz",
+                "      call grid_mgr%get_dimensions(nx, ny, nz)",
+                ""
+            ])
+        
+        return '\n'.join(code_lines)
 
     def validate_config(self, config: ProcessConfig) -> None:
         """Validate process configuration.
@@ -324,6 +867,23 @@ class ProcessGenerator:
 
         return config
 
+    def get_all_required_species_properties(self, config: ProcessConfig) -> List[str]:
+        """Collect all unique required species properties from all schemes.
+        
+        Args:
+            config: ProcessConfig object containing schemes
+            
+        Returns:
+            List of unique property names required by all schemes
+        """
+        all_properties = set()
+        for scheme in config.schemes:
+            if scheme.required_species_properties:
+                all_properties.update(scheme.required_species_properties)
+        
+        # Return sorted list for consistent ordering
+        return sorted(list(all_properties))
+
     def _load_filtered_species(self, species_filter: Dict[str, Any]) -> List[str]:
         """Load species based on filter criteria.
 
@@ -446,7 +1006,21 @@ class ProcessGenerator:
         logger.info("Generating main process interface")
 
         template = self.env.get_template('process_interface.F90.j2')
-        content = template.render(config=config, timestamp=datetime.now().isoformat())
+        
+        # Collect all unique required species properties from all schemes
+        all_required_species_properties = self.get_all_required_species_properties(config)
+        
+        # Initialize field classification helper with MetState file
+        field_classifier = MetFieldClassification(self.metstate_file)
+        
+        content = template.render(
+            config=config,
+            all_required_species_properties=all_required_species_properties,
+            field_classifier=field_classifier,
+            generation_date=datetime.now().isoformat(),
+            version=config.version,
+            timestamp=datetime.now().isoformat()
+        )
 
         filename = f"Process{config.class_name}Interface_Mod.F90"
         output_file = process_dir / filename
@@ -461,7 +1035,21 @@ class ProcessGenerator:
         logger.info("Generating common module")
 
         template = self.env.get_template('process_common.F90.j2')
-        content = template.render(config=config, timestamp=datetime.now().isoformat())
+        
+        # Collect all unique required species properties from all schemes
+        all_required_species_properties = self.get_all_required_species_properties(config)
+        
+        # Initialize field classification helper with MetState file
+        field_classifier = MetFieldClassification(self.metstate_file)
+        
+        content = template.render(
+            config=config,
+            all_required_species_properties=all_required_species_properties,
+            field_classifier=field_classifier,
+            generation_date=datetime.now().isoformat(),
+            version=config.version,
+            timestamp=datetime.now().isoformat()
+        )
 
         filename = f"{config.class_name}Common_Mod.F90"
         output_file = process_dir / filename
@@ -653,6 +1241,13 @@ class ProcessGenerator:
                 "author": "Your Name",
                 "version": "1.0.0",
                 "process_type": "emission",
+                "process_behavior": {
+                    "type": "source",
+                    "tendency_mode": "additive",
+                    "parallelization": "column",
+                    "spatial_scope": "column",
+                    "timestep_dependency": "independent"
+                },
                 "is_multiphase": False,
                 "has_size_bins": False,
                 "species": ["species1", "species2"],
@@ -693,6 +1288,13 @@ class ProcessGenerator:
                 "author": "Your Name",
                 "version": "1.0.0",
                 "process_type": "chemistry",
+                "process_behavior": {
+                    "type": "transformation",
+                    "tendency_mode": "replacement",
+                    "parallelization": "column",
+                    "spatial_scope": "column",
+                    "timestep_dependency": "dependent"
+                },
                 "is_multiphase": True,
                 "has_size_bins": False,
                 "species": ["O3", "NO", "NO2", "OH"],
@@ -737,6 +1339,9 @@ Examples:
   # Generate a process from configuration
   python process_generator.py generate --config my_process.yaml
 
+  # Generate with automatic MetState field discovery
+  python process_generator.py generate --config my_process.yaml --metstate src/core/metstate_mod.F90
+
   # Validate a configuration file
   python process_generator.py validate --config my_process.yaml
 
@@ -745,26 +1350,56 @@ Examples:
 
   # Generate with custom template directory
   python process_generator.py generate --config my_process.yaml --templates ./my_templates
+
+  # Inspect discovered meteorological fields
+  python process_generator.py fields --type all --verbose
+
+  # Show specific field types
+  python process_generator.py fields --type 2d --verbose
+  python process_generator.py fields --type 3d --verbose
+
+Features:
+  # Automatic MetState Field Discovery
+  The generator automatically discovers meteorological fields from the MetState definition file.
+  This ensures that field classifications (2D surface, 3D atmospheric, categorical) are always
+  up-to-date with the actual MetState implementation. The generator will attempt to find the
+  MetState file automatically, or you can specify it explicitly with --metstate.
+
+  Field Types:
+  - 2D Surface: FROCEAN, SST, USTAR, PBLH (scalar access)
+  - 3D Atmospheric: T, QV, P, U, V (array access when affects_full_column=true)
+  - Categorical: SOILM, FRLANDUSE (special dimension arrays)
         """
     )
 
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
     # Generate command
-    generate_parser = subparsers.add_parser('generate', help='Generate process implementation')
+    generate_parser = subparsers.add_parser('generate', 
+                                           help='Generate process implementation',
+                                           description='Generate complete process implementation from YAML configuration. '
+                                                     'Automatically discovers meteorological fields from MetState definition '
+                                                     'and generates proper VirtualMet pattern code.')
     generate_parser.add_argument('--config', '-c', required=True,
                                help='Path to YAML configuration file')
     generate_parser.add_argument('--output', '-o',
                                help='Output directory for generated files (overrides config file setting)')
     generate_parser.add_argument('--templates', '-t',
                                help='Path to template directory')
+    generate_parser.add_argument('--metstate', '-m',
+                               help='Path to MetState file for automatic field discovery')
     generate_parser.add_argument('--verbose', '-v', action='store_true',
                                help='Enable verbose output')
 
     # Validate command
-    validate_parser = subparsers.add_parser('validate', help='Validate configuration file')
+    validate_parser = subparsers.add_parser('validate', 
+                                           help='Validate configuration file',
+                                           description='Validate YAML configuration file syntax and check field compatibility '
+                                                     'with discovered MetState fields. Ensures configuration is ready for generation.')
     validate_parser.add_argument('--config', '-c', required=True,
                                help='Path to YAML configuration file')
+    validate_parser.add_argument('--metstate', '-m',
+                               help='Path to MetState file for automatic field discovery')
     validate_parser.add_argument('--verbose', '-v', action='store_true',
                                help='Enable verbose output')
 
@@ -774,6 +1409,19 @@ Examples:
                                default='emission', help='Type of process template')
     template_parser.add_argument('--output', '-o', required=True,
                                help='Output file for template')
+
+    # Fields command - show discovered MetState fields
+    fields_parser = subparsers.add_parser('fields', 
+                                         help='Show discovered MetState fields',
+                                         description='Display meteorological fields discovered from MetState definition. '
+                                                   'Fields are automatically classified into 2D surface, 3D atmospheric, '
+                                                   'and categorical types for proper code generation.')
+    fields_parser.add_argument('--metstate', '-m',
+                               help='Path to MetState file for field discovery')
+    fields_parser.add_argument('--type', '-t', choices=['2d', '3d', 'categorical', 'all'],
+                               default='all', help='Type of fields to show')
+    fields_parser.add_argument('--verbose', '-v', action='store_true',
+                               help='Enable verbose output')
 
     args = parser.parse_args()
 
@@ -787,7 +1435,7 @@ Examples:
 
     try:
         if args.command == 'generate':
-            generator = ProcessGenerator(args.templates)
+            generator = ProcessGenerator(args.templates, getattr(args, 'metstate', None))
             config = generator.load_config(args.config)
 
             # Override output directory if specified on command line
@@ -797,7 +1445,7 @@ Examples:
             generator.generate_process(config)
 
         elif args.command == 'validate':
-            generator = ProcessGenerator()
+            generator = ProcessGenerator(metstate_file=getattr(args, 'metstate', None))
             config = generator.load_config(args.config)
             logger.info(f"Configuration is valid: {args.config}")
 
@@ -809,6 +1457,38 @@ Examples:
                 yaml.dump(template_config, f, default_flow_style=False, sort_keys=False)
 
             logger.info(f"Template configuration written to: {args.output}")
+
+        elif args.command == 'fields':
+            generator = ProcessGenerator(metstate_file=getattr(args, 'metstate', None))
+            classifier = MetFieldClassification(generator.metstate_file)
+            
+            if args.type in ['2d', 'all']:
+                fields_2d = classifier.get_all_2d_fields()
+                logger.info(f"2D Surface fields ({len(fields_2d)}): {', '.join(fields_2d[:10])}{'...' if len(fields_2d) > 10 else ''}")
+                
+            if args.type in ['3d', 'all']:
+                fields_3d = classifier.get_all_3d_atmospheric_fields()
+                logger.info(f"3D Atmospheric fields ({len(fields_3d)}): {', '.join(fields_3d[:10])}{'...' if len(fields_3d) > 10 else ''}")
+                
+            if args.type in ['categorical', 'all']:
+                fields_cat = classifier.get_all_categorical_fields()
+                logger.info(f"Categorical fields ({len(fields_cat)}): {', '.join(fields_cat)}")
+            
+            if args.verbose:
+                if args.type in ['2d', 'all']:
+                    print(f"\nAll 2D Surface fields ({len(fields_2d)}):")
+                    for i, field in enumerate(fields_2d, 1):
+                        print(f"  {i:3d}. {field}")
+                        
+                if args.type in ['3d', 'all']:
+                    print(f"\nAll 3D Atmospheric fields ({len(fields_3d)}):")
+                    for i, field in enumerate(fields_3d, 1):
+                        print(f"  {i:3d}. {field}")
+                        
+                if args.type in ['categorical', 'all']:
+                    print(f"\nAll Categorical fields ({len(fields_cat)}):")
+                    for i, field in enumerate(fields_cat, 1):
+                        print(f"  {i:3d}. {field}")
 
     except ProcessValidationError as e:
         logger.error(f"Configuration validation failed: {e}")

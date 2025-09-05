@@ -70,20 +70,37 @@ contains
 {% endif %}
 {% endfor %}
    !! @param[in]  species_conc   Species concentrations [mol/mol] (num_layers, num_species)
-   !! @param[out] emission_flux  Emission fluxes [kg/m²/s] (num_layers, num_species)
+   !! @param[inout] species_tendencies  Species tendency terms [mol/mol/s] (num_layers, num_species)
+{% if config.diagnostics %}
+   !! @param[inout] diag_mass_emission_total    Total mass emission diagnostic [{{ config.diagnostics[0].units if config.diagnostics else 'kg/m2/s' }}]
+   !! @param[inout] diag_number_emission_total  Total number emission diagnostic [{{ config.diagnostics[1].units if config.diagnostics and config.diagnostics|length > 1 else '#/m2/s' }}]
+   !! @param[inout] diag_mass_emission_per_bin   Mass emission per bin diagnostic [{{ config.diagnostics[2].units if config.diagnostics and config.diagnostics|length > 2 else 'kg/m2/s' }}] (num_species)
+   !! @param[inout] diag_number_emission_per_bin Number emission per bin diagnostic [{{ config.diagnostics[3].units if config.diagnostics and config.diagnostics|length > 3 else '#/m2/s' }}] (num_species)
+{% endif %}
    pure subroutine compute_{{ scheme.name }}( &
       num_layers, &
       num_species, &
       params{% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}, &
 {% for field in scheme.required_met_fields %}
 {% if field is string %}
-      {{ field | lower | replace('-', '_') | replace('.', '_') }}{% if not loop.last %}, &{% endif %}
+      {{ field | lower | replace('-', '_') | replace('.', '_') }}{% if not loop.last %}, &
+{% endif %}
 {% else %}
-      {{ field.variable_name }}{% if not loop.last %}, &{% endif %}
+      {{ field.variable_name }}{% if not loop.last %}, &
+{% endif %}
 {% endif %}
 {% endfor %}{% endif %}, &
+{% if scheme.required_species_properties and scheme.required_species_properties|length > 0 %}
+{% for prop in scheme.required_species_properties %}
+      species_{{ prop }}, &
+{% endfor %}
+{% endif %}
       species_conc, &
-      emission_flux &
+      species_tendencies{% if config.diagnostics %}, &
+      diag_mass_emission_total, &
+      diag_number_emission_total, &
+      diag_mass_emission_per_bin, &
+      diag_number_emission_per_bin{% endif %} &
    )
 
       ! Arguments
@@ -107,8 +124,19 @@ contains
 {% endif %}
 {% endfor %}
 {% endif %}
+{% if scheme.required_species_properties and scheme.required_species_properties|length > 0 %}
+{% for prop in scheme.required_species_properties %}
+      real(fp), intent(in) :: species_{{ prop }}(num_species)  ! Species {{ prop }} property
+{% endfor %}
+{% endif %}
       real(fp), intent(in) :: species_conc(num_layers, num_species)
-      real(fp), intent(out) :: emission_flux(num_layers, num_species)
+      real(fp), intent(inout) :: species_tendencies(num_layers, num_species)
+{% if config.diagnostics %}
+      real(fp), intent(inout), optional :: diag_mass_emission_total
+      real(fp), intent(inout), optional :: diag_number_emission_total  
+      real(fp), intent(inout), optional :: diag_mass_emission_per_bin(num_species)
+      real(fp), intent(inout), optional :: diag_number_emission_per_bin(num_species)
+{% endif %}
 
       ! Local variables
       integer :: k, species_idx
@@ -116,8 +144,9 @@ contains
       real(fp) :: environmental_factor
       real(fp) :: species_factor
 
-      ! Initialize output (pure subroutines must initialize all outputs)
-      emission_flux = 0.0_fp
+      ! Note: species_tendencies and diagnostic arrays are already initialized
+      ! by the host ProcessInterface before calling this subroutine.
+      ! Do not re-initialize them here.
 
       ! Main computation loop - CUSTOMIZE THIS SECTION FOR YOUR SCHEME
       do k = 1, num_layers
@@ -198,13 +227,31 @@ contains
 
             ! Compute emission flux using your scheme's formula
             ! This is a simple example - replace with your actual algorithm
-            emission_flux(k, species_idx) = base_emission_factor * &
+            species_tendencies(k, species_idx) = base_emission_factor * &
                                           environmental_factor * &
                                           species_factor * &
                                           (1.0_fp + species_conc(k, species_idx))
 
             ! Ensure non-negative emissions
-            emission_flux(k, species_idx) = max(0.0_fp, emission_flux(k, species_idx))
+            species_tendencies(k, species_idx) = max(0.0_fp, species_tendencies(k, species_idx))
+{% if config.diagnostics %}
+            
+            ! TODO: Update diagnostic fields here based on your scheme's requirements
+            ! Each process should implement custom diagnostic calculations
+            ! Example patterns:
+            if (present(diag_mass_emission_total)) then
+               ! Add your custom mass emission total calculation
+            end if
+            if (present(diag_number_emission_total)) then
+               ! Add your custom number emission total calculation  
+            end if
+            if (present(diag_mass_emission_per_bin)) then
+               ! Add your custom per-bin mass emission calculation
+            end if
+            if (present(diag_number_emission_per_bin)) then
+               ! Add your custom per-bin number emission calculation
+            end if
+{% endif %}
          end do
 
       end do
@@ -218,7 +265,7 @@ contains
    ! Examples: environmental response functions, species-specific calculations, etc.
 
    !> Example helper function for environmental response
-   pure function compute_{{ scheme.name }}(met_value, reference_value) result(factor)
+   pure function compute_environmental_response_{{ scheme.name }}(met_value, reference_value) result(factor)
       real(fp), intent(in) :: met_value       ! Meteorological value
       real(fp), intent(in) :: reference_value ! Reference value
       real(fp) :: factor
@@ -226,7 +273,7 @@ contains
       ! Simple exponential response - customize for your scheme
       factor = exp((met_value - reference_value) / reference_value)
       factor = max(0.0_fp, min(10.0_fp, factor))  ! Reasonable bounds
-   end function compute_{{ scheme.name }}
+   end function compute_environmental_response_{{ scheme.name }}
 
    !> Example helper function for species-specific scaling
    pure function compute_species_scaling_{{ scheme.name }}(species_idx, params) result(scaling)

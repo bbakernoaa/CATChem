@@ -28,6 +28,7 @@ bool yaml_has_key(void* node_ptr, const char* key);
 int yaml_get_size(void* node_ptr);
 bool yaml_is_sequence(void* node_ptr);
 bool yaml_is_map(void* node_ptr);
+bool yaml_get_all_keys(void* node_ptr, char* keys, int max_keys, int max_key_len, int* actual_count);
 
 // Setter functions
 bool yaml_set_string(void* node_ptr, const char* key, const char* value);

@@ -1,60 +1,61 @@
 !> \file VirtualColumn_Mod.F90
-!! \brief Standalone module for VirtualColumnType - simple data container
-!! \author CATChem Development Team
-!! \date 2025
-!! \version 2.0
+!! \brief Virtual column data container for CATChem processes with macro-generated meteorological fields
+!! \ingroup core_modules
 !!
-!! \details This module provides a simple virtual column data container
-!! that is independent of StateManager to avoid circular dependencies.
-!! It holds column data and metadata, but delegates all grid operations
-!! to higher-level modules.
-
+!! \author CATChem Development Team  
+!! \date 2025
+!! \version 3.0
+!!
+!! This module provides a column-based data container that allows processes
+!! to work with vertical column data extracted from 3D grid fields.
+!! The VirtualColumn contains a VirtualMetType with direct pointers to 
+!! meteorological fields, eliminating data copying overhead.
+!! The VirtualMetType definition is now generated automatically from
+!! MetState field definitions using macros.
+!!
 module VirtualColumn_Mod
    use Precision_Mod, only: fp
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE
+
    implicit none
    private
 
-   public :: VirtualColumnType
+   public :: VirtualColumnType, VirtualMetType
+
+   !> \brief Virtual meteorological data container with direct pointers
+   !! \details VirtualMetType definition generated from MetState field definitions
+#include "virtualmet_type.inc"
 
    !> \brief Virtual column data container for process-level column virtualization
-   !! \details
-   !! This is a simple data container that holds:
-   !! - Column data arrays (met, chem, emissions)
-   !! - Grid position and metadata
-   !! - Basic accessor methods
-   !!
-   !! It does NOT know about StateManager to avoid circular dependencies.
-   !! Grid operations are handled by ColumnInterface_Mod or StateManager_Mod.
+   !! \details Enhanced virtual column with VirtualMetType for efficient meteorological field access
    type :: VirtualColumnType
-      private
+      ! Meteorological data (pointers managed by VirtualMetType)
+      type(VirtualMetType) :: met                            !< Meteorological fields
 
-      ! Column data arrays
-      real(fp), allocatable :: met_data(:)        !< Meteorology column (nlev)
-      real(fp), allocatable :: chem_data(:,:)     !< Chemistry column (nlev, nspec_chem)
-      real(fp), allocatable :: emis_data(:,:)     !< Emissions column (nlev, nspec_emis)
-
-      ! Dimensions
-      integer :: nlev = 0
-      integer :: nspec_chem = 0
-      integer :: nspec_emis = 0
+      ! Chemical and emission data (still use arrays for modification)
+      real(fp), allocatable :: chem_data(:,:)                !< Chemical species [nlev, nspec]
+      real(fp), allocatable :: emis_data(:,:)                !< Emission fluxes [nlev, nspec]
 
       ! Grid position and metadata
-      real(fp) :: lat = 0.0_fp
-      real(fp) :: lon = 0.0_fp
-      real(fp) :: area = 0.0_fp
-      integer :: grid_i = 1
-      integer :: grid_j = 1
+      integer :: grid_i = 0                                  !< Grid I index
+      integer :: grid_j = 0                                  !< Grid J index
+      real(fp) :: lat = 0.0_fp                               !< Latitude [degrees]
+      real(fp) :: lon = 0.0_fp                               !< Longitude [degrees]
+      real(fp) :: area = 0.0_fp                              !< Grid cell area [m²]
 
-      ! State
-      logical :: is_valid = .false.
+      ! Dimensions
+      integer :: nlev = 0                                     !< Number of vertical levels
+      integer :: nspec_chem = 0                              !< Number of chemical species
+      integer :: nspec_emis = 0                              !< Number of emission species
+
+      ! Status
+      logical :: is_valid = .false.                          !< Validity flag
 
    contains
       procedure :: init => virtual_column_init
-      procedure :: get_met_field => virtual_column_get_met_field
+      procedure :: get_met => virtual_column_get_met
       procedure :: get_chem_field => virtual_column_get_chem_field
       procedure :: get_emis_field => virtual_column_get_emis_field
-      procedure :: set_met_field => virtual_column_set_met_field
       procedure :: set_chem_field => virtual_column_set_chem_field
       procedure :: set_emis_field => virtual_column_set_emis_field
       procedure :: get_position => virtual_column_get_position
@@ -66,10 +67,35 @@ module VirtualColumn_Mod
 
 contains
 
-   !> \brief Initialize virtual column with dimensions and grid position
-   !! \details Simple initialization - no StateManager dependency
-   subroutine virtual_column_init(this, nlev, nspec_chem, nspec_emis, &
-                                  grid_i, grid_j, lat, lon, area, rc)
+   !=========================================================================
+   ! VirtualMetType Implementation
+   !=========================================================================
+
+   !> \brief Clean up virtual met pointers
+   !! \details Nullifies all pointers - does not deallocate since pointers
+   !! point to MetState data which is managed elsewhere
+   subroutine virtual_met_cleanup(this)
+      class(VirtualMetType), intent(inout) :: this
+
+      print *, '[DEBUG] Entering virtual_met_cleanup'
+      if (associated(this%T)) then
+         print *, '[DEBUG] Cleaning up T, associated before nullify'
+      else
+         print *, '[DEBUG] T not associated'
+      endif
+
+      ! Generated cleanup code from MetState field definitions
+#include "virtualmet_cleanup.inc"
+
+      print *, '[DEBUG] Exiting virtual_met_cleanup'
+   end subroutine virtual_met_cleanup
+
+   !=========================================================================
+   ! VirtualColumnType Implementation
+   !=========================================================================
+
+   !> \brief Initialize virtual column
+   subroutine virtual_column_init(this, nlev, nspec_chem, nspec_emis, grid_i, grid_j, lat, lon, area, rc)
       class(VirtualColumnType), intent(inout) :: this
       integer, intent(in) :: nlev, nspec_chem, nspec_emis
       integer, intent(in) :: grid_i, grid_j
@@ -90,16 +116,15 @@ contains
       this%lon = lon
       this%area = area
 
-      ! Allocate data arrays
+      ! Allocate meteorological field arrays for testing
       if (nlev > 0) then
-         allocate(this%met_data(nlev), stat=rc)
-         if (rc /= 0) then
-            rc = CC_FAILURE
-            return
+         if (.not. associated(this%met%T)) then
+            allocate(this%met%T(nlev))
+            this%met%T = 288.15_fp  ! Initialize with default temperature value
          endif
-         this%met_data = 0.0_fp
       endif
 
+      ! Allocate chemical and emission data arrays
       if (nlev > 0 .and. nspec_chem > 0) then
          allocate(this%chem_data(nlev, nspec_chem), stat=rc)
          if (rc /= 0) then
@@ -122,18 +147,13 @@ contains
       rc = CC_SUCCESS
    end subroutine virtual_column_init
 
-   !> \brief Get meteorological field value at level k
-   function virtual_column_get_met_field(this, k) result(value)
-      class(VirtualColumnType), intent(in) :: this
-      integer, intent(in) :: k
-      real(fp) :: value
+   !> \brief Get meteorological data container
+   function virtual_column_get_met(this) result(met_ptr)
+      class(VirtualColumnType), intent(in), target :: this
+      type(VirtualMetType), pointer :: met_ptr
 
-      if (allocated(this%met_data) .and. k >= 1 .and. k <= this%nlev) then
-         value = this%met_data(k)
-      else
-         value = 0.0_fp
-      endif
-   end function virtual_column_get_met_field
+      met_ptr => this%met
+   end function virtual_column_get_met
 
    !> \brief Get chemical species concentration at level k
    function virtual_column_get_chem_field(this, ispec, k) result(value)
@@ -165,21 +185,10 @@ contains
       endif
    end function virtual_column_get_emis_field
 
-   !> \brief Set meteorological field value at level k
-   subroutine virtual_column_set_met_field(this, k, value)
-      class(VirtualColumnType), intent(inout) :: this
-      integer, intent(in) :: k
-      real(fp), intent(in) :: value
-
-      if (allocated(this%met_data) .and. k >= 1 .and. k <= this%nlev) then
-         this%met_data(k) = value
-      endif
-   end subroutine virtual_column_set_met_field
-
    !> \brief Set chemical species concentration at level k
-   subroutine virtual_column_set_chem_field(this, ispec, k, value)
+   subroutine virtual_column_set_chem_field(this, k, ispec, value)
       class(VirtualColumnType), intent(inout) :: this
-      integer, intent(in) :: ispec, k
+      integer, intent(in) :: k, ispec
       real(fp), intent(in) :: value
 
       if (allocated(this%chem_data) .and. &
@@ -190,9 +199,9 @@ contains
    end subroutine virtual_column_set_chem_field
 
    !> \brief Set emission flux at level k
-   subroutine virtual_column_set_emis_field(this, ispec, k, value)
+   subroutine virtual_column_set_emis_field(this, k, ispec, value)
       class(VirtualColumnType), intent(inout) :: this
-      integer, intent(in) :: ispec, k
+      integer, intent(in) :: k, ispec
       real(fp), intent(in) :: value
 
       if (allocated(this%emis_data) .and. &
@@ -221,7 +230,7 @@ contains
       area = this%area
    end subroutine virtual_column_get_metadata
 
-   !> \brief Get column dimensions
+   !> \brief Get dimensions
    subroutine virtual_column_get_dimensions(this, nlev, nspec_chem, nspec_emis)
       class(VirtualColumnType), intent(in) :: this
       integer, intent(out) :: nlev, nspec_chem, nspec_emis
@@ -243,14 +252,27 @@ contains
    subroutine virtual_column_cleanup(this)
       class(VirtualColumnType), intent(inout) :: this
 
-      if (allocated(this%met_data)) deallocate(this%met_data)
-      if (allocated(this%chem_data)) deallocate(this%chem_data)
-      if (allocated(this%emis_data)) deallocate(this%emis_data)
+      print *, '[DEBUG] Entering virtual_column_cleanup'
+
+      ! Clean up meteorological pointers
+      call this%met%cleanup()
+
+      ! Deallocate chemical and emission data
+      if (allocated(this%chem_data)) then
+         print *, '[DEBUG] Deallocating chem_data'
+         deallocate(this%chem_data)
+      endif
+      if (allocated(this%emis_data)) then
+         print *, '[DEBUG] Deallocating emis_data'
+         deallocate(this%emis_data)
+      endif
 
       this%nlev = 0
       this%nspec_chem = 0
       this%nspec_emis = 0
       this%is_valid = .false.
+
+      print *, '[DEBUG] Exiting virtual_column_cleanup'
    end subroutine virtual_column_cleanup
 
 end module VirtualColumn_Mod

@@ -285,4 +285,36 @@ bool yaml_save_file(void* node_ptr, const char* filename) {
     return false;
 }
 
+// Get all keys from a YAML map
+bool yaml_get_all_keys(void* node_ptr, char* keys, int max_keys, int max_key_len, int* actual_count) {
+    if (!node_ptr || !keys || !actual_count) return false;
+
+    try {
+        YamlNodeWrapper* wrapper = static_cast<YamlNodeWrapper*>(node_ptr);
+        if (!wrapper->node.IsMap()) {
+            *actual_count = 0;
+            return false;
+        }
+
+        *actual_count = 0;
+        for (const auto& pair : wrapper->node) {
+            if (*actual_count >= max_keys) break;
+            
+            std::string key_str = pair.first.as<std::string>();
+            if (key_str.length() < max_key_len) {
+                // Copy key to the output array
+                char* dest = keys + (*actual_count) * max_key_len;
+                strncpy(dest, key_str.c_str(), max_key_len - 1);
+                dest[max_key_len - 1] = '\0';  // Ensure null termination
+                (*actual_count)++;
+            }
+        }
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Error getting all keys: " << e.what() << std::endl;
+        *actual_count = 0;
+    }
+    return false;
+}
+
 } // extern "C"

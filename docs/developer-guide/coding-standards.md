@@ -12,7 +12,7 @@ CATChem coding standards ensure consistency, maintainability, and performance ac
 ### Modern Fortran Features
 ```fortran
 ! Use modern Fortran constructs
-use iso_fortran_env, only: real64, int32
+use precision_mod, only: fp
 use ieee_arithmetic, only: ieee_is_finite
 
 ! Prefer allocatable over pointers

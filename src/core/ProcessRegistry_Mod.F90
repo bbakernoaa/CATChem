@@ -250,8 +250,12 @@ contains
       integer :: idx
 
       call this%find_process_index(name, idx)
-      if (idx > 0 .and. this%entries(idx)%is_available) then
-         call this%entries(idx)%creator(process, rc)
+      if (idx > 0) then
+         if (this%entries(idx)%is_available) then
+            call this%entries(idx)%creator(process, rc)
+         else
+            rc = CC_FAILURE
+         endif
       else
          rc = CC_FAILURE
       endif

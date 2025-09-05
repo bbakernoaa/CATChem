@@ -1,3 +1,8 @@
 [submodule "src/external/GOCART"]
 	path = src/external/GOCART
 	url = https://github.com/GEOS-ESM/GOCART
+
+[submodule "src/external/musica"]
+	path = src/external/musica
+	url = https://github.com/NCAR/musica.git
+	branch = v0.11.1.4

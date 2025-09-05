@@ -187,10 +187,10 @@ contains
       integer, intent(in) :: data_type
       integer, intent(in), optional :: dims(:)
       integer, intent(out) :: rc
-
       integer :: alloc_stat
 
       rc = CC_SUCCESS
+      alloc_stat = 0
 
       ! Deallocate any existing data first
       call this%deallocate_data()
@@ -205,11 +205,13 @@ contains
       case (DIAG_REAL_1D)
          if (.not. present(dims) .or. size(dims) < 1) then
             rc = ERROR_INVALID_INPUT
+            write(*,*) "Error: Invalid dimensions for DIAG_REAL_1D"
             return
          end if
          allocate(this%real_1d(dims(1)), stat=alloc_stat)
          if (alloc_stat /= 0) then
             rc = ERROR_MEMORY_ALLOCATION
+            write(*,*) "Error: Memory allocation failed for DIAG_REAL_1D"
             return
          end if
          this%real_1d = 0.0_fp
@@ -218,11 +220,13 @@ contains
       case (DIAG_REAL_2D)
          if (.not. present(dims) .or. size(dims) < 2) then
             rc = ERROR_INVALID_INPUT
+            write(*,*) "Error: Invalid dimensions for DIAG_REAL_2D"
             return
          end if
          allocate(this%real_2d(dims(1), dims(2)), stat=alloc_stat)
          if (alloc_stat /= 0) then
             rc = ERROR_MEMORY_ALLOCATION
+            write(*,*) "Error: Memory allocation failed for DIAG_REAL_2D"
             return
          end if
          this%real_2d = 0.0_fp
@@ -231,11 +235,13 @@ contains
       case (DIAG_REAL_3D)
          if (.not. present(dims) .or. size(dims) < 3) then
             rc = ERROR_INVALID_INPUT
+            write(*,*) "Error: Invalid dimensions for DIAG_REAL_3D"
             return
          end if
          allocate(this%real_3d(dims(1), dims(2), dims(3)), stat=alloc_stat)
          if (alloc_stat /= 0) then
             rc = ERROR_MEMORY_ALLOCATION
+            write(*,*) "Error: Memory allocation failed for DIAG_REAL_3D"
             return
          end if
          this%real_3d = 0.0_fp
@@ -248,22 +254,100 @@ contains
       case (DIAG_INTEGER_1D)
          if (.not. present(dims) .or. size(dims) < 1) then
             rc = ERROR_INVALID_INPUT
+            write(*,*) "Error: Invalid dimensions for DIAG_INTEGER_1D"
             return
          end if
          allocate(this%int_1d(dims(1)), stat=alloc_stat)
          if (alloc_stat /= 0) then
             rc = ERROR_MEMORY_ALLOCATION
+            write(*,*) "Error: Memory allocation failed for DIAG_INTEGER_1D"
             return
          end if
          this%int_1d = 0
+         this%is_allocated = .true.
+
+      case (DIAG_INTEGER_2D)
+         if (.not. present(dims) .or. size(dims) < 2) then
+            rc = ERROR_INVALID_INPUT
+            write(*,*) "Error: Invalid dimensions for DIAG_INTEGER_2D"
+            return
+         end if
+         allocate(this%int_2d(dims(1), dims(2)), stat=alloc_stat)
+         if (alloc_stat /= 0) then
+            rc = ERROR_MEMORY_ALLOCATION
+            write(*,*) "Error: Memory allocation failed for DIAG_INTEGER_2D"
+            return
+         end if
+         this%int_2d = 0
+         this%is_allocated = .true.
+
+      case (DIAG_INTEGER_3D)
+         if (.not. present(dims) .or. size(dims) < 3) then
+            rc = ERROR_INVALID_INPUT
+            write(*,*) "Error: Invalid dimensions for DIAG_INTEGER_3D"
+            return
+         end if
+         allocate(this%int_3d(dims(1), dims(2), dims(3)), stat=alloc_stat)
+         if (alloc_stat /= 0) then
+            rc = ERROR_MEMORY_ALLOCATION
+            write(*,*) "Error: Memory allocation failed for DIAG_INTEGER_3D"
+            return
+         end if
+         this%int_3d = 0
          this%is_allocated = .true.
 
       case (DIAG_LOGICAL_SCALAR)
          this%logical_scalar = .false.
          this%is_allocated = .true.
 
+      case (DIAG_LOGICAL_1D)
+         if (.not. present(dims) .or. size(dims) < 1) then
+            rc = ERROR_INVALID_INPUT
+            write(*,*) "Error: Invalid dimensions for DIAG_LOGICAL_1D"
+            return
+         end if
+         allocate(this%logical_1d(dims(1)), stat=alloc_stat)
+         if (alloc_stat /= 0) then
+            rc = ERROR_MEMORY_ALLOCATION
+            write(*,*) "Error: Memory allocation failed for DIAG_LOGICAL_1D"
+            return
+         end if
+         this%logical_1d = .false.
+         this%is_allocated = .true.
+
+      case (DIAG_LOGICAL_2D)
+         if (.not. present(dims) .or. size(dims) < 2) then
+            rc = ERROR_INVALID_INPUT
+            write(*,*) "Error: Invalid dimensions for DIAG_LOGICAL_2D"
+            return
+         end if
+         allocate(this%logical_2d(dims(1), dims(2)), stat=alloc_stat)
+         if (alloc_stat /= 0) then
+            rc = ERROR_MEMORY_ALLOCATION
+            write(*,*) "Error: Memory allocation failed for DIAG_LOGICAL_2D"
+            return
+         end if
+         this%logical_2d = .false.
+         this%is_allocated = .true.
+
+      case (DIAG_LOGICAL_3D)
+         if (.not. present(dims) .or. size(dims) < 3) then
+            rc = ERROR_INVALID_INPUT
+            write(*,*) "Error: Invalid dimensions for DIAG_LOGICAL_3D"
+            return
+         end if
+         allocate(this%logical_3d(dims(1), dims(2), dims(3)), stat=alloc_stat)
+         if (alloc_stat /= 0) then
+            rc = ERROR_MEMORY_ALLOCATION
+            write(*,*) "Error: Memory allocation failed for DIAG_LOGICAL_3D"
+            return
+         end if
+         this%logical_3d = .false.
+         this%is_allocated = .true.
+
       case default
          rc = ERROR_INVALID_INPUT
+         write(*,*) "Error: Unsupported data type"
       end select
 
    end subroutine diag_data_allocate
@@ -412,6 +496,8 @@ contains
       integer, intent(in) :: data_type
       character(len=*), intent(in), optional :: process_name
       integer, intent(out) :: rc
+      
+      ! No local variables needed
 
       rc = CC_SUCCESS
 
@@ -434,6 +520,54 @@ contains
       this%output_frequency = DIAG_FREQ_TIMESTEP
       this%is_enabled = .true.
       this%is_initialized = .true.
+
+      ! Initialize data storage for all types with default dimensions for arrays
+      select case (data_type)
+      case (DIAG_REAL_SCALAR, DIAG_INTEGER_SCALAR, DIAG_LOGICAL_SCALAR)
+         ! For scalar types, we can initialize without dimensions
+         call this%data%allocate_data(this%data_type, rc=rc)
+         if (rc /= CC_SUCCESS) then
+            write(*,*) "Error: Could not allocate data for diagnostic field"
+            this%is_initialized = .false.
+            return
+         end if
+      case (DIAG_REAL_1D, DIAG_INTEGER_1D, DIAG_LOGICAL_1D)
+         ! For 1D arrays, initialize with default size of 1
+         call this%data%allocate_data(this%data_type, [1], rc=rc)
+         if (rc /= CC_SUCCESS) then
+            write(*,*) "Error: Could not allocate data for diagnostic field"
+            this%is_initialized = .false.
+            return
+         end if
+      case (DIAG_REAL_2D, DIAG_INTEGER_2D, DIAG_LOGICAL_2D)
+         ! For 2D arrays, initialize with default size of 1x1
+         call this%data%allocate_data(this%data_type, [1, 1], rc=rc)
+         if (rc /= CC_SUCCESS) then
+            write(*,*) "Error: Could not allocate data for diagnostic field"
+            this%is_initialized = .false.
+            return
+         end if
+      case (DIAG_REAL_3D, DIAG_INTEGER_3D, DIAG_LOGICAL_3D)
+         ! For 3D arrays, initialize with default size of 1x1x1
+         call this%data%allocate_data(this%data_type, [1, 1, 1], rc=rc)
+         if (rc /= CC_SUCCESS) then
+            write(*,*) "Error: Could not allocate data for diagnostic field"
+            this%is_initialized = .false.
+            return
+         end if
+      case default
+         rc = ERROR_INVALID_INPUT
+         this%is_initialized = .false.
+         return
+      end select
+
+      ! Verify that data was allocated successfully
+      if (.not. this%data%is_data_allocated()) then
+          rc = ERROR_MEMORY_ALLOCATION
+          write(*,*) "Error: Data allocation failed during create()"
+          this%is_initialized = .false.
+          return
+      end if
 
    end subroutine diag_field_create
 
@@ -661,8 +795,8 @@ contains
       this%process_name = ''
       if (present(process_name)) this%process_name = trim(process_name)
       this%n_fields = 0
-      this%is_initialized = .true.
       call this%cleanup()  ! Clean up any previous state
+      this%is_initialized = .true.
    end subroutine diag_registry_init
 
    subroutine diag_registry_cleanup(this)
@@ -690,6 +824,11 @@ contains
       integer :: i
       rc = CC_SUCCESS
       if (.not. this%is_initialized) then
+         rc = ERROR_INVALID_INPUT
+         return
+      end if
+      ! Check if field is valid
+      if (.not. field%is_ready()) then
          rc = ERROR_INVALID_INPUT
          return
       end if
@@ -737,14 +876,17 @@ contains
    end function diag_registry_get_field_ptr
 
    subroutine diag_registry_list_fields(this, names, n)
-      class(DiagnosticRegistryType), intent(in) :: this
-      character(len=*), intent(out) :: names(:)
-      integer, intent(out) :: n
-      integer :: i
-      n = this%n_fields
-      do i = 1, this%n_fields
-         names(i) = this%fields(i)%field_name
-      end do
+       class(DiagnosticRegistryType), intent(in) :: this
+       character(len=*), intent(out) :: names(:)
+       integer, intent(out) :: n
+       integer :: i
+       
+       ! Ensure we don't exceed array bounds
+       n = min(this%n_fields, size(names))
+       
+       do i = 1, n
+           names(i) = this%fields(i)%field_name
+       end do
    end subroutine diag_registry_list_fields
 
    function diag_registry_get_count(this) result(count)

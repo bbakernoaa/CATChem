@@ -19,13 +19,13 @@ set({{ config.name | upper_snake }}_SCHEME_SOURCES
 
 # Combine all sources
 set({{ config.name | upper_snake }}_ALL_SOURCES
-    ${{"${" }}{{ config.name | upper_snake }}_PROCESS_SOURCES}
-    ${{"${" }}{{ config.name | upper_snake }}_SCHEME_SOURCES}
+    ${{ "{" }}{{ config.name | upper_snake }}_PROCESS_SOURCES}
+    ${{ "{" }}{{ config.name | upper_snake }}_SCHEME_SOURCES}
 )
 
 # Create the {{ config.name }} process library
 set(_lib CATChem_process_{{ config.name }})
-add_library(${_lib} ${{"${" }}{{ config.name | upper_snake }}_ALL_SOURCES})
+add_library(${_lib} ${{ "{" }}{{ config.name | upper_snake }}_ALL_SOURCES})
 
 # Link with required libraries
 target_link_libraries(${_lib} PUBLIC CATChem_core)
@@ -91,7 +91,11 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
 # Add subdirectories
 {% if config.generate_tests %}
 if(BUILD_TESTING)
-    add_subdirectory(tests)
+    # Add tests subdirectory - tests are located in tests/process/{{ config.name }}/
+    set(TESTS_DIR "${CMAKE_SOURCE_DIR}/tests/process/{{ config.name }}")
+    if(EXISTS "${TESTS_DIR}/CMakeLists.txt")
+        add_subdirectory("${TESTS_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/tests")
+    endif()
 endif()
 {% endif %}
 

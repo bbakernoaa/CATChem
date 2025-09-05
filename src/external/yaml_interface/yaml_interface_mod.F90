@@ -24,7 +24,7 @@ module yaml_interface_mod
    public :: yaml_get_real_array, yaml_get_integer_array, yaml_get_string_array
    public :: yaml_has_key, yaml_get_size, yaml_is_sequence, yaml_is_map
    public :: yaml_set_string, yaml_set_integer, yaml_set_real, yaml_set_logical
-   public :: yaml_save_file
+   public :: yaml_save_file, yaml_get_all_keys
 
    ! High-level generic interfaces
    public :: yaml_get, yaml_set, yaml_get_array
@@ -218,6 +218,16 @@ module yaml_interface_mod
          character(kind=c_char), intent(in) :: filename(*)
          logical(c_bool) :: c_yaml_save_file
       end function c_yaml_save_file
+
+      function c_yaml_get_all_keys(node, keys, max_keys, max_key_len, actual_count) bind(C, name="yaml_get_all_keys")
+         import :: c_ptr, c_char, c_int, c_bool
+         type(c_ptr), value :: node
+         character(kind=c_char), intent(out) :: keys(*)
+         integer(c_int), value :: max_keys
+         integer(c_int), value :: max_key_len
+         integer(c_int), intent(out) :: actual_count
+         logical(c_bool) :: c_yaml_get_all_keys
+      end function c_yaml_get_all_keys
 
    end interface
 
@@ -747,5 +757,30 @@ contains
       if (present(rc)) rc = local_rc
       if (present(actual_size)) actual_size = local_size
    end subroutine yaml_get_real_sp_array_generic
+
+   !> Get all keys from a YAML map
+   function yaml_get_all_keys(node, keys, actual_count) result(success)
+      type(yaml_node_t), intent(in) :: node
+      character(len=*), intent(out) :: keys(:)
+      integer, intent(out) :: actual_count
+      logical :: success
+
+      character(kind=c_char) :: c_keys(size(keys) * len(keys(1)))
+      integer(c_int) :: c_actual_count
+      integer :: i, key_len, start_pos
+
+      key_len = len(keys(1))
+      success = c_yaml_get_all_keys(node%ptr, c_keys, size(keys), key_len, c_actual_count)
+      
+      if (success) then
+         actual_count = c_actual_count
+         do i = 1, actual_count
+            start_pos = (i - 1) * key_len + 1
+            keys(i) = transfer(c_keys(start_pos:start_pos + key_len - 1), keys(i))
+         end do
+      else
+         actual_count = 0
+      endif
+   end function yaml_get_all_keys
 
 end module yaml_interface_mod
