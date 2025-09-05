@@ -177,7 +177,7 @@ flowchart TB
 
 ## 📄 License
 
-CATChem is released under the [Apache 2.0 License](license.md).
+CATChem is released under the **[Apache 2.0 License](../license.md)**.
 
 ---
 

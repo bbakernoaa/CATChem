@@ -1,13 +1,4 @@
-# License
-
-## CATChem License
-
-CATChem is developed as an open-source community project. The software is provided under the following license terms:
-
-### Apache License
-
-```
- Apache License
+                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
 
@@ -208,40 +199,3 @@ CATChem is developed as an open-source community project. The software is provid
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-```
-
-## Third-Party Dependencies
-
-CATChem incorporates several third-party libraries and components:
-
-### GOCART Aerosol Module
-- **License**: NASA Open Source Agreement
-- **Source**: NASA GSFC GOCART model
-- **Purpose**: Aerosol transport and chemistry
-
-### NetCDF Libraries
-- **License**: NetCDF License (BSD-style)
-- **Source**: Unidata NetCDF
-- **Purpose**: Data I/O and file format support
-
-### YAML Configuration
-- **License**: Various open-source licenses
-- **Purpose**: Configuration file parsing
-
-## Acknowledgments
-
-CATChem development has been supported by:
-
-- Funding for this project was partially provided by the Bi-Partisan Infrastructure Law (BIL)
-- This work has been partly supported by the NOAA Cooperative Agreement with CIRES (grant nos. NA17OAR4320101 and NA22OAR4320151)
-- NOAA OAR including Chemical Sciences Laboratory (CSL), Air Resources Laboratory (ARL), Global Systems Laboratory (GSL), Geophysical Fluid Dynamics Laboratory (GFDL), and Global Monitoring Laboratory (GML)
-- Open-source community contributors
-- Various research institutions and universities
-
-## Contributing
-
-By contributing to CATChem, you agree to license your contributions under the same Apache License that covers the project. See our **[Contributing Guide](developer-guide/contributing.md)** for details.
-
-## Contact
-
-For licensing questions or permissions beyond the scope of this license, please contact the CATChem development team through our **[GitHub repository](https://github.com/UFS-Community/CATChem/issues)**.
