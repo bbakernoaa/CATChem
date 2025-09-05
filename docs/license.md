@@ -235,6 +235,7 @@ CATChem development has been supported by:
 - Funding for this project was partially provided by the Bi-Partisan Infrastructure Law (BIL)
 - This work has been partly supported by the NOAA Cooperative Agreement with CIRES (grant nos. NA17OAR4320101 and NA22OAR4320151)
 - NOAA OAR including Chemical Sciences Laboratory (CSL), Air Resources Laboratory (ARL), Global Systems Laboratory (GSL), Geophysical Fluid Dynamics Laboratory (GFDL), and Global Monitoring Laboratory (GML)
+- External collaborators including NSF NCAR's Atmospheric Chemistry Observations & Modeling Laboratory, U.S. EPA's Office of Research and Development, NASA's Global Modeling and Assimilation Office, and university collaborators at the University of Colorado Boulder Cooperative Institute for Research in Environmental Sciences (CIRES), George Mason University Cooperative Institute for Satellite Earth System Studies (CISESS), and University of Wisconsin
 - Open-source community contributors
 - Various research institutions and universities
 
