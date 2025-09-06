@@ -62,13 +62,13 @@ module CATChemCore_Mod
       private
 
       ! Core components (owned by the core)
-      type(ErrorManagerType)      :: error_mgr      !< Central error manager
-      type(ConfigManagerType)     :: config_mgr     !< Configuration manager
-      type(ConfigDataType)        :: config         !< Configuration data
-      type(StateManagerType)      :: state_mgr      !< State manager
-      type(GridManagerType)       :: grid_mgr       !< Grid manager
-      type(DiagnosticManagerType) :: diag_mgr       !< Diagnostic manager
-      type(ProcessManagerType)    :: process_mgr    !< Process manager
+      type(ErrorManagerType)          :: error_mgr      !< Central error manager
+      type(ConfigManagerType)         :: config_mgr     !< Configuration manager
+      type(ConfigDataType)            :: config         !< Configuration data
+      type(StateManagerType)          :: state_mgr      !< State manager
+      type(GridManagerType)           :: grid_mgr       !< Grid manager
+      type(DiagnosticManagerType)     :: diag_mgr       !< Diagnostic manager
+      type(ProcessManagerType)        :: process_mgr    !< Process manager
 
       ! Core state
       logical :: is_initialized = .false.           !< Initialization status
@@ -78,6 +78,9 @@ module CATChemCore_Mod
 
       ! Grid configuration
       integer :: nx = 64, ny = 64, nz = 72          !< Default grid dimensions
+      integer :: nsoil = 4                          !< Number of soil layers
+      integer :: nsoiltype = 19                     !< Number of soil types  
+      integer :: nsurftype = 13                     !< Number of surface types
 
    contains
       ! Core lifecycle
@@ -123,6 +126,9 @@ module CATChemCore_Mod
       character(len=512) :: config_file = ''
       character(len=256) :: name = 'CATChem_Core'
       integer :: nx = 64, ny = 64, nz = 72
+      integer :: nsoil = 4                          !< Number of soil layers
+      integer :: nsoiltype = 19                     !< Number of soil types  
+      integer :: nsurftype = 13                     !< Number of surface types
       logical :: verbose = .false.
       logical :: validate_config = .true.
 
@@ -180,10 +186,11 @@ contains
    !> \brief Configure the CATChem core with a configuration file
    !!
    !! Loads configuration and initializes all components in the correct order.
-   subroutine core_configure(this, config_file, nx, ny, nz, rc)
+   subroutine core_configure(this, config_file, nx, ny, nz, nsoil, nsoiltype, nsurftype, rc)
       class(CATChemCoreType), intent(inout) :: this
       character(len=*), intent(in), optional :: config_file
       integer, intent(in), optional :: nx, ny, nz
+      integer, intent(in), optional :: nsoil, nsoiltype, nsurftype
       integer, intent(out) :: rc
 
       integer :: local_rc
@@ -202,6 +209,9 @@ contains
       if (present(nx)) this%nx = nx
       if (present(ny)) this%ny = ny
       if (present(nz)) this%nz = nz
+      if (present(nsoil)) this%nsoil = nsoil
+      if (present(nsoiltype)) this%nsoiltype = nsoiltype
+      if (present(nsurftype)) this%nsurftype = nsurftype
 
       ! Initialize configuration manager
       call this%config_mgr%init(local_rc)
@@ -305,13 +315,13 @@ contains
 
    !> \brief Set up state manager
    subroutine core_setup_state(this, rc)
-      class(CATChemCoreType), intent(inout) :: this
+      class(CATChemCoreType), intent(inout), target :: this
       integer, intent(out) :: rc
 
       integer :: local_rc
       type(MetStateType), pointer :: met_ptr
       type(ChemStateType), pointer :: chem_ptr
-      type(ErrorManagerType), pointer :: error_mgr_ref
+      type(ErrorManagerType), pointer :: error_mgr_ptr
 
       write(*,*) 'Entering core_setup_state'
 
@@ -319,24 +329,24 @@ contains
 
       call this%error_mgr%push_context('core_setup_state', 'Setting up state manager')
 
+      ! Get pointer to error manager
+      error_mgr_ptr => this%error_mgr
+
       ! Initialize state manager
       call this%state_mgr%init(this%name // '_StateManager', local_rc)
       if (local_rc /= CC_SUCCESS) then
          call this%error_mgr%report_error(local_rc, 'Failed to initialize state manager', rc)
          call this%error_mgr%pop_context()
-         write(*,*) 'Exiting core_setup_state'
          return
       endif
 
       ! Initialize meteorological state
       met_ptr => this%state_mgr%get_met_state_ptr()
       if (associated(met_ptr)) then
-          error_mgr_ref = this%state_mgr%get_error_manager()
-          call met_ptr%init(this%nx, this%ny, this%nz, error_mgr_ref, local_rc)
+          call met_ptr%init(this%nx, this%ny, this%nz, this%nsoil, this%nsoiltype, this%nsurftype, error_mgr_ptr, local_rc)
           if (local_rc /= CC_SUCCESS) then
              call this%error_mgr%report_error(local_rc, 'Failed to initialize met state', rc)
              call this%error_mgr%pop_context()
-             write(*,*) 'Exiting core_setup_state'
              return
           endif
       else
@@ -349,14 +359,12 @@ contains
       ! Initialize chemistry state
       chem_ptr => this%state_mgr%get_chem_state_ptr()
       if (associated(chem_ptr)) then
-         error_mgr_ref = this%state_mgr%get_error_manager()
          ! Initialize with a reasonable default number of species
          ! In production, this would come from configuration
-         call chem_ptr%init(50, error_mgr_ref, local_rc)
+         call chem_ptr%init(50, error_mgr_ptr, local_rc)
          if (local_rc /= CC_SUCCESS) then
             call this%error_mgr%report_error(local_rc, 'Failed to initialize chem state', rc)
             call this%error_mgr%pop_context()
-            write(*,*) 'Exiting core_setup_state'
             return
          endif
       endif
@@ -755,6 +763,9 @@ contains
          write(*,'(A)') 'Building CATChem core...'
          write(*,'(A,A)') '  Name: ', trim(this%name)
          write(*,'(A,3I6)') '  Grid: ', this%nx, this%ny, this%nz
+         write(*,'(A,3I6)') '  Number of Soil Layers: ', this%nsoil
+         write(*,'(A,3I6)') '  Number of Soil Types: ', this%nsoiltype
+         write(*,'(A,3I6)') '  Number of Surface Types: ', this%nsurftype
          if (len_trim(this%config_file) > 0) then
             write(*,'(A,A)') '  Config: ', trim(this%config_file)
          endif
@@ -769,9 +780,11 @@ contains
 
       ! Configure core
       if (len_trim(this%config_file) > 0) then
-         call core%configure(this%config_file, this%nx, this%ny, this%nz, local_rc)
+         call core%configure(this%config_file, this%nx, this%ny, this%nz, &
+                           this%nsoil, this%nsoiltype, this%nsurftype, local_rc)
       else
-         call core%configure(nx=this%nx, ny=this%ny, nz=this%nz, rc=local_rc)
+         call core%configure(nx=this%nx, ny=this%ny, nz=this%nz, &
+                           nsoil=this%nsoil, nsoiltype=this%nsoiltype, nsurftype=this%nsurftype, rc=local_rc)
       endif
 
       if (local_rc /= CC_SUCCESS) then

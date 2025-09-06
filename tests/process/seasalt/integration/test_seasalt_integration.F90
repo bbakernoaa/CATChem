@@ -2,11 +2,12 @@
 !! \brief Integration test for seasalt process
 !!
 !! Tests the complete seasalt process integration
-!! Generated on: 2025-09-03T16:55:41.668336
+!! Generated on: 2025-09-05T11:17:05.945050
 
 program test_integration_seasalt
 
-   use iso_fortran_env, only: fp => real64, error_unit
+   use precision_mod, only: fp
+   use iso_fortran_env, only: error_unit
    use precision_mod, only: fp
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE
    use ProcessInterface_Mod

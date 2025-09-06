@@ -10,7 +10,7 @@
 
 module {{ config.class_name }}Common_Mod
 
-   use iso_fortran_env, only: fp => real64
+   use precision_mod, only: fp
    ! use precision_mod, only: fp
    use error_mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType, &
                         ERROR_INVALID_CONFIG, ERROR_INVALID_STATE, ERROR_NOT_FOUND

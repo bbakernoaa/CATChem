@@ -89,8 +89,8 @@ MODULE MetState_Mod
       REAL(fp), ALLOCATABLE        :: GWETTOP(:,:)      !< Top soil moisture [1]
       REAL(fp), ALLOCATABLE        :: GWETROOT(:,:)     !< Root Zone soil moisture [1]
       REAL(fp), ALLOCATABLE        :: WILT(:,:)         !< Wilt point [1]
-      INTEGER,  ALLOCATABLE        :: nSOIL             !< # number of soil layers
-      INTEGER,  ALLOCATABLE        :: nSOILTYPE         !< # number of soil types
+      INTEGER                      :: nSOIL             !< # number of soil layers
+      INTEGER                      :: nSOILTYPE         !< # number of soil types
       REAL(fp), ALLOCATABLE        :: SOILM(:,:,:)      !< Volumetric Soil moisture [m3/m3] (nx,ny,nsoil)
       REAL(fp), ALLOCATABLE        :: FRLANDUSE(:,:,:)  !< Fractional Land Use (nx,ny,nlanduse)
       REAL(fp), ALLOCATABLE        :: FRSOIL(:,:,:)     !< Fractional Soil (nx,ny,nsoil)
@@ -211,15 +211,21 @@ CONTAINS
    !! Initializes the meteorological state object, sets default values, and allocates required arrays.
    !!
    !! \param[inout] this      MetStateType object to initialize
+   !! \param[in]    nx        Number of grid points in x direction
+   !! \param[in]    ny        Number of grid points in y direction
    !! \param[in]    nlevs     Number of vertical levels
+   !! \param[in]    nsoil     Number of soil layers
+   !! \param[in]    nsoiltype Number of soil types
+   !! \param[in]    nsurftype Number of surface types
    !! \param[inout] error_mgr Error manager for context and error reporting
    !! \param[out]   rc        Return code (CC_SUCCESS or error code)
-   subroutine metstate_init(this, nx, ny, nlevs, error_mgr, rc)
+   subroutine metstate_init(this, nx, ny, nlevs, nsoil, nsoiltype, nsurftype, error_mgr, rc)
       use error_mod, only: ErrorManagerType, CC_SUCCESS, ERROR_MEMORY_ALLOCATION
 
       implicit none
       class(MetStateType), intent(inout) :: this
       integer, intent(in) :: nx, ny, nlevs
+      integer, intent(in) :: nsoil, nsoiltype, nsurftype
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
       character(len=256) :: thisLoc
@@ -230,7 +236,15 @@ CONTAINS
       rc = CC_SUCCESS
 
       call this%geometry%set(nx, ny, nlevs) ! Add a set() method to GridGeometryType
+      
       this%State = 'MET'
+
+      ! Set soil and surface parameters
+      this%NSURFTYPE = nsurftype
+      
+      ! Set soil parameters directly
+      this%nSOIL = nsoil
+      this%nSOILTYPE = nsoiltype
 
       ! Call helper procedure to allocate arrays
       call this%allocate_arrays('ALL', error_mgr, rc)
@@ -261,6 +275,8 @@ CONTAINS
       rc = CC_SUCCESS
 
       call this%geometry%get_dimensions(nx, ny, nz)
+      
+      ! Use the properly initialized values (no more defaults needed)
       nsoil = this%nSOIL
       nsoiltype = this%nSOILTYPE
       nSURFTYPE = this%NSURFTYPE
@@ -545,9 +561,10 @@ CONTAINS
       integer :: nx, ny, nz, nsoil, nsoiltype, nSURFTYPE
       rc = CC_SUCCESS
       call this%geometry%get_dimensions(nx, ny, nz)
-      nsoil = 1; nsoiltype = 1; nSURFTYPE = this%NSURFTYPE
-      if (allocated(this%nSOIL)) nsoil = this%nSOIL
-      if (allocated(this%nSOILTYPE)) nsoiltype = this%nSOILTYPE
+      ! Use the properly initialized values (no more defaults needed) 
+      nsoil = this%nSOIL
+      nsoiltype = this%nSOILTYPE
+      nSURFTYPE = this%NSURFTYPE
       ! Only allocate the requested field
       select case (trim(field_name))
 #include "metstate_allocate_fields.inc"

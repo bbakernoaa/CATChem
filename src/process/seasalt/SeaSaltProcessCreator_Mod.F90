@@ -4,14 +4,14 @@
 !! This module provides the factory functions for creating seasalt
 !! process instances following the CATChem Process Factory pattern.
 !!
-!! Generated on: 2025-09-03T16:55:41.460661
+!! Generated on: 2025-09-05T11:17:05.854916
 !! Author: Barry Baker & Wei Li
 !! Version: 1.0.0
 
 module SeaSaltProcessCreator_Mod
 
-   use iso_fortran_env, only: fp => real64
-   use Error_Mod, only: CC_SUCCESS, CC_FAILURE
+   use precision_mod, only: fp
+   use error_mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType
    use ProcessInterface_Mod
    use ProcessSeaSaltInterface_Mod
 

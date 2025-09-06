@@ -149,7 +149,9 @@ contains
 
       ! Allocate state objects
       if (.not. allocated(this%config)) allocate(this%config)
+      
       if (.not. allocated(this%met_state)) allocate(this%met_state)
+      
       if (.not. allocated(this%chem_state)) allocate(this%chem_state)
 
       this%is_initialized = .true.

@@ -48,6 +48,7 @@ module ConfigManager_Mod
    use iso_c_binding, only: c_associated
    use Precision_Mod, only: fp
    use Error_Mod, only : CC_SUCCESS, CC_FAILURE, ERROR_INVALID_CONFIG, ERROR_INVALID_INPUT, ErrorManagerType
+   use Species_Mod, only: SpeciesType
    use yaml_interface_mod, only : yaml_node_t, yaml_load_file, yaml_load_string, yaml_destroy_node, &
                                   yaml_get_string, yaml_get_integer, yaml_get_real, yaml_get_logical, &
                                   yaml_has_key, yaml_get, yaml_set, yaml_is_map, yaml_is_sequence, &
@@ -261,7 +262,8 @@ module ConfigManager_Mod
       !procedure :: extract_from_container => config_manager_extract_from_container
 
       ! Species and emission configuration
-      procedure :: load_species_config => config_manager_load_species_config
+      procedure :: load_species_data => config_manager_load_species_data
+      procedure :: load_and_init_species => config_manager_load_and_init_species
       procedure :: load_emission_config => config_manager_load_emission_config
 
       ! Configuration update methods
@@ -1255,24 +1257,105 @@ contains
 
    end subroutine parse_config_data
 
-   !> \brief Load species configuration from file
-   subroutine config_manager_load_species_config(this, filename, species_names, num_species, rc)
+   !> \brief Load complete species data with all properties from YAML file and initialize ChemState
+   !!
+   !! This enhanced method loads species configuration including all properties
+   !! such as molecular weight, type flags, background concentrations, etc.,
+   !! and initializes the provided ChemState with the loaded species data.
+   !! Based on the YAML structure in test_species.yml.
+   !!
+   !! \param[in]    filename     Species configuration file path
+   !! \param[inout] chem_state   ChemState to initialize with species data
+   !! \param[out]   species_data Array of SpeciesType objects with full data (optional)
+   !! \param[out]   num_species  Number of species loaded
+   !! \param[out]   rc          Return code
+   subroutine config_manager_load_and_init_species(this, filename, chem_state, error_mgr, rc, species_data, num_species)
+      use ChemState_Mod, only: ChemStateType
+      use Error_Mod, only: ErrorManagerType
       implicit none
       class(ConfigManagerType), intent(inout) :: this
       character(len=*), intent(in) :: filename
-      character(len=*), allocatable, intent(out) :: species_names(:)
+      type(ChemStateType), intent(inout) :: chem_state
+      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
+      integer, intent(out) :: rc
+      type(SpeciesType), allocatable, optional, intent(out) :: species_data(:)
+      integer, optional, intent(out) :: num_species
+
+      type(SpeciesType), allocatable :: temp_species_data(:)
+      integer :: temp_num_species, i
+      character(len=50) :: species_type
+
+      rc = CC_SUCCESS
+
+      ! First, load all species data using existing method
+      call config_manager_load_species_data(this, filename, temp_species_data, temp_num_species, rc)
+      if (rc /= CC_SUCCESS) then
+         write(*, '(A)') 'ERROR: Failed to load species data for ChemState initialization'
+         return
+      endif
+
+      ! Initialize ChemState with the maximum number of species
+      call chem_state%init(temp_num_species, error_mgr, rc)
+      if (rc /= CC_SUCCESS) then
+         write(*, '(A)') 'ERROR: Failed to initialize ChemState'
+         if (allocated(temp_species_data)) deallocate(temp_species_data)
+         return
+      endif
+
+      ! Add each species to ChemState
+      do i = 1, temp_num_species
+         ! Determine species type based on properties
+         if (temp_species_data(i)%is_gas) then
+            species_type = 'GAS'
+         else if (temp_species_data(i)%is_aerosol) then
+            species_type = 'AERO'
+         else
+            species_type = 'TRACER'  ! Default fallback
+         endif
+
+         call chem_state%add_species(trim(temp_species_data(i)%short_name), species_type, error_mgr, rc)
+         if (rc /= CC_SUCCESS) then
+            write(*, '(A,A,A,I0)') 'ERROR: Failed to add species "', &
+                                  trim(temp_species_data(i)%short_name), '" to ChemState, species #', i
+            if (allocated(temp_species_data)) deallocate(temp_species_data)
+            return
+         endif
+      enddo
+
+      write(*, '(A,I0,A)') 'INFO: Successfully initialized ChemState with ', temp_num_species, ' species'
+
+      ! Return optional output parameters
+      if (present(species_data)) then
+         call move_alloc(temp_species_data, species_data)
+      else
+         if (allocated(temp_species_data)) deallocate(temp_species_data)
+      endif
+
+      if (present(num_species)) then
+         num_species = temp_num_species
+      endif
+
+   end subroutine config_manager_load_and_init_species
+
+   !> \brief Load complete species data with all properties from YAML file
+   !! \param[in] filename Path to species configuration file
+   !! \param[out] species_data Array of species with loaded data
+   !! \param[out] num_species Number of species loaded
+   !! \param[out] rc Return code
+   subroutine config_manager_load_species_data(this, filename, species_data, num_species, rc)
+      implicit none
+      class(ConfigManagerType), intent(inout) :: this
+      character(len=*), intent(in) :: filename
+      type(SpeciesType), allocatable, intent(out) :: species_data(:)
       integer, intent(out) :: num_species
       integer, intent(out) :: rc
 
       type(yaml_node_t) :: species_config
-      logical :: file_exists, success, already_found
-      logical :: list_success, keys_success
-      integer :: i, count, total_size, j
-      character(len=256) :: key, temp_name, test_key
-      character(len=64), allocatable :: candidate_species(:)
-      character(len=64) :: temp_species_array(100)
-      character(len=64) :: all_yaml_keys(100)
-      integer :: n_candidates
+      logical :: file_exists, success
+      integer :: i, list_size, total_keys
+      character(len=256) :: species_path
+      character(len=64), allocatable :: species_keys(:)
+      character(len=64) :: all_yaml_keys(200)  ! Array for species keys
 
       rc = CC_SUCCESS
       num_species = 0
@@ -1280,16 +1363,18 @@ contains
       ! Check if file exists
       inquire(file=trim(filename), exist=file_exists)
       if (.not. file_exists) then
-         write(*, '(A,A)') 'WARNING: Species configuration file not found: ', trim(filename)
-         allocate(species_names(0))
+         write(*, '(A,A)') 'ERROR: Species configuration file not found: ', trim(filename)
+         allocate(species_data(0))
+         rc = CC_FAILURE
          return
       endif
 
       ! Load species configuration file
       species_config = yaml_load_file(filename)
       if (.not. c_associated(species_config%ptr)) then
+         write(*, '(A)') 'ERROR: Failed to load species configuration file'
          rc = CC_FAILURE
-         allocate(species_names(0))
+         allocate(species_data(0))
          return
       endif
 
@@ -1297,94 +1382,191 @@ contains
       if (.not. yaml_is_map(species_config)) then
          write(*, '(A)') 'ERROR: Species configuration file must be a YAML map/dictionary'
          rc = CC_FAILURE
-         allocate(species_names(0))
+         allocate(species_data(0))
          call yaml_destroy_node(species_config)
          return
       endif
 
-      ! Get the total size of the map to understand how many top-level keys exist
-      total_size = yaml_get_size(species_config)
-      write(*, '(A,I0,A)') 'INFO: Found ', total_size, ' top-level keys in species configuration'
-
-      ! Since we can't iterate keys directly, we'll use a two-pass approach:
-      ! 1. Check common species patterns first
-      ! 2. Then use a more extensive search if needed
-
-      ! Allocate temporary array for candidate species
-      allocate(candidate_species(max(total_size, 100)))
-      n_candidates = 0
-
-      ! SOLUTION: Direct YAML parsing - get all top-level keys as species
-      ! This is the proper architectural approach - no hardcoded patterns needed!
+      ! Format: so2: {name: so2, ...}, so4: {name: so4, ...}  
+      write(*, '(A)') 'INFO: Loading species from flat key format (species as top-level keys)'
       
-      ! First, look for explicit species metadata (preferred for structured configs)
-      if (yaml_has_key(species_config, 'species_list')) then
-         list_success = yaml_get_string_array(species_config, 'species_list', temp_species_array, n_candidates)
-         if (list_success .and. n_candidates > 0) then
-            do i = 1, min(n_candidates, size(candidate_species))
-               candidate_species(i) = temp_species_array(i)
-            end do
-            n_candidates = min(n_candidates, size(candidate_species))
-            write(*, '(A,I0,A)') 'INFO: Found ', n_candidates, ' species from metadata'
-         else
-            n_candidates = 0
-         endif
-      else
-         ! Direct approach: Get all top-level keys from YAML (these are the species)
-         keys_success = yaml_get_all_keys(species_config, all_yaml_keys, n_candidates)
-         if (keys_success .and. n_candidates > 0) then
-            write(*, '(A,I0,A)') 'INFO: Found ', n_candidates, ' species from YAML keys:'
-            do i = 1, min(n_candidates, size(candidate_species))
-               candidate_species(i) = trim(all_yaml_keys(i))
-               write(*, '(A,I0,A,A)') '  ', i, ': ', trim(candidate_species(i))
-            end do
-            n_candidates = min(n_candidates, size(candidate_species))
-         else
-            write(*, '(A)') 'ERROR: Failed to read YAML keys'
-            n_candidates = 0
-         endif
-      endif
-
-      num_species = n_candidates
-
-      if (num_species <= 0) then
-         write(*, '(A)') 'WARNING: No recognizable species found in configuration'
-         write(*, '(A,I0,A)') 'NOTE: Total YAML keys found: ', total_size, &
-              ' - consider checking key naming conventions'
-         allocate(species_names(0))
+      ! Get all top-level keys - these are the species names
+      total_keys = yaml_get_size(species_config)
+      success = yaml_get_all_keys(species_config, all_yaml_keys, list_size)
+      
+      if (.not. success .or. list_size <= 0) then
+         write(*, '(A)') 'ERROR: Failed to read species keys from configuration file'
+         rc = CC_FAILURE
+         allocate(species_data(0))
          call yaml_destroy_node(species_config)
-         deallocate(candidate_species)
          return
       endif
-
-      ! Allocate final species names array
-      allocate(species_names(num_species))
-
-      ! Read species data from found keys
-      do i = 1, num_species
-         ! Try to get the name field, fallback to key name
-         write(key, '(A,A)') trim(candidate_species(i)), '/name'
-         success = yaml_get_string(species_config, trim(key), temp_name)
-
-         if (success) then
-            species_names(i) = trim(temp_name)
-         else
-            ! Fallback to the key name itself
-            species_names(i) = trim(candidate_species(i))
-         endif
-
-         write(*, '(A,I0,A,A,A,A)') 'INFO: Species ', i, ': ', &
-              trim(candidate_species(i)), ' -> ', trim(species_names(i))
+      
+      write(*, '(A,I0,A)') 'INFO: Found ', list_size, ' species keys in configuration'
+      
+      allocate(species_data(list_size))
+      allocate(species_keys(list_size))
+      num_species = list_size
+      
+      ! Copy species keys
+      do i = 1, list_size
+         species_keys(i) = trim(all_yaml_keys(i))
+         write(*, '(A,I0,A,A)') 'INFO: Species key ', i, ': ', trim(species_keys(i))
       end do
+      
+      ! Load each species using the key as the path
+      do i = 1, list_size
+         species_path = trim(species_keys(i))
+         call load_species_properties(species_config, trim(species_path), species_data(i), rc)
+      end do
+      
+      deallocate(species_keys)
 
       ! Clean up
       call yaml_destroy_node(species_config)
-      deallocate(candidate_species)
 
-      write(*, '(A,I0,A,I0,A)') 'INFO: Successfully loaded ', num_species, &
-           ' species out of ', total_size, ' total keys'
+      write(*, '(A,I0,A)') 'INFO: Successfully loaded ', num_species, ' species with full data'
 
-   end subroutine config_manager_load_species_config
+   end subroutine config_manager_load_species_data
+
+   !> \brief Helper subroutine to load species properties from YAML
+   !! \param[in] yaml_root Root YAML node
+   !! \param[in] species_path Path to the species data in YAML
+   !! \param[inout] species Species object to populate
+   !! \param[out] rc Return code
+   subroutine load_species_properties(yaml_root, species_path, species, rc)
+      implicit none
+      type(yaml_node_t), intent(in) :: yaml_root
+      character(len=*), intent(in) :: species_path
+      type(SpeciesType), intent(inout) :: species
+      integer, intent(out) :: rc
+
+      logical :: success
+      character(len=256) :: field_path
+      character(len=64) :: species_name
+      real(fp) :: temp_real  ! Using project-wide fp precision
+      logical :: temp_logical
+      character(len=256) :: temp_string
+
+      rc = CC_SUCCESS
+
+      ! Initialize species with defaults
+      call species%init('UNKNOWN', 'Unknown Species', 28.0_fp, rc)
+      if (rc /= CC_SUCCESS) then
+         write(*, '(A,A)') 'ERROR: Failed to initialize species at path: ', trim(species_path)
+         return
+      endif
+
+      ! Load species name (required) - try 'name' field first, then use path as fallback
+      write(field_path, '(A,A)') trim(species_path), '/name'
+      success = yaml_get_string(yaml_root, trim(field_path), species_name)
+      if (success) then
+         species%short_name = trim(species_name)
+         species%long_name = trim(species_name)
+      else
+         ! Use the key/path as the species name (for flat format like so2:, so4:)
+         species%short_name = trim(species_path)
+         species%long_name = trim(species_path)
+         write(*, '(A,A,A,A)') 'INFO: No name field found, using key "', &
+                              trim(species_path), '" as species name'
+      endif
+
+      ! Load long_name if explicitly provided
+      write(field_path, '(A,A)') trim(species_path), '/long_name'
+      success = yaml_get_string(yaml_root, trim(field_path), temp_string)
+      if (success) then
+         species%long_name = trim(temp_string)
+      endif
+
+      ! Load description (optional)
+      write(field_path, '(A,A)') trim(species_path), '/description'
+      success = yaml_get_string(yaml_root, trim(field_path), temp_string)
+      if (success) then
+         species%description = trim(temp_string)
+      endif
+
+      ! Load molecular weight (optional, but important)
+      write(field_path, '(A,A)') trim(species_path), '/molecular_weight'
+      call yaml_get(yaml_root, trim(field_path), temp_real, rc)
+      if (rc == 0) then
+         species%mw_g = temp_real
+      else
+         ! No molecular weight specified - keep default from init
+         write(*, '(A,A,A)') 'WARNING: No molecular_weight found for species ', &
+                            trim(species%short_name), ', using default 28.0'
+      endif
+
+      ! Load physical properties
+      write(field_path, '(A,A)') trim(species_path), '/density'
+      call yaml_get(yaml_root, trim(field_path), temp_real, rc)
+      if (rc == 0) species%density = temp_real
+
+      write(field_path, '(A,A)') trim(species_path), '/radius'
+      call yaml_get(yaml_root, trim(field_path), temp_real, rc)
+      if (rc == 0) species%radius = temp_real
+
+      write(field_path, '(A,A)') trim(species_path), '/lower_radius'
+      call yaml_get(yaml_root, trim(field_path), temp_real, rc)
+      if (rc == 0) species%lower_radius = temp_real
+
+      write(field_path, '(A,A)') trim(species_path), '/upper_radius'
+      call yaml_get(yaml_root, trim(field_path), temp_real, rc)
+      if (rc == 0) species%upper_radius = temp_real
+
+      ! Load type flags (with proper default handling)
+      write(field_path, '(A,A)') trim(species_path), '/is_gas'
+      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
+      if (success) then
+         species%is_gas = temp_logical
+      else
+         ! Default: if not specified and not aerosol, assume gas
+         species%is_gas = .not. species%is_aerosol
+      endif
+
+      write(field_path, '(A,A)') trim(species_path), '/is_aerosol'
+      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
+      if (success) then
+         species%is_aerosol = temp_logical
+         ! If explicitly aerosol, then not gas
+         if (temp_logical) species%is_gas = .false.
+      endif
+
+      write(field_path, '(A,A)') trim(species_path), '/is_dust'
+      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
+      if (success) species%is_dust = temp_logical
+
+      write(field_path, '(A,A)') trim(species_path), '/is_seasalt'
+      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
+      if (success) species%is_seasalt = temp_logical
+
+      write(field_path, '(A,A)') trim(species_path), '/is_tracer'
+      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
+      if (success) species%is_tracer = temp_logical
+
+      write(field_path, '(A,A)') trim(species_path), '/is_drydep'
+      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
+      if (success) species%is_drydep = temp_logical
+
+      write(field_path, '(A,A)') trim(species_path), '/is_photolysis'
+      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
+      if (success) species%is_photolysis = temp_logical
+
+      ! Load background concentration (optional)
+      write(field_path, '(A,A)') trim(species_path), '/background_vv'
+      call yaml_get(yaml_root, trim(field_path), temp_real, rc)
+      if (rc == 0) then
+         species%BackgroundVV = temp_real
+      endif
+
+      ! Set species as valid
+      species%is_valid = .true.
+
+      write(*, '(A,A,A,F8.1,A,L1,A,L1,A,L1,A,L1,A)') 'INFO: Loaded species "', &
+           trim(species%short_name), '" (MW=', species%mw_g, &
+           ', gas=', species%is_gas, ', aerosol=', species%is_aerosol, &
+           ', dust=', species%is_dust, ', seasalt=', species%is_seasalt, ')'
+
+   end subroutine load_species_properties
 
    !> \brief Load emission configuration from file
    subroutine config_manager_load_emission_config(this, filename, rc)
@@ -1397,7 +1579,7 @@ contains
       logical :: file_exists, success
       character(len=256) :: emission_directory, scaling_method
       integer :: n_emission_sources
-      real(8) :: global_scaling_factor
+      real(fp) :: global_scaling_factor
 
       rc = CC_SUCCESS
 
@@ -1429,9 +1611,9 @@ contains
          write(*, '(A,A)') 'INFO: Emission scaling method: ', trim(scaling_method)
       endif
 
-      success = yaml_get_real(emission_config, "emissions/global_scaling_factor", &
-                             global_scaling_factor)
-      if (success) then
+      call yaml_get(emission_config, "emissions/global_scaling_factor", &
+                             global_scaling_factor, rc)
+      if (rc == 0) then
          write(*, '(A,F8.3)') 'INFO: Global emission scaling factor: ', global_scaling_factor
       endif
 

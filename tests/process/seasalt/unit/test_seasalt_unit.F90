@@ -2,11 +2,12 @@
 !! \brief Unit tests for seasalt process
 !!
 !! This file contains unit tests for the seasalt process implementation
-!! Generated on: 2025-09-03T16:55:41.602529
+!! Generated on: 2025-09-05T11:17:05.936560
 
 program test_seasalt_unit
 
-   use iso_fortran_env, only: fp => real64, error_unit
+   use precision_mod, only: fp
+   use iso_fortran_env, only: error_unit
    use precision_mod, only: fp
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning
    use ProcessSeaSaltInterface_Mod

@@ -1,5 +1,4 @@
 set(_base_srcs
-  Precision_Mod.F90
   Constants.F90
   Utilities_Mod.F90
   Met_Utilities_Mod.F90
@@ -51,7 +50,7 @@ set_property(TARGET CATChem_core PROPERTY JOB_POOL_COMPILE serial)
 
 target_compile_options(CATChem_core PRIVATE ${_catchem_compiler_options})
 
-target_link_libraries(CATChem_core PRIVATE yaml_interface)
+target_link_libraries(CATChem_core PRIVATE yaml_interface catchem_utilities)
 
 set(METSTATE_MOD_F90 ${CMAKE_CURRENT_SOURCE_DIR}/MetState_Mod.F90)
 set(METSTATE_ACCESSOR_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_column_accessor.inc)

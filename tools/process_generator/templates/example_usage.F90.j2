@@ -9,7 +9,8 @@
 
 program {{ config.name }}_example
 
-   use iso_fortran_env, only: fp => real64, output_unit, error_unit
+   use precision_mod, only: fp
+   use iso_fortran_env, only: output_unit, error_unit
    use precision_mod, only: fp
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE
    use ProcessInterface_Mod

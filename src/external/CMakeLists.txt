@@ -1,5 +1,14 @@
 # External dependencies
 
+# Create a basic utilities library that other modules can depend on
+add_library(catchem_utilities
+    ../core/Precision_Mod.F90
+)
+
+set_target_properties(catchem_utilities
+    PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+)
+
 # TODO: GOCART-2G Process Library - currently disabled as source files are missing
 # Uncomment when GOCART source files are available
 #
@@ -23,7 +32,7 @@ find_package(NetCDF REQUIRED COMPONENTS Fortran)
 target_link_libraries(${_lib} NetCDF::NetCDF_Fortran)
 
 # Add yaml-cpp as a subdirectory so its target is available
-add_subdirectory(yaml-cpp)
+#add_subdirectory(yaml-cpp)
 
 set_target_properties(
   ${_lib}

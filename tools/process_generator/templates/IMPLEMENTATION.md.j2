@@ -81,7 +81,7 @@ Each scheme module implements pure science kernels following these patterns:
 ```fortran
 module {{ config.class_name }}Scheme_SchemeNAME_Mod
 
-   use iso_fortran_env, only: fp => real64
+   use precision_mod, only: fp
 
    implicit none
    private

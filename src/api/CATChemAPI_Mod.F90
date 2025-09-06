@@ -352,13 +352,13 @@ contains
 
       ! Step 2: Read species configuration file (determines nspecies)
       if (len_trim(config%species_file) > 0) then
-         call this%config_manager%load_species_config(config%species_file, rc)
+         call this%config_manager%load_species_data(config%species_file, rc)
          if (rc /= CATCHEM_SUCCESS) return
       else
          ! Try to get species file from main config
          call this%config_manager%get_species_filename(config%species_file, rc)
          if (rc == CATCHEM_SUCCESS .and. len_trim(config%species_file) > 0) then
-            call this%config_manager%load_species_config(config%species_file, rc)
+            call this%config_manager%load_species_data(config%species_file, rc)
             if (rc /= CATCHEM_SUCCESS) return
          endif
       endif

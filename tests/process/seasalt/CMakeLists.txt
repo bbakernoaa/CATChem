@@ -1,5 +1,5 @@
 # CMakeLists.txt for seasalt process tests
-# Generated on: 2025-09-03T16:55:41.693656
+# Generated on: 2025-09-05T11:17:05.952352
 
 cmake_minimum_required(VERSION 3.12)
 
@@ -24,6 +24,12 @@ foreach(test_source ${TEST_SOURCES})
     # Set Fortran module directory
     set_target_properties(${test_name} PROPERTIES
         Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/modules"
+    )
+
+    # Add include directories for module files
+    target_include_directories(${test_name} PRIVATE 
+        "${CMAKE_BINARY_DIR}/include"
+        "${CMAKE_CURRENT_BINARY_DIR}/modules"
     )
 
     # Add to test suite

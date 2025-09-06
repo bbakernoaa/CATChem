@@ -4,12 +4,13 @@
 !! This program demonstrates how to use the seasalt process
 !! in a standalone application or host model integration.
 !!
-!! Generated on: 2025-09-03T16:55:41.746001
+!! Generated on: 2025-09-05T11:17:05.985954
 !! Author: Barry Baker & Wei Li
 
 program seasalt_example
 
-   use iso_fortran_env, only: fp => real64, output_unit, error_unit
+   use precision_mod, only: fp
+   use iso_fortran_env, only: output_unit, error_unit
    use precision_mod, only: fp
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE
    use ProcessInterface_Mod

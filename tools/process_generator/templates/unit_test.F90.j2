@@ -6,7 +6,8 @@
 
 program test_{{ config.name }}_unit
 
-   use iso_fortran_env, only: fp => real64, error_unit
+   use precision_mod, only: fp
+   use iso_fortran_env, only: error_unit
    use precision_mod, only: fp
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning
    use Process{{ config.class_name }}Interface_Mod

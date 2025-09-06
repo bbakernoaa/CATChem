@@ -4,13 +4,13 @@
 !! This module defines the configuration types used by the
 !! seasalt process and its schemes.
 !!
-!! Generated on: 2025-09-03T16:55:41.441770
+!! Generated on: 2025-09-05T11:17:05.847212
 !! Author: Barry Baker & Wei Li
 !! Version: 1.0.0
 
 module SeaSaltCommon_Mod
 
-   use iso_fortran_env, only: fp => real64
+   use precision_mod, only: fp
    ! use precision_mod, only: fp
    use error_mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType, &
                         ERROR_INVALID_CONFIG, ERROR_INVALID_STATE, ERROR_NOT_FOUND

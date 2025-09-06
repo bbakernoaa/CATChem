@@ -37,7 +37,7 @@ program test_CATChemCore
 
    ! Test 2: Configuration
    write(*,*) 'Test 2: Configuration'
-   call core%configure(nx=10, ny=10, nz=20, rc=rc)
+   call core%configure(nx=10, ny=10, nz=20, rc=rc, nsoil=4, nsoiltype=19, nsurftype=13)
    call assert(rc == CC_SUCCESS, "Core configuration should succeed")
    
    ! Check if core is ready after configuration

@@ -4,9 +4,9 @@ add_library(yaml_interface
     yaml_interface_mod.F90
 )
 
-# Link with yaml-cpp (from MICM/MUSICA)
+# Link with yaml-cpp (from MICM/MUSICA) and basic utilities
 target_link_libraries(yaml_interface
-    PRIVATE yaml-cpp::yaml-cpp
+    PRIVATE yaml-cpp::yaml-cpp catchem_utilities
 )
 
 # Set include directories
