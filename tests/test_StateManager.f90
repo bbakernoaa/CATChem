@@ -6,7 +6,7 @@ program test_StateManager
    use testing_mod, only: assert, assert_close
    use StateManager_Mod
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType, ERROR_PROCESS_INITIALIZATION
-   use ConfigManager_Mod, only: ConfigDataType
+   use ConfigManager_Mod, only: ConfigManagerType
    use MetState_Mod, only: MetStateType
    use ChemState_Mod, only: ChemStateType
    use GridManager_Mod, only: GridManagerType
@@ -16,7 +16,7 @@ program test_StateManager
    implicit none
 
    type(StateManagerType) :: state_mgr
-   type(ConfigDataType), pointer :: config_ptr
+   type(ConfigManagerType), pointer :: config_ptr
    type(MetStateType), pointer :: met_ptr
    type(ChemStateType), pointer :: chem_ptr
    type(GridManagerType), pointer :: grid_mgr_ptr

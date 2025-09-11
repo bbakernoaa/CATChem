@@ -1,12 +1,12 @@
 # Example configuration for dust process
-# Generated on: 2025-08-05T10:07:05.882384
+# Generated on: 2025-09-09T14:29:24.801344
 # Author: Barry Baker
 
 process:
   name: "dust"
   version: "1.0.0"
   description: "Process for computing windblown dust emissions"
-  active_scheme: "fengsha"
+  active_scheme: ""
   is_active: true
 
   # Time stepping configuration
@@ -29,23 +29,23 @@ schemes:
       beta: 1.0  # Exponential scaling factor on source parameter
       drylimit_factor: 1.0  # Dry Limit factor modifying the Fecan dry limit following Zender 2003
       drag_option: 1  # Drag Partition Option: 1 - use input drag, 2 - Darmenova, 3 - Leung 2022, 4 - MB95
-      moist_option: 1  # Moisture parameterization: 1 - Fecan, 2 - shao, 3 - modified shao
+      moist_option: 1 - fecan  # Moisture parameterization: 1 - Fecan, 2 - shao, 3 - modified shao
       distribution_option: 1  # Dust Distribution option: 1 - Kok 2011, 2 - Meng 2022
 
     # Required meteorological fields for this scheme
     required_met_fields:
-      - "{'name': 'IsLand', 'description': 'Land mask', 'units': 'dimensionless', 'dimensions': 'scalar', 'variable_name': 'is_land'}"
-      - "{'name': 'USTAR', 'description': 'Friction velocity', 'units': 'm/s', 'dimensions': 'scalar', 'variable_name': 'friction_velocity'}"
-      - "{'name': 'LWI', 'description': 'Land-water index', 'units': 'dimensionless', 'dimensions': 'scalar', 'variable_name': 'land_water_index'}"
-      - "{'name': 'GVF', 'description': 'Green vegetation fraction', 'units': 'dimensionless', 'dimensions': 'scalar', 'variable_name': 'green_veg_fraction'}"
-      - "{'name': 'LAI', 'description': 'Leaf area index', 'units': 'dimensionless', 'dimensions': 'scalar', 'variable_name': 'leaf_area_index'}"
-      - "{'name': 'FROCEAN', 'description': 'Ocean fraction', 'units': 'dimensionless', 'dimensions': 'scalar', 'variable_name': 'ocean_fraction'}"
-      - "{'name': 'CLAYFRAC', 'description': 'Clay fraction', 'units': 'dimensionless', 'dimensions': 'scalar', 'variable_name': 'clay_fraction'}"
-      - "{'name': 'SANDFRAC', 'description': 'Sand fraction', 'units': 'dimensionless', 'dimensions': 'scalar', 'variable_name': 'sand_fraction'}"
-      - "{'name': 'FRSNO', 'description': 'Snow fraction', 'units': 'dimensionless', 'dimensions': 'scalar', 'variable_name': 'snow_fraction'}"
-      - "{'name': 'RDRAG', 'description': 'Drag partition', 'units': 'dimensionless', 'dimensions': 'scalar', 'variable_name': 'drag_partition'}"
-      - "{'name': 'SSM', 'description': 'Surface soil moisture', 'units': 'm3/m3', 'dimensions': 'scalar', 'variable_name': 'soil_moisture'}"
-      - "{'name': 'USTAR_THRESHOLD', 'description': 'Threshold friction velocity', 'units': 'm/s', 'dimensions': 'scalar', 'variable_name': 'threshold_ustar'}"
+      - "IsLand"
+      - "USTAR"
+      - "LWI"
+      - "GVF"
+      - "LAI"
+      - "FROCEAN"
+      - "CLAYFRAC"
+      - "SANDFRAC"
+      - "FRSNO"
+      - "RDRAG"
+      - "SSM"
+      - "USTAR_THRESHOLD"
 
     # Scheme-specific diagnostic configuration
     diagnostics:
@@ -57,15 +57,15 @@ schemes:
 
     # Scheme-specific parameters
     parameters:
-      Ch_DU: [0.1, 0.1, 0.1, 0.1, 0.1]  # Dust tuning coefficient per species
+      Ch_DU: [0.1, 0.1, 0.1, 0.1, 0.1]  # Dust tuning coefficient per species 
 
     # Required meteorological fields for this scheme
     required_met_fields:
-      - "{'name': 'FRLAKE', 'description': 'Lake fraction', 'units': 'dimensionless', 'dimensions': 'scalar', 'variable_name': 'lake_fraction'}"
-      - "{'name': 'GWETTOP', 'description': 'Top soil wetness', 'units': 'dimensionless', 'dimensions': 'scalar', 'variable_name': 'top_soil_wetness'}"
-      - "{'name': 'U10M', 'description': '10m U wind', 'units': 'm/s', 'dimensions': 'scalar', 'variable_name': 'u_wind_10m'}"
-      - "{'name': 'V10M', 'description': '10m V wind', 'units': 'm/s', 'dimensions': 'scalar', 'variable_name': 'v_wind_10m'}"
-      - "{'name': 'SSM', 'description': 'Surface soil moisture', 'units': 'm3/m3', 'dimensions': 'scalar', 'variable_name': 'soil_moisture'}"
+      - "FRLAKE"
+      - "GWETTOP"
+      - "U10M"
+      - "V10M"
+      - "SSM"
 
     # Scheme-specific diagnostic configuration
     diagnostics:
@@ -83,6 +83,11 @@ diagnostics:
     units: "kg/m2/s"
     output: true
 
+  # Emission tendency diagnostics
+  emission_tendencies:
+    output: true
+    frequency: 3600.0  # seconds
+    per_species: true  # Output tendency for each species
 
 # Performance and optimization settings
 performance:
@@ -95,6 +100,9 @@ performance:
 io:
   # Input data sources
   input_data:
+    emission_inventory: "/path/to/emission/inventory.nc"
+    spatial_allocation: "/path/to/spatial/factors.nc"
+    temporal_allocation: "/path/to/temporal/factors.nc"
 
   # Output configuration
   output_data:
@@ -106,10 +114,12 @@ io:
 quality_control:
   enable_bounds_checking: true
   enable_conservation_checks: false
-  enable_mass_balance_checks: false
+  enable_mass_balance_checks: true
 
   # Value limits
   limits:
+    max_emission_rate: 1.0e-3  # kg/m²/s
+    min_emission_rate: 0.0
 
 # Debugging and logging
 debug:

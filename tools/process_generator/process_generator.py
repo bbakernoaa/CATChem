@@ -1148,9 +1148,21 @@ class ProcessGenerator:
         """Generate test files in tests/process/<process_name> directory."""
         logger.info(f"Generating test files in: {test_dir}")
 
+        # Collect all required meteorological fields from schemes
+        required_met_fields = []
+        for scheme in config.schemes:
+            if hasattr(scheme, 'required_met_fields') and scheme.required_met_fields:
+                for field in scheme.required_met_fields:
+                    if field not in required_met_fields:
+                        required_met_fields.append(field)
+
         # Unit tests
         unit_template = self.env.get_template('unit_test.F90.j2')
-        unit_content = unit_template.render(config=config, timestamp=datetime.now().isoformat())
+        unit_content = unit_template.render(
+            config=config, 
+            timestamp=datetime.now().isoformat(),
+            required_met_fields=required_met_fields
+        )
 
         unit_file = test_dir / "unit" / f"test_{config.name}_unit.F90"
         with open(unit_file, 'w') as f:
@@ -1160,7 +1172,8 @@ class ProcessGenerator:
         integration_template = self.env.get_template('integration_test.F90.j2')
         integration_content = integration_template.render(
             config=config,
-            timestamp=datetime.now().isoformat()
+            timestamp=datetime.now().isoformat(),
+            required_met_fields=required_met_fields
         )
 
         integration_file = test_dir / "integration" / f"test_{config.name}_integration.F90"

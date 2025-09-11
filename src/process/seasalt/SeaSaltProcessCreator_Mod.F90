@@ -4,7 +4,7 @@
 !! This module provides the factory functions for creating seasalt
 !! process instances following the CATChem Process Factory pattern.
 !!
-!! Generated on: 2025-09-05T11:17:05.854916
+!! Generated on: 2025-09-11T19:19:12.718413
 !! Author: Barry Baker & Wei Li
 !! Version: 1.0.0
 
@@ -53,22 +53,23 @@ contains
 
    end subroutine create_seasalt_process
 
-   !> Register the seasalt process with the global registry
+   !> Register the seasalt process with a ProcessManager
    !!
-   !! This subroutine should be called during module initialization to
-   !! register the seasalt process with the global process registry.
+   !! This subroutine registers the seasalt process with a ProcessManager's
+   !! factory. This is the correct way to register processes for use in
+   !! applications and integration tests.
    !!
+   !! @param[inout] process_mgr The ProcessManager to register with
    !! @param[out] rc Return code
-   subroutine register_seasalt_process(rc)
-      use ProcessRegistry_Mod, only: get_global_registry, ProcessRegistryType
+   subroutine register_seasalt_process(process_mgr, rc)
+      use ProcessManager_Mod, only: ProcessManagerType
 
+      type(ProcessManagerType), intent(inout) :: process_mgr
       integer, intent(out) :: rc
-      type(ProcessRegistryType), pointer :: registry
 
       rc = CC_SUCCESS
-      registry => get_global_registry()
-
-      call registry%register_process( &
+      
+      call process_mgr%register_process( &
          name='seasalt', &
          category='emission', &
          description='Process for computing sea salt aerosol emissions over ocean surfaces', &

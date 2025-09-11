@@ -1,5 +1,5 @@
 # CMakeLists.txt for seasalt process tests
-# Generated on: 2025-09-05T11:17:05.952352
+# Generated on: 2025-09-11T19:19:13.742270
 
 cmake_minimum_required(VERSION 3.12)
 
@@ -19,6 +19,7 @@ foreach(test_source ${TEST_SOURCES})
     target_link_libraries(${test_name}
         CATChem_process_seasalt
         CATChem_core
+        testing
     )
 
     # Set Fortran module directory

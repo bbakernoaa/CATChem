@@ -17,7 +17,7 @@
 module StateManager_Mod
    use precision_mod, only: fp
    use error_mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType
-   use ConfigManager_Mod, only: ConfigDataType
+   use ConfigManager_Mod, only: ConfigManagerType
    use MetState_Mod, only: MetStateType
    use ChemState_Mod, only: ChemStateType
    use GridManager_Mod, only: GridManagerType
@@ -69,7 +69,7 @@ module StateManager_Mod
       private
 
       ! Core state objects
-      type(ConfigDataType), allocatable :: config      !< Configuration state
+      type(ConfigManagerType), allocatable :: config   !< Configuration manager
       type(MetStateType),   allocatable :: met_state   !< Meteorological fields
       type(ChemStateType),  allocatable :: chem_state  !< Chemical species concentrations
       type(ErrorManagerType)            :: error_mgr   !< Error manager
@@ -97,6 +97,7 @@ module StateManager_Mod
       procedure :: get_chem_state_ptr => manager_get_chem_state_ptr
       procedure :: get_error_manager => manager_get_error_manager
       procedure :: get_grid_manager => manager_get_grid_manager
+      procedure :: set_grid_manager => manager_set_grid_manager
       procedure :: get_diagnostic_manager => manager_get_diagnostic_manager
       procedure :: set_diagnostic_manager => manager_set_diagnostic_manager
       procedure :: create_virtual_column => manager_create_virtual_column
@@ -147,8 +148,12 @@ contains
          this%name = 'StateManager'
       endif
 
-      ! Allocate state objects
-      if (.not. allocated(this%config)) allocate(this%config)
+      ! Allocate and initialize state objects
+      if (.not. allocated(this%config)) then
+         allocate(this%config)
+         call this%config%init(rc)
+         if (rc /= CC_SUCCESS) return
+      end if
       
       if (.not. allocated(this%met_state)) allocate(this%met_state)
       
@@ -164,10 +169,16 @@ contains
       class(StateManagerType), intent(inout) :: this
       integer, intent(out) :: rc
 
+      integer :: config_rc
+
       rc = CC_SUCCESS
 
-      ! Deallocate state objects
-      if (allocated(this%config)) deallocate(this%config)
+      ! Finalize and deallocate state objects
+      if (allocated(this%config)) then
+         call this%config%finalize(config_rc)
+         if (config_rc /= CC_SUCCESS) rc = config_rc  ! Don't stop cleanup on error
+         deallocate(this%config)
+      end if
       if (allocated(this%met_state)) deallocate(this%met_state)
       if (allocated(this%chem_state)) deallocate(this%chem_state)
 
@@ -195,10 +206,10 @@ contains
       this%is_configured = .true.
    end subroutine manager_set_configured
 
-   !> \brief Get pointer to config for modification
+   !> \brief Get pointer to config manager for modification
    function manager_get_config_ptr(this) result(config_ptr)
       class(StateManagerType), intent(inout), target :: this
-      type(ConfigDataType), pointer :: config_ptr
+      type(ConfigManagerType), pointer :: config_ptr
 
       if (allocated(this%config)) then
          config_ptr => this%config
@@ -250,6 +261,21 @@ contains
          nullify(grid_mgr_ptr)
       endif
    end function manager_get_grid_manager
+
+   !> \brief Set grid manager pointer
+   subroutine manager_set_grid_manager(this, grid_mgr_ptr, rc)
+      class(StateManagerType), intent(inout) :: this
+      type(GridManagerType), pointer, intent(in) :: grid_mgr_ptr
+      integer, intent(out) :: rc
+
+      rc = CC_SUCCESS
+      
+      if (associated(grid_mgr_ptr)) then
+         this%grid_mgr => grid_mgr_ptr
+      else
+         rc = CC_FAILURE
+      endif
+   end subroutine manager_set_grid_manager
 
    !> \brief Get pointer to diagnostic manager
    function manager_get_diagnostic_manager(this) result(diag_mgr_ptr)
@@ -438,7 +464,7 @@ contains
       write(*,'(A)') '=== StateManager Information ==='
       write(*,'(A,A)') 'Name: ', trim(this%name)
       write(*,'(A,L1)') 'Initialized: ', this%is_initialized
-      write(*,'(A,L1)') 'Config allocated: ', allocated(this%config)
+      write(*,'(A,L1)') 'Config manager allocated: ', allocated(this%config)
       write(*,'(A,L1)') 'Met state allocated: ', allocated(this%met_state)
       write(*,'(A,L1)') 'Chem state allocated: ', allocated(this%chem_state)
       write(*,'(A)') '================================='

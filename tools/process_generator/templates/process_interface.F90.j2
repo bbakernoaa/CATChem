@@ -130,6 +130,10 @@ module Process{{ config.class_name }}Interface_Mod
       procedure :: get_required_met_fields => get_required_met_fields
       procedure :: get_required_diagnostic_fields => get_required_diagnostic_fields
 
+      ! Public testing interface for scheme manipulation
+      procedure :: set_scheme => set_{{ config.name }}_scheme
+      procedure :: get_scheme => get_{{ config.name }}_scheme
+
       ! Process-specific implementations{% if config.enable_column_processing %} (column virtualization){% endif %}
 
 {% if config.enable_column_processing %}
@@ -293,6 +297,9 @@ contains
       end if
 {% endif %}
 
+      ! Mark process as initialized and active
+      call this%activate()
+
    end subroutine process_init
 
    !> Run the {{ config.name }} process
@@ -379,7 +386,7 @@ contains
    !! This function bridges the ConfigManager YAML structure to process-specific configuration
    subroutine parse_{{ config.name }}_config(this, state_manager, error_manager, rc)
       class(Process{{ config.class_name }}Interface), intent(inout) :: this
-      type(StateManagerType), intent(in) :: state_manager
+      type(StateManagerType), intent(inout) :: state_manager  ! Changed to inout for function call
       type(ErrorManagerType), intent(inout) :: error_manager
       integer, intent(out) :: rc
 
@@ -388,9 +395,12 @@ contains
       rc = CC_SUCCESS
 
       ! Get configuration manager from state manager
-      ! TODO: StateManager needs to provide ConfigManagerType access
-      ! For now, this will need to be updated when StateManager interface is enhanced
-      ! config_manager => state_manager%get_config_manager()
+      config_manager => state_manager%get_config_ptr()
+      if (.not. associated(config_manager)) then
+         call error_manager%report_error(1003, &
+                                        'ConfigManager not available from StateManager', rc)
+         return
+      end if
 
       ! Use the unified configuration loader from {{ config.class_name }}Common_Mod
       ! This handles the complexity of parsing hierarchical YAML into process-specific types
@@ -984,5 +994,35 @@ contains
    end subroutine calculate_and_update_diagnostics
 
 {% endif %}
+
+   !> Set the active scheme (for testing purposes)
+   !!
+   !! This method allows tests to override the scheme configuration
+   !! to test different schemes programmatically.
+   !!
+   !! @param[inout] this The Process{{ config.class_name }}Interface instance
+   !! @param[in] scheme_name The scheme name to set
+   subroutine set_{{ config.name }}_scheme(this, scheme_name)
+      class(Process{{ config.class_name }}Interface), intent(inout) :: this
+      character(len=*), intent(in) :: scheme_name
+      
+      this%process_config%{{ config.name }}_config%scheme = trim(scheme_name)
+      
+   end subroutine set_{{ config.name }}_scheme
+
+   !> Get the current active scheme
+   !!
+   !! This method allows retrieval of the current scheme for testing
+   !! and verification purposes.
+   !!
+   !! @param[in] this The Process{{ config.class_name }}Interface instance
+   !! @returns The current scheme name
+   function get_{{ config.name }}_scheme(this) result(scheme_name)
+      class(Process{{ config.class_name }}Interface), intent(in) :: this
+      character(len=64) :: scheme_name
+      
+      scheme_name = trim(this%process_config%{{ config.name }}_config%scheme)
+      
+   end function get_{{ config.name }}_scheme
 
 end module Process{{ config.class_name }}Interface_Mod

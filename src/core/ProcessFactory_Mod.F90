@@ -46,16 +46,14 @@ contains
       call this%register_builtin_processes(rc)
    end subroutine factory_init
 
-   subroutine factory_create_process(this, process_name, scheme_name, container, process, rc)
+   subroutine factory_create_process(this, process_name, container, process, rc)
       class(ProcessFactoryType), intent(inout) :: this
       character(len=*), intent(in) :: process_name
-      character(len=*), intent(in) :: scheme_name
       type(StateManagerType), intent(inout) :: container
       class(ProcessInterface), allocatable, intent(out) :: process
       integer, intent(out) :: rc
 
       type(ErrorManagerType), pointer :: error_mgr
-      character(len=128) :: full_process_name
       character(len=32), allocatable :: met_fields(:)
       integer :: i, alloc_rc
       type(MetStateType), pointer :: met_state
@@ -64,18 +62,11 @@ contains
       call error_mgr%push_context('factory_create_process', &
                                   'creating process: ' // trim(process_name))
 
-      ! Create full process name including scheme
-      if (len_trim(scheme_name) > 0) then
-         full_process_name = trim(process_name) // '_' // trim(scheme_name)
-      else
-         full_process_name = trim(process_name)
-      endif
-
-      ! Create process from registry
-      call this%registry%create_process(full_process_name, process, rc)
+      ! Create process from registry (scheme is read from process configuration)
+      call this%registry%create_process(process_name, process, rc)
       if (rc /= CC_SUCCESS) then
          call error_mgr%report_error(ERROR_INVALID_CONFIG, &
-                                     'Unknown process: ' // trim(full_process_name), rc, &
+                                     'Unknown process: ' // trim(process_name), rc, &
                                      'factory_create_process', &
                                      'Check available processes with list_available()')
          call error_mgr%pop_context()
@@ -135,8 +126,8 @@ contains
    end subroutine register_builtin_processes
 
    !> \brief Module-level convenience function
-   function create_process(process_name, scheme_name, container, rc) result(process)
-      character(len=*), intent(in) :: process_name, scheme_name
+   function create_process(process_name, container, rc) result(process)
+      character(len=*), intent(in) :: process_name
       type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
       class(ProcessInterface), allocatable :: process
@@ -146,7 +137,7 @@ contains
       call factory%init(rc)
       if (rc /= CC_SUCCESS) return
 
-      call factory%create_process(process_name, scheme_name, container, process, rc)
+      call factory%create_process(process_name, container, process, rc)
    end function create_process
 
 end module ProcessFactory_Mod

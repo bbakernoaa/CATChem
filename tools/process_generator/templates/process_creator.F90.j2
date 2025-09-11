@@ -53,22 +53,23 @@ contains
 
    end subroutine create_{{ config.name }}_process
 
-   !> Register the {{ config.name }} process with the global registry
+   !> Register the {{ config.name }} process with a ProcessManager
    !!
-   !! This subroutine should be called during module initialization to
-   !! register the {{ config.name }} process with the global process registry.
+   !! This subroutine registers the {{ config.name }} process with a ProcessManager's
+   !! factory. This is the correct way to register processes for use in
+   !! applications and integration tests.
    !!
+   !! @param[inout] process_mgr The ProcessManager to register with
    !! @param[out] rc Return code
-   subroutine register_{{ config.name }}_process(rc)
-      use ProcessRegistry_Mod, only: get_global_registry, ProcessRegistryType
+   subroutine register_{{ config.name }}_process(process_mgr, rc)
+      use ProcessManager_Mod, only: ProcessManagerType
 
+      type(ProcessManagerType), intent(inout) :: process_mgr
       integer, intent(out) :: rc
-      type(ProcessRegistryType), pointer :: registry
 
       rc = CC_SUCCESS
-      registry => get_global_registry()
-
-      call registry%register_process( &
+      
+      call process_mgr%register_process( &
          name='{{ config.name }}', &
          category='{{ config.process_type }}', &
          description='{{ config.description }}', &

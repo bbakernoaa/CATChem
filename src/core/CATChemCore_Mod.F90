@@ -41,7 +41,8 @@ module CATChemCore_Mod
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType, ERROR_PROCESS_INITIALIZATION
    use ConfigManager_Mod, only: ConfigManagerType, ConfigDataType
    use StateManager_Mod, only: StateManagerType
-   use GridManager_Mod, only: GridManagerType, GridGeometryType
+   use GridManager_Mod, only: GridManagerType, GridManagerGeometryType => GridGeometryType
+   use GridGeometry_Mod, only: GridGeometryType
    use DiagnosticManager_Mod, only: DiagnosticManagerType
    use ProcessManager_Mod, only: ProcessManagerType
    use MetState_Mod, only: MetStateType
@@ -322,6 +323,8 @@ contains
       type(MetStateType), pointer :: met_ptr
       type(ChemStateType), pointer :: chem_ptr
       type(ErrorManagerType), pointer :: error_mgr_ptr
+      type(GridGeometryType), pointer :: grid_geom_ptr
+      integer :: nx, ny, nz
 
       write(*,*) 'Entering core_setup_state'
 
@@ -331,11 +334,27 @@ contains
 
       ! Get pointer to error manager
       error_mgr_ptr => this%error_mgr
+      
+      ! Create compatible grid geometry for ChemState
+      ! Get dimensions from GridManager
+      call this%grid_mgr%get_shape(nx, ny, nz)
+      
+      ! Allocate and initialize a simple GridGeometry_Mod::GridGeometryType
+      allocate(grid_geom_ptr)
+      call grid_geom_ptr%set(nx, ny, nz)
 
       ! Initialize state manager
       call this%state_mgr%init(this%name // '_StateManager', local_rc)
       if (local_rc /= CC_SUCCESS) then
          call this%error_mgr%report_error(local_rc, 'Failed to initialize state manager', rc)
+         call this%error_mgr%pop_context()
+         return
+      endif
+
+      ! Connect grid manager to state manager
+      call this%state_mgr%set_grid_manager(this%grid_mgr, local_rc)
+      if (local_rc /= CC_SUCCESS) then
+         call this%error_mgr%report_error(local_rc, 'Failed to set grid manager for state manager', rc)
          call this%error_mgr%pop_context()
          return
       endif
@@ -356,21 +375,43 @@ contains
           ! Continue with the rest of the setup
       endif
 
-      ! Initialize chemistry state
+      ! Initialize chemistry state with species loading
       chem_ptr => this%state_mgr%get_chem_state_ptr()
       if (associated(chem_ptr)) then
-         ! Initialize with a reasonable default number of species
-         ! In production, this would come from configuration
-         call chem_ptr%init(50, error_mgr_ptr, local_rc)
-         if (local_rc /= CC_SUCCESS) then
-            call this%error_mgr%report_error(local_rc, 'Failed to initialize chem state', rc)
-            call this%error_mgr%pop_context()
-            return
+         ! Load species from configuration and initialize chemistry state
+         if (len_trim(this%config_mgr%get_species_file()) > 0) then
+            write(*,'(A,A)') 'INFO: Loading species from file: ', trim(this%config_mgr%get_species_file())
+            call this%config_mgr%load_and_init_species( &
+               this%config_mgr%get_species_file(), &
+               chem_ptr, &
+               error_mgr_ptr, &
+               grid_geom_ptr, &
+               local_rc &
+            )
+            if (local_rc /= CC_SUCCESS) then
+               call this%error_mgr%report_error(local_rc, 'Failed to load and initialize species', rc)
+               call this%error_mgr%pop_context()
+               return
+            endif
+            write(*,'(A)') 'INFO: Species loaded and initialized successfully'
+         else
+            write(*,'(A)') 'INFO: No species file specified, using default chemistry state initialization'
+            ! Fall back to basic initialization if no species file is configured
+            call chem_ptr%init(50, error_mgr_ptr, local_rc)
+            if (local_rc /= CC_SUCCESS) then
+               call this%error_mgr%report_error(local_rc, 'Failed to initialize chem state', rc)
+               call this%error_mgr%pop_context()
+               return
+            endif
          endif
       endif
 
       ! Mark state manager as configured
       call this%state_mgr%set_configured()
+
+      ! NOTE: Do NOT deallocate grid_geom_ptr here - ChemState stores a pointer to it
+      ! The grid geometry will be needed throughout ChemState's lifetime
+      ! It will be cleaned up when ChemState is destroyed
 
       call this%error_mgr%pop_context()
       
@@ -436,16 +477,15 @@ contains
    end subroutine core_setup_processes
 
    !> \brief Add a process to the process manager
-   subroutine core_add_process(this, process_name, scheme_name, rc)
+   subroutine core_add_process(this, process_name, rc)
       class(CATChemCoreType), intent(inout) :: this
       character(len=*), intent(in) :: process_name
-      character(len=*), intent(in) :: scheme_name
       integer, intent(out) :: rc
 
       call this%error_mgr%push_context("core_add_process")
       rc = CC_SUCCESS
 
-      call this%process_mgr%add_process(process_name, scheme_name, this%state_mgr, rc)
+      call this%process_mgr%add_process(process_name, this%state_mgr, rc)
       if (rc /= CC_SUCCESS) then
          call this%error_mgr%report_error(rc, "Failed to add process: " // trim(process_name), rc)
          call this%error_mgr%pop_context()

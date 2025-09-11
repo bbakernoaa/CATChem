@@ -64,7 +64,7 @@ program test_ProcessManager
 
    ! Test 6: Add process (will fail since no processes are registered)
    write(*,*) 'Test 6: Add process (will fail since no processes are registered)'
-   call process_mgr%add_process('test_process', 'default_scheme', state_mgr, rc)
+   call process_mgr%add_process('test_process', state_mgr, rc)
    ! This should fail since no processes are registered
    ! We're not asserting on rc because behavior may vary
 

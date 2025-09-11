@@ -1,5 +1,5 @@
 # Dust Process CMakeLists.txt
-# Generated on: 2025-08-05T10:07:05.830900
+# Generated on: 2025-09-09T14:29:24.725772
 # Author: Barry Baker
 # Description: Process for computing windblown dust emissions
 
@@ -18,13 +18,13 @@ set(DUST_SCHEME_SOURCES
 
 # Combine all sources
 set(DUST_ALL_SOURCES
-    $${DUST_PROCESS_SOURCES}
-    $${DUST_SCHEME_SOURCES}
+    ${DUST_PROCESS_SOURCES}
+    ${DUST_SCHEME_SOURCES}
 )
 
 # Create the dust process library
 set(_lib CATChem_process_dust)
-add_library(${_lib} $${DUST_ALL_SOURCES})
+add_library(${_lib} ${DUST_ALL_SOURCES})
 
 # Link with required libraries
 target_link_libraries(${_lib} PUBLIC CATChem_core)
@@ -68,7 +68,11 @@ install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
 
 # Add subdirectories
 if(BUILD_TESTING)
-    add_subdirectory(tests)
+    # Add tests subdirectory - tests are located in tests/process/dust/
+    set(TESTS_DIR "${CMAKE_SOURCE_DIR}/tests/process/dust")
+    if(EXISTS "${TESTS_DIR}/CMakeLists.txt")
+        add_subdirectory("${TESTS_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/tests")
+    endif()
 endif()
 
 if(BUILD_EXAMPLES)
@@ -100,14 +104,30 @@ if(BUILD_DOCUMENTATION)
 endif()
 
 # Performance testing
+if(BUILD_BENCHMARKS)
+    find_package(benchmark QUIET)
+    if(benchmark_FOUND)
+        add_executable(dust_benchmark
+            benchmarks/benchmark_dust.F90
+        )
+        target_link_libraries(dust_benchmark
+            PRIVATE ${_lib} benchmark::benchmark
+        )
+    endif()
+endif()
 
 # Process-specific targets
+# Emission inventory preprocessing (if needed)
+# add_custom_target(dust_preprocess_inventory
+#     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/preprocess_inventory.py
+#     COMMENT "Preprocessing emission inventory for dust"
+# )
 
 # Print configuration summary
 message(STATUS "Configured Dust process:")
-message(STATUS "  Process type: generic")
+message(STATUS "  Process type: emission")
 message(STATUS "  Number of schemes: 2")
-message(STATUS "  Default scheme: fengsha")
+message(STATUS "  Default scheme: ")
 message(STATUS "  Has size bins: No")
 message(STATUS "  Multiphase: No")
 message(STATUS "  Generate tests: Yes")

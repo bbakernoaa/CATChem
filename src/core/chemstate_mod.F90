@@ -99,7 +99,6 @@ module ChemState_Mod
       procedure :: is_allocated => chemstate_is_allocated
       procedure :: get_memory_usage => chemstate_get_memory_usage
       procedure :: print_summary => chemstate_print_summary
-      procedure :: add_species => chemstate_add_species
       procedure :: find_species => chemstate_find_species
       procedure :: get_concentration => chemstate_get_concentration
       procedure :: set_concentration => chemstate_set_concentration
@@ -655,23 +654,36 @@ CONTAINS
             return
          endif
 
+         ! Initialize all SpeciesType objects to prevent garbage pointer values
+         do s = 1, max_species
+            nullify(this%ChemSpecies(s)%conc)
+            this%ChemSpecies(s)%is_valid = .false.
+         end do
+
          ! Allocate ChemSpecies(:)%conc(nx,ny,nz) if grid is present
          if (associated(this%Grid)) then
             nx = this%Grid%nx
             ny = this%Grid%ny
             nz = this%Grid%nz
+            
             do s = 1, max_species
-               if (.not. associated(this%ChemSpecies(s)%conc)) then
-                  allocate(this%ChemSpecies(s)%conc(nx,ny,nz), stat=allocStat)
-                  if (allocStat /= 0) then
-                     call error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
-                        'Failed to allocate ChemSpecies(s)%conc', rc, thisLoc, 'Check available memory')
-                     call error_mgr%pop_context()
-                     return
-                  endif
-                  this%ChemSpecies(s)%conc = 0.0_fp
+               ! Always nullify and reallocate to ensure proper dimensions
+               ! Skip trying to deallocate potentially corrupted pointers
+               if (associated(this%ChemSpecies(s)%conc)) then
+                  nullify(this%ChemSpecies(s)%conc)
                endif
+               
+               allocate(this%ChemSpecies(s)%conc(nx,ny,nz), stat=allocStat)
+               if (allocStat /= 0) then
+                  call error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
+                     'Failed to allocate ChemSpecies(s)%conc', rc, thisLoc, 'Check available memory')
+                  call error_mgr%pop_context()
+                  return
+               endif
+               this%ChemSpecies(s)%conc = 0.0_fp
             end do
+         else
+            write(*,'(A)') 'DEBUG: Grid not associated, cannot allocate conc arrays'
          endif
       endif
       call error_mgr%pop_context()
@@ -696,6 +708,12 @@ CONTAINS
       if (allocated(this%AeroDryDepIndex)) deallocate(this%AeroDryDepIndex)
       if (allocated(this%SpeciesNames)) deallocate(this%SpeciesNames)
       if (allocated(this%ChemSpecies)) deallocate(this%ChemSpecies)
+
+      ! Clean up grid geometry pointer if it was allocated by the core
+      if (associated(this%Grid)) then
+         deallocate(this%Grid)
+         this%Grid => null()
+      endif
 
       ! Reset counters
       this%nSpecies = 0
@@ -867,71 +885,6 @@ CONTAINS
       write(*,'(A,I0,A)') 'Memory usage: ', this%get_memory_usage(), ' bytes'
       write(*,'(A)') '========================'
    end subroutine chemstate_print_summary
-
-   !> \brief Add a species to the chemistry state
-   subroutine chemstate_add_species(this, species_name, species_type, error_mgr, rc)
-      use error_mod, only: ErrorManagerType, CC_SUCCESS, ERROR_BOUNDS_CHECK
-
-      implicit none
-      class(ChemStateType), intent(inout) :: this
-      character(len=*), intent(in) :: species_name
-      character(len=*), intent(in) :: species_type  ! 'GAS', 'AERO', 'DUST', 'SEASALT', 'TRACER'
-      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
-      integer, intent(out) :: rc
-
-      character(len=256) :: thisLoc
-
-      thisLoc = 'chemstate_add_species (in core/chemstate_mod.F90)'
-      call error_mgr%push_context('chemstate_add_species', 'adding species: ' // trim(species_name))
-
-      rc = CC_SUCCESS
-
-      ! Check if arrays are allocated
-      if (.not. allocated(this%SpeciesNames)) then
-         call error_mgr%report_error(ERROR_BOUNDS_CHECK, &
-                                     'Species arrays not allocated', rc, &
-                                     thisLoc, 'Call init() first')
-         call error_mgr%pop_context()
-         return
-      endif
-
-      ! Check if we have space
-      if (this%nSpecies >= size(this%SpeciesNames)) then
-         call error_mgr%report_error(ERROR_BOUNDS_CHECK, &
-                                     'Maximum number of species reached', rc, &
-                                     thisLoc, 'Increase max_species in init()')
-         call error_mgr%pop_context()
-         return
-      endif
-
-      ! Add the species
-      this%nSpecies = this%nSpecies + 1
-      this%SpeciesNames(this%nSpecies) = trim(species_name)
-      this%SpeciesIndex(this%nSpecies) = this%nSpecies
-
-      ! Update type-specific counts and indices
-      select case (trim(species_type))
-      case ('GAS')
-         this%nSpeciesGas = this%nSpeciesGas + 1
-         this%GasIndex(this%nSpeciesGas) = this%nSpecies
-      case ('AERO')
-         this%nSpeciesAero = this%nSpeciesAero + 1
-         this%AeroIndex(this%nSpeciesAero) = this%nSpecies
-      case ('DUST')
-         this%nSpeciesDust = this%nSpeciesDust + 1
-         this%DustIndex(this%nSpeciesDust) = this%nSpecies
-      case ('SEASALT')
-         this%nSpeciesSeaSalt = this%nSpeciesSeaSalt + 1
-         this%SeaSaltIndex(this%nSpeciesSeaSalt) = this%nSpecies
-      case ('TRACER')
-         this%nSpeciesTracer = this%nSpeciesTracer + 1
-         this%TracerIndex(this%nSpeciesTracer) = this%nSpecies
-      case default
-         call error_mgr%report_error(ERROR_INVALID_INPUT, 'Unknown species type: ' // trim(species_type), rc, thisLoc)
-      end select
-
-      call error_mgr%pop_context()
-   end subroutine chemstate_add_species
 
    !> \brief Find species index by name
    function chemstate_find_species(this, species_name) result(species_index)

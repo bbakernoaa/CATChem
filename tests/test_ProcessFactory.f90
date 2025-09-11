@@ -57,7 +57,7 @@ program test_ProcessFactory
    block
       class(ProcessInterface), allocatable :: process
       
-      call factory%create_process('nonexistent_process', 'default_scheme', &
+      call factory%create_process('nonexistent_process', &
                                   state_mgr, process, rc)
       ! This should fail since no processes are registered
       ! We're not asserting on rc because behavior may vary

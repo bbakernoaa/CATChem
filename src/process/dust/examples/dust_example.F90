@@ -4,12 +4,13 @@
 !! This program demonstrates how to use the dust process
 !! in a standalone application or host model integration.
 !!
-!! Generated on: 2025-08-05T10:07:05.873728
+!! Generated on: 2025-09-09T14:29:24.790019
 !! Author: Barry Baker
 
 program dust_example
 
-   use iso_fortran_env, only: fp => real64, output_unit, error_unit
+   use precision_mod, only: fp
+   use iso_fortran_env, only: output_unit, error_unit
    use precision_mod, only: fp
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE
    use ProcessInterface_Mod
@@ -250,7 +251,7 @@ contains
          'process:' // new_line('A') // &
          '  name: "dust"' // new_line('A') // &
          '  version: "1.0.0"' // new_line('A') // &
-         '  active_scheme: "fengsha"' // new_line('A') // &
+         '  active_scheme: ""' // new_line('A') // &
          '  is_active: true' // new_line('A') // &
          'diagnostics:' // new_line('A') // &
          '  output_frequency: 3600.0' // new_line('A') // &

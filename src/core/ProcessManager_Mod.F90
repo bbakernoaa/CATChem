@@ -26,7 +26,7 @@ module ProcessManager_Mod
 
    type :: ProcessManagerType
       private
-      class(ProcessInterface), allocatable :: processes(:)
+      class(ProcessInterface), allocatable, public  :: processes(:)
       integer :: num_processes = 0
       integer :: max_processes = 50
       type(ProcessFactoryType) :: factory
@@ -46,6 +46,7 @@ module ProcessManager_Mod
       procedure :: run_all_processes => manager_run_all_processes
       procedure :: set_max_processes => manager_set_max_processes
       procedure :: enable_column_batching => manager_enable_column_batching
+      procedure :: register_process => manager_register_process
    end type ProcessManagerType
 
 contains
@@ -69,10 +70,9 @@ contains
    end subroutine manager_init
 
    !> \brief Add a process to the manager
-   subroutine manager_add_process(this, process_name, scheme_name, container, rc)
+   subroutine manager_add_process(this, process_name, container, rc)
       class(ProcessManagerType), intent(inout) :: this
       character(len=*), intent(in) :: process_name
-      character(len=*), intent(in) :: scheme_name
       type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
@@ -83,8 +83,8 @@ contains
          return
       endif
 
-      ! Create the process
-      call this%factory%create_process(process_name, scheme_name, container, new_process, rc)
+      ! Create the process (scheme is read from configuration)
+      call this%factory%create_process(process_name, container, new_process, rc)
       if (rc /= CC_SUCCESS) return
 
       ! Initialize the process
@@ -214,6 +214,7 @@ contains
          call container%apply_virtual_column(virtual_col, rc)
          if (rc /= CC_SUCCESS) return
       enddo
+
    end subroutine manager_run_column_processes
 
    !> \brief Run a specific process on all columns
@@ -225,8 +226,8 @@ contains
 
       type(GridManagerType), pointer :: grid_mgr
       type(ColumnIteratorType) :: col_iter
-      !type(VirtualColumnType) :: virtual_col
-      integer :: col_idx, local_rc
+      type(VirtualColumnType) :: virtual_col
+      integer :: col_i, col_j
 
       rc = CC_SUCCESS
 
@@ -253,17 +254,19 @@ contains
             if (rc /= CC_SUCCESS) return
 
             ! Get current column indices
-            call col_iter%get_current_indices(col_idx, local_rc)
-            if (local_rc /= CC_SUCCESS) return
+            call col_iter%get_current_indices(col_i, col_j)
 
-            ! TODO: Create and use virtual_col as needed
-            ! call grid_mgr%create_virtual_column(col_idx, virtual_col, rc)
-            ! call virtual_col%extract_from_container(container, rc)
-            ! call proc%run_column(virtual_col, local_rc)
-            ! call virtual_col%update_container(container, rc)
+            call container%create_virtual_column(col_i, col_j, virtual_col, rc)
+            if (rc /= CC_SUCCESS) return
+
+            call proc%run_column(virtual_col, container, rc)
+            if (rc /= CC_SUCCESS) return
+
+            ! Apply virtual column changes back to container for each column
+            call container%apply_virtual_column(virtual_col, rc)
+            if (rc /= CC_SUCCESS) return
          enddo
-      class default
-         call this%processes(process_index)%run(container, rc)
+
       end select
    end subroutine manager_run_process_on_columns
 
@@ -426,5 +429,27 @@ contains
       enddo
       count = max_count
    end subroutine manager_list_processes
+
+   !> \brief Register a process with the ProcessManager's factory
+   !!
+   !! This method allows external modules to register processes with this
+   !! ProcessManager's factory, which is needed for integration tests.
+   !!
+   !! @param[inout] this The ProcessManager instance
+   !! @param[in] name Process name
+   !! @param[in] category Process category
+   !! @param[in] description Process description
+   !! @param[in] creator Process creator function
+   !! @param[out] rc Return code
+   subroutine manager_register_process(this, name, category, description, creator, rc)
+      use ProcessRegistry_Mod, only: ProcessCreatorInterface
+
+      class(ProcessManagerType), intent(inout) :: this
+      character(len=*), intent(in) :: name, category, description
+      procedure(ProcessCreatorInterface) :: creator
+      integer, intent(out) :: rc
+
+      call this%factory%register_process(name, category, description, creator, rc)
+   end subroutine manager_register_process
 
 end module ProcessManager_Mod

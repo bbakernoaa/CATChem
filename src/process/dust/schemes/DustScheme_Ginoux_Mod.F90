@@ -17,31 +17,25 @@
 !! - Memory management and array allocation
 !! - Integration with host model time stepping
 !!
-!! Generated on: 2025-08-05T10:07:05.823353
+!! Generated on: 2025-09-09T14:29:24.704056
 !! Author: Barry Baker
 !! Reference: Ginoux et al. [2001]
 module DustScheme_GINOUX_Mod
 
-   use iso_fortran_env, only: fp => real64
+   use precision_mod, only: fp
+   use DustCommon_Mod, only: DustSchemeGINOUXConfig
 
    implicit none
    private
 
    ! Public interface - pure science only
    public :: compute_ginoux
-   public :: ginoux_params_t
 
    ! Physical constants (modify as needed for your scheme)
    real(fp), parameter :: R_GAS = 8.314_fp           ! Universal gas constant [J/mol/K]
    real(fp), parameter :: T_STANDARD = 303.15_fp    ! Standard reference temperature [K]
    real(fp), parameter :: DEFAULT_SCALING = 1.0e-9_fp ! Default emission scaling factor
    real(fp), parameter :: PI = 3.14159265359_fp     ! Pi constant
-
-   !> Science parameters for ginoux scheme
-   !! Host model is responsible for initializing and validating these
-   type :: ginoux_params_t
-      real(fp) :: Ch_DU  ! Dust tuning coefficient per species
-   end type ginoux_params_t
 
 contains
 
@@ -54,33 +48,49 @@ contains
    !! @param[in]  num_layers     Number of vertical layers
    !! @param[in]  num_species    Number of chemical species
    !! @param[in]  params         Scheme parameters (pre-validated by host)
-   !! @param[in]  lake_fraction    Lake fraction [dimensionless]
-   !! @param[in]  top_soil_wetness    Top soil wetness [dimensionless]
-   !! @param[in]  u_wind_10m    10m U wind [m/s]
-   !! @param[in]  v_wind_10m    10m V wind [m/s]
-   !! @param[in]  soil_moisture    Surface soil moisture [m3/m3]
+   !! @param[in]  frlake    FRLAKE field [appropriate units]
+   !! @param[in]  gwettop    GWETTOP field [appropriate units]
+   !! @param[in]  u10m    U10M field [appropriate units]
+   !! @param[in]  v10m    V10M field [appropriate units]
+   !! @param[in]  ssm    SSM field [appropriate units]
    !! @param[in]  species_conc   Species concentrations [mol/mol] (num_layers, num_species)
-   !! @param[out] emission_flux  Emission fluxes [kg/m²/s] (num_layers, num_species)
+   !! @param[inout] species_tendencies  Species tendency terms [mol/mol/s] (num_layers, num_species)
+   !! @param[inout] diag_mass_emission_total    Total mass emission diagnostic [kg/m2/s]
+   !! @param[inout] diag_number_emission_total  Total number emission diagnostic [#/m2/s]
+   !! @param[inout] diag_mass_emission_per_bin   Mass emission per bin diagnostic [kg/m2/s] (num_species)
+   !! @param[inout] diag_number_emission_per_bin Number emission per bin diagnostic [#/m2/s] (num_species)
    pure subroutine compute_ginoux( &
       num_layers, &
       num_species, &
       params, &
-      lake_fraction, &      top_soil_wetness, &      u_wind_10m, &      v_wind_10m, &      soil_moisture, &
+      frlake, &
+      gwettop, &
+      u10m, &
+      v10m, &
+      ssm, &
       species_conc, &
-      emission_flux &
+      species_tendencies, &
+      diag_mass_emission_total, &
+      diag_number_emission_total, &
+      diag_mass_emission_per_bin, &
+      diag_number_emission_per_bin &
    )
 
       ! Arguments
       integer, intent(in) :: num_layers
       integer, intent(in) :: num_species
-      type(ginoux_params_t), intent(in) :: params
-      real(fp), intent(in) :: lake_fraction  ! Lake fraction [dimensionless]
-      real(fp), intent(in) :: top_soil_wetness  ! Top soil wetness [dimensionless]
-      real(fp), intent(in) :: u_wind_10m  ! 10m U wind [m/s]
-      real(fp), intent(in) :: v_wind_10m  ! 10m V wind [m/s]
-      real(fp), intent(in) :: soil_moisture  ! Surface soil moisture [m3/m3]
+      type(DustSchemeGINOUXConfig), intent(in) :: params
+      real(fp), intent(in) :: frlake(num_layers)
+      real(fp), intent(in) :: gwettop(num_layers)
+      real(fp), intent(in) :: u10m(num_layers)
+      real(fp), intent(in) :: v10m(num_layers)
+      real(fp), intent(in) :: ssm(num_layers)
       real(fp), intent(in) :: species_conc(num_layers, num_species)
-      real(fp), intent(out) :: emission_flux(num_layers, num_species)
+      real(fp), intent(inout) :: species_tendencies(num_layers, num_species)
+      real(fp), intent(inout), optional :: diag_mass_emission_total
+      real(fp), intent(inout), optional :: diag_number_emission_total  
+      real(fp), intent(inout), optional :: diag_mass_emission_per_bin(num_species)
+      real(fp), intent(inout), optional :: diag_number_emission_per_bin(num_species)
 
       ! Local variables
       integer :: k, species_idx
@@ -88,8 +98,9 @@ contains
       real(fp) :: environmental_factor
       real(fp) :: species_factor
 
-      ! Initialize output (pure subroutines must initialize all outputs)
-      emission_flux = 0.0_fp
+      ! Note: species_tendencies and diagnostic arrays are already initialized
+      ! by the host ProcessInterface before calling this subroutine.
+      ! Do not re-initialize them here.
 
       ! Main computation loop - CUSTOMIZE THIS SECTION FOR YOUR SCHEME
       do k = 1, num_layers
@@ -101,22 +112,21 @@ contains
          environmental_factor = 1.0_fp
 
          ! Apply scheme-specific environmental responses based on meteorological fields
-         ! Lake fraction usage (customize for your scheme)
+         ! Generic field usage (customize for your scheme)
          ! TODO: Consider how FRLAKE affects your emissions
-         ! Field available: lake_fraction [dimensionless]
-         ! Top soil wetness usage (customize for your scheme)
+         ! environmental_factor = environmental_factor * some_function(frlake(k))
+         ! Generic field usage (customize for your scheme)
          ! TODO: Consider how GWETTOP affects your emissions
-         ! Field available: top_soil_wetness [dimensionless]
-         ! 10m U wind usage (customize for your scheme)
+         ! environmental_factor = environmental_factor * some_function(gwettop(k))
+         ! Generic field usage (customize for your scheme)
          ! TODO: Consider how U10M affects your emissions
-         ! Field available: u_wind_10m [m/s]
-         ! 10m V wind usage (customize for your scheme)
+         ! environmental_factor = environmental_factor * some_function(u10m(k))
+         ! Generic field usage (customize for your scheme)
          ! TODO: Consider how V10M affects your emissions
-         ! Field available: v_wind_10m [m/s]
-         ! Soil moisture response (customize for your scheme)
-         ! TODO: Implement moisture inhibition
-         environmental_factor = environmental_factor * &
-                               max(0.1_fp, 1.0_fp - soil_moisture)
+         ! environmental_factor = environmental_factor * some_function(v10m(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how SSM affects your emissions
+         ! environmental_factor = environmental_factor * some_function(ssm(k))
 
          ! Apply to each species
          do species_idx = 1, num_species
@@ -128,13 +138,29 @@ contains
 
             ! Compute emission flux using your scheme's formula
             ! This is a simple example - replace with your actual algorithm
-            emission_flux(k, species_idx) = base_emission_factor * &
+            species_tendencies(k, species_idx) = base_emission_factor * &
                                           environmental_factor * &
                                           species_factor * &
                                           (1.0_fp + species_conc(k, species_idx))
 
             ! Ensure non-negative emissions
-            emission_flux(k, species_idx) = max(0.0_fp, emission_flux(k, species_idx))
+            species_tendencies(k, species_idx) = max(0.0_fp, species_tendencies(k, species_idx))
+            
+            ! TODO: Update diagnostic fields here based on your scheme's requirements
+            ! Each process should implement custom diagnostic calculations
+            ! Example patterns:
+            if (present(diag_mass_emission_total)) then
+               ! Add your custom mass emission total calculation
+            end if
+            if (present(diag_number_emission_total)) then
+               ! Add your custom number emission total calculation  
+            end if
+            if (present(diag_mass_emission_per_bin)) then
+               ! Add your custom per-bin mass emission calculation
+            end if
+            if (present(diag_number_emission_per_bin)) then
+               ! Add your custom per-bin number emission calculation
+            end if
          end do
 
       end do
@@ -148,7 +174,7 @@ contains
    ! Examples: environmental response functions, species-specific calculations, etc.
 
    !> Example helper function for environmental response
-   pure function compute_ginoux(met_value, reference_value) result(factor)
+   pure function compute_environmental_response_ginoux(met_value, reference_value) result(factor)
       real(fp), intent(in) :: met_value       ! Meteorological value
       real(fp), intent(in) :: reference_value ! Reference value
       real(fp) :: factor
@@ -156,12 +182,12 @@ contains
       ! Simple exponential response - customize for your scheme
       factor = exp((met_value - reference_value) / reference_value)
       factor = max(0.0_fp, min(10.0_fp, factor))  ! Reasonable bounds
-   end function compute_ginoux
+   end function compute_environmental_response_ginoux
 
    !> Example helper function for species-specific scaling
    pure function compute_species_scaling_ginoux(species_idx, params) result(scaling)
       integer, intent(in) :: species_idx
-      type(ginoux_params_t), intent(in) :: params
+      type(DustSchemeGINOUXConfig), intent(in) :: params
       real(fp) :: scaling
 
       ! Species-specific scaling - customize for your scheme

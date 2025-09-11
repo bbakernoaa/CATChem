@@ -516,10 +516,8 @@ CONTAINS
       class(MetStateType), intent(in) :: this
       integer, intent(out) :: nx, ny, nlev
 
-      ! For current column-based architecture
-      nx = 1
-      ny = 1
-      nlev = this%NLEVS
+      ! Get actual dimensions from geometry
+      call this%geometry%get_dimensions(nx, ny, nlev)
 
    end subroutine metstate_get_dimensions
 
