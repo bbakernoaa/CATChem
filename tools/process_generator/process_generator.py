@@ -122,7 +122,9 @@ class MetFieldClassification:
                         name = m.group(1)
                         dims = m.group(2)
                         rank = dims.count(',') + 1
-                        fields_cache[name] = (rank, dims)
+                        # Check if this is an edge field (nz+1 dimension)
+                        is_edge = 'nz+1' in line or 'nlevs+1' in line.lower()
+                        fields_cache[name] = (rank, dims, is_edge)
                         
             self._fields_cache = fields_cache
             logger.info(f"Parsed {len(fields_cache)} fields from MetState file")
@@ -138,14 +140,17 @@ class MetFieldClassification:
         fields = self._parse_metstate_fields()
         
         if field_name in fields:
-            rank, dims = fields[field_name]
+            rank, dims, is_edge = fields[field_name]
             
             # Categorize based on rank and known categorical fields
             if rank == 2:
                 return '2d_surface'
             elif rank == 3:
+                # Check if it's an edge field
+                if is_edge:
+                    return '3d_edge'
                 # Check if it's a categorical 3D field (special dimensions)
-                if field_name in ['SOILM', 'FRLANDUSE', 'FRSOIL', 'FRLAI', 'FRZ0']:
+                elif field_name in ['SOILM', 'FRLANDUSE', 'FRSOIL', 'FRLAI', 'FRZ0']:
                     return 'categorical'
                 else:
                     return '3d_atmospheric'
@@ -172,6 +177,11 @@ class MetFieldClassification:
             return '(:)'  # Always 1D array for categorical
         elif field_type == '2d_surface':
             return ''  # Always scalar for 2D surface fields
+        elif field_type == '3d_edge':
+            if affects_full_column:
+                return '(:)'  # 1D array for full column (nz+1 size)
+            else:
+                return ''  # Scalar for surface only
         elif field_type == '3d_atmospheric':
             if affects_full_column:
                 return '(:)'  # 1D array for full column
@@ -186,7 +196,8 @@ class MetFieldClassification:
         result = []
         
         # From parsed fields
-        for field_name, (rank, dims) in fields.items():
+        for field_name, field_info in fields.items():
+            rank = field_info[0]  # Handle both 2-tuple and 3-tuple formats
             if rank == 2:
                 result.append(field_name)
                 
@@ -198,19 +209,35 @@ class MetFieldClassification:
         return sorted(result)
         
     def get_all_3d_atmospheric_fields(self) -> List[str]:
-        """Get all 3D atmospheric fields (excluding categorical)."""
+        """Get all 3D atmospheric fields (excluding categorical and edge)."""
         fields = self._parse_metstate_fields()
         result = []
         
         # From parsed fields
         categorical_3d = {'SOILM', 'FRLANDUSE', 'FRSOIL', 'FRLAI', 'FRZ0'}
-        for field_name, (rank, dims) in fields.items():
-            if rank == 3 and field_name not in categorical_3d:
+        for field_name, field_info in fields.items():
+            rank = field_info[0]  # Handle both 2-tuple and 3-tuple formats
+            is_edge = field_info[2] if len(field_info) >= 3 else False
+            if rank == 3 and field_name not in categorical_3d and not is_edge:
                 result.append(field_name)
                 
         # Add fallback fields not found in parsed file
         for field_name in self._fallback_3d_atmospheric:
             if field_name not in result:
+                result.append(field_name)
+                
+        return sorted(result)
+        
+    def get_all_3d_edge_fields(self) -> List[str]:
+        """Get all 3D edge fields (nz+1 dimension)."""
+        fields = self._parse_metstate_fields()
+        result = []
+        
+        # From parsed fields - only those with is_edge=True
+        for field_name, field_info in fields.items():
+            rank = field_info[0]
+            is_edge = field_info[2] if len(field_info) >= 3 else False
+            if rank == 3 and is_edge:
                 result.append(field_name)
                 
         return sorted(result)
@@ -222,7 +249,8 @@ class MetFieldClassification:
         
         # From parsed fields
         categorical_3d = {'SOILM', 'FRLANDUSE', 'FRSOIL', 'FRLAI', 'FRZ0'}
-        for field_name, (rank, dims) in fields.items():
+        for field_name, field_info in fields.items():
+            rank = field_info[0]  # Handle both 2-tuple and 3-tuple formats
             if field_name in categorical_3d:
                 result.append(field_name)
                 
@@ -1087,6 +1115,9 @@ class ProcessGenerator:
             else:
                 return obj.__dict__
 
+        # Initialize field classification helper with MetState file
+        field_classifier = MetFieldClassification(self.metstate_file)
+
         # Restore to use the full scheme module template
         template = self.env.get_template('scheme_module.F90.j2')
         schemes_dir = process_dir / "schemes"
@@ -1102,6 +1133,7 @@ class ProcessGenerator:
                 content = template.render(
                     config=config_dict,
                     scheme=scheme_dict,
+                    field_classifier=field_classifier,
                     timestamp=datetime.now().isoformat()
                 )
                 logger.info(f"Template rendered successfully, content length: {len(content)}")
@@ -1148,8 +1180,16 @@ class ProcessGenerator:
         """Generate test files in tests/process/<process_name> directory."""
         logger.info(f"Generating test files in: {test_dir}")
 
-        # Collect all required meteorological fields from schemes
+        # Collect all required meteorological fields from process and schemes
         required_met_fields = []
+        
+        # Add process-level required fields first
+        if hasattr(config, 'required_met_fields') and config.required_met_fields:
+            for field in config.required_met_fields:
+                if field not in required_met_fields:
+                    required_met_fields.append(field)
+        
+        # Add scheme-level required fields
         for scheme in config.schemes:
             if hasattr(scheme, 'required_met_fields') and scheme.required_met_fields:
                 for field in scheme.required_met_fields:

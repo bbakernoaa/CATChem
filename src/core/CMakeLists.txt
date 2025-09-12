@@ -58,6 +58,9 @@ set(METSTATE_ALLOCATE_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_allocate_fields.i
 set(METSTATE_DEALLOCATE_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_deallocate_fields.inc)
 set(METSTATE_2D_SCALAR_ACCESSOR_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_2d_scalar_accessor.inc)
 set(METSTATE_SCALAR_ACCESSOR_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_scalar_accessor.inc)
+set(VIRTUALMET_TYPE_INC ${CMAKE_CURRENT_BINARY_DIR}/virtualmet_type.inc)
+set(VIRTUALMET_POPULATE_INC ${CMAKE_CURRENT_BINARY_DIR}/virtualmet_populate.inc)
+set(VIRTUALMET_CLEANUP_INC ${CMAKE_CURRENT_BINARY_DIR}/virtualmet_cleanup.inc)
 
 add_custom_command(
   OUTPUT ${METSTATE_ACCESSOR_INC}
@@ -114,9 +117,42 @@ add_custom_command(
   VERBATIM
 )
 
+add_custom_command(
+  OUTPUT ${VIRTUALMET_TYPE_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating virtualmet_type.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py virtualmet_type ${METSTATE_MOD_F90} ${VIRTUALMET_TYPE_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating virtualmet_type.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${VIRTUALMET_POPULATE_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating virtualmet_populate.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py virtualmet_populate ${METSTATE_MOD_F90} ${VIRTUALMET_POPULATE_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating virtualmet_populate.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${VIRTUALMET_CLEANUP_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating virtualmet_cleanup.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py virtualmet_cleanup ${METSTATE_MOD_F90} ${VIRTUALMET_CLEANUP_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating virtualmet_cleanup.inc"
+  VERBATIM
+)
+
 add_custom_target(
   metstate_macros ALL
-  DEPENDS ${METSTATE_ACCESSOR_INC} ${METSTATE_ALLOCATE_INC} ${METSTATE_DEALLOCATE_INC} ${METSTATE_2D_SCALAR_ACCESSOR_INC} ${METSTATE_SCALAR_ACCESSOR_INC}
+  DEPENDS ${METSTATE_ACCESSOR_INC} ${METSTATE_ALLOCATE_INC} ${METSTATE_DEALLOCATE_INC} ${METSTATE_2D_SCALAR_ACCESSOR_INC} ${METSTATE_SCALAR_ACCESSOR_INC} ${VIRTUALMET_TYPE_INC} ${VIRTUALMET_POPULATE_INC} ${VIRTUALMET_CLEANUP_INC}
 )
 
 add_dependencies(CATChem_core metstate_macros)
@@ -124,6 +160,11 @@ add_dependencies(CATChem_core metstate_macros)
 set_source_files_properties(MetState_Mod.F90 PROPERTIES
   COMPILE_FLAGS "-cpp"
   OBJECT_DEPENDS "${METSTATE_ACCESSOR_INC};${METSTATE_ALLOCATE_INC};${METSTATE_DEALLOCATE_INC};${METSTATE_2D_SCALAR_ACCESSOR_INC};${METSTATE_SCALAR_ACCESSOR_INC}"
+)
+
+set_source_files_properties(VirtualColumn_Mod.F90 PROPERTIES
+  COMPILE_FLAGS "-cpp"
+  OBJECT_DEPENDS "${VIRTUALMET_TYPE_INC};${VIRTUALMET_POPULATE_INC};${VIRTUALMET_CLEANUP_INC}"
 )
 
 target_include_directories(CATChem_core PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

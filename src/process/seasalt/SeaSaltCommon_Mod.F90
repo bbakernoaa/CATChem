@@ -4,7 +4,7 @@
 !! This module defines the configuration types used by the
 !! seasalt process and its schemes.
 !!
-!! Generated on: 2025-09-11T19:19:12.602180
+!! Generated on: 2025-09-12T17:20:29.718898
 !! Author: Barry Baker & Wei Li
 !! Version: 1.0.0
 
@@ -127,14 +127,14 @@ module SeaSaltCommon_Mod
       character(len=16) :: algorithm_type = 'explicit'
 
       ! Process configuration
-      logical :: affects_full_column = .false.  ! Surface-only processing
+      logical :: affects_full_column = .true.  ! Full column processing
 
       ! Scheme parameters
       real(fp) :: scale_factor = 1.0  ! Emission scale factor
 
       ! Required meteorological fields
-      integer :: n_required_met_fields = 4
-      character(len=32) :: required_met_fields(4)
+      integer :: n_required_met_fields = 11
+      character(len=32) :: required_met_fields(11)
 
    contains
       procedure, public :: validate => validate_geos12_config

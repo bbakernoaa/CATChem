@@ -1,5 +1,5 @@
 # Example configuration for seasalt process
-# Generated on: 2025-09-11T19:19:13.926522
+# Generated on: 2025-09-12T17:20:30.386118
 # Author: Barry Baker & Wei Li
 
 process:
@@ -75,6 +75,13 @@ schemes:
       - "FRSEAICE"
       - "SST"
       - "USTAR"
+      - "AERA_M2"
+      - "SSM"
+      - "T"
+      - "U"
+      - "F_UNDER_PBLTOP"
+      - "PEDGE"
+      - "PEDGE_DRY"
 
     # Scheme-specific diagnostic configuration
     diagnostics:

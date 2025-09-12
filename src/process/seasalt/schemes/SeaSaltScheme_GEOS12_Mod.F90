@@ -17,7 +17,7 @@
 !! - Memory management and array allocation
 !! - Integration with host model time stepping
 !!
-!! Generated on: 2025-09-11T19:19:13.071125
+!! Generated on: 2025-09-12T17:20:29.939560
 !! Author: Barry Baker
 !! Reference: Jaeglé et al. [2011]
 module SeaSaltScheme_GEOS12_Mod
@@ -52,6 +52,13 @@ contains
    !! @param[in]  frseaice    FRSEAICE field [appropriate units]
    !! @param[in]  sst    SST field [appropriate units]
    !! @param[in]  ustar    USTAR field [appropriate units]
+   !! @param[in]  aera_m2    AERA_M2 field [appropriate units]
+   !! @param[in]  ssm    SSM field [appropriate units]
+   !! @param[in]  t    T field [appropriate units]
+   !! @param[in]  u    U field [appropriate units]
+   !! @param[in]  f_under_pbltop    F_UNDER_PBLTOP field [appropriate units]
+   !! @param[in]  pedge    PEDGE field [appropriate units]
+   !! @param[in]  pedge_dry    PEDGE_DRY field [appropriate units]
    !! @param[in]  species_conc   Species concentrations [mol/mol] (num_layers, num_species)
    !! @param[inout] species_tendencies  Species tendency terms [mol/mol/s] (num_layers, num_species)
    !! @param[inout] diag_mass_emission_total    Total mass emission diagnostic [ug/m2/s]
@@ -66,6 +73,13 @@ contains
       frseaice, &
       sst, &
       ustar, &
+      aera_m2, &
+      ssm, &
+      t, &
+      u, &
+      f_under_pbltop, &
+      pedge, &
+      pedge_dry, &
       species_density, &
       species_radius, &
       species_lower_radius, &
@@ -82,10 +96,17 @@ contains
       integer, intent(in) :: num_layers
       integer, intent(in) :: num_species
       type(SeaSaltSchemeGEOS12Config), intent(in) :: params
-      real(fp), intent(in) :: frocean(num_layers)
-      real(fp), intent(in) :: frseaice(num_layers)
-      real(fp), intent(in) :: sst(num_layers)
-      real(fp), intent(in) :: ustar(num_layers)
+      real(fp), intent(in) :: frocean  ! Surface field - scalar
+      real(fp), intent(in) :: frseaice  ! Surface field - scalar
+      real(fp), intent(in) :: sst  ! Surface field - scalar
+      real(fp), intent(in) :: ustar  ! Surface field - scalar
+      real(fp), intent(in) :: aera_m2  ! Surface field - scalar
+      real(fp), intent(in) :: ssm  ! Surface field - scalar
+      real(fp), intent(in) :: t(num_layers)    ! 3D atmospheric field
+      real(fp), intent(in) :: u(num_layers)    ! 3D atmospheric field
+      real(fp), intent(in) :: f_under_pbltop(num_layers)    ! 3D atmospheric field
+      real(fp), intent(in) :: pedge(num_layers+1)  ! Edge field - requires nz+1 dimensions
+      real(fp), intent(in) :: pedge_dry(num_layers+1)  ! Edge field - requires nz+1 dimensions
       real(fp), intent(in) :: species_density(num_species)  ! Species density property
       real(fp), intent(in) :: species_radius(num_species)  ! Species radius property
       real(fp), intent(in) :: species_lower_radius(num_species)  ! Species lower_radius property
@@ -129,6 +150,27 @@ contains
          ! Generic field usage (customize for your scheme)
          ! TODO: Consider how USTAR affects your emissions
          ! environmental_factor = environmental_factor * some_function(ustar(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how AERA_M2 affects your emissions
+         ! environmental_factor = environmental_factor * some_function(aera_m2(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how SSM affects your emissions
+         ! environmental_factor = environmental_factor * some_function(ssm(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how T affects your emissions
+         ! environmental_factor = environmental_factor * some_function(t(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how U affects your emissions
+         ! environmental_factor = environmental_factor * some_function(u(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how F_UNDER_PBLTOP affects your emissions
+         ! environmental_factor = environmental_factor * some_function(f_under_pbltop(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how PEDGE affects your emissions
+         ! environmental_factor = environmental_factor * some_function(pedge(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how PEDGE_DRY affects your emissions
+         ! environmental_factor = environmental_factor * some_function(pedge_dry(k))
 
          ! Apply to each species
          do species_idx = 1, num_species

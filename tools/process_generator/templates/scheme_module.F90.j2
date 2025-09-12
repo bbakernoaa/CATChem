@@ -97,16 +97,36 @@ contains
 {% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}
 {% for field in scheme.required_met_fields %}
 {% if field is string %}
-      real(fp), intent(in) :: {{ field | lower | replace('-', '_') | replace('.', '_') }}(num_layers)
+{% set field_name = field %}
+{% set var_name = field | lower | replace('-', '_') | replace('.', '_') %}
+{% if field_classifier.get_field_type(field_name) == '3d_edge' %}
+      real(fp), intent(in) :: {{ var_name }}(num_layers+1)  ! Edge field - requires nz+1 dimensions
+{% elif field_classifier.get_field_type(field_name) == '2d_surface' %}
+      real(fp), intent(in) :: {{ var_name }}  ! Surface field - scalar
+{% else %}
+      real(fp), intent(in) :: {{ var_name }}(num_layers)    ! 3D atmospheric field
+{% endif %}
 {% else %}
 {% if field.dimensions == "scalar" %}
       real(fp), intent(in) :: {{ field.variable_name }}  ! {{ field.description }} [{{ field.units }}]
 {% elif field.dimensions == "1d" %}
-      real(fp), intent(in) :: {{ field.variable_name }}(num_layers)  ! {{ field.description }} [{{ field.units }}]
+{% if field_classifier.get_field_type(field.name) == '3d_edge' %}
+      real(fp), intent(in) :: {{ field.variable_name }}(num_layers+1)  ! {{ field.description }} [{{ field.units }}] - Edge field
+{% elif field_classifier.get_field_type(field.name) == '2d_surface' %}
+      real(fp), intent(in) :: {{ field.variable_name }}  ! {{ field.description }} [{{ field.units }}] - Surface field
+{% else %}
+      real(fp), intent(in) :: {{ field.variable_name }}(num_layers)  ! {{ field.description }} [{{ field.units }}] - 3D atmospheric field
+{% endif %}
 {% elif field.dimensions == "2d" %}
       real(fp), intent(in) :: {{ field.variable_name }}(num_layers, {{ field.second_dimension_size | default('num_species') }})  ! {{ field.description }} [{{ field.units }}]
 {% else %}
-      real(fp), intent(in) :: {{ field.variable_name }}(num_layers)  ! {{ field.description }} [{{ field.units }}] (default 1D)
+{% if field_classifier.get_field_type(field.name) == '3d_edge' %}
+      real(fp), intent(in) :: {{ field.variable_name }}(num_layers+1)  ! {{ field.description }} [{{ field.units }}] - Edge field (default 1D)
+{% elif field_classifier.get_field_type(field.name) == '2d_surface' %}
+      real(fp), intent(in) :: {{ field.variable_name }}  ! {{ field.description }} [{{ field.units }}] - Surface field (default)
+{% else %}
+      real(fp), intent(in) :: {{ field.variable_name }}(num_layers)  ! {{ field.description }} [{{ field.units }}] - 3D atmospheric field (default 1D)
+{% endif %}
 {% endif %}
 {% endif %}
 {% endfor %}

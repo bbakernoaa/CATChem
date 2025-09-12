@@ -582,6 +582,12 @@ contains
 {% else %}
       allocate({{ var_name }}(1))  ! Surface level only
 {% endif %}
+{% elif field_classifier.get_field_type(field_name) == '3d_edge' %}
+{% if scheme.affects_full_column %}
+      allocate({{ var_name }}(n_levels+1))  ! Full column edge field - requires nz+1 dimensions
+{% else %}
+      allocate({{ var_name }}(2))  ! Surface edge field - surface and first edge level
+{% endif %}
 {% elif field_classifier.get_field_type(field_name) == 'categorical' %}
       allocate({{ var_name }}(1))  ! Categorical field - surface value
 {% else %}
@@ -614,6 +620,12 @@ contains
       {{ var_name }}(1:n_levels) = met%{{ field_name }}(1:n_levels)  ! Full column atmospheric field
 {% else %}
       {{ var_name }}(1) = met%{{ field_name }}(1)  ! Surface level only
+{% endif %}
+{% elif field_classifier.get_field_type(field_name) == '3d_edge' %}
+{% if scheme.affects_full_column %}
+      {{ var_name }}(1:n_levels+1) = met%{{ field_name }}(1:n_levels+1)  ! Full column edge field - includes all edge levels
+{% else %}
+      {{ var_name }}(1:2) = met%{{ field_name }}(1:2)  ! Surface edge field - surface and first edge level
 {% endif %}
 {% elif field_classifier.get_field_type(field_name) == 'categorical' %}
       {{ var_name }}(1) = met%{{ field_name }}(1)  ! Categorical field - surface value
@@ -659,9 +671,21 @@ contains
             this%process_config%{{ scheme.name }}_config{% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}, &
 {% for field in scheme.required_met_fields %}
 {% if field is string %}
-            {{ field | lower | replace('-', '_') | replace('.', '_') }}, &
+{% set field_name = field %}
+{% set var_name = field | lower | replace('-', '_') | replace('.', '_') %}
+{% if field_classifier.get_field_type(field_name) == '2d_surface' %}
+            {{ var_name }}(1), &
 {% else %}
-            {{ field.variable_name }}, &
+            {{ var_name }}, &
+{% endif %}
+{% else %}
+{% set field_name = field.name %}
+{% set var_name = field.variable_name %}
+{% if field_classifier.get_field_type(field_name) == '2d_surface' %}
+            {{ var_name }}(1), &
+{% else %}
+            {{ var_name }}, &
+{% endif %}
 {% endif %}
 {% endfor %}{% endif %}{% if scheme.required_species_properties and scheme.required_species_properties|length > 0 %}
 {% for prop in scheme.required_species_properties %}
@@ -685,9 +709,21 @@ contains
             this%process_config%{{ scheme.name }}_config{% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}, &
 {% for field in scheme.required_met_fields %}
 {% if field is string %}
-            {{ field | lower | replace('-', '_') | replace('.', '_') }}, &
+{% set field_name = field %}
+{% set var_name = field | lower | replace('-', '_') | replace('.', '_') %}
+{% if field_classifier.get_field_type(field_name) == '2d_surface' %}
+            {{ var_name }}(1), &
 {% else %}
-            {{ field.variable_name }}, &
+            {{ var_name }}, &
+{% endif %}
+{% else %}
+{% set field_name = field.name %}
+{% set var_name = field.variable_name %}
+{% if field_classifier.get_field_type(field_name) == '2d_surface' %}
+            {{ var_name }}(1), &
+{% else %}
+            {{ var_name }}, &
+{% endif %}
 {% endif %}
 {% endfor %}{% endif %}{% if scheme.required_species_properties and scheme.required_species_properties|length > 0 %}
 {% for prop in scheme.required_species_properties %}

@@ -17,7 +17,7 @@
 !! - Memory management and array allocation
 !! - Integration with host model time stepping
 !!
-!! Generated on: 2025-09-11T19:19:12.862712
+!! Generated on: 2025-09-12T17:20:29.932280
 !! Author: Barry Baker
 !! Reference: Gong et al. [1997]
 module SeaSaltScheme_GONG97_Mod
@@ -84,11 +84,11 @@ contains
       integer, intent(in) :: num_layers
       integer, intent(in) :: num_species
       type(SeaSaltSchemeGONG97Config), intent(in) :: params
-      real(fp), intent(in) :: frocean(num_layers)
-      real(fp), intent(in) :: frseaice(num_layers)
-      real(fp), intent(in) :: sst(num_layers)
-      real(fp), intent(in) :: u10m(num_layers)
-      real(fp), intent(in) :: v10m(num_layers)
+      real(fp), intent(in) :: frocean  ! Surface field - scalar
+      real(fp), intent(in) :: frseaice  ! Surface field - scalar
+      real(fp), intent(in) :: sst  ! Surface field - scalar
+      real(fp), intent(in) :: u10m  ! Surface field - scalar
+      real(fp), intent(in) :: v10m  ! Surface field - scalar
       real(fp), intent(in) :: species_density(num_species)  ! Species density property
       real(fp), intent(in) :: species_radius(num_species)  ! Species radius property
       real(fp), intent(in) :: species_lower_radius(num_species)  ! Species lower_radius property

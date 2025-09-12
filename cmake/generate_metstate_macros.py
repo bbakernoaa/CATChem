@@ -47,13 +47,14 @@ def parse_metstate_type(filename):
     Returns
     -------
     fields : list of tuple
-        List of (name, rank, dims) for each allocatable REAL(fp) field.
+        List of (name, rank, dims, is_edge) for each allocatable REAL(fp) field.
+        is_edge is True if the field uses nz+1 dimension (edge fields).
     """
     with open(filename, 'r') as f:
         lines = f.readlines()
 
     in_type = False
-    fields = []  # List of (name, rank, dims)
+    fields = []  # List of (name, rank, dims, is_edge)
     for line in lines:
         if 'TYPE, PUBLIC :: MetStateType' in line:
             in_type = True
@@ -66,7 +67,9 @@ def parse_metstate_type(filename):
                 name = m.group(1)
                 dims = m.group(2)
                 rank = dims.count(',') + 1
-                fields.append((name, rank, dims))
+                # Check if this is an edge field (nz+1 dimension)
+                is_edge = 'nz+1' in line or 'nlevs+1' in line.lower()
+                fields.append((name, rank, dims, is_edge))
 
     return fields
 
@@ -77,19 +80,19 @@ def write_accessor(fields, output_file):
     Parameters
     ----------
     fields : list of tuple
-        List of (name, rank, dims) for each field.
+        List of (name, rank, dims, is_edge) for each field.
     output_file : str
         Path to output .inc file.
     """
     # Deduplicate by case-insensitive field name
     unique_fields = {}
-    for name, rank, dims in fields:
+    for name, rank, dims, is_edge in fields:
         key = name.lower()
         if key not in unique_fields:
-            unique_fields[key] = (name, rank, dims)
+            unique_fields[key] = (name, rank, dims, is_edge)
     with open(output_file, 'w') as f:
         for key in sorted(unique_fields):
-            name, rank, dims = unique_fields[key]
+            name, rank, dims, is_edge = unique_fields[key]
             labels = sorted({name, name.lower()})
             f.write("case(" + ", ".join(f"'{label}'" for label in labels) + ")\n")
             f.write(f"   if (allocated(this%{name})) then\n")
@@ -105,18 +108,19 @@ def write_allocate(fields, output_file):
     """
     Write a macro for allocation statements for MetStateType fields.
     Skips scalar (rank-0) fields. Adds a case for 'ALL'.
+    Handles edge fields (nz+1) properly.
 
     Parameters
     ----------
     fields : list of tuple
-        List of (name, rank, dims) for each field.
+        List of (name, rank, dims, is_edge) for each field.
     output_file : str
         Path to output .inc file.
     """
     with open(output_file, 'w') as f:
         # ALL case
         f.write("case ('ALL', 'all')\n")
-        for name, rank, dims in fields:
+        for name, rank, dims, is_edge in fields:
             if rank == 0:
                 continue
             if name.lower() in ("soilm"):
@@ -138,11 +142,14 @@ def write_allocate(fields, output_file):
                 if rank == 2:
                     f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
                 elif rank == 3:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nz))\n")
+                    if is_edge:
+                        f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nz+1))  ! Edge field\n")
+                    else:
+                        f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nz))\n")
                 else:
                     raise ValueError(f"Unsupported rank {rank} for field {name}")
         # Individual field cases
-        for name, rank, dims in fields:
+        for name, rank, dims, is_edge in fields:
             if rank == 0:
                 continue  # Skip scalars
             labels = sorted({name, name.lower()})
@@ -166,7 +173,10 @@ def write_allocate(fields, output_file):
                 if rank == 2:
                     f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
                 elif rank == 3:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nz))\n")
+                    if is_edge:
+                        f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nz+1))  ! Edge field\n")
+                    else:
+                        f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nz))\n")
                 else:
                     raise ValueError(f"Unsupported rank {rank} for field {name}")
         f.write("case default\n")
@@ -180,19 +190,19 @@ def write_deallocate(fields, output_file):
     Parameters
     ----------
     fields : list of tuple
-        List of (name, rank, dims) for each field.
+        List of (name, rank, dims, is_edge) for each field.
     output_file : str
         Path to output .inc file.
     """
     with open(output_file, 'w') as f:
         # ALL case
         f.write("case ('ALL', 'all')\n")
-        for name, rank, dims in fields:
+        for name, rank, dims, is_edge in fields:
             if rank == 0:
                 continue
             f.write(f"  if (allocated(this%{name})) deallocate(this%{name})\n")
         # Individual field cases
-        for name, rank, dims in fields:
+        for name, rank, dims, is_edge in fields:
             if rank == 0:
                 continue  # Skip scalars
             labels = sorted({name, name.lower()})
@@ -208,20 +218,21 @@ def write_column_accessor(fields, output_file):
     Parameters
     ----------
     fields : list of tuple
-        List of (name, rank, dims) for each field.
+        List of (name, rank, dims, is_edge) for each field.
     output_file : str
         Path to output .inc file.
     """
     # Only 3D fields
     unique_fields = {}
-    for name, rank, dims in fields:
+    for name, rank, dims, is_edge in fields:
         if rank == 3:
             key = name.lower()
             if key not in unique_fields:
-                unique_fields[key] = (name, rank, dims)
+                unique_fields[key] = (name, rank, dims, is_edge)
+                unique_fields[key] = (name, rank, dims, is_edge)
     with open(output_file, 'w') as f:
         for key in sorted(unique_fields):
-            name, rank, dims = unique_fields[key]
+            name, rank, dims, is_edge = unique_fields[key]
             labels = sorted({name, name.lower()})
             f.write("case (" + ", ".join(f"'{label}'" for label in labels) + ")\n")
             f.write(f"   if (allocated(this%{name})) column_ptr => this%{name}(col_i, col_j, :)\n")
@@ -235,7 +246,7 @@ def classify_fields(fields):
     Parameters
     ----------
     fields : list of tuple
-        List of (name, rank, dims) for each field.
+        List of (name, rank, dims, is_edge) for each field.
         
     Returns
     -------
@@ -254,7 +265,7 @@ def classify_fields(fields):
     surface_2d = []
     scalar_0d = []
     
-    for name, rank, dims in fields:
+    for name, rank, dims, is_edge in fields:
         name_upper = name.upper()
         
         if rank == 3:
@@ -373,21 +384,21 @@ def write_2d_scalar_accessor(fields, output_file):
 
     Parameters
     ----------
-    fields : list of (name, rank, dims)
+    fields : list of (name, rank, dims, is_edge)
         List of fields.
     output_file : str
         Path to output .inc file.
     """
     # Only 2D fields
     unique_fields = {}
-    for name, rank, dims in fields:
+    for name, rank, dims, is_edge in fields:
         if rank == 2:
             key = name.lower()
             if key not in unique_fields:
-                unique_fields[key] = (name, rank, dims)
+                unique_fields[key] = (name, rank, dims, is_edge)
     with open(output_file, 'w') as f:
         for key in sorted(unique_fields):
-            name, rank, dims = unique_fields[key]
+            name, rank, dims, is_edge = unique_fields[key]
             labels = sorted({name, name.lower()})
             f.write("case (" + ", ".join(f"'{label}'" for label in labels) + ")\n")
             f.write(f"   if (allocated(this%{name})) scalar_val = this%{name}(col_i, col_j)\n")
@@ -402,7 +413,7 @@ def write_virtualmet_populate(fields, output_file):
     Parameters
     ----------
     fields : list of tuple
-        List of (name, rank, dims) for each field.
+        List of (name, rank, dims, is_edge) for each field.
     output_file : str
         Path to output .inc file.
     """
@@ -458,7 +469,7 @@ def write_virtualmet_type(fields, output_file):
     Parameters
     ----------
     fields : list of tuple
-        List of (name, rank, dims) for each field.
+        List of (name, rank, dims, is_edge) for each field.
     output_file : str
         Path to output .inc file.
     """
@@ -610,21 +621,21 @@ def write_scalar_accessor(fields, output_file):
 
     Parameters
     ----------
-    fields : list of (name, rank, dims)
+    fields : list of (name, rank, dims, is_edge)
         List of fields.
     output_file : str
         Path to output .inc file.
     """
     # Only scalar fields (rank 0)
     unique_fields = {}
-    for name, rank, dims in fields:
+    for name, rank, dims, is_edge in fields:
         if rank == 0:
             key = name.lower()
             if key not in unique_fields:
-                unique_fields[key] = (name, rank, dims)
+                unique_fields[key] = (name, rank, dims, is_edge)
     with open(output_file, 'w') as f:
         for key in sorted(unique_fields):
-            name, rank, dims = unique_fields[key]
+            name, rank, dims, is_edge = unique_fields[key]
             labels = sorted({name, name.lower()})
             f.write("case (" + ", ".join(f"'{label}'" for label in labels) + ")\n")
             f.write(f"   scalar_val = this%{name}\n")
@@ -642,14 +653,14 @@ def write_scalar_accessor(fields, output_file):
     """
     # Only scalar fields (rank 0)
     unique_fields = {}
-    for name, rank, dims in fields:
+    for name, rank, dims, is_edge in fields:
         if rank == 0:
             key = name.lower()
             if key not in unique_fields:
-                unique_fields[key] = (name, rank, dims)
+                unique_fields[key] = (name, rank, dims, is_edge)
     with open(output_file, 'w') as f:
         for key in sorted(unique_fields):
-            name, rank, dims = unique_fields[key]
+            name, rank, dims, is_edge = unique_fields[key]
             labels = sorted({name, name.lower()})
             f.write("case (" + ", ".join(f"'{label}'" for label in labels) + ")\n")
             f.write(f"   scalar_val = this%{name}\n")
