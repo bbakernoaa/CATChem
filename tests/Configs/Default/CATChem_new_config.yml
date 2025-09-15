@@ -44,11 +44,11 @@ diagnostics:
 #============================================================================
 # Settings for CATChem processes
 #============================================================================
-process:
+processes:
   seasalt:
     activate: true
+    diagnostics: true
     scheme: 'geos12'
-    diagnostics: true # New diagnostic switch
     gong97:
       scale_factor: 1.0
       weibull_flag: false

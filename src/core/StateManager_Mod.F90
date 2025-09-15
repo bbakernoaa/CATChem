@@ -93,6 +93,7 @@ module StateManager_Mod
 
       ! State object accessors
       procedure :: get_config_ptr => manager_get_config_ptr
+      procedure :: set_config => manager_set_config
       procedure :: get_met_state_ptr => manager_get_met_state_ptr
       procedure :: get_chem_state_ptr => manager_get_chem_state_ptr
       procedure :: get_error_manager => manager_get_error_manager
@@ -149,11 +150,7 @@ contains
       endif
 
       ! Allocate and initialize state objects
-      if (.not. allocated(this%config)) then
-         allocate(this%config)
-         call this%config%init(rc)
-         if (rc /= CC_SUCCESS) return
-      end if
+      ! Note: config will be set by external call if needed
       
       if (.not. allocated(this%met_state)) allocate(this%met_state)
       
@@ -217,6 +214,24 @@ contains
          nullify(config_ptr)
       endif
    end function manager_get_config_ptr
+
+   !> \brief Set the config manager to use an external instance
+   subroutine manager_set_config(this, external_config, rc)
+      class(StateManagerType), intent(inout) :: this
+      type(ConfigManagerType), intent(in), target :: external_config
+      integer, intent(out) :: rc
+
+      rc = CC_SUCCESS
+
+      ! Deallocate existing config if any
+      if (allocated(this%config)) then
+         call this%config%finalize(rc)
+         deallocate(this%config)
+      endif
+
+      ! Allocate and point to the external config
+      allocate(this%config, source=external_config)
+   end subroutine manager_set_config
 
    !> \brief Get pointer to met state for modification
    function manager_get_met_state_ptr(this) result(met_ptr)

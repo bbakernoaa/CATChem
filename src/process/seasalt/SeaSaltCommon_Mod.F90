@@ -4,7 +4,7 @@
 !! This module defines the configuration types used by the
 !! seasalt process and its schemes.
 !!
-!! Generated on: 2025-09-14T21:24:10.269047
+!! Generated on: 2025-09-15T16:54:16.885784
 !! Author: Barry Baker & Wei Li
 !! Version: 1.0.0
 
@@ -167,9 +167,9 @@ module SeaSaltCommon_Mod
       procedure, public :: validate => seasalt_process_validate
       procedure, public :: finalize => seasalt_process_finalize
       procedure, public :: get_active_scheme_config => get_active_scheme_config
-      procedure, private :: load_gong97_config
-      procedure, private :: load_gong03_config
-      procedure, private :: load_geos12_config
+      procedure, public :: load_gong97_config
+      procedure, public :: load_gong03_config
+      procedure, public :: load_geos12_config
    end type SeaSaltProcessConfig
 
 contains

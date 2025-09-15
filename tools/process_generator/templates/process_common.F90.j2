@@ -144,7 +144,7 @@ module {{ config.class_name }}Common_Mod
       procedure, public :: finalize => {{ config.name }}_process_finalize
       procedure, public :: get_active_scheme_config => get_active_scheme_config
 {% for scheme in config.schemes %}
-      procedure, private :: load_{{ scheme.name }}_config
+      procedure, public :: load_{{ scheme.name }}_config
 {% endfor %}
    end type {{ config.class_name }}ProcessConfig
 

@@ -351,6 +351,14 @@ contains
          return
       endif
 
+      ! Set the loaded config manager on the state manager
+      call this%state_mgr%set_config(this%config_mgr, local_rc)
+      if (local_rc /= CC_SUCCESS) then
+         call this%error_mgr%report_error(local_rc, 'Failed to set config manager for state manager', rc)
+         call this%error_mgr%pop_context()
+         return
+      endif
+
       ! Connect grid manager to state manager
       call this%state_mgr%set_grid_manager(this%grid_mgr, local_rc)
       if (local_rc /= CC_SUCCESS) then

@@ -42,7 +42,8 @@ module DiagnosticManager_Mod
    use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE, &
                         ERROR_INVALID_INPUT, ERROR_NOT_FOUND, ERROR_MEMORY_ALLOCATION
    use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DiagnosticFieldType, &
-                                      DiagnosticDataType
+                                      DiagnosticDataType, DIAG_REAL_SCALAR, DIAG_REAL_1D, &
+                                      DIAG_REAL_2D, DIAG_REAL_3D
    ! Removed StateManager_Mod import to break circular dependency
 
    implicit none
@@ -98,6 +99,7 @@ module DiagnosticManager_Mod
       ! Diagnostic collection and output
       procedure :: collect_all_diagnostics => diagnostic_manager_collect_all
       procedure :: collect_process_diagnostics => diagnostic_manager_collect_process
+      procedure :: get_field_value => diagnostic_manager_get_field_value
       procedure :: write_output => diagnostic_manager_write_output
       procedure :: advance_timestep => diagnostic_manager_advance_timestep
 
@@ -476,6 +478,105 @@ contains
       rc = CC_SUCCESS
 
    end subroutine diagnostic_manager_collect_process
+
+   !> \brief Get diagnostic field value for validation purposes
+   !!
+   !! \param[inout] this DiagnosticManagerType instance
+   !! \param[in] process_name Name of the process
+   !! \param[in] field_name Name of the diagnostic field
+   !! \param[out] scalar_value Scalar value (for scalar diagnostics)
+   !! \param[out] array_1d_ptr Pointer to 1D array (for 1D diagnostics)
+   !! \param[out] array_2d_ptr Pointer to 2D array (for 2D diagnostics)
+   !! \param[out] array_3d_ptr Pointer to 3D array (for 3D diagnostics)
+   !! \param[out] data_type Type of the diagnostic data
+   !! \param[out] rc Return code
+   subroutine diagnostic_manager_get_field_value(this, process_name, field_name, &
+                                                scalar_value, array_1d_ptr, array_2d_ptr, array_3d_ptr, &
+                                                data_type, rc)
+      class(DiagnosticManagerType), intent(inout) :: this
+      character(len=*), intent(in) :: process_name
+      character(len=*), intent(in) :: field_name
+      real(fp), intent(out), optional :: scalar_value
+      real(fp), pointer, intent(out), optional :: array_1d_ptr(:)
+      real(fp), pointer, intent(out), optional :: array_2d_ptr(:,:)
+      real(fp), pointer, intent(out), optional :: array_3d_ptr(:,:,:)
+      integer, intent(out), optional :: data_type
+      integer, intent(out) :: rc
+
+      type(DiagnosticRegistryType), pointer :: registry
+      type(DiagnosticFieldType), pointer :: field_ptr
+      type(DiagnosticDataType), pointer :: data_ptr
+      integer :: local_data_type
+
+      rc = CC_SUCCESS
+
+      ! Initialize outputs
+      if (present(scalar_value)) scalar_value = 0.0_fp
+      if (present(array_1d_ptr)) nullify(array_1d_ptr)
+      if (present(array_2d_ptr)) nullify(array_2d_ptr)
+      if (present(array_3d_ptr)) nullify(array_3d_ptr)
+      if (present(data_type)) data_type = 0
+
+      ! Get process registry
+      call this%get_process_registry(process_name, registry, rc)
+      if (rc /= CC_SUCCESS) return
+
+      ! Get diagnostic field
+      field_ptr => registry%get_field_ptr(field_name)
+      if (.not. associated(field_ptr)) then
+         rc = ERROR_NOT_FOUND
+         call this%error_mgr%report_error(ERROR_NOT_FOUND, &
+                'Diagnostic field not found: ' // trim(field_name), rc)
+         return
+      end if
+
+      ! Check if field is ready and enabled
+      if (.not. field_ptr%is_ready() .or. .not. field_ptr%get_is_enabled()) then
+         rc = ERROR_INVALID_INPUT
+         call this%error_mgr%report_error(ERROR_INVALID_INPUT, &
+                'Diagnostic field not ready or disabled: ' // trim(field_name), rc)
+         return
+      end if
+
+      ! Get data pointer
+      data_ptr => field_ptr%get_data_ptr()
+      if (.not. associated(data_ptr)) then
+         rc = ERROR_INVALID_INPUT
+         return
+      end if
+
+      ! Get data type and extract values
+      local_data_type = data_ptr%get_data_type()
+      if (present(data_type)) data_type = local_data_type
+
+      select case (local_data_type)
+      case (DIAG_REAL_SCALAR)
+         if (present(scalar_value)) then
+            scalar_value = data_ptr%get_real_scalar()
+         end if
+
+      case (DIAG_REAL_1D)
+         if (present(array_1d_ptr)) then
+            array_1d_ptr => data_ptr%get_real_1d_ptr()
+         end if
+
+      case (DIAG_REAL_2D)
+         if (present(array_2d_ptr)) then
+            array_2d_ptr => data_ptr%get_real_2d_ptr()
+         end if
+
+      case (DIAG_REAL_3D)
+         if (present(array_3d_ptr)) then
+            array_3d_ptr => data_ptr%get_real_3d_ptr()
+         end if
+
+      case default
+         rc = ERROR_INVALID_INPUT
+         call this%error_mgr%report_error(ERROR_INVALID_INPUT, &
+                'Unsupported diagnostic data type for field: ' // trim(field_name), rc)
+      end select
+
+   end subroutine diagnostic_manager_get_field_value
 
    !> \brief Write diagnostic output
    !!

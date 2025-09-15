@@ -1350,15 +1350,9 @@ contains
       ! Allocate species keys array
       allocate(species_keys(list_size))
       
-      ! Copy species keys and clean null characters from C strings
+      ! Copy species keys (null character cleaning now handled in yaml_get_all_keys)
       do i = 1, list_size
          species_keys(i) = all_yaml_keys(i)
-         ! Replace null characters with spaces for proper Fortran string handling
-         do j = 1, len(species_keys(i))
-            if (ichar(species_keys(i)(j:j)) == 0) then
-               species_keys(i)(j:j) = ' '
-            endif
-         end do
       end do
       
       ! Load each species and directly populate ChemState in single loop
@@ -1490,23 +1484,11 @@ contains
       write(field_path, '(A,A)') trim(species_path), '/name'
       success = yaml_get_string(yaml_root, trim(field_path), species_name)
       if (success) then
-         ! Clean null characters from YAML-loaded name
-         do i = 1, len(species_name)
-            if (ichar(species_name(i:i)) == 0) then
-               species_name(i:i) = ' '
-            endif
-         end do
          species%short_name = trim(adjustl(species_name))
          species%long_name = trim(adjustl(species_name))
       else
          ! Use the key/path as the species name (for flat format like so2:, so4:)
-         ! Clean any null characters that may be in the species_path
          species_name = species_path
-         do i = 1, len(species_name)
-            if (ichar(species_name(i:i)) == 0) then
-               species_name(i:i) = ' '
-            endif
-         end do
          species%short_name = trim(adjustl(species_name))
          species%long_name = trim(adjustl(species_name))
          ! Suppress verbose output: using key as fallback name is expected behavior
@@ -1518,12 +1500,6 @@ contains
       write(field_path, '(A,A)') trim(species_path), '/long_name'
       success = yaml_get_string(yaml_root, trim(field_path), temp_string)
       if (success) then
-         ! Clean null characters from YAML-loaded long_name
-         do i = 1, len(temp_string)
-            if (ichar(temp_string(i:i)) == 0) then
-               temp_string(i:i) = ' '
-            endif
-         end do
          species%long_name = trim(adjustl(temp_string))
       endif
 
@@ -1531,12 +1507,6 @@ contains
       write(field_path, '(A,A)') trim(species_path), '/description'
       success = yaml_get_string(yaml_root, trim(field_path), temp_string)
       if (success) then
-         ! Clean null characters from YAML-loaded description
-         do i = 1, len(temp_string)
-            if (ichar(temp_string(i:i)) == 0) then
-               temp_string(i:i) = ' '
-            endif
-         end do
          species%description = trim(adjustl(temp_string))
       endif
 

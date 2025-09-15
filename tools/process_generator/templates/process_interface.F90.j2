@@ -62,7 +62,7 @@ module Process{{ config.class_name }}Interface_Mod
       private
 
       ! Unified process configuration (bridges ConfigManager to process-specific config)
-      type({{ config.class_name }}ProcessConfig) :: process_config
+      type({{ config.class_name }}ProcessConfig), public :: process_config
 
       ! Process utilities (leverage core infrastructure)
       type(ChemStateType), pointer :: chem_state => null()
@@ -150,8 +150,8 @@ module Process{{ config.class_name }}Interface_Mod
 
 {% if config.diagnostics %}
       ! Diagnostic procedures (override base class method)
-      procedure :: register_diagnostics => register_process_diagnostics
-      procedure, private :: register_process_diagnostics
+      procedure :: register_diagnostics => register_and_allocate_diagnostics
+      procedure, private :: register_and_allocate_diagnostics
       procedure, private :: calculate_and_update_diagnostics
 {% endif %}
 
@@ -169,19 +169,11 @@ contains
       integer, intent(out) :: rc
 
       type(ErrorManagerType), pointer :: error_manager
-{% if config.diagnostics %}
-      type(GridManagerType), pointer :: grid_mgr
-{% endif %}
 
       rc = CC_SUCCESS
 
       ! Get error manager
       error_manager => container%get_error_manager()
-
-{% if config.diagnostics %}
-      ! Get grid manager for diagnostic allocation
-      grid_mgr => container%get_grid_manager()
-{% endif %}
 
 {% if config.enable_column_processing %}
       ! Initialize column processing capabilities
@@ -222,78 +214,6 @@ contains
       call this%register_diagnostics(container, rc)
       if (rc /= CC_SUCCESS) then
          return
-      end if
-
-      ! Allocate diagnostic class members if diagnostics are enabled
-      if (this%process_config%{{ config.name }}_config%diagnostics) then
-         ! Allocate common diagnostic fields (used by all schemes)
-{% for diagnostic in config.diagnostics %}
-{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
-         ! 2D diagnostic: levels x species
-         if (grid_mgr%geometry%get_nz() > 0 .and. this%process_config%{{ config.name }}_config%n_species > 0) then
-            allocate(this%column_{{ diagnostic.name }}(grid_mgr%geometry%get_nz(), this%process_config%{{ config.name }}_config%n_species))
-         end if
-{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name %}
-         ! 1D diagnostic: levels only
-         if (grid_mgr%geometry%get_nz() > 0) then
-            allocate(this%column_{{ diagnostic.name }}(grid_mgr%geometry%get_nz()))
-         end if
-{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name %}
-         ! 1D diagnostic: species only
-         if (this%process_config%{{ config.name }}_config%n_species > 0) then
-            allocate(this%column_{{ diagnostic.name }}(this%process_config%{{ config.name }}_config%n_species))
-         end if
-{% else %}
-         ! Scalar diagnostic
-         allocate(this%column_{{ diagnostic.name }})
-{% endif %}
-{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
-         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
-{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name %}
-         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
-{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name %}
-         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
-{% else %}
-         this%column_{{ diagnostic.name }} = 0.0_fp
-{% endif %}
-{% endfor %}
-         
-         ! Allocate and initialize scheme-specific diagnostic fields based on selected scheme
-         select case (this%process_config%{{ config.name }}_config%scheme)
-{% for scheme in config.schemes %}
-         case ("{{ scheme.name }}")
-            ! Scheme-specific diagnostics for {{ scheme.name }}
-{% if scheme.scheme_diagnostics %}
-{% for diagnostic in scheme.scheme_diagnostics %}
-{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
-            ! 2D diagnostic: levels x species
-            if (grid_mgr%geometry%get_nz() > 0 .and. this%process_config%{{ config.name }}_config%n_species > 0) then
-               allocate(this%column_{{ diagnostic.name }}(grid_mgr%geometry%get_nz(), this%process_config%{{ config.name }}_config%n_species))
-            end if
-            if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
-{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name %}
-            ! 1D diagnostic: levels only
-            if (grid_mgr%geometry%get_nz() > 0) then
-               allocate(this%column_{{ diagnostic.name }}(grid_mgr%geometry%get_nz()))
-            end if
-            if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
-{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name %}
-            ! 1D diagnostic: species only
-            if (this%process_config%{{ config.name }}_config%n_species > 0) then
-               allocate(this%column_{{ diagnostic.name }}(this%process_config%{{ config.name }}_config%n_species))
-            end if
-            if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
-{% else %}
-            ! Scalar diagnostic
-            allocate(this%column_{{ diagnostic.name }})
-            this%column_{{ diagnostic.name }} = 0.0_fp
-{% endif %}
-{% endfor %}
-{% endif %}
-{% endfor %}
-         case default
-            ! No scheme-specific diagnostics for unknown schemes
-         end select
       end if
 {% endif %}
 
@@ -854,9 +774,9 @@ contains
    end function get_required_diagnostic_fields
 
 {% if config.diagnostics %}
-   !> Register diagnostic fields with the DiagnosticManager
+   !> Register diagnostic fields with the DiagnosticManager and allocate diagnostic storage
 
-   subroutine register_process_diagnostics(this, container, rc)
+   subroutine register_and_allocate_diagnostics(this, container, rc)
       use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DIAG_REAL_2D, DIAG_REAL_3D
       
       class(Process{{ config.class_name }}Interface), intent(inout) :: this
@@ -951,7 +871,88 @@ contains
          
       end select
 
-   end subroutine register_process_diagnostics
+      ! Now allocate diagnostic class members after successful registration
+      ! First, deallocate if already allocated (for scheme switching)
+{% for diagnostic in config.diagnostics %}
+      if (allocated(this%column_{{ diagnostic.name }})) deallocate(this%column_{{ diagnostic.name }})
+{% endfor %}
+{% if config.schemes %}
+{% set scheme_diagnostics = [] %}
+{% for scheme in config.schemes %}
+{% for diagnostic in scheme.scheme_diagnostics %}
+{% if diagnostic.name not in scheme_diagnostics %}
+{% set _ = scheme_diagnostics.append(diagnostic.name) %}
+      if (allocated(this%column_{{ diagnostic.name }})) deallocate(this%column_{{ diagnostic.name }})
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% endif %}
+      
+      ! Allocate common diagnostic fields (used by all schemes)
+{% for diagnostic in config.diagnostics %}
+{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
+      ! 2D diagnostic: levels x species
+      if (nz > 0 .and. this%process_config%{{ config.name }}_config%n_species > 0) then
+         allocate(this%column_{{ diagnostic.name }}(nz, this%process_config%{{ config.name }}_config%n_species))
+      end if
+      if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name %}
+      ! 1D diagnostic: levels only
+      if (nz > 0) then
+         allocate(this%column_{{ diagnostic.name }}(nz))
+      end if
+      if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name %}
+      ! 1D diagnostic: species only
+      if (this%process_config%{{ config.name }}_config%n_species > 0) then
+         allocate(this%column_{{ diagnostic.name }}(this%process_config%{{ config.name }}_config%n_species))
+      end if
+      if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% else %}
+      ! Scalar diagnostic
+      allocate(this%column_{{ diagnostic.name }})
+      this%column_{{ diagnostic.name }} = 0.0_fp
+{% endif %}
+{% endfor %}
+      
+      ! Allocate and initialize scheme-specific diagnostic fields based on selected scheme
+      select case (selected_scheme)
+{% for scheme in config.schemes %}
+      case ("{{ scheme.name }}")
+         ! Scheme-specific diagnostics for {{ scheme.name }}
+{% if scheme.scheme_diagnostics %}
+{% for diagnostic in scheme.scheme_diagnostics %}
+{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
+         ! 2D diagnostic: levels x species
+         if (nz > 0 .and. this%process_config%{{ config.name }}_config%n_species > 0) then
+            allocate(this%column_{{ diagnostic.name }}(nz, this%process_config%{{ config.name }}_config%n_species))
+         end if
+         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name %}
+         ! 1D diagnostic: levels only
+         if (nz > 0) then
+            allocate(this%column_{{ diagnostic.name }}(nz))
+         end if
+         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name %}
+         ! 1D diagnostic: species only
+         if (this%process_config%{{ config.name }}_config%n_species > 0) then
+            allocate(this%column_{{ diagnostic.name }}(this%process_config%{{ config.name }}_config%n_species))
+         end if
+         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% else %}
+         ! Scalar diagnostic
+         allocate(this%column_{{ diagnostic.name }})
+         this%column_{{ diagnostic.name }} = 0.0_fp
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+      case default
+         ! No scheme-specific diagnostics for unknown schemes
+      end select
+
+   end subroutine register_and_allocate_diagnostics
 
    !> Calculate and update all diagnostic fields for this process
    !! 

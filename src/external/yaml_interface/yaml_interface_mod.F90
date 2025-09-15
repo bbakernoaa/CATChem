@@ -269,8 +269,16 @@ contains
       logical :: success
 
       character(len=len(value)) :: c_value
+      integer :: i
+      
       success = c_yaml_get_string(node%ptr, trim(key)//c_null_char, c_value, len(value))
       if (success) then
+         ! Clean null characters from C string before returning to Fortran
+         do i = 1, len(c_value)
+            if (ichar(c_value(i:i)) == 0) then
+               c_value(i:i) = ' '
+            endif
+         end do
          value = c_value
       endif
    end function yaml_get_string
@@ -365,13 +373,19 @@ contains
 
       character(len=len(values)) :: c_values(size(values))
       integer(c_int) :: c_actual_size
-      integer :: i
+      integer :: i, j
 
       success = c_yaml_get_string_array(node%ptr, trim(key)//c_null_char, &
                                         c_values, size(values), len(values), c_actual_size)
       if (success) then
          actual_size = c_actual_size
          do i = 1, actual_size
+            ! Clean null characters from each C string before returning to Fortran
+            do j = 1, len(c_values(i))
+               if (ichar(c_values(i)(j:j)) == 0) then
+                  c_values(i)(j:j) = ' '
+               endif
+            end do
             values(i) = c_values(i)
          end do
       endif
@@ -726,7 +740,7 @@ contains
 
       character(kind=c_char) :: c_keys(size(keys) * len(keys(1)))
       integer(c_int) :: c_actual_count
-      integer :: i, key_len, start_pos
+      integer :: i, j, key_len, start_pos
 
       key_len = len(keys(1))
       success = c_yaml_get_all_keys(node%ptr, c_keys, size(keys), key_len, c_actual_count)
@@ -736,6 +750,12 @@ contains
          do i = 1, actual_count
             start_pos = (i - 1) * key_len + 1
             keys(i) = transfer(c_keys(start_pos:start_pos + key_len - 1), keys(i))
+            ! Clean null characters from each key before returning to Fortran
+            do j = 1, len(keys(i))
+               if (ichar(keys(i)(j:j)) == 0) then
+                  keys(i)(j:j) = ' '
+               endif
+            end do
          end do
       else
          actual_count = 0

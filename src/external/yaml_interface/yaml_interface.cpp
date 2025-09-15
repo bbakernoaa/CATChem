@@ -96,8 +96,12 @@ bool yaml_get_integer(void* node_ptr, const char* key, int* value) {
 
     try {
         YamlNodeWrapper* wrapper = static_cast<YamlNodeWrapper*>(node_ptr);
-        if (wrapper->node[key]) {
-            *value = wrapper->node[key].as<int>();
+        
+        // Navigate to the correct node using the path
+        YAML::Node target = navigate_path(wrapper->node, std::string(key));
+        
+        if (target.IsDefined()) {
+            *value = target.as<int>();
             return true;
         }
     } catch (const std::exception& e) {
@@ -139,7 +143,7 @@ bool yaml_get_logical(void* node_ptr, const char* key, bool* value) {
             return true;
         }
     } catch (const std::exception& e) {
-        // Silently fail for missing properties - this is expected behavior
+        std::cerr << "Error getting logical value for key '" << key << "': " << e.what() << std::endl;
     }
     return false;
 }
@@ -150,12 +154,15 @@ bool yaml_get_real_array(void* node_ptr, const char* key, double* values, int ma
 
     try {
         YamlNodeWrapper* wrapper = static_cast<YamlNodeWrapper*>(node_ptr);
-        if (wrapper->node[key] && wrapper->node[key].IsSequence()) {
-            const YAML::Node& seq = wrapper->node[key];
-            *actual_size = std::min(static_cast<int>(seq.size()), max_size);
+        
+        // Navigate to the correct node using the path
+        YAML::Node target = navigate_path(wrapper->node, std::string(key));
+        
+        if (target.IsDefined() && target.IsSequence()) {
+            *actual_size = std::min(static_cast<int>(target.size()), max_size);
 
             for (int i = 0; i < *actual_size; ++i) {
-                values[i] = seq[i].as<double>();
+                values[i] = target[i].as<double>();
             }
             return true;
         }
@@ -170,12 +177,15 @@ bool yaml_get_integer_array(void* node_ptr, const char* key, int* values, int ma
 
     try {
         YamlNodeWrapper* wrapper = static_cast<YamlNodeWrapper*>(node_ptr);
-        if (wrapper->node[key] && wrapper->node[key].IsSequence()) {
-            const YAML::Node& seq = wrapper->node[key];
-            *actual_size = std::min(static_cast<int>(seq.size()), max_size);
+        
+        // Navigate to the correct node using the path
+        YAML::Node target = navigate_path(wrapper->node, std::string(key));
+        
+        if (target.IsDefined() && target.IsSequence()) {
+            *actual_size = std::min(static_cast<int>(target.size()), max_size);
 
             for (int i = 0; i < *actual_size; ++i) {
-                values[i] = seq[i].as<int>();
+                values[i] = target[i].as<int>();
             }
             return true;
         }
@@ -190,12 +200,15 @@ bool yaml_get_string_array(void* node_ptr, const char* key, char* values, int ma
 
     try {
         YamlNodeWrapper* wrapper = static_cast<YamlNodeWrapper*>(node_ptr);
-        if (wrapper->node[key] && wrapper->node[key].IsSequence()) {
-            const YAML::Node& seq = wrapper->node[key];
-            *actual_size = std::min(static_cast<int>(seq.size()), max_strings);
+        
+        // Navigate to the correct node using the path
+        YAML::Node target = navigate_path(wrapper->node, std::string(key));
+        
+        if (target.IsDefined() && target.IsSequence()) {
+            *actual_size = std::min(static_cast<int>(target.size()), max_strings);
 
             for (int i = 0; i < *actual_size; ++i) {
-                std::string str = seq[i].as<std::string>();
+                std::string str = target[i].as<std::string>();
                 char* dest = values + i * max_len;
                 strncpy(dest, str.c_str(), max_len - 1);
                 dest[max_len - 1] = '\0';
@@ -214,7 +227,11 @@ bool yaml_has_key(void* node_ptr, const char* key) {
 
     try {
         YamlNodeWrapper* wrapper = static_cast<YamlNodeWrapper*>(node_ptr);
-        return wrapper->node[key].IsDefined();
+        
+        // Navigate to the correct node using the path
+        YAML::Node target = navigate_path(wrapper->node, std::string(key));
+        
+        return target.IsDefined();
     } catch (const std::exception& e) {
         std::cerr << "Error checking key existence: " << e.what() << std::endl;
     }
