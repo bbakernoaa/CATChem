@@ -589,7 +589,7 @@ contains
       allocate({{ var_name }}(2))  ! Surface edge field - surface and first edge level
 {% endif %}
 {% elif field_classifier.get_field_type(field_name) == 'categorical' %}
-      allocate({{ var_name }}(1))  ! Categorical field - surface value
+      
 {% else %}
       allocate({{ var_name }}(1))  ! Default to scalar for unknown field types
 {% endif %}
@@ -603,6 +603,20 @@ contains
 {% if scheme.required_met_fields %}
       ! Get meteorological data pointer from virtual column (VirtualMet pattern)
       met => column%get_met()
+
+      ! Now allocate categorical fields using the met pointer dimensions
+{% for field in scheme.required_met_fields %}
+{% if field is string %}
+{% set field_name = field %}
+{% set var_name = field | lower | replace('-', '_') | replace('.', '_') %}
+{% else %}
+{% set field_name = field.name %}
+{% set var_name = field.variable_name %}
+{% endif %}
+{% if field_classifier.get_field_type(field_name) == 'categorical' %}
+      allocate({{ var_name }}(size(met%{{ field_name }})))  ! Categorical field - get size from met pointer
+{% endif %}
+{% endfor %}
 
       ! Extract required fields from met pointer based on field type and processing mode
 {% for field in scheme.required_met_fields %}
@@ -628,7 +642,7 @@ contains
       {{ var_name }}(1:2) = met%{{ field_name }}(1:2)  ! Surface edge field - surface and first edge level
 {% endif %}
 {% elif field_classifier.get_field_type(field_name) == 'categorical' %}
-      {{ var_name }}(1) = met%{{ field_name }}(1)  ! Categorical field - surface value
+      {{ var_name }}(:) = met%{{ field_name }}(:)  ! Categorical field - full dimension
 {% else %}
       {{ var_name }}(1) = met%{{ field_name }}  ! Default to scalar access for unknown field types
 {% endif %}

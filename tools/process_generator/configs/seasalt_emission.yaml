@@ -112,7 +112,7 @@ schemes:
     class_name: "GEOS12"
     description: "GEOS-Chem 2012 sea salt emission scheme with observational constraints"
     algorithm_type: "explicit"
-    affects_full_column: true
+    affects_full_column: false
     reference: "Jaeglé et al. [2011]"
     author: "Barry Baker"
 
@@ -121,13 +121,6 @@ schemes:
       - FRSEAICE
       - SST
       - USTAR
-      - AERA_M2
-      - SSM
-      - T
-      - U
-      - F_UNDER_PBLTOP
-      - PEDGE
-      - PEDGE_DRY
 
     required_species_properties:         
       - density              

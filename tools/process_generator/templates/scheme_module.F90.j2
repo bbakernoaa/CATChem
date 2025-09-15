@@ -103,6 +103,8 @@ contains
       real(fp), intent(in) :: {{ var_name }}(num_layers+1)  ! Edge field - requires nz+1 dimensions
 {% elif field_classifier.get_field_type(field_name) == '2d_surface' %}
       real(fp), intent(in) :: {{ var_name }}  ! Surface field - scalar
+{% elif field_classifier.get_field_type(field_name) == 'categorical' %}
+      real(fp), intent(in) :: {{ var_name }}(:)  ! Categorical field - variable dimension array
 {% else %}
       real(fp), intent(in) :: {{ var_name }}(num_layers)    ! 3D atmospheric field
 {% endif %}
@@ -114,6 +116,8 @@ contains
       real(fp), intent(in) :: {{ field.variable_name }}(num_layers+1)  ! {{ field.description }} [{{ field.units }}] - Edge field
 {% elif field_classifier.get_field_type(field.name) == '2d_surface' %}
       real(fp), intent(in) :: {{ field.variable_name }}  ! {{ field.description }} [{{ field.units }}] - Surface field
+{% elif field_classifier.get_field_type(field.name) == 'categorical' %}
+      real(fp), intent(in) :: {{ field.variable_name }}(:)  ! {{ field.description }} [{{ field.units }}] - Categorical field
 {% else %}
       real(fp), intent(in) :: {{ field.variable_name }}(num_layers)  ! {{ field.description }} [{{ field.units }}] - 3D atmospheric field
 {% endif %}
@@ -124,6 +128,8 @@ contains
       real(fp), intent(in) :: {{ field.variable_name }}(num_layers+1)  ! {{ field.description }} [{{ field.units }}] - Edge field (default 1D)
 {% elif field_classifier.get_field_type(field.name) == '2d_surface' %}
       real(fp), intent(in) :: {{ field.variable_name }}  ! {{ field.description }} [{{ field.units }}] - Surface field (default)
+{% elif field_classifier.get_field_type(field.name) == 'categorical' %}
+      real(fp), intent(in) :: {{ field.variable_name }}(:)  ! {{ field.description }} [{{ field.units }}] - Categorical field (default 1D)
 {% else %}
       real(fp), intent(in) :: {{ field.variable_name }}(num_layers)  ! {{ field.description }} [{{ field.units }}] - 3D atmospheric field (default 1D)
 {% endif %}

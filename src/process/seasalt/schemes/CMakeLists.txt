@@ -1,5 +1,5 @@
 # SeaSalt Schemes CMakeLists.txt
-# Generated on: 2025-09-12T17:20:30.020130
+# Generated on: 2025-09-14T21:24:10.325749
 
 # This file is included by the parent CMakeLists.txt
 # Schemes are built as part of the main process library
@@ -33,13 +33,6 @@
 #   - FRSEAICE
 #   - SST
 #   - USTAR
-#   - AERA_M2
-#   - SSM
-#   - T
-#   - U
-#   - F_UNDER_PBLTOP
-#   - PEDGE
-#   - PEDGE_DRY
 
 
 # Scheme validation targets

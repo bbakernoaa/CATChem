@@ -4,7 +4,7 @@
 !! This file contains comprehensive integration tests for the seasalt process implementation
 !! using the centralized CATChemCore framework. Tests complete workflow: core initialization,
 !! configuration loading, process registration, and all scheme validation.
-!! Generated on: 2025-09-12T17:20:30.243441
+!! Generated on: 2025-09-14T21:24:10.396942
 
 program test_seasalt_integration
    use precision_mod, only: fp
@@ -196,33 +196,11 @@ contains
             met_state%U10M(i,j) = -wind_speed * 0.8_fp         ! Easterly trade winds
             met_state%V10M(i,j) = wind_speed * 0.3_fp          ! Slight northerly component
             met_state%USTAR(i,j) = 0.03_fp * sqrt(met_state%U10M(i,j)**2 + met_state%V10M(i,j)**2)
-            met_state%SSM(i,j) = 0.0_fp                        ! Sediment supply map (ocean)
          end do
       end do      
 
-      ! Set up 3D atmospheric fields (nx, ny, nz)
-      do j = 1, ny
-         do i = 1, nx
-            do k = 1, nz
-               ! Calculate height-dependent values
-               ! Approximate altitude in km (assuming ~1 km per level near surface)
-               altitude_km = real(k-1, fp) * 1.0_fp               met_state%T(i,j,k) = 288.15_fp - 6.5_fp * altitude_km  ! Temperature lapse rate [K]
-               met_state%U(i,j,k) = -10.0_fp * (1.0_fp + 0.1_fp * altitude_km)  ! Easterly winds increasing with height
-               met_state%F_UNDER_PBLTOP(i,j,k) = max(0.0_fp, 1.0_fp - altitude_km / 1.2_fp)  ! Fraction under PBL top
-            end do
-         end do
-      end do
       
-      ! Set up pressure edge arrays (nx, ny, nz+1)
-      do j = 1, ny
-         do i = 1, nx
-            do k = 1, nz+1
-               edge_altitude_km = real(k-1, fp) * 1.0_fp - 0.5_fp
-               met_state%PEDGE(i,j,k) = 1013.25_fp * exp(-edge_altitude_km / 8.0_fp)  ! Pressure at edges [hPa]
-               met_state%PEDGE_DRY(i,j,k) = met_state%PEDGE(i,j,k) * 0.99_fp    ! Dry pressure at edges [hPa]
-            end do
-         end do
-      end do
+
    end subroutine setup_met
 
    !> Test a specific seasalt scheme

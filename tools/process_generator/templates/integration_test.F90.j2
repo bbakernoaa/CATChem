@@ -470,7 +470,7 @@ contains
                altitude_km = real(k-1, fp) * 1.0_fp
                {%- set sep = namespace(value='               ') %}
                
-{%- if required_met_fields and 'T' in required_met_fields %}{{- sep.value -}}
+{% if required_met_fields and 'T' in required_met_fields %}{{- sep.value -}}
                met_state%T(i,j,k) = 288.15_fp - 6.5_fp * altitude_km  ! Temperature lapse rate [K]
 {%- set sep.value = '\n               ' %}{%- endif %}
 {%- if required_met_fields and 'THETA' in required_met_fields %}{{- sep.value -}}
@@ -606,6 +606,91 @@ contains
 {%- set sep.value = '\n               ' %}{%- endif %}
 
             end do
+         end do
+      end do
+{% endif %}
+
+{% set has_categorical_fields = [] %}
+{% for field in ['SOILM', 'FRLANDUSE', 'FRSOIL', 'FRLAI', 'FRZ0'] %}
+  {% if required_met_fields and field in required_met_fields %}
+    {% if has_categorical_fields.append(field) %}{% endif %}
+  {% endif %}
+{% endfor %}
+{% if has_categorical_fields %}
+      ! Set up some arrays with special dimensions (nx, ny, ncat)
+      do j = 1, ny
+         do i = 1, nx
+{%- if required_met_fields and 'SOILM' in required_met_fields %}{{- sep.value -}}
+            ! Soil moisture in each layer - realistic profile
+            do k = 1, size(met_state%SOILM, 3)  ! nsoil layers
+               met_state%SOILM(i,j,k) = 0.35_fp - 0.06_fp * real(k-1, fp)  ! Decreasing with depth: 0.35, 0.29, 0.23...
+            end do
+{%- set sep.value = '\n            ' %}{%- endif %}
+{%- if required_met_fields and 'FRLANDUSE' in required_met_fields %}{{- sep.value -}}
+            ! Fractional land use types - realistic distribution
+            do k = 1, size(met_state%FRLANDUSE, 3)  
+               if (k == 1) then
+                  met_state%FRLANDUSE(i,j,k) = 0.4_fp   ! Grassland/crop dominant
+               else if (k == 2) then
+                  met_state%FRLANDUSE(i,j,k) = 0.3_fp   ! Forest
+               else if (k == 3) then
+                  met_state%FRLANDUSE(i,j,k) = 0.2_fp   ! Urban/built
+               else if (k <= 5) then
+                  met_state%FRLANDUSE(i,j,k) = 0.05_fp  ! Wetland/water
+               else
+                  met_state%FRLANDUSE(i,j,k) = 0.0_fp   ! Other types
+               end if
+            end do
+{%- set sep.value = '\n            ' %}{%- endif %}
+{%- if required_met_fields and 'FRSOIL' in required_met_fields %}{{- sep.value -}}
+            ! Fractional soil types - realistic distribution 
+            do k = 1, size(met_state%FRSOIL, 3)  
+               if (k == 1) then
+                  met_state%FRSOIL(i,j,k) = 0.45_fp   ! Loam (most common)
+               else if (k == 2) then
+                  met_state%FRSOIL(i,j,k) = 0.25_fp   ! Clay loam
+               else if (k == 3) then
+                  met_state%FRSOIL(i,j,k) = 0.20_fp   ! Sandy loam
+               else if (k <= 6) then
+                  met_state%FRSOIL(i,j,k) = 0.025_fp  ! Other soil types
+               else
+                  met_state%FRSOIL(i,j,k) = 0.0_fp    ! Unused soil types
+               end if
+            end do
+{%- set sep.value = '\n            ' %}{%- endif %}
+{%- if required_met_fields and 'FRLAI' in required_met_fields %}{{- sep.value -}}
+            ! LAI per land use type - realistic seasonal values
+            do k = 1, size(met_state%FRLAI, 3)  
+               if (k == 1) then
+                  met_state%FRLAI(i,j,k) = 2.5_fp     ! Grassland/crop LAI
+               else if (k == 2) then
+                  met_state%FRLAI(i,j,k) = 4.2_fp     ! Forest LAI  
+               else if (k == 3) then
+                  met_state%FRLAI(i,j,k) = 0.5_fp     ! Urban vegetation
+               else if (k <= 5) then
+                  met_state%FRLAI(i,j,k) = 1.8_fp     ! Wetland vegetation
+               else
+                  met_state%FRLAI(i,j,k) = 0.1_fp     ! Sparse vegetation
+               end if
+            end do
+{%- set sep.value = '\n            ' %}{%- endif %}
+{%- if required_met_fields and 'FRZ0' in required_met_fields %}{{- sep.value -}}
+            ! Aerodynamic roughness per land use type - realistic values
+            do k = 1, size(met_state%FRZ0, 3)  ! nlanduse types
+               if (k == 1) then
+                  met_state%FRZ0(i,j,k) = 0.05_fp     ! Grassland/crop roughness [m]
+               else if (k == 2) then
+                  met_state%FRZ0(i,j,k) = 1.2_fp      ! Forest roughness [m]
+               else if (k == 3) then
+                  met_state%FRZ0(i,j,k) = 0.8_fp      ! Urban roughness [m]
+               else if (k <= 5) then
+                  met_state%FRZ0(i,j,k) = 0.02_fp     ! Wetland/water roughness [m]
+               else
+                  met_state%FRZ0(i,j,k) = 0.001_fp    ! Bare ground roughness [m]
+               end if
+            end do
+{%- set sep.value = '\n            ' %}{%- endif %}
+
          end do
       end do
 {% endif %}
