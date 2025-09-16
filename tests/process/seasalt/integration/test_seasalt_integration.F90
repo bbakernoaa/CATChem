@@ -4,7 +4,7 @@
 !! This file contains comprehensive integration tests for the seasalt process implementation
 !! using the centralized CATChemCore framework. Tests complete workflow: core initialization,
 !! configuration loading, process registration, and all scheme validation.
-!! Generated on: 2025-09-16T00:40:10.335298
+!! Generated on: 2025-09-16T17:45:32.873782
 
 program test_seasalt_integration
    use precision_mod, only: fp
@@ -33,7 +33,7 @@ program test_seasalt_integration
    type(ProcessManagerType), pointer :: process_mgr_ptr
 
    ! Configuration file path
-   character(len=*), parameter :: config_file = '/Users/francis/Documents/Documents/GitHub/CATChem_restructure/tests/Configs/Default/CATChem_new_config.yml'
+   character(len=*), parameter :: config_file = './CATChem_new_config.yml'
 
    ! Test parameters for realistic emission scenario
    integer, parameter :: n_columns = 10    ! Grid columns

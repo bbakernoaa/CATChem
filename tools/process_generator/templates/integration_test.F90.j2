@@ -33,7 +33,7 @@ program test_{{ config.name }}_integration
    type(ProcessManagerType), pointer :: process_mgr_ptr
 
    ! Configuration file path
-   character(len=*), parameter :: config_file = '/Users/francis/Documents/Documents/GitHub/CATChem_restructure/tests/Configs/Default/CATChem_new_config.yml'
+   character(len=*), parameter :: config_file = './CATChem_new_config.yml'
 
    ! Test parameters for realistic {{ config.process_type }} scenario
    integer, parameter :: n_columns = 10    ! Grid columns
