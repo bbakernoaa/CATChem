@@ -242,45 +242,33 @@ contains
       endif
 
       ! Initialize components in dependency order
-      write(*,*) 'Entering core_configure'
-      
-      write(*,*) 'Calling setup_grid'
       call this%setup_grid(local_rc)
-      write(*,*) 'Exited setup_grid'
       if (local_rc /= CC_SUCCESS) then
          rc = local_rc
          call this%error_mgr%pop_context()
          return
       endif
 
-      write(*,*) 'Calling setup_state'
       call this%setup_state(local_rc)
-      write(*,*) 'Exited setup_state'
       if (local_rc /= CC_SUCCESS) then
          rc = local_rc
          call this%error_mgr%pop_context()
          return
       endif
 
-      write(*,*) 'Calling setup_diagnostics'
       call this%setup_diagnostics(local_rc)
-      write(*,*) 'Exited setup_diagnostics'
       if (local_rc /= CC_SUCCESS) then
          rc = local_rc
          call this%error_mgr%pop_context()
          return
       endif
 
-      write(*,*) 'Calling setup_processes'
       call this%setup_processes(local_rc)
-      write(*,*) 'Exited setup_processes'
       if (local_rc /= CC_SUCCESS) then
          rc = local_rc
          call this%error_mgr%pop_context()
          return
       endif
-      
-      write(*,*) 'Exiting core_configure'
 
       this%is_configured = .true.
 
@@ -330,6 +318,9 @@ contains
 
       rc = CC_SUCCESS
 
+      write(*,*) 'Grid dimensions in setup_state: ', this%nx, this%ny, this%nz
+      
+      write(*,*) 'calling push_context in setup_state'
       call this%error_mgr%push_context('core_setup_state', 'Setting up state manager')
 
       ! Get pointer to error manager
@@ -344,6 +335,7 @@ contains
       call grid_geom_ptr%set(nx, ny, nz)
 
       ! Initialize state manager
+      write(*,*) 'calling state_mgr%init in setup_state'
       call this%state_mgr%init(this%name // '_StateManager', local_rc)
       if (local_rc /= CC_SUCCESS) then
          call this%error_mgr%report_error(local_rc, 'Failed to initialize state manager', rc)
@@ -368,6 +360,7 @@ contains
       endif
 
       ! Initialize meteorological state
+      write(*,*) 'calling state_mgr%get_met_state_ptr in setup_state'
       met_ptr => this%state_mgr%get_met_state_ptr()
       if (associated(met_ptr)) then
           call met_ptr%init(this%nx, this%ny, this%nz, this%nsoil, this%nsoiltype, this%nsurftype, error_mgr_ptr, local_rc)

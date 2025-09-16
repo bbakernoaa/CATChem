@@ -36,9 +36,9 @@ MODULE MetState_Mod
    !!!>
    TYPE, PUBLIC :: MetStateType
       CHARACTER(LEN=3)             :: State     = 'MET'    !< Name of this state
-      INTEGER                      :: NLEVS             !< Number of vertical levels
+      INTEGER                      :: NLEVS     = 127      !< Number of vertical levels (default)
       TYPE(GridGeometryType) :: geometry
-      INTEGER                      :: NSURFTYPE         !< Number of surface types
+      INTEGER                      :: NSURFTYPE = 20       !< Number of surface types (default)
       ! Grid flags (2D: nx, ny)
       LOGICAL, ALLOCATABLE         :: IsLand(:,:)       !< Is this a land grid box?
       LOGICAL, ALLOCATABLE         :: IsWater(:,:)      !< Is this a water grid box?
@@ -235,6 +235,12 @@ CONTAINS
 
       rc = CC_SUCCESS
 
+      ! Initialize default values for integer parameters
+      this%NLEVS = nlevs
+      ! Initialize integer parameters with default values
+      if (this%nSOIL == 0) this%nSOIL = 1
+      if (this%nSOILTYPE == 0) this%nSOILTYPE = 1
+
       call this%geometry%set(nx, ny, nlevs) ! Add a set() method to GridGeometryType
       
       this%State = 'MET'
@@ -322,6 +328,8 @@ CONTAINS
       end select
 
       this%State = ''
+      this%NLEVS = 72  ! Reset to default
+      this%NSURFTYPE = 1  ! Reset to default
 
    end subroutine metstate_cleanup
 
