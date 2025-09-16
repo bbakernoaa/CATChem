@@ -4,7 +4,7 @@
 !! This file contains comprehensive integration tests for the seasalt process implementation
 !! using the centralized CATChemCore framework. Tests complete workflow: core initialization,
 !! configuration loading, process registration, and all scheme validation.
-!! Generated on: 2025-09-15T16:54:17.120772
+!! Generated on: 2025-09-16T00:40:10.335298
 
 program test_seasalt_integration
    use precision_mod, only: fp
@@ -339,11 +339,12 @@ contains
       real(fp), pointer :: array_1d_ptr(:) => null()
       real(fp), pointer :: array_2d_ptr(:,:) => null()
       real(fp), pointer :: array_3d_ptr(:,:,:) => null()
-      logical :: validation_passed = .true.
+      logical :: validation_passed
       character(len=64) :: field_name
       character(len=20) :: type_name
       
       rc_arg = CC_SUCCESS
+      validation_passed = .true.
       
       write(output_unit,'(A)') '  Validating seasalt emission results...'
       
@@ -442,7 +443,7 @@ contains
       logical, intent(inout) :: validation_passed
       logical, intent(in), optional :: verbose
       
-      logical :: field_passed = .true.
+      logical :: field_passed
       logical :: is_verbose = .false.
       character(len=20) :: type_name
       integer :: i, j, k
@@ -450,6 +451,8 @@ contains
       
       ! Set verbose mode
       if (present(verbose)) is_verbose = verbose
+      ! Explicitly initialize field_passed for each call
+      field_passed = .true.
       
       ! Convert data type to readable name and validate values
       select case (data_type)

@@ -25,6 +25,7 @@ module {{ config.class_name }}Scheme_{{ scheme.class_name }}_Mod
 
    use precision_mod, only: fp
    use {{ config.class_name }}Common_Mod, only: {{ config.class_name }}Scheme{{ scheme.class_name }}Config
+   use Constants, only: PI  !load the constants needed for this scheme
 
    implicit none
    private
@@ -32,11 +33,9 @@ module {{ config.class_name }}Scheme_{{ scheme.class_name }}_Mod
    ! Public interface - pure science only
    public :: compute_{{ scheme.name }}
 
-   ! Physical constants (modify as needed for your scheme)
-   real(fp), parameter :: R_GAS = 8.314_fp           ! Universal gas constant [J/mol/K]
+   ! Additional physical constants (modify as needed for your scheme)
    real(fp), parameter :: T_STANDARD = 303.15_fp    ! Standard reference temperature [K]
    real(fp), parameter :: DEFAULT_SCALING = 1.0e-9_fp ! Default emission scaling factor
-   real(fp), parameter :: PI = 3.14159265359_fp     ! Pi constant
 
 contains
 
