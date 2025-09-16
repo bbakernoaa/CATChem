@@ -709,9 +709,8 @@ CONTAINS
       if (allocated(this%SpeciesNames)) deallocate(this%SpeciesNames)
       if (allocated(this%ChemSpecies)) deallocate(this%ChemSpecies)
 
-      ! Clean up grid geometry pointer if it was allocated by the core
+      ! Clean up grid geometry pointer (nullify only, don't deallocate as we don't own it)
       if (associated(this%Grid)) then
-         deallocate(this%Grid)
          this%Grid => null()
       endif
 

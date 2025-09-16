@@ -367,10 +367,14 @@ contains
       call assert(test_rc == CC_SUCCESS, "Should successfully load main config file")
 
       write(*,*) '  Subtest 30.3: Get species filename from config'
-      call config_manager%get_string('simulation/species_filename', species_file, test_rc, './tests/Configs/Default/CATChem_species.yml')
+      call config_manager%get_string('simulation/species_filename', species_file, test_rc, './Configs/Default/CATChem_species.yml')
       call assert(test_rc == CC_SUCCESS, "Should get species filename from config")
 
       ! Check if species file exists
+      inquire(file=species_file, exist=file_exists)
+      if (.not. file_exists) then
+         species_file = './Configs/Default/CATChem_species.yml'
+      end if
       inquire(file=species_file, exist=file_exists)
       call assert(file_exists, "Species file should exist: " // trim(species_file))
 

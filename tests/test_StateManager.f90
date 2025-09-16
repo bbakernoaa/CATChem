@@ -17,6 +17,7 @@ program test_StateManager
 
    type(StateManagerType) :: state_mgr
    type(ConfigManagerType), pointer :: config_ptr
+   type(ConfigManagerType) :: config_mgr
    type(MetStateType), pointer :: met_ptr
    type(ChemStateType), pointer :: chem_ptr
    type(GridManagerType), pointer :: grid_mgr_ptr
@@ -42,6 +43,8 @@ program test_StateManager
 
    ! Test 2: Get configuration pointer
    write(*,*) 'Test 2: Get configuration pointer'
+   call config_mgr%init(rc)
+   call state_mgr%set_config(config_mgr, rc)
    config_ptr => state_mgr%get_config_ptr()
    call assert(associated(config_ptr), "Should be able to get config pointer")
 
