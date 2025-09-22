@@ -14,7 +14,11 @@ module {{ config.class_name }}Common_Mod
    ! use precision_mod, only: fp
    use error_mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType, &
                         ERROR_INVALID_CONFIG, ERROR_INVALID_STATE, ERROR_NOT_FOUND
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+   use ConfigManager_Mod, only: ConfigManagerType, EmissionCategoryMapping  ! ConfigManager integration with emission mapping
+{% else %}
    use ConfigManager_Mod, only: ConfigManagerType  ! ConfigManager integration
+{% endif %}
    use StateManager_Mod, only: StateManagerType  ! Add StateManager integration
 
    implicit none
@@ -46,6 +50,11 @@ module {{ config.class_name }}Common_Mod
       integer :: n_species = 0
       character(len=32), allocatable :: species_names(:)
       integer, allocatable :: species_indices(:)  ! Indices of {{ config.name }} species in ChemState
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+      
+      ! Emission category mapping (for emission_mapping filter only)
+      type(EmissionCategoryMapping) :: emission_mapping   ! Complete emission mapping for this category
+{% endif %}
 
 {% if config.has_size_bins %}
       ! Size bin configuration
@@ -137,6 +146,8 @@ module {{ config.class_name }}Common_Mod
       procedure, public :: load_from_config => {{ config.name }}_process_load_config
 {% if config.species %}
       procedure, public :: load_species_from_list => load_species_from_list
+{% elif config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+      procedure, public :: load_species_from_emission_mapping => load_species_from_emission_mapping
 {% else %}
       procedure, public :: load_species_from_chem_state => load_species_from_chem_state
 {% endif %}
@@ -220,6 +231,11 @@ contains
       if (allocated(this%species_indices)) then
          deallocate(this%species_indices)
       end if
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+
+      ! Finalize emission category mapping (emission_mapping only)
+      call this%emission_mapping%cleanup()
+{% endif %}
 
 {% if all_required_species_properties %}
       ! Deallocate species properties arrays
@@ -614,6 +630,85 @@ contains
 {% endif %}
       
    end subroutine load_species_from_chem_state
+{% endif %}
+
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+   !> Load species from emission mapping configuration
+   !!
+   !! This method loads species information from the ConfigManager's emission mapping system.
+   !! The process name is used as the emission category name to retrieve the corresponding 
+   !! species mapping from the emission configuration.
+   !! For emission mapping, species_names will contain emission field names (e.g., "DU1", "SeaS1")
+   !! and the emission_mapping contains the complete mapping to chemical species.
+   subroutine load_species_from_emission_mapping(this, config_manager, error_handler, chem_state)
+      use ConfigManager_Mod, only: ConfigManagerType
+      use ChemState_Mod, only: ChemStateType
+      use ChemSpeciesUtils_Mod, only: get_species_indices
+
+      class({{ config.class_name }}ProcessConfig), intent(inout) :: this
+      type(ConfigManagerType), intent(inout) :: config_manager
+      type(ErrorManagerType), intent(inout) :: error_handler
+      type(ChemStateType), optional, intent(in) :: chem_state
+      
+      integer :: mapping_index, i, rc
+      character(len=64) :: category_name
+
+      ! Use process name as emission category name
+      category_name = trim("{{ config.name }}")
+      
+      ! Get emission mapping index for this category
+      mapping_index = config_manager%get_emission_mapping_for_category(category_name)
+      
+      if (mapping_index <= 0) then
+         call error_handler%report_error(ERROR_INVALID_STATE, &
+            "No emission mapping found for category: " // trim(category_name), rc)
+         return
+      end if
+      
+      ! Copy the complete emission mapping from config_manager
+      call this%{{ config.name }}_config%emission_mapping%copy( &
+         config_manager%config_data%emission_mapping%categories(mapping_index))
+      
+      ! Set n_species based on emission mapping
+      this%{{ config.name }}_config%n_species = this%{{ config.name }}_config%emission_mapping%n_emission_species
+      
+      if (this%{{ config.name }}_config%n_species <= 0) then
+         call error_handler%report_error(ERROR_INVALID_STATE, &
+            "No emission species found for category: " // trim(category_name), rc)
+         return
+      end if
+      
+      ! Deallocate existing arrays if allocated
+      if (allocated(this%{{ config.name }}_config%species_names)) then
+         deallocate(this%{{ config.name }}_config%species_names)
+      end if
+      if (allocated(this%{{ config.name }}_config%species_indices)) then
+         deallocate(this%{{ config.name }}_config%species_indices)
+      end if
+      
+      ! Allocate arrays for species names and indices
+      allocate(this%{{ config.name }}_config%species_names(this%{{ config.name }}_config%n_species))
+      allocate(this%{{ config.name }}_config%species_indices(this%{{ config.name }}_config%n_species))
+{% if all_required_species_properties %}
+      
+      ! Allocate species properties arrays
+{% for prop in all_required_species_properties %}
+      allocate(this%{{ config.name }}_config%species_{{ prop }}(this%{{ config.name }}_config%n_species))
+{% endfor %}
+{% endif %}
+      
+      ! Load emission field names as species_names (used by schemes)
+      do i = 1, this%{{ config.name }}_config%n_species
+         ! Store emission field names as species_names (used in schemes)
+         this%{{ config.name }}_config%species_names(i) = &
+            trim(this%{{ config.name }}_config%emission_mapping%species_mappings(i)%emission_field)
+         
+         ! Set species index (will be resolved later against ChemState)
+         this%{{ config.name }}_config%species_indices(i) = i
+      end do
+
+
+   end subroutine load_species_from_emission_mapping
 {% endif %}
 
 {% for scheme in config.schemes %}

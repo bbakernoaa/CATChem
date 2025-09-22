@@ -69,12 +69,12 @@ module StateManager_Mod
       private
 
       ! Core state objects
-      type(ConfigManagerType), allocatable :: config   !< Configuration manager
       type(MetStateType),   allocatable :: met_state   !< Meteorological fields
       type(ChemStateType),  allocatable :: chem_state  !< Chemical species concentrations
       type(ErrorManagerType)            :: error_mgr   !< Error manager
 
       ! Manager pointers (owned by CATChemCore)
+      type(ConfigManagerType), pointer :: config => null()  !< Configuration manager
       type(GridManagerType), pointer :: grid_mgr => null()  !< Grid manager
       type(DiagnosticManagerType), pointer :: diag_mgr => null()  !< Diagnostic manager
 
@@ -171,10 +171,10 @@ contains
       rc = CC_SUCCESS
 
       ! Finalize and deallocate state objects
-      if (allocated(this%config)) then
+      if (associated(this%config)) then
          call this%config%finalize(config_rc)
          if (config_rc /= CC_SUCCESS) rc = config_rc  ! Don't stop cleanup on error
-         deallocate(this%config)
+         nullify(this%config)  ! Just nullify pointer, don't deallocate (owned by CATChemCore)
       end if
       if (allocated(this%met_state)) deallocate(this%met_state)
       if (allocated(this%chem_state)) deallocate(this%chem_state)
@@ -191,7 +191,7 @@ contains
       logical :: ready
 
       ready = this%is_initialized .and. this%is_configured .and. &
-              allocated(this%config) .and. &
+              associated(this%config) .and. &
               allocated(this%met_state) .and. &
               allocated(this%chem_state)
    end function manager_is_ready
@@ -208,7 +208,7 @@ contains
       class(StateManagerType), intent(inout), target :: this
       type(ConfigManagerType), pointer :: config_ptr
 
-      if (allocated(this%config)) then
+      if (associated(this%config)) then
          config_ptr => this%config
       else
          nullify(config_ptr)
@@ -223,14 +223,8 @@ contains
 
       rc = CC_SUCCESS
 
-      ! Deallocate existing config if any
-      if (allocated(this%config)) then
-         call this%config%finalize(rc)
-         deallocate(this%config)
-      endif
-
-      ! Allocate and point to the external config
-      allocate(this%config, source=external_config)
+      ! Point to the external config (share the same instance)
+      this%config => external_config
    end subroutine manager_set_config
 
    !> \brief Get pointer to met state for modification
@@ -479,7 +473,7 @@ contains
       write(*,'(A)') '=== StateManager Information ==='
       write(*,'(A,A)') 'Name: ', trim(this%name)
       write(*,'(A,L1)') 'Initialized: ', this%is_initialized
-      write(*,'(A,L1)') 'Config manager allocated: ', allocated(this%config)
+      write(*,'(A,L1)') 'Config manager associated: ', associated(this%config)
       write(*,'(A,L1)') 'Met state allocated: ', allocated(this%met_state)
       write(*,'(A,L1)') 'Chem state allocated: ', allocated(this%chem_state)
       write(*,'(A)') '================================='
@@ -502,7 +496,7 @@ contains
       ! Simplified calculation - real implementation would query each state object
       memory_bytes = 0_8
 
-      if (allocated(this%config)) memory_bytes = memory_bytes + 1024_8
+      if (associated(this%config)) memory_bytes = memory_bytes + 1024_8
       if (allocated(this%met_state)) memory_bytes = memory_bytes + 102400_8
       if (allocated(this%chem_state)) memory_bytes = memory_bytes + 1048576_8
    end function manager_get_memory_usage

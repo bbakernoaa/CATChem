@@ -8,6 +8,7 @@ program test_ConfigManager
    use StateManager_Mod, only: StateManagerType
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType
    use GridManager_Mod, only: GridManagerType
+   use ChemState_Mod, only: ChemStateType
    use Precision_Mod, only: fp
 
    implicit none
@@ -16,6 +17,7 @@ program test_ConfigManager
    type(StateManagerType) :: state_mgr
    type(ErrorManagerType) :: error_mgr
    type(GridManagerType) :: grid_mgr
+   type(ChemStateType) :: chem_state
    integer :: rc
    logical :: is_ready
 
@@ -324,28 +326,150 @@ program test_ConfigManager
 
    ! Test 30: Load and initialize species from configuration file
    write(*,*) 'Test 30: Load and initialize species from configuration file'
-   call test_load_and_init_species(config_mgr, error_mgr)
+   call test_load_and_init_species(config_mgr, chem_state, error_mgr)
 
    write(*,*) 'Test 30 passed!'
+   write(*,*) ''
+
+   write(*,*) 'Test chem_state still exists:  ', size(chem_state%ChemSpecies)
+
+   ! Test 31: Load emission mapping configuration
+   write(*,*) 'Test 31: Load emission mapping configuration'
+   call test_emission_mapping_load(config_mgr, chem_state)
+
+   write(*,*) 'Test 31 passed!'
+   write(*,*) ''
+
+   ! Final cleanup
+   write(*,*) 'Final cleanup: Cleaning up chem_state'
+   call chem_state%cleanup(rc)
+   write(*,*) 'Final cleanup completed'
    write(*,*) ''
 
    write(*,*) 'All ConfigManager tests passed!'
    
 contains
 
+   !> \brief Test the emission mapping functionality
+   !!
+   !! This test loads the emission configuration file and tests the emission-to-species
+   !! mapping functionality, including discovery of emission fields and their mappings
+   !! to chemical species with scaling factors.
+   subroutine test_emission_mapping_load(config_manager, species_state)
+      type(ConfigManagerType), intent(inout) :: config_manager
+      type(ChemStateType), intent(in) :: species_state
+      
+      integer :: test_rc, mapping_index, i, j, k, species_idx
+      character(len=256) :: emission_file
+      logical :: file_exists
+
+      write(*,*) '  Subtest 31.1: Check if emission configuration file exists'
+      emission_file = './Configs/Default/CATChem_emission.yml'
+      inquire(file=emission_file, exist=file_exists)
+      if (.not. file_exists) then
+         emission_file = './tests/Configs/Default/CATChem_emission.yml'
+         inquire(file=emission_file, exist=file_exists)
+      endif
+      call assert(file_exists, "Emission configuration file should exist: " // trim(emission_file))
+      write(*,*) '    Emission config file found: ', trim(emission_file)
+
+      write(*,*) '  Subtest 31.2: Load emission mapping configuration'
+      call config_manager%load_emission_mapping(emission_file, test_rc, species_state)
+      call assert(test_rc == CC_SUCCESS, "Should successfully load emission mapping config")
+      write(*,*) '    ✓ Emission mapping configuration loaded successfully'
+
+      write(*,*) '  Subtest 31.3: Display detailed emission mapping information'
+      write(*,*) '    ============== Emission Mapping Details =============='
+      
+      if (config_manager%config_data%emission_mapping%is_loaded) then
+         write(*,'(A,I0)') '    Total categories loaded: ', config_manager%config_data%emission_mapping%n_categories
+         
+         do i = 1, config_manager%config_data%emission_mapping%n_categories
+            write(*,*) ''
+            write(*,'(A,A)') '    Category: ', trim(config_manager%config_data%emission_mapping%categories(i)%category_name)
+            write(*,'(A,I0)') '      Number of emission species: ', config_manager%config_data%emission_mapping%categories(i)%n_emission_species
+            write(*,'(A,L1)') '      Active: ', config_manager%config_data%emission_mapping%categories(i)%is_active
+            
+            do j = 1, config_manager%config_data%emission_mapping%categories(i)%n_emission_species
+               write(*,'(A,I0,A,A)') '        Field ', j, ': ', &
+                     trim(config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%emission_field)
+               write(*,'(A,A)') '          Description: ', &
+                     trim(config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%long_name)
+               write(*,'(A,I0)') '          Number of mappings: ', &
+                     config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%n_mappings
+               write(*,'(A,L1)') '          Active: ', &
+                     config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%is_active
+               
+               if (config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%n_mappings > 0) then
+                  if (allocated(config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%map) .and. &
+                      allocated(config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%scale)) then
+                     do k = 1, config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%n_mappings
+                        ! Get species index from ChemState if available
+                        if (allocated(species_state%ChemSpecies)) then
+                           species_idx = species_state%find_species(trim(config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%map(k)))
+                           if (species_idx > 0) then
+                              write(*,'(A,I0,A,A,A,F6.3,A,I0,A)') '          Mapping ', k, ': ', &
+                                    trim(config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%map(k)), &
+                                    ' (Scale: ', &
+                                    config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%scale(k), &
+                                    ', Index: ', species_idx, ')'
+                           else
+                              write(*,'(A,I0,A,A,A,F6.3,A)') '          Mapping ', k, ': ', &
+                                    trim(config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%map(k)), &
+                                    ' (Scale: ', &
+                                    config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%scale(k), &
+                                    ', Index: NOT FOUND)'
+                           endif
+                        else
+                           write(*,'(A,I0,A,A,A,F6.3,A)') '          Mapping ', k, ': ', &
+                                 trim(config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%map(k)), &
+                                 ' (Scale: ', &
+                                 config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%scale(k), &
+                                 ', Index: N/A - ChemState not available)'
+                        endif
+                     end do
+                  end if
+               end if
+            end do
+         end do
+         write(*,*) '    ======================================================'
+      else
+         write(*,*) '    Warning: Emission mapping not loaded'
+      endif
+
+      write(*,*) '  Subtest 31.4: Test category mapping index retrieval'
+      mapping_index = config_manager%get_emission_mapping_for_category('seasalt')
+      if (mapping_index > 0) then
+         write(*,'(A,I0)') '    ✓ Seasalt mapping index: ', mapping_index
+      else
+         write(*,*) '    Note: Seasalt mapping index not found'
+      endif
+      
+      mapping_index = config_manager%get_emission_mapping_for_category('dust')
+      if (mapping_index > 0) then
+         write(*,'(A,I0)') '    ✓ Dust mapping index: ', mapping_index
+      else
+         write(*,*) '    Note: Dust mapping index not found'
+      endif
+
+      write(*,*) '    All emission mapping tests completed successfully!'
+
+   end subroutine test_emission_mapping_load
+
    !> \brief Test the config_manager_load_and_init_species functionality
    !!
    !! This test loads the main configuration file (CATChem_new_config.yml) which contains
    !! the path to the species configuration file, then tests the loading and initialization
    !! of species into a ChemState object.
-   subroutine test_load_and_init_species(config_manager, error_manager)
-      use ChemState_Mod, only: ChemStateType
+   subroutine test_load_and_init_species(config_manager, species_state, error_manager)
+      !use ChemState_Mod, only: ChemStateType
       use GridGeometry_Mod, only: GridGeometryType
 
       type(ConfigManagerType), intent(inout) :: config_manager
+      type(ChemStateType), intent(inout) :: species_state
       type(ErrorManagerType), intent(inout), target :: error_manager
       
-      type(ChemStateType) :: chem_state
+      
       type(GridGeometryType), target :: grid_geometry
       integer :: test_rc, num_species, i, species_idx
       character(len=256) :: config_file, species_file
@@ -389,15 +513,15 @@ contains
       call config_manager%set_loading_strategy(CONFIG_STRATEGY_PERMISSIVE)
       
       ! Note: YAML parsing errors will be suppressed but species loading will still work
-      call config_manager%load_and_init_species(species_file, chem_state, error_mgr_ptr, grid_ptr, test_rc, &
+      call config_manager%load_and_init_species(species_file, species_state, error_mgr_ptr, grid_ptr, test_rc, &
                                                num_species=num_species)
       
       call assert(test_rc == CC_SUCCESS, "Should successfully identify species from config file")
 
       write(*,*) '  Subtest 30.6: Validate loaded species data'
       call assert(num_species > 0, "Should load at least one species")
-      call assert(allocated(chem_state%ChemSpecies), "ChemState ChemSpecies array should be allocated")
-      call assert(size(chem_state%ChemSpecies) >= num_species, "ChemSpecies array size should be sufficient")
+      call assert(allocated(species_state%ChemSpecies), "ChemState ChemSpecies array should be allocated")
+      call assert(size(species_state%ChemSpecies) >= num_species, "ChemSpecies array size should be sufficient")
       
       write(*,'(A,I0,A)') '    ✓ Successfully processed ', num_species, ' species from YAML config'
 
@@ -412,13 +536,13 @@ contains
          
          ! Test by comparing first N characters (more reliable than trim with current YAML interface)
          do i = 1, num_species
-            if (chem_state%ChemSpecies(i)%short_name(1:3) == 'so2') then
+            if (species_state%ChemSpecies(i)%short_name(1:3) == 'so2') then
                found_so2 = .true.
             endif
-            if (chem_state%ChemSpecies(i)%short_name(1:5) == 'dust1') then
+            if (species_state%ChemSpecies(i)%short_name(1:5) == 'dust1') then
                found_dust1 = .true.
             endif
-            if (chem_state%ChemSpecies(i)%short_name(1:5) == 'seas1') then
+            if (species_state%ChemSpecies(i)%short_name(1:5) == 'seas1') then
                found_seas1 = .true.
             endif
          enddo
@@ -435,18 +559,18 @@ contains
 
       write(*,*) '  Subtest 30.8: Validate ChemState object'
       ! Only test basic ChemState functionality if we have some species loaded
-      if (chem_state%get_num_species() > 0) then
-         call assert(chem_state%get_num_species() == num_species, "ChemState should have correct number of species")
+      if (species_state%get_num_species() > 0) then
+         call assert(species_state%get_num_species() == num_species, "ChemState should have correct number of species")
          
          ! Test finding species by name - be flexible since properties might not be fully parsed
-         species_idx = chem_state%find_species('so2')
+         species_idx = species_state%find_species('so2')
          if (species_idx > 0) then
             write(*,'(A,I0)') '    SO2 species index in ChemState: ', species_idx
          else
             write(*,*) '    SO2 species not found in ChemState (this may be expected)'
          endif
          
-         species_idx = chem_state%find_species('dust1') 
+         species_idx = species_state%find_species('dust1') 
          if (species_idx > 0) then
             write(*,'(A,I0)') '    dust1 species index in ChemState: ', species_idx
          else
@@ -457,24 +581,25 @@ contains
       endif
 
       write(*,*) '  Subtest 30.9: Test ChemState has_species function'
-      if (chem_state%get_num_species() > 0) then
-         if (chem_state%has_species('so2')) then
+      if (species_state%get_num_species() > 0) then
+         if (species_state%has_species('so2')) then
             write(*,*) '    ChemState has SO2 species ✓'
          else
             write(*,*) '    ChemState does not have SO2 species (may be expected due to parsing issues)'
          endif
          
-         call assert(.not. chem_state%has_species('nonexistent'), "ChemState should not have nonexistent species")
+         call assert(.not. species_state%has_species('nonexistent'), "ChemState should not have nonexistent species")
       else
          write(*,*) '    Skipping has_species tests due to empty ChemState'
       endif
 
       write(*,*) '  Subtest 30.10: Print ChemState summary'
-      call chem_state%print_summary()
+      call species_state%print_summary()
 
-      write(*,*) '  Subtest 30.11: Clean up test objects'
-      call chem_state%cleanup(test_rc)
-      call assert(test_rc == CC_SUCCESS, "ChemState cleanup should succeed")
+      write(*,*) '  Subtest 30.11: Keep test objects for Test 31'
+      ! Note: Not cleaning up species_state here so it can be passed to Test 31
+      ! call species_state%cleanup(test_rc)
+      ! call assert(test_rc == CC_SUCCESS, "ChemState cleanup should succeed")
       
       ! Grid geometry doesn't need explicit cleanup
       write(*,*) '    Grid geometry cleaned up'

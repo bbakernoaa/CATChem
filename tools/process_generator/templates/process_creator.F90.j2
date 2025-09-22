@@ -96,6 +96,20 @@ contains
          '  version: "{{ config.version }}"' // new_line('A') // &
          '  active_scheme: "{{ config.default_scheme }}"' // new_line('A') // &
          '  is_active: true' // new_line('A') // &
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+         '' // new_line('A') // &
+         '# Process behavior configuration' // new_line('A') // &
+         'process_behavior:' // new_line('A') // &
+         '  type: "{{ config.process_behavior.type }}"' // new_line('A') // &
+         '  tendency_mode: "{{ config.process_behavior.tendency_mode }}"' // new_line('A') // &
+         '  species_filter:' // new_line('A') // &
+         '    type: "emission_mapping"' // new_line('A') // &
+         '  tendency_calculation: "{{ config.process_behavior.tendency_calculation }}"' // new_line('A') // &
+         '  timestep_dependency: "{{ config.process_behavior.timestep_dependency }}"' // new_line('A') // &
+         '  spatial_scope: "{{ config.process_behavior.spatial_scope }}"' // new_line('A') // &
+         '  parallelization: "{{ config.process_behavior.parallelization }}"' // new_line('A') // &
+         '  memory_requirements: "{{ config.process_behavior.memory_requirements }}"' // new_line('A') // &
+{% endif %}
          '' // new_line('A') // &
 {% if config.schemes %}
          '# Scheme configuration' // new_line('A') // &

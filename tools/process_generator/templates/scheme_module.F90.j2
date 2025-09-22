@@ -48,6 +48,9 @@ contains
    !! @param[in]  num_layers     Number of vertical layers
    !! @param[in]  num_species    Number of chemical species
    !! @param[in]  params         Scheme parameters (pre-validated by host)
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+   !! @param[in]  n_species_mapping Number of chemical species per emission species (num_species)
+{% endif %}
 {% for field in scheme.required_met_fields %}
 {% if field is string %}
    !! @param[in]  {{ field | lower | replace('-', '_') | replace('.', '_') }}    {{ field }} field [appropriate units]
@@ -66,6 +69,9 @@ contains
    pure subroutine compute_{{ scheme.name }}( &
       num_layers, &
       num_species, &
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+      n_species_mapping, &
+{% endif %}
       params{% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}, &
 {% for field in scheme.required_met_fields %}
 {% if field is string %}
@@ -92,6 +98,9 @@ contains
       ! Arguments
       integer, intent(in) :: num_layers
       integer, intent(in) :: num_species
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+      integer, intent(in) :: n_species_mapping(num_species)  ! Number of chem species per emission species
+{% endif %}
       type({{ config.class_name }}Scheme{{ scheme.class_name }}Config), intent(in) :: params
 {% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}
 {% for field in scheme.required_met_fields %}
@@ -141,7 +150,11 @@ contains
       real(fp), intent(in) :: species_{{ prop }}(num_species)  ! Species {{ prop }} property
 {% endfor %}
 {% endif %}
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+      real(fp), intent(in) :: species_conc(num_layers, sum(n_species_mapping))  ! Chemical species concentrations
+{% else %}
       real(fp), intent(in) :: species_conc(num_layers, num_species)
+{% endif %}
       real(fp), intent(inout) :: species_tendencies(num_layers, num_species)
 {% if config.diagnostics %}
       real(fp), intent(inout), optional :: diag_mass_emission_total
@@ -152,6 +165,10 @@ contains
 
       ! Local variables
       integer :: k, species_idx
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+      integer :: chem_idx, j  ! For emission mapping indexing
+      real(fp) :: avg_conc  ! Average concentration for emission mapping
+{% endif %}
       real(fp) :: base_emission_factor
       real(fp) :: environmental_factor
       real(fp) :: species_factor
@@ -226,6 +243,41 @@ contains
 {% endif %}
 
          ! Apply to each species
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+         ! For emission mapping: loop over emission species, consider mapped chemical species
+         chem_idx = 1  ! Index into chemical species concentration array
+         do species_idx = 1, num_species  ! Loop over emission species
+            ! Base emission factor (customize this for species-specific emissions)
+{% if scheme.parameters and 'scaling_factor' in scheme.parameters %}
+            base_emission_factor = params%scaling_factor
+{% else %}
+            base_emission_factor = DEFAULT_SCALING
+{% endif %}
+
+            ! Species-specific factor (customize based on species properties)
+            species_factor = 1.0_fp  ! TODO: Add species-specific scaling
+
+            ! Compute emission flux using average of mapped chemical species concentrations
+            ! TODO: Customize this averaging/selection logic for your scheme
+            avg_conc = 0.0_fp
+            do j = 1, n_species_mapping(species_idx)
+               avg_conc = avg_conc + species_conc(k, chem_idx + j - 1)
+            end do
+            avg_conc = avg_conc / real(n_species_mapping(species_idx), fp)
+
+            ! Compute emission flux using your scheme's formula
+            ! This is a simple example - replace with your actual algorithm
+            species_tendencies(k, species_idx) = base_emission_factor * &
+                                          environmental_factor * &
+                                          species_factor * &
+                                          (1.0_fp + avg_conc)
+
+            ! Ensure non-negative emissions
+            species_tendencies(k, species_idx) = max(0.0_fp, species_tendencies(k, species_idx))
+
+            ! Move chemical species index forward
+            chem_idx = chem_idx + n_species_mapping(species_idx)
+{% else %}
          do species_idx = 1, num_species
             ! Base emission factor (customize this for species-specific emissions)
 {% if scheme.parameters and 'scaling_factor' in scheme.parameters %}
@@ -246,6 +298,7 @@ contains
 
             ! Ensure non-negative emissions
             species_tendencies(k, species_idx) = max(0.0_fp, species_tendencies(k, species_idx))
+{% endif %}
 {% if config.diagnostics %}
             
             ! TODO: Update diagnostic fields here based on your scheme's requirements

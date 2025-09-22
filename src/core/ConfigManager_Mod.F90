@@ -52,7 +52,8 @@ module ConfigManager_Mod
    use yaml_interface_mod, only : yaml_node_t, yaml_load_file, yaml_load_string, yaml_destroy_node, &
                                   yaml_get_string, yaml_get_integer, yaml_get_real, yaml_get_logical, &
                                   yaml_has_key, yaml_get, yaml_set, yaml_is_map, yaml_is_sequence, &
-                                  yaml_get_size, yaml_get_string_array, yaml_get_all_keys
+                                  yaml_get_size, yaml_get_string_array, yaml_get_all_keys, &
+                                  yaml_get_real_array
 
    implicit none
    private
@@ -63,6 +64,8 @@ module ConfigManager_Mod
    public :: ConfigDataType      ! Modern YAML-based configuration data structure
    public :: ConfigSchemaType
    public :: ConfigPresetType
+   public :: EmissionCategoryMapping  ! Emission category mapping structure
+   public :: EmisSpeciesMappingEntry  ! Individual emission species mapping
    public :: CONFIG_STRATEGY_STRICT, CONFIG_STRATEGY_PERMISSIVE, CONFIG_STRATEGY_FALLBACK
 
    !> \brief Configuration loading strategies
@@ -94,7 +97,7 @@ module ConfigManager_Mod
 
    !> \brief File paths and data sources
    type :: FilePathConfig
-      character(len=255) :: Emission_File = ''       !< Path to emission data file
+      character(len=255) :: Emission_File = ''       !< Path to emission mapping file
       character(len=255) :: Species_File = ''        !< Path to species configuration file
       character(len=255) :: Input_Directory = './'   !< Input data directory
       character(len=255) :: Output_Directory = './'  !< Output data directory
@@ -109,6 +112,51 @@ module ConfigManager_Mod
       logical :: dynamic_mapping = .true.             !< Enable dynamic species mapping
       real(fp) :: global_scale_factor = 1.0_fp        !< Global scaling factor
    end type ExternalEmisConfig
+
+   !> \brief Emission species mapping entry
+   !!
+   !! Defines how an emission field maps to one or more chemical species
+   !! with associated scaling factors
+   type :: EmisSpeciesMappingEntry
+      character(len=64) :: emission_field = ''        !< Emission field name (e.g., "SeaS1")
+      character(len=256) :: long_name = ''            !< Human-readable description
+      integer :: n_mappings = 0                       !< Number of mappings
+      character(len=64), allocatable :: map(:)        !< Target chemical species names
+      real(fp), allocatable :: scale(:)               !< Scaling factors for each mapping
+      integer, allocatable :: index(:)                !< Chemical species indices in ChemState
+      logical :: is_active = .true.                   !< Mapping enabled/disabled
+   contains
+      procedure :: init => emis_species_mapping_init
+      procedure :: cleanup => emis_species_mapping_cleanup
+      procedure :: copy => emis_species_mapping_copy
+   end type EmisSpeciesMappingEntry
+
+   !> \brief Emission category/process mapping
+   !!
+   !! Contains all emission-to-species mappings for a specific category or process
+   type :: EmissionCategoryMapping
+      character(len=64) :: category_name = ''         !< Category/process name (e.g., "seasalt")
+      integer :: n_emission_species = 0               !< Number of emission species
+      type(EmisSpeciesMappingEntry), allocatable :: species_mappings(:) !< Per-species mappings
+      logical :: is_active = .true.                   !< Category enabled/disabled
+   contains
+      procedure :: init => emis_category_mapping_init
+      procedure :: cleanup => emis_category_mapping_cleanup
+      procedure :: copy => emis_category_mapping_copy
+   end type EmissionCategoryMapping
+
+   !> \brief Overall emission mapping configuration
+   !!
+   !! Contains all emission-to-species mappings for all categories and processes
+   type :: EmissionMappingConfig
+      integer :: n_categories = 0                     !< Number of emission categories
+      type(EmissionCategoryMapping), allocatable :: categories(:) !< All categories
+      character(len=256) :: config_file = ''          !< Source configuration file
+      logical :: is_loaded = .false.                  !< Whether mapping has been loaded
+   contains
+      procedure :: init => emis_mapping_config_init
+      procedure :: cleanup => emis_mapping_config_cleanup
+   end type EmissionMappingConfig
 
    !> \brief Modernized configuration data structure
    !!
@@ -128,6 +176,7 @@ module ConfigManager_Mod
       type(RuntimeConfig) :: runtime                    !< Runtime and MPI settings
       type(FilePathConfig) :: file_paths                !< File paths and data sources
       type(ExternalEmisConfig) :: external_emissions    !< External emissions configuration
+      type(EmissionMappingConfig) :: emission_mapping   !< Emission-to-species mapping configuration
 
       ! Metadata
       character(len=64) :: config_version = '2.0'       !< Configuration version
@@ -215,7 +264,7 @@ module ConfigManager_Mod
 
       ! Configuration data
       type(yaml_node_t) :: yaml_data                   !< Loaded YAML configuration
-      type(ConfigDataType) :: config_data              !< Structured configuration data
+      type(ConfigDataType), public :: config_data              !< Structured configuration data
       logical :: is_loaded = .false.                    !< Configuration loaded flag
 
       ! Configuration metadata
@@ -257,6 +306,7 @@ module ConfigManager_Mod
       procedure :: get_nemission_categories => config_manager_get_nemission_categories
       procedure :: get_nemission_species => config_manager_get_nemission_species
       procedure :: get_species_file => config_manager_get_species_file
+      procedure :: get_emission_file => config_manager_get_emission_file
 
       ! State integration
       !procedure :: apply_to_container => config_manager_apply_to_container
@@ -265,6 +315,12 @@ module ConfigManager_Mod
       ! Species and emission configuration
       procedure :: load_and_init_species => config_manager_load_and_init_species
       procedure :: load_emission_config => config_manager_load_emission_config
+      procedure :: load_emission_mapping => config_manager_load_emission_mapping
+
+      ! Emission mapping methods
+      procedure :: find_category_mapping => config_manager_find_category_mapping
+      procedure :: apply_emission_mapping => config_manager_apply_emission_mapping
+      procedure :: get_emission_mapping_for_category => config_manager_get_emission_mapping_for_category
 
       ! Configuration update methods
       procedure :: update_runtime_from_configs => config_manager_update_runtime_from_configs
@@ -607,7 +663,15 @@ contains
       class(ConfigManagerType), intent(inout) :: this
       integer, intent(out) :: rc
 
+      integer :: local_rc
+
       rc = CC_SUCCESS
+
+      ! Clean up configuration data (including emission mapping)
+      call this%config_data%cleanup(local_rc)
+      if (local_rc /= CC_SUCCESS) then
+         rc = local_rc
+      endif
 
       if (this%is_loaded) then
          call yaml_destroy_node(this%yaml_data)
@@ -995,6 +1059,15 @@ contains
       species_file = this%config_data%file_paths%Species_File
    end function config_manager_get_species_file
 
+   !> \brief Get emission filename from configuration
+   function config_manager_get_emission_file(this) result(emission_file)
+      implicit none
+      class(ConfigManagerType), intent(in) :: this
+      character(len=255) :: emission_file
+
+      emission_file = this%config_data%file_paths%Emission_File
+   end function config_manager_get_emission_file
+
    !> \brief Print configuration summary
    subroutine config_manager_print_summary(this)
       implicit none
@@ -1119,6 +1192,9 @@ contains
       this%is_validated = .false.
       this%source_file = ''
       this%config_version = '2.0'
+      
+      ! Initialize emission mapping
+      call this%emission_mapping%init()
 
    end subroutine config_data_init
 
@@ -1632,6 +1708,102 @@ contains
 
    end subroutine load_species_properties
 
+   !> \brief Find category mapping for a specific category
+   subroutine config_manager_find_category_mapping(this, category_name, category_mapping, rc)
+      implicit none
+      class(ConfigManagerType), intent(in) :: this
+      character(len=*), intent(in) :: category_name
+      type(EmissionCategoryMapping), intent(out) :: category_mapping
+      integer, intent(out) :: rc
+
+      integer :: i
+
+      rc = CC_FAILURE
+
+      if (.not. this%config_data%emission_mapping%is_loaded) then
+         return
+      endif
+
+      do i = 1, this%config_data%emission_mapping%n_categories
+         if (trim(this%config_data%emission_mapping%categories(i)%category_name) == trim(category_name)) then
+            ! Copy the found mapping
+            category_mapping = this%config_data%emission_mapping%categories(i)
+            rc = CC_SUCCESS
+            return
+         end if
+      end do
+
+   end subroutine config_manager_find_category_mapping
+
+   !> \brief Apply emission mapping to map emission field to chemical species
+   subroutine config_manager_apply_emission_mapping(this, category_name, emission_field, &
+                                                   chemical_species, scaling_factors, rc)
+      implicit none
+      class(ConfigManagerType), intent(in) :: this
+      character(len=*), intent(in) :: category_name
+      character(len=*), intent(in) :: emission_field
+      character(len=64), allocatable, intent(out) :: chemical_species(:)
+      real(fp), allocatable, intent(out) :: scaling_factors(:)
+      integer, intent(out) :: rc
+
+      type(EmissionCategoryMapping) :: category_mapping
+      integer :: i, j, n_mappings
+
+      rc = CC_FAILURE
+
+      ! Find the category
+      call this%find_category_mapping(category_name, category_mapping, rc)
+      if (rc /= CC_SUCCESS) return
+
+      ! Find the emission field in this category
+      do i = 1, category_mapping%n_emission_species
+         if (trim(category_mapping%species_mappings(i)%emission_field) == trim(emission_field)) then
+            n_mappings = category_mapping%species_mappings(i)%n_mappings
+            
+            if (n_mappings > 0) then
+               ! Allocate output arrays
+               allocate(chemical_species(n_mappings))
+               allocate(scaling_factors(n_mappings))
+               
+               ! Copy mapping data
+               do j = 1, n_mappings
+                  chemical_species(j) = category_mapping%species_mappings(i)%map(j)
+                  scaling_factors(j) = category_mapping%species_mappings(i)%scale(j)
+               end do
+               
+               rc = CC_SUCCESS
+            endif
+            
+            return
+         end if
+      end do
+
+   end subroutine config_manager_apply_emission_mapping
+
+   !> \brief Get emission mapping configuration for specific category
+   function config_manager_get_emission_mapping_for_category(this, category_name) result(mapping_index)
+      implicit none
+      class(ConfigManagerType), intent(in) :: this
+      character(len=*), intent(in) :: category_name
+      integer :: mapping_index
+
+      integer :: i
+
+      mapping_index = 0
+
+      if (.not. this%config_data%emission_mapping%is_loaded) then
+         return
+      endif
+
+      do i = 1, this%config_data%emission_mapping%n_categories
+         if (trim(this%config_data%emission_mapping%categories(i)%category_name) == trim(category_name)) then
+            mapping_index = i
+            return
+         end if
+      end do
+
+   end function config_manager_get_emission_mapping_for_category
+
    !> \brief Load emission configuration from file
    subroutine config_manager_load_emission_config(this, filename, rc)
       implicit none
@@ -1642,7 +1814,7 @@ contains
       type(yaml_node_t) :: emission_config
       logical :: file_exists, success
       character(len=256) :: emission_directory, scaling_method
-      integer :: n_emission_sources
+      integer :: n_emission_sources, local_rc
       real(fp) :: global_scaling_factor
 
       rc = CC_SUCCESS
@@ -1676,8 +1848,8 @@ contains
       endif
 
       call yaml_get(emission_config, "emissions/global_scaling_factor", &
-                             global_scaling_factor, rc)
-      if (rc == 0) then
+                             global_scaling_factor, local_rc)
+      if (local_rc == 0) then
          write(*, '(A,F8.3)') 'INFO: Global emission scaling factor: ', global_scaling_factor
       endif
 
@@ -1697,6 +1869,323 @@ contains
 
    end subroutine config_manager_load_emission_config
 
+   !> \brief Load emission-to-species mapping configuration from file
+   !! \param[in] chem_state Optional ChemState for immediate index resolution
+   subroutine config_manager_load_emission_mapping(this, filename, rc, chem_state)
+      use ChemState_Mod, only: ChemStateType
+      implicit none
+      class(ConfigManagerType), intent(inout) :: this
+      character(len=*), intent(in) :: filename
+      integer, intent(out) :: rc
+      type(ChemStateType), optional, intent(in) :: chem_state
+
+      type(yaml_node_t) :: mapping_config
+      logical :: file_exists, success
+      integer :: n_categories, n_species, i, j, n_maps, n_scales, k, species_idx
+      integer :: n_resolved, n_unresolved
+      real(fp) :: single_scale
+      character(len=64), allocatable :: all_categories(:), all_species(:)
+      character(len=64), allocatable :: emission_fields(:)
+      integer :: n_fields
+
+      rc = CC_SUCCESS
+
+      ! Check if file exists
+      inquire(file=trim(filename), exist=file_exists)
+      if (.not. file_exists) then
+         write(*, '(A,A)') 'WARNING: Emission mapping configuration file not found: ', trim(filename)
+         ! Don't fail - mappings may be optional
+         return
+      endif
+
+      ! Load emission mapping configuration file
+      mapping_config = yaml_load_file(filename)
+      if (.not. c_associated(mapping_config%ptr)) then
+         rc = CC_FAILURE
+         write(*, '(A)') 'ERROR: Failed to load emission mapping config file.'
+         return
+      endif
+
+      ! Allocate categories array for discovery
+      allocate(all_categories(100))  ! Maximum 100 categories
+
+      ! Get all top-level keys - these are the category names (seasalt, dust, etc.)
+      success = yaml_get_all_keys(mapping_config, all_categories, n_categories)
+      if (.not. success) then
+         write(*, '(A)') 'WARNING: yaml_get_all_keys failed - no categories found'
+         call yaml_destroy_node(mapping_config)
+         return
+      end if
+      
+      ! Initialize emission mapping configuration
+      call this%config_data%emission_mapping%init()
+      this%config_data%emission_mapping%n_categories = n_categories
+      allocate(this%config_data%emission_mapping%categories(n_categories))
+      this%config_data%emission_mapping%config_file = filename
+      
+      ! Process each category
+      do i = 1, n_categories
+         call this%config_data%emission_mapping%categories(i)%init()
+         this%config_data%emission_mapping%categories(i)%category_name = all_categories(i)
+         
+         ! Get all emission field names for this category using character-based discovery
+         ! Since yaml_get_node is not available, we'll use the text-based approach
+         allocate(all_species(100))  ! Temporary array, we'll reallocate later
+         call discover_emission_fields_from_text(filename, trim(all_categories(i)), &
+                                                all_species, n_species, rc)
+         
+         if (rc /= CC_SUCCESS .or. n_species == 0) then
+            ! Skip this category if we can't find any emission fields
+            if (allocated(all_species)) deallocate(all_species)
+            write(*, '(A,A)') 'INFO: No emission fields found for category: ', trim(all_categories(i))
+            cycle
+         end if
+         
+         write(*, '(A,A,A,I0,A)') 'INFO: Found ', trim(all_categories(i)), ' category with ', n_species, ' emission fields'
+         
+         this%config_data%emission_mapping%categories(i)%n_emission_species = n_species
+         allocate(this%config_data%emission_mapping%categories(i)%species_mappings(n_species))
+         
+         ! Process each emission species
+         do j = 1, n_species
+            call this%config_data%emission_mapping%categories(i)%species_mappings(j)%init()
+            
+            ! Get emission field name
+            this%config_data%emission_mapping%categories(i)%species_mappings(j)%emission_field = all_species(j)
+            
+            ! Get long name using full path
+            success = yaml_get_string(mapping_config, trim(all_categories(i))//'/'//trim(all_species(j))//'/long_name', &
+               this%config_data%emission_mapping%categories(i)%species_mappings(j)%long_name)
+            if (.not. success) then
+               write(*, '(A,A,A,A)') 'DEBUG: Failed to get long_name for ', trim(all_categories(i)), '/', trim(all_species(j))
+               this%config_data%emission_mapping%categories(i)%species_mappings(j)%long_name = 'No description'
+            end if
+            
+            ! Try to read mapping arrays using YAML API with full key paths
+            ! First allocate arrays with maximum possible size
+            allocate(this%config_data%emission_mapping%categories(i)%species_mappings(j)%map(10))
+            allocate(this%config_data%emission_mapping%categories(i)%species_mappings(j)%scale(10))
+            allocate(this%config_data%emission_mapping%categories(i)%species_mappings(j)%index(10))
+            
+            success = yaml_get_string_array(mapping_config, trim(all_categories(i))//'/'//trim(all_species(j))//'/map', &
+                                          this%config_data%emission_mapping%categories(i)%species_mappings(j)%map, n_maps)
+            
+            if (success .and. n_maps > 0) then
+               ! Try to read scale array
+               success = yaml_get_real_array(mapping_config, trim(all_categories(i))//'/'//trim(all_species(j))//'/scale', &
+                                           this%config_data%emission_mapping%categories(i)%species_mappings(j)%scale, n_scales)
+               
+               if (success .and. n_scales > 0) then
+                  ! Make sure both arrays have the same size (use minimum)
+                  n_maps = min(n_maps, n_scales)
+                  this%config_data%emission_mapping%categories(i)%species_mappings(j)%n_mappings = n_maps
+                  write(*, '(A,I0,A,A,A,A)') 'DEBUG: Successfully read ', n_maps, ' mappings for ', &
+                        trim(all_categories(i)), '/', trim(all_species(j))
+               else
+                  ! If scale reading fails, use default scale of 1.0
+                  this%config_data%emission_mapping%categories(i)%species_mappings(j)%scale(1:n_maps) = 1.0_fp
+                  this%config_data%emission_mapping%categories(i)%species_mappings(j)%n_mappings = n_maps
+                  write(*, '(A,I0,A,A,A,A)') 'DEBUG: Read ', n_maps, ' mappings with default scale for ', &
+                        trim(all_categories(i)), '/', trim(all_species(j))
+               end if
+               
+               ! Initialize indices to zero (will be resolved later when ChemState is available)
+               this%config_data%emission_mapping%categories(i)%species_mappings(j)%index(1:n_maps) = 0
+            else
+               ! No mapping found, cleanup arrays
+               deallocate(this%config_data%emission_mapping%categories(i)%species_mappings(j)%map)
+               deallocate(this%config_data%emission_mapping%categories(i)%species_mappings(j)%scale)
+               deallocate(this%config_data%emission_mapping%categories(i)%species_mappings(j)%index)
+               this%config_data%emission_mapping%categories(i)%species_mappings(j)%n_mappings = 0
+               write(*, '(A,A,A,A)') 'DEBUG: No mapping found for ', trim(all_categories(i)), '/', trim(all_species(j))
+            end if
+         end do
+         
+         ! Clean up temporary species array for this category
+         if (allocated(all_species)) deallocate(all_species)
+      end do
+      
+      this%config_data%emission_mapping%is_loaded = .true.
+
+      ! Resolve chemical species indices if ChemState is provided
+      if (present(chem_state)) then
+         n_resolved = 0
+         n_unresolved = 0
+         
+         ! Loop through all categories and species mappings to resolve indices
+         do i = 1, this%config_data%emission_mapping%n_categories
+            do j = 1, this%config_data%emission_mapping%categories(i)%n_emission_species
+               ! Resolve indices for each mapped species
+               do k = 1, this%config_data%emission_mapping%categories(i)%species_mappings(j)%n_mappings
+                  species_idx = chem_state%find_species(trim(this%config_data%emission_mapping%categories(i)%species_mappings(j)%map(k)))
+                  
+                  if (species_idx > 0) then
+                     this%config_data%emission_mapping%categories(i)%species_mappings(j)%index(k) = species_idx
+                     n_resolved = n_resolved + 1
+                  else
+                     this%config_data%emission_mapping%categories(i)%species_mappings(j)%index(k) = 0
+                     n_unresolved = n_unresolved + 1
+                     write(*, '(A,A,A,A,A,A)') 'WARNING: Species "', &
+                        trim(this%config_data%emission_mapping%categories(i)%species_mappings(j)%map(k)), &
+                        '" from emission field "', &
+                        trim(this%config_data%emission_mapping%categories(i)%species_mappings(j)%emission_field), &
+                        '" in category "', trim(this%config_data%emission_mapping%categories(i)%category_name), '"'
+                  endif
+               end do
+            end do
+         end do
+
+         write(*, '(A,I0,A,I0,A)') 'INFO: Resolved ', n_resolved, ' species indices, ', n_unresolved, ' unresolved'
+         
+         if (n_unresolved > 0) then
+            write(*, '(A)') 'WARNING: Some emission mapping species were not found in ChemState'
+         endif
+      end if
+
+      ! Clean up
+      call yaml_destroy_node(mapping_config)
+      if (allocated(all_categories)) deallocate(all_categories)
+      if (allocated(all_species)) deallocate(all_species)
+
+      write(*, '(A,I0,A)') 'INFO: Loaded emission mapping for ', n_categories, ' categories'
+
+   end subroutine config_manager_load_emission_mapping
+
+   !> \brief Parse YAML text file to discover emission fields under a category
+   !! This function reads the YAML file as plain text and extracts emission field names
+   !! by parsing the structure line by line, looking for keys with ':' under the category
+   subroutine discover_emission_fields_from_text(filename, category_name, emission_fields, n_fields, rc)
+      implicit none
+      character(len=*), intent(in) :: filename
+      character(len=*), intent(in) :: category_name
+      character(len=64), intent(inout) :: emission_fields(:)
+      integer, intent(out) :: n_fields
+      integer, intent(out) :: rc
+
+      integer :: unit_num, io_stat, colon_pos, indent_level, category_indent
+      character(len=256) :: line, trimmed_line, field_name
+      logical :: in_category, found_category, field_has_map, field_has_scale
+      integer :: line_number, field_indent
+      character(len=64) :: current_field
+
+      rc = CC_SUCCESS
+      n_fields = 0
+      in_category = .false.
+      found_category = .false.
+      category_indent = -1
+      field_has_map = .false.
+      field_has_scale = .false.
+      current_field = ''
+      field_indent = -1
+
+      ! Open file for reading
+      open(newunit=unit_num, file=trim(filename), status='old', action='read', iostat=io_stat)
+      if (io_stat /= 0) then
+         write(*, '(A,A)') 'ERROR: Cannot open emission mapping file: ', trim(filename)
+         rc = CC_FAILURE
+         return
+      endif
+
+      ! Read file line by line
+      do
+         read(unit_num, '(A)', iostat=io_stat) line
+         if (io_stat /= 0) exit  ! End of file or error
+
+         line_number = line_number + 1
+         trimmed_line = trim(adjustl(line))
+
+         ! Skip empty lines and comments
+         if (len_trim(trimmed_line) == 0 .or. trimmed_line(1:1) == '#') cycle
+
+         ! Calculate indentation level (number of leading spaces)
+         ! Find the actual content length and calculate leading spaces
+         do indent_level = 1, len_trim(line)
+            if (line(indent_level:indent_level) /= ' ') exit
+         end do
+         indent_level = indent_level - 1
+
+         ! Look for lines with colons
+         if (index(trimmed_line, ':') > 0) then
+            colon_pos = index(trimmed_line, ':')
+            field_name = trimmed_line(1:colon_pos-1)
+            field_name = trim(adjustl(field_name))
+
+            if (trim(field_name) == trim(category_name) .and. indent_level == 0) then
+               ! Found our category at top level
+               in_category = .true.
+               found_category = .true.
+               category_indent = indent_level
+               write(*, '(A,A,A,I0)') 'INFO: Found category "', trim(category_name), '" at line ', line_number
+               cycle
+            endif
+
+            if (in_category .and. indent_level > category_indent) then
+               ! We're inside our category
+               if (indent_level == category_indent + 2) then
+                  ! Direct child of category - this could be an emission field
+                  ! Check if we have a previous field to finalize
+                  if (current_field /= '' .and. field_has_map .and. field_has_scale) then
+                     if (n_fields < size(emission_fields)) then
+                        n_fields = n_fields + 1
+                        emission_fields(n_fields) = trim(current_field)
+                        write(*, '(A,A)') 'INFO: Added emission field: ', trim(current_field)
+                     endif
+                  endif
+                  
+                  ! Start tracking new potential field
+                  current_field = trim(field_name)
+                  field_indent = indent_level
+                  field_has_map = .false.
+                  field_has_scale = .false.
+                  
+               elseif (indent_level == field_indent + 2 .and. current_field /= '') then
+                  ! Properties of current field
+                  if (trim(field_name) == 'map') then
+                     field_has_map = .true.
+                  elseif (trim(field_name) == 'scale') then
+                     field_has_scale = .true.
+                  endif
+               endif
+            elseif (in_category .and. indent_level <= category_indent) then
+               ! We've left our category - check pending field
+               if (current_field /= '' .and. field_has_map .and. field_has_scale) then
+                  if (n_fields < size(emission_fields)) then
+                     n_fields = n_fields + 1
+                     emission_fields(n_fields) = trim(current_field)
+                     write(*, '(A,A)') 'INFO: Added emission field: ', trim(current_field)
+                  endif
+               endif
+               ! Reset tracking state when exiting category
+               current_field = ''
+               in_category = .false.
+               exit  ! Exit when we leave the category
+            endif
+         endif
+      end do
+
+      ! Check if we have a pending field at end of file
+      if (current_field /= '' .and. field_has_map .and. field_has_scale) then
+         if (n_fields < size(emission_fields)) then
+            n_fields = n_fields + 1
+            emission_fields(n_fields) = trim(current_field)
+            write(*, '(A,A)') 'INFO: Added emission field: ', trim(current_field)
+         endif
+      endif
+
+      close(unit_num)
+
+      if (.not. found_category) then
+         write(*, '(A,A)') 'WARNING: Category not found: ', trim(category_name)
+         rc = CC_SUCCESS  ! Not an error - category may not exist
+      elseif (n_fields == 0) then
+         write(*, '(A,A)') 'INFO: No emission fields found for category: ', trim(category_name)
+         rc = CC_SUCCESS
+      else
+         write(*, '(A,I0,A,A)') 'INFO: Found ', n_fields, ' emission fields in category: ', trim(category_name)
+      endif
+
+   end subroutine discover_emission_fields_from_text
+
    !> \brief Update runtime configuration from loaded configs
    subroutine config_manager_update_runtime_from_configs(this, rc)
       implicit none
@@ -1708,5 +2197,162 @@ contains
       ! Placeholder implementation - would update runtime settings
 
    end subroutine config_manager_update_runtime_from_configs
+
+   !> \brief Initialize EmisSpeciesMappingEntry
+   subroutine emis_species_mapping_init(this)
+      implicit none
+      class(EmisSpeciesMappingEntry), intent(inout) :: this
+
+      this%emission_field = ''
+      this%long_name = ''
+      this%n_mappings = 0
+      if (allocated(this%map)) deallocate(this%map)
+      if (allocated(this%scale)) deallocate(this%scale)
+      if (allocated(this%index)) deallocate(this%index)
+      this%is_active = .true.
+
+   end subroutine emis_species_mapping_init
+
+   !> \brief Cleanup EmisSpeciesMappingEntry
+   subroutine emis_species_mapping_cleanup(this)
+      implicit none
+      class(EmisSpeciesMappingEntry), intent(inout) :: this
+
+      if (allocated(this%map)) deallocate(this%map)
+      if (allocated(this%scale)) deallocate(this%scale)
+      if (allocated(this%index)) deallocate(this%index)
+      this%n_mappings = 0
+
+   end subroutine emis_species_mapping_cleanup
+
+   !> \brief Copy EmisSpeciesMappingEntry
+   subroutine emis_species_mapping_copy(this, other)
+      implicit none
+      class(EmisSpeciesMappingEntry), intent(inout) :: this
+      type(EmisSpeciesMappingEntry), intent(in) :: other
+
+      integer :: i
+
+      call this%cleanup()
+      
+      this%emission_field = other%emission_field
+      this%long_name = other%long_name
+      this%n_mappings = other%n_mappings
+      this%is_active = other%is_active
+
+      if (other%n_mappings > 0) then
+         allocate(this%map(other%n_mappings))
+         allocate(this%scale(other%n_mappings))
+         if (allocated(other%index)) then
+            allocate(this%index(other%n_mappings))
+         end if
+         
+         do i = 1, other%n_mappings
+            this%map(i) = other%map(i)
+            this%scale(i) = other%scale(i)
+            if (allocated(this%index) .and. allocated(other%index)) then
+               this%index(i) = other%index(i)
+            end if
+         end do
+      end if
+
+   end subroutine emis_species_mapping_copy
+
+   !> \brief Initialize EmissionCategoryMapping
+   subroutine emis_category_mapping_init(this)
+      implicit none
+      class(EmissionCategoryMapping), intent(inout) :: this
+
+      integer :: i
+
+      this%category_name = ''
+      if (allocated(this%species_mappings)) then
+         do i = 1, size(this%species_mappings)
+            call this%species_mappings(i)%cleanup()
+         end do
+         deallocate(this%species_mappings)
+      end if
+      this%n_emission_species = 0
+      this%is_active = .true.
+
+   end subroutine emis_category_mapping_init
+
+   !> \brief Cleanup EmissionCategoryMapping
+   subroutine emis_category_mapping_cleanup(this)
+      implicit none
+      class(EmissionCategoryMapping), intent(inout) :: this
+
+      integer :: i
+
+      if (allocated(this%species_mappings)) then
+         do i = 1, size(this%species_mappings)
+            call this%species_mappings(i)%cleanup()
+         end do
+         deallocate(this%species_mappings)
+      end if
+      this%n_emission_species = 0
+
+   end subroutine emis_category_mapping_cleanup
+
+   !> \brief Copy EmissionCategoryMapping
+   subroutine emis_category_mapping_copy(this, other)
+      implicit none
+      class(EmissionCategoryMapping), intent(inout) :: this
+      type(EmissionCategoryMapping), intent(in) :: other
+
+      integer :: i
+
+      call this%cleanup()
+      
+      this%category_name = other%category_name
+      this%n_emission_species = other%n_emission_species
+      this%is_active = other%is_active
+
+      if (other%n_emission_species > 0 .and. allocated(other%species_mappings)) then
+         allocate(this%species_mappings(other%n_emission_species))
+         
+         do i = 1, other%n_emission_species
+            call this%species_mappings(i)%copy(other%species_mappings(i))
+         end do
+      end if
+
+   end subroutine emis_category_mapping_copy
+
+   !> \brief Initialize EmissionMappingConfig
+   subroutine emis_mapping_config_init(this)
+      implicit none
+      class(EmissionMappingConfig), intent(inout) :: this
+
+      integer :: i
+
+      this%config_file = ''
+      if (allocated(this%categories)) then
+         do i = 1, size(this%categories)
+            call this%categories(i)%cleanup()
+         end do
+         deallocate(this%categories)
+      end if
+      this%n_categories = 0
+      this%is_loaded = .false.
+
+   end subroutine emis_mapping_config_init
+
+   !> \brief Cleanup EmissionMappingConfig
+   subroutine emis_mapping_config_cleanup(this)
+      implicit none
+      class(EmissionMappingConfig), intent(inout) :: this
+
+      integer :: i
+
+      if (allocated(this%categories)) then
+         do i = 1, size(this%categories)
+            call this%categories(i)%cleanup()
+         end do
+         deallocate(this%categories)
+      end if
+      this%n_categories = 0
+      this%is_loaded = .false.
+
+   end subroutine emis_mapping_config_cleanup
 
 end module ConfigManager_Mod

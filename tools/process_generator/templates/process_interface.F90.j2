@@ -28,6 +28,7 @@ module Process{{ config.class_name }}Interface_Mod
    use DiagnosticManager_Mod, only: DiagnosticManagerType
    use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DiagnosticFieldType, DiagnosticDataType
    use VirtualColumn_Mod, only: VirtualColumnType, VirtualMetType
+   use Constants, only: g0, AIRMW  ! Gravitational acceleration for tendency physics and air molecular weight for unit conversion
 
    ! Core utilities (leverage existing infrastructure)
    use ConfigManager_Mod, only: ConfigManagerType
@@ -199,6 +200,11 @@ contains
 {% if config.species %}
       ! Load species from explicit list (from species_filter)
       call this%process_config%load_species_from_list(this%chem_state, error_manager, rc)
+{% elif config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+      ! Load species from emission mapping configuration with index resolution
+      call this%process_config%load_species_from_emission_mapping(container%get_config_ptr(), error_manager, this%chem_state)
+      ! Note: Error handling managed by error_manager internally
+      ! Note: Chemical species indices are automatically resolved using ChemState
 {% else %}
       ! Load species from ChemState based on is_{{ config.name }} property
       call this%process_config%load_species_from_chem_state(this%chem_state, error_manager)
@@ -454,8 +460,32 @@ contains
 {% endif %}
       real(fp), allocatable :: species_conc(:,:)
       real(fp), allocatable :: species_tendencies(:,:)
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+      integer, allocatable :: n_species_mapping(:)  ! Number of chem species per emission species
+      integer :: n_species, n_levels, n_chem, n_emis, i, k, j, chem_idx
+      integer, allocatable :: species_indices(:)  ! Emission species indices
+      integer, allocatable :: chem_species_indices(:)  ! Chemical species indices
+      integer :: total_chem_species  ! Total chemical species from emission mapping
+{% if config.process_behavior and config.process_behavior.tendency_mode == "multiplicative" %}
+      real(fp) :: loss_fraction  ! Loss fraction for multiplicative tendencies
+{% elif config.process_behavior and config.process_behavior.tendency_mode == "additive" %}
+      real(fp) :: dqa  ! Concentration change for additive tendencies
+{% if config.process_type == "emission" %}
+      real(fp) :: converter  ! Unit conversion factor for emissions
+{% endif %}
+{% endif %}
+{% else %}
       integer :: n_species, n_levels, n_chem, n_emis, i, k
       integer, allocatable :: species_indices(:)
+{% if config.process_behavior and config.process_behavior.tendency_mode == "multiplicative" %}
+      real(fp) :: loss_fraction  ! Loss fraction for multiplicative tendencies
+{% elif config.process_behavior and config.process_behavior.tendency_mode == "additive" %}
+      real(fp) :: dqa  ! Concentration change for additive tendencies
+{% if config.process_type == "emission" %}
+      real(fp) :: converter  ! Unit conversion factor for emissions
+{% endif %}
+{% endif %}
+{% endif %}
 
       rc = CC_SUCCESS
 
@@ -472,6 +502,41 @@ contains
          return
       end if
       
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+      ! For emission mapping: n_species is emission species count
+      ! We need to get chemical species count and mapping information
+      allocate(species_indices(n_species))  ! Emission species indices
+      species_indices(1:n_species) = this%process_config%{{ config.name }}_config%species_indices(1:n_species)
+      
+      ! Calculate total chemical species from emission mapping
+      total_chem_species = 0
+      do i = 1, this%process_config%{{ config.name }}_config%emission_mapping%n_emission_species
+         total_chem_species = total_chem_species + this%process_config%{{ config.name }}_config%emission_mapping%species_mappings(i)%n_mappings
+      end do
+      
+      ! Get chemical species information from emission mapping
+      allocate(chem_species_indices(total_chem_species))
+      allocate(n_species_mapping(n_species))
+      
+      ! Extract chemical species indices and mapping counts
+      chem_idx = 1
+      do i = 1, n_species
+         n_species_mapping(i) = this%process_config%{{ config.name }}_config%emission_mapping%species_mappings(i)%n_mappings
+         do j = 1, n_species_mapping(i)
+            chem_species_indices(chem_idx) = this%process_config%{{ config.name }}_config%emission_mapping%species_mappings(i)%index(j)
+            chem_idx = chem_idx + 1
+         end do
+      end do
+      
+      ! Allocate arrays based on chemical species count for concentrations
+      {% if scheme.affects_full_column %}
+      allocate(species_conc(n_levels, total_chem_species))
+      allocate(species_tendencies(n_levels, n_species))  ! Tendencies for emission species
+      {% else %}
+      allocate(species_conc(1, total_chem_species))
+      allocate(species_tendencies(1, n_species))  ! Tendencies for emission species
+      {% endif %}
+{% else %}
       ! Get species indices directly from configuration (pre-computed)
       allocate(species_indices(n_species))
       species_indices(1:n_species) = this%process_config%{{ config.name }}_config%species_indices(1:n_species)
@@ -484,6 +549,7 @@ contains
       allocate(species_conc(1, n_species))
       allocate(species_tendencies(1, n_species))
       {% endif %}
+{% endif %}
 {% if scheme.required_met_fields %}
       ! Allocate meteorological field arrays based on field type and process configuration
 {% for field in scheme.required_met_fields %}
@@ -570,6 +636,22 @@ contains
 {% endif %}
 
       ! Get species concentrations from virtual column
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+      ! For emission mapping: load chemical species concentrations
+      {% if scheme.affects_full_column %}
+      ! Full column processing - get concentrations for all levels
+      do k = 1, n_levels
+         do i = 1, total_chem_species
+            species_conc(k, i) = column%get_chem_field(chem_species_indices(i), k)
+         end do
+      end do
+      {% else %}
+      ! Surface-only processing - get surface level concentrations
+      do i = 1, total_chem_species
+         species_conc(1, i) = column%get_chem_field(chem_species_indices(i), 1)
+      end do
+      {% endif %}
+{% else %}
       {% if scheme.affects_full_column %}
       ! Full column processing - get concentrations for all levels
       do k = 1, n_levels
@@ -583,6 +665,7 @@ contains
          species_conc(1, i) = column%get_chem_field(species_indices(i), 1)
       end do
       {% endif %}
+{% endif %}
 
 {% if scheme.required_species_properties %}
       ! Get species properties from configuration (pre-loaded during initialization)
@@ -602,6 +685,9 @@ contains
          call compute_{{ scheme.name }}( &
             n_levels, &
             n_species, &
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+            n_species_mapping, &
+{% endif %}
             this%process_config%{{ scheme.name }}_config{% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}, &
 {% for field in scheme.required_met_fields %}
 {% if field is string %}
@@ -640,6 +726,9 @@ contains
          call compute_{{ scheme.name }}( &
             n_levels, &
             n_species, &
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+            n_species_mapping, &
+{% endif %}
             this%process_config%{{ scheme.name }}_config{% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}, &
 {% for field in scheme.required_met_fields %}
 {% if field is string %}
@@ -668,22 +757,159 @@ contains
          )
       end if
 
-      ! Apply tendencies back to virtual column
+      ! Apply tendencies back to virtual column based on tendency_mode
+{% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
+      ! For emission mapping: distribute emission tendencies to chemical species
+      {% if scheme.affects_full_column %}
+      ! Full column processing - apply tendencies to all levels
+      do k = 1, n_levels
+         chem_idx = 1  ! Index into chemical species arrays
+         do i = 1, n_species  ! Loop over emission species
+            ! Apply tendency to each mapped chemical species
+            do j = 1, n_species_mapping(i)  ! Loop over chemical species mapped to this emission species
+{% if config.process_behavior and config.process_behavior.tendency_mode == "multiplicative" %}
+               ! Multiplicative tendency: new_conc = conc * (1 - loss_fraction)
+               ! where loss_fraction = 1 - exp(-tendency * dt)
+               loss_fraction = 1.0_fp - exp(-species_tendencies(k, i) * this%get_timestep())
+               call column%set_chem_field(k, chem_species_indices(chem_idx), &
+                                         species_conc(k, chem_idx) * (1.0_fp - loss_fraction))
+{% elif config.process_behavior and config.process_behavior.tendency_mode == "replacement" %}
+               ! Replacement tendency: new_conc = tendency (tendency is the new value)
+               call column%set_chem_field(k, chem_species_indices(chem_idx), &
+                                         species_tendencies(k, i))
+{% else %}
+               ! Additive tendency (default): new_conc = conc + dqa
+               ! where dqa = tendency * dt * g0 / DELP(k)
+               dqa = species_tendencies(k, i) * this%get_timestep() * g0 / met%DELP(k)
+{% if config.process_type == "emission" %}
+               ! Apply unit conversion for emission processes
+               ! For gas species: convert kg/kg to ppmv (converter = AIRMW / mw_g * 1.0e6)
+               ! For aerosol species: convert kg/kg to ug/kg (converter = 1.0e9)
+               ! Also apply emission mapping scale factor
+               if (this%chem_state%ChemSpecies(chem_species_indices(chem_idx))%is_gas) then
+                  converter = AIRMW / this%chem_state%ChemSpecies(chem_species_indices(chem_idx))%mw_g * 1.0e6_fp
+               else
+                  converter = 1.0e9_fp
+               end if
+               converter = converter * this%process_config%{{ config.name }}_config%emission_mapping%species_mappings(i)%scale(j)
+               dqa = dqa * converter
+{% endif %}
+               call column%set_chem_field(k, chem_species_indices(chem_idx), &
+                                         species_conc(k, chem_idx) + dqa)
+{% endif %}
+               chem_idx = chem_idx + 1
+            end do
+         end do
+      end do
+      {% else %}
+      ! Surface-only processing - apply tendencies to surface level only
+      chem_idx = 1  ! Index into chemical species arrays
+      do i = 1, n_species  ! Loop over emission species
+         ! Apply tendency to each mapped chemical species
+         do j = 1, n_species_mapping(i)  ! Loop over chemical species mapped to this emission species
+{% if config.process_behavior and config.process_behavior.tendency_mode == "multiplicative" %}
+            ! Multiplicative tendency: new_conc = conc * (1 - loss_fraction)
+            ! where loss_fraction = 1 - exp(-tendency * dt)
+            loss_fraction = 1.0_fp - exp(-species_tendencies(1, i) * this%get_timestep())
+            call column%set_chem_field(1, chem_species_indices(chem_idx), &
+                                      species_conc(1, chem_idx) * (1.0_fp - loss_fraction))
+{% elif config.process_behavior and config.process_behavior.tendency_mode == "replacement" %}
+            ! Replacement tendency: new_conc = tendency (tendency is the new value)
+            call column%set_chem_field(1, chem_species_indices(chem_idx), &
+                                      species_tendencies(1, i))
+{% else %}
+            ! Additive tendency (default): new_conc = conc + dqa
+            ! where dqa = tendency * dt * g0 / DELP(1) for surface
+            dqa = species_tendencies(1, i) * this%get_timestep() * g0 / met%DELP(1)
+{% if config.process_type == "emission" %}
+            ! Apply unit conversion for emission processes
+            ! For gas species: convert kg/kg to ppmv (converter = AIRMW / mw_g * 1.0e6)
+            ! For aerosol species: convert kg/kg to ug/kg (converter = 1.0e9)
+            ! Also apply emission mapping scale factor
+            if (this%chem_state%ChemSpecies(chem_species_indices(chem_idx))%is_gas) then
+               converter = AIRMW / this%chem_state%ChemSpecies(chem_species_indices(chem_idx))%mw_g * 1.0e6_fp
+            else
+               converter = 1.0e9_fp
+            end if
+            converter = converter * this%process_config%{{ config.name }}_config%emission_mapping%species_mappings(i)%scale(j)
+            dqa = dqa * converter
+{% endif %}
+            call column%set_chem_field(1, chem_species_indices(chem_idx), &
+                                      species_conc(1, chem_idx) + dqa)
+{% endif %}
+            chem_idx = chem_idx + 1
+         end do
+      end do
+      {% endif %}
+{% else %}
       {% if scheme.affects_full_column %}
       ! Full column processing - apply tendencies to all levels
       do k = 1, n_levels
          do i = 1, n_species
+{% if config.process_behavior and config.process_behavior.tendency_mode == "multiplicative" %}
+            ! Multiplicative tendency: new_conc = conc * (1 - loss_fraction)
+            ! where loss_fraction = 1 - exp(-tendency * dt)
+            loss_fraction = 1.0_fp - exp(-species_tendencies(k, i) * this%get_timestep())
             call column%set_chem_field(k, species_indices(i), &
-                                      species_conc(k, i) + species_tendencies(k, i))
+                                      species_conc(k, i) * (1.0_fp - loss_fraction))
+{% elif config.process_behavior and config.process_behavior.tendency_mode == "replacement" %}
+            ! Replacement tendency: new_conc = tendency (tendency is the new value)
+            call column%set_chem_field(k, species_indices(i), &
+                                      species_tendencies(k, i))
+{% else %}
+            ! Additive tendency (default): new_conc = conc + dqa
+            ! where dqa = tendency * dt * g0 / DELP(k)
+            dqa = species_tendencies(k, i) * this%get_timestep() * g0 / met%DELP(k)
+{% if config.process_type == "emission" %}
+            ! Apply unit conversion for emission processes
+            ! For gas species: convert kg/kg to ppmv (converter = AIRMW / mw_g * 1.0e6)
+            ! For aerosol species: convert kg/kg to ug/kg (converter = 1.0e9)
+            if (this%chem_state%ChemSpecies(species_indices(i))%is_gas) then
+               converter = AIRMW / this%chem_state%ChemSpecies(species_indices(i))%mw_g * 1.0e6_fp
+            else
+               converter = 1.0e9_fp
+            end if
+            dqa = dqa * converter
+{% endif %}
+            call column%set_chem_field(k, species_indices(i), &
+                                      species_conc(k, i) + dqa)
+{% endif %}
          end do
       end do
       {% else %}
       ! Surface-only processing - apply tendencies to surface level only
       do i = 1, n_species
+{% if config.process_behavior and config.process_behavior.tendency_mode == "multiplicative" %}
+         ! Multiplicative tendency: new_conc = conc * (1 - loss_fraction)
+         ! where loss_fraction = 1 - exp(-tendency * dt)
+         loss_fraction = 1.0_fp - exp(-species_tendencies(1, i) * this%get_timestep())
          call column%set_chem_field(1, species_indices(i), &
-                                   species_conc(1, i) + species_tendencies(1, i))
+                                   species_conc(1, i) * (1.0_fp - loss_fraction))
+{% elif config.process_behavior and config.process_behavior.tendency_mode == "replacement" %}
+         ! Replacement tendency: new_conc = tendency (tendency is the new value)
+         call column%set_chem_field(1, species_indices(i), &
+                                   species_tendencies(1, i))
+{% else %}
+         ! Additive tendency (default): new_conc = conc + dqa
+         ! where dqa = tendency * dt * g0 / DELP(1) for surface
+         dqa = species_tendencies(1, i) * this%get_timestep() * g0 / met%DELP(1)
+{% if config.process_type == "emission" %}
+         ! Apply unit conversion for emission processes
+         ! For gas species: convert kg/kg to ppmv (converter = AIRMW / mw_g * 1.0e6)
+         ! For aerosol species: convert kg/kg to ug/kg (converter = 1.0e9)
+         if (this%chem_state%ChemSpecies(species_indices(i))%is_gas) then
+            converter = AIRMW / this%chem_state%ChemSpecies(species_indices(i))%mw_g * 1.0e6_fp
+         else
+            converter = 1.0e9_fp
+         end if
+         dqa = dqa * converter
+{% endif %}
+         call column%set_chem_field(1, species_indices(i), &
+                                   species_conc(1, i) + dqa)
+{% endif %}
       end do
       {% endif %}
+{% endif %}
 
    end subroutine run_{{ scheme.name }}_scheme_column
 

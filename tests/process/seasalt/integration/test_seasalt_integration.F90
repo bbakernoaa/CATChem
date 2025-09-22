@@ -4,7 +4,7 @@
 !! This file contains comprehensive integration tests for the seasalt process implementation
 !! using the centralized CATChemCore framework. Tests complete workflow: core initialization,
 !! configuration loading, process registration, and all scheme validation.
-!! Generated on: 2025-09-16T17:45:32.873782
+!! Generated on: 2025-09-22T16:20:04.907539
 
 program test_seasalt_integration
    use precision_mod, only: fp
@@ -207,6 +207,20 @@ contains
 
       
 
+
+      ! Set up DELP (pressure difference between levels) for emission unit conversion
+      ! DELP is only used for unit conversion in emission processes
+      do j = 1, ny
+         do i = 1, nx
+            do k = 1, nz
+               ! Set realistic pressure differences (Pa) for atmospheric layers
+               ! Surface layers have higher DELP, upper levels have lower DELP
+               altitude_km = real(k-1, fp) * 20.0_fp / real(nz-1, fp)  ! 0-20 km altitude
+               met_state%DELP(i,j,k) = 10000.0_fp * exp(-altitude_km / 8.0_fp)  ! Exponential pressure decrease
+            end do
+         end do
+      end do
+
    end subroutine setup_met
 
    !> Test a specific seasalt scheme with comprehensive validation
@@ -239,10 +253,13 @@ contains
          return
       end if
       
-      ! Step 1: Set the scheme
+      ! Step 1: Set the timestep for emission calculations
+      call seasalt_interface%set_timestep(dt)
+      
+      ! Step 2: Set the scheme
       call seasalt_interface%set_scheme(scheme_name)
       
-      ! Step 2: Reload scheme-specific configuration
+      ! Step 3: Reload scheme-specific configuration
       config_mgr => state_mgr%get_config_ptr()
       error_mgr => state_mgr%get_error_manager()
       
@@ -271,15 +288,15 @@ contains
          return
       end select
       
-      ! Step 3: Reset diagnostics for the new scheme
+      ! Step 4: Reset diagnostics for the new scheme
       call reset_diagnostics_for_scheme(seasalt_interface, state_mgr, scheme_name, rc_arg)
       if (rc_arg /= CC_SUCCESS) return
       
-      ! Step 4: Run the process to populate diagnostic data
+      ! Step 5: Run the process to populate diagnostic data
       call process_mgr%run_column_processes(state_mgr, rc_arg)
       if (rc_arg /= CC_SUCCESS) return
       
-      ! Step 5: Validate all results
+      ! Step 6: Validate all results
       call validate_results(core_arg, rc_arg)
       
    end subroutine test_scheme

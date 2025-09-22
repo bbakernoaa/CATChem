@@ -955,6 +955,13 @@ class ProcessGenerator:
                 logger.warning(f"Error loading species database: {e}, using empty species list")
                 return []
 
+        elif filter_type == 'emission_mapping':
+            # Load species from emission mapping configuration
+            # The species will be loaded dynamically at runtime from ConfigManager emission mapping
+            # Return empty list here - actual species loading handled by load_species_from_emission_mapping
+            logger.info("Using emission_mapping species filter - species will be loaded from ConfigManager at runtime")
+            return []
+
         return []
 
     def generate_process(self, config: ProcessConfig) -> None:

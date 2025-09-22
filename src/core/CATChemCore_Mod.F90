@@ -405,6 +405,19 @@ contains
                return
             endif
          endif
+         
+         ! Load emission configuration if available
+         if (len_trim(this%config_mgr%get_emission_file()) > 0) then
+            call this%config_mgr%load_emission_mapping(this%config_mgr%get_emission_file(), local_rc, chem_ptr)
+            if (local_rc /= CC_SUCCESS) then
+               write(*,'(A)') 'WARNING: Failed to load emission configuration, continuing without emissions'
+               ! Don't fail the core setup for emission configuration errors
+            else
+               write(*,'(A)') 'INFO: Emission configuration loaded successfully'
+            endif
+         else
+            write(*,'(A)') 'INFO: No emission file specified, skipping emission configuration'
+         endif
       endif
 
       ! Mark state manager as configured
@@ -583,8 +596,12 @@ contains
          ! Clean up grid manager
          call this%grid_mgr%cleanup()
 
-         ! Clean up configuration
-         ! Note: ConfigManager uses automatic finalization for YAML data
+         ! Clean up configuration manager
+         call this%config_mgr%finalize(local_rc)
+         if (local_rc /= CC_SUCCESS) then
+            call this%error_mgr%report_error(ERROR_PROCESS_INITIALIZATION, &
+                                            'Failed to finalize config manager', local_rc)
+         endif
       endif
 
       this%is_configured = .false.
