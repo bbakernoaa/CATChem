@@ -18,6 +18,7 @@ module ProcessManager_Mod
    use GridManager_Mod, only : GridManagerType, ColumnIteratorType
    use ColumnInterface_Mod, only : ColumnProcessorType, ColumnViewType
    use VirtualColumn_Mod, only : VirtualColumnType
+   use ConfigManager_Mod, only : ConfigDataType, RunPhaseType, ProcessConfigType
 
    implicit none
    private
@@ -41,8 +42,8 @@ module ProcessManager_Mod
       procedure :: finalize => manager_finalize
       procedure :: list_processes => manager_list_processes
       procedure :: get_column_processes => manager_get_column_processes
-      procedure :: configure_run_phases => manager_configure_run_phases
       procedure :: run_phase => manager_run_phase
+      procedure :: run_all_phases => manager_run_all_phases
       procedure :: run_all_processes => manager_run_all_processes
       procedure :: set_max_processes => manager_set_max_processes
       procedure :: enable_column_batching => manager_enable_column_batching
@@ -316,49 +317,136 @@ contains
       enddo
    end subroutine manager_get_column_processes
 
-   !> Configure run phases for multi-phase execution
-   subroutine manager_configure_run_phases(this, phase_names, rc)
-      class(ProcessManagerType), intent(inout) :: this
-      character(len=64), intent(in) :: phase_names(:)
-      integer, intent(out) :: rc
-
-      ! TODO: Implement run phase configuration
-      ! This would involve setting up process execution order by phase
-      rc = CC_SUCCESS
-
-   end subroutine manager_configure_run_phases
-
-   !> Run a specific run phase
-   subroutine manager_run_phase(this, phase_name, container, rc)
+   !> Run a specific run phase using ConfigManager run phases configuration
+   subroutine manager_run_phase(this, phase_name, config_data, container, rc)
       class(ProcessManagerType), intent(inout) :: this
       character(len=*), intent(in) :: phase_name
+      type(ConfigDataType), intent(in) :: config_data
       type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
-      integer :: i, local_rc
+      integer :: i, j, local_rc, phase_idx, process_idx
+      type(RunPhaseType) :: current_phase
+      type(ProcessConfigType) :: process_config
+      logical :: phase_found
 
       rc = CC_SUCCESS
+      phase_found = .false.
 
-      ! Run all processes configured for this phase
-      do i = 1, this%num_processes
-         ! TODO: Check if process belongs to this phase
-         ! For now, run all processes
-         if (this%processes(i)%is_ready()) then
-            select type(proc => this%processes(i))
-            class is (ColumnProcessInterface)
-               call this%run_process_on_columns(i, container, rc)
-            class default
-               call this%processes(i)%run(container, local_rc)
-            end select
+      ! Check if run phases are configured
+      if (.not. allocated(config_data%run_phases)) then
+         write(*,*) 'WARNING: No run phases configured, skipping phase execution'
+         return
+      endif
 
-            if (local_rc /= CC_SUCCESS) then
-               rc = local_rc
-               return
-            endif
+      ! Find the requested phase
+      do phase_idx = 1, size(config_data%run_phases)
+         if (trim(config_data%run_phases(phase_idx)%name) == trim(phase_name)) then
+            current_phase = config_data%run_phases(phase_idx)
+            phase_found = .true.
+            exit
          endif
       enddo
 
+      if (.not. phase_found) then
+         write(*,*) 'WARNING: Phase "', trim(phase_name), '" not found in configuration'
+         rc = CC_FAILURE
+         return
+      endif
+
+      write(*,*) 'INFO: Running phase "', trim(phase_name), '" with ', current_phase%num_processes, ' processes'
+
+      ! Loop through each process in this phase
+      do j = 1, current_phase%num_processes
+         process_config = current_phase%processes(j)
+         
+         ! Check if process is enabled
+         if (.not. process_config%enabled) then
+            write(*,*) 'INFO: Skipping disabled process: ', trim(process_config%name)
+            cycle
+         endif
+
+         ! Map process_index to actual process in manager's array
+         process_idx = process_config%process_index
+         
+         ! Validate process index bounds
+         if (process_idx < 1 .or. process_idx > this%num_processes) then
+            write(*,*) 'WARNING: Process index ', process_idx, ' out of bounds for process: ', &
+                      trim(process_config%name)
+            cycle
+         endif
+
+         write(*,*) 'INFO: Running process: ', trim(process_config%name), ' (index=', process_idx, ')'
+
+         ! Run the process based on its type
+         if (this%processes(process_idx)%is_ready()) then
+            select type(proc => this%processes(process_idx))
+            class is (ColumnProcessInterface)
+               call this%run_process_on_columns(process_idx, container, local_rc)
+            class default
+               call this%processes(process_idx)%run(container, local_rc)
+            end select
+
+            if (local_rc /= CC_SUCCESS) then
+               write(*,*) 'ERROR: Process ', trim(process_config%name), ' failed with code: ', local_rc
+               rc = local_rc
+               return
+            endif
+         else
+            write(*,*) 'WARNING: Process ', trim(process_config%name), ' is not ready'
+         endif
+      enddo
+
+      write(*,*) 'INFO: Phase "', trim(phase_name), '" completed successfully'
+
    end subroutine manager_run_phase
+
+   !> Run all run phases in sequence using ConfigManager run phases configuration
+   subroutine manager_run_all_phases(this, config_data, container, rc)
+      class(ProcessManagerType), intent(inout) :: this
+      type(ConfigDataType), intent(in) :: config_data
+      type(StateManagerType), intent(inout) :: container
+      integer, intent(out) :: rc
+
+      integer :: phase_idx, local_rc
+      character(len=64) :: phase_name
+
+      rc = CC_SUCCESS
+
+      ! Check if run phases are configured
+      if (.not. allocated(config_data%run_phases)) then
+         write(*,*) 'WARNING: No run phases configured, skipping all phases execution'
+         return
+      endif
+
+      if (size(config_data%run_phases) == 0) then
+         write(*,*) 'WARNING: Empty run phases array, skipping all phases execution'
+         return
+      endif
+
+      write(*,*) 'INFO: Running all phases - total phases: ', size(config_data%run_phases)
+
+      ! Loop through all phases and run each one
+      do phase_idx = 1, size(config_data%run_phases)
+         phase_name = config_data%run_phases(phase_idx)%name
+         
+         write(*,*) 'INFO: Starting phase ', phase_idx, ' of ', size(config_data%run_phases), &
+                   ': "', trim(phase_name), '"'
+
+         ! Run this phase
+         call this%run_phase(phase_name, config_data, container, local_rc)
+         if (local_rc /= CC_SUCCESS) then
+            write(*,*) 'ERROR: Phase "', trim(phase_name), '" failed with code: ', local_rc
+            rc = local_rc
+            return
+         endif
+
+         write(*,*) 'INFO: Phase "', trim(phase_name), '" completed successfully'
+      enddo
+
+      write(*,*) 'INFO: All ', size(config_data%run_phases), ' phases completed successfully'
+
+   end subroutine manager_run_all_phases
 
    !> Run all processes (compatibility method)
    subroutine manager_run_all_processes(this, container, rc)

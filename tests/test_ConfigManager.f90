@@ -333,11 +333,18 @@ program test_ConfigManager
 
    write(*,*) 'Test chem_state still exists:  ', size(chem_state%ChemSpecies)
 
-   ! Test 31: Load emission mapping configuration
-   write(*,*) 'Test 31: Load emission mapping configuration'
-   call test_emission_mapping_load(config_mgr, chem_state)
+   ! Test 31: Load run phases configuration
+   write(*,*) 'Test 31: Load run phases configuration'
+   call test_run_phases_loading(config_mgr)
 
    write(*,*) 'Test 31 passed!'
+   write(*,*) ''
+
+   ! Test 32: Load emission mapping configuration
+   write(*,*) 'Test 32: Load emission mapping configuration'
+   call test_emission_mapping_load(config_mgr, chem_state)
+
+   write(*,*) 'Test 32 passed!'
    write(*,*) ''
 
    ! Final cleanup
@@ -607,5 +614,125 @@ contains
       write(*,*) '    All species loading tests completed successfully!'
 
    end subroutine test_load_and_init_species
+
+   !> \brief Test run phases configuration loading
+   !!
+   !! This test loads the main configuration file and tests the run_phases
+   !! parsing functionality, verifying ProcessConfigType and RunPhaseType data
+   subroutine test_run_phases_loading(config_manager)
+      type(ConfigManagerType), intent(inout) :: config_manager
+      
+      integer :: test_rc, i, j
+      character(len=256) :: config_file
+      logical :: file_exists
+
+      write(*,*) '  Subtest 31.1: Check if main config file exists'
+      config_file = './Configs/Default/CATChem_new_config.yml'
+      inquire(file=config_file, exist=file_exists)
+      if (.not. file_exists) then
+         config_file = './tests/Configs/Default/CATChem_new_config.yml'
+         inquire(file=config_file, exist=file_exists)
+         if (.not. file_exists) then
+            config_file = '../tests/Configs/Default/CATChem_new_config.yml'
+            inquire(file=config_file, exist=file_exists)
+         endif
+      endif
+      
+      ! Final check - if still not found, print helpful message
+      if (.not. file_exists) then
+         write(*,*) 'ERROR: Could not find CATChem_new_config.yml in any of these locations:'
+         write(*,*) '  - ./Configs/Default/CATChem_new_config.yml'
+         write(*,*) '  - ./tests/Configs/Default/CATChem_new_config.yml'
+         write(*,*) '  - ../tests/Configs/Default/CATChem_new_config.yml'
+         write(*,*) 'Skipping run phases test.'
+         return
+      endif
+      
+      call assert(file_exists, "Main configuration file should exist: " // trim(config_file))
+      write(*,*) '    Main config file found: ', trim(config_file)
+
+      write(*,*) '  Subtest 31.2: Load main configuration with run phases'
+      call config_manager%load_from_file(config_file, test_rc)
+      call assert(test_rc == CC_SUCCESS, "Should successfully load main config with run phases")
+      write(*,*) '    ✓ Main configuration loaded successfully'
+
+      write(*,*) '  Subtest 31.3: Verify run phases were loaded'
+      if (config_manager%config_data%run_phases_enabled) then
+         call assert(allocated(config_manager%config_data%run_phases), "Run phases array should be allocated")
+         call assert(allocated(config_manager%config_data%run_phase_processes), "Run phase processes array should be allocated")
+         
+         if (allocated(config_manager%config_data%run_phases)) then
+            call assert(size(config_manager%config_data%run_phases) > 0, "Should have at least one run phase")
+            write(*,'(A,I0,A)') '    ✓ Found ', size(config_manager%config_data%run_phases), ' run phases'
+         endif
+
+         if (allocated(config_manager%config_data%run_phase_processes)) then
+            call assert(size(config_manager%config_data%run_phase_processes) > 0, "Should have at least one process")
+            write(*,'(A,I0,A)') '    ✓ Found ', size(config_manager%config_data%run_phase_processes), ' total processes'
+         endif
+      endif
+
+      write(*,*) '  Subtest 31.4: Display detailed run phase information'
+      write(*,*) '    ============== Run Phase Configuration =============='
+      
+      if (allocated(config_manager%config_data%run_phases)) then
+         do i = 1, size(config_manager%config_data%run_phases)
+            write(*,*) ''
+            write(*,'(A,I0,A,A)') '    Phase ', i, ': ', trim(config_manager%config_data%run_phases(i)%name)
+            write(*,'(A,A)') '      Description: ', trim(config_manager%config_data%run_phases(i)%description)
+            write(*,'(A,A)') '      Frequency: ', trim(config_manager%config_data%run_phases(i)%frequency)
+            write(*,'(A,I0)') '      Subcycling: ', config_manager%config_data%run_phases(i)%subcycling
+            write(*,'(A,I0)') '      Number of processes: ', config_manager%config_data%run_phases(i)%num_processes
+            
+            if (allocated(config_manager%config_data%run_phases(i)%processes)) then
+               do j = 1, config_manager%config_data%run_phases(i)%num_processes
+                  write(*,'(A,I0,A,A)') '        Process ', j, ': ', &
+                     trim(config_manager%config_data%run_phases(i)%processes(j)%name)
+                  write(*,'(A,A)') '          Type: ', &
+                     trim(config_manager%config_data%run_phases(i)%processes(j)%process_type)
+                  write(*,'(A,A)') '          Scheme: ', &
+                     trim(config_manager%config_data%run_phases(i)%processes(j)%scheme)
+                  write(*,'(A,L1)') '          Enabled: ', &
+                     config_manager%config_data%run_phases(i)%processes(j)%enabled
+                  write(*,'(A,I0)') '          Priority: ', &
+                     config_manager%config_data%run_phases(i)%processes(j)%priority
+                  write(*,'(A,I0)') '          Process_index: ', &
+                     config_manager%config_data%run_phases(i)%processes(j)%process_index
+                  write(*,'(A,A)') '          Timing: ', &
+                     trim(config_manager%config_data%run_phases(i)%processes(j)%timing)
+                  write(*,'(A,I0)') '          Subcycling: ', &
+                     config_manager%config_data%run_phases(i)%processes(j)%subcycling
+                  ! write(*,'(A,A)') '          Config Details: ', &
+                  !    trim(config_manager%config_data%run_phases(i)%processes(j)%config_details)
+               end do
+            endif
+         end do
+         write(*,*) '    ======================================================'
+      else
+         write(*,*) '    Warning: No run phases loaded'
+      endif
+
+      write(*,*) '  Subtest 31.5: Display global run phase processes array'
+      write(*,*) '    ========== Global Run Phase Processes Array ======='
+      
+      if (allocated(config_manager%config_data%run_phase_processes)) then
+         do i = 1, size(config_manager%config_data%run_phase_processes)
+            write(*,'(A,I0,A,A)') '    Global Process ', i, ': ', &
+               trim(config_manager%config_data%run_phase_processes(i)%name)
+            write(*,'(A,A)') '      Type: ', trim(config_manager%config_data%run_phase_processes(i)%process_type)
+            write(*,'(A,A)') '      Scheme: ', trim(config_manager%config_data%run_phase_processes(i)%scheme)
+            write(*,'(A,L1)') '      Enabled: ', config_manager%config_data%run_phase_processes(i)%enabled
+            write(*,'(A,I0)') '      Priority: ', config_manager%config_data%run_phase_processes(i)%priority
+            write(*,'(A,I0)') '      Process_index: ', config_manager%config_data%run_phase_processes(i)%process_index
+            !write(*,'(A,A)') '      Config: ', trim(config_manager%config_data%run_phase_processes(i)%config_details)
+         end do
+         write(*,*) '    ======================================================'
+      else
+         write(*,*) '    Warning: No global run phase processes loaded'
+      endif
+
+      write(*,*) '    All run phase configuration tests completed successfully!'
+
+   end subroutine test_run_phases_loading
 
 end program test_ConfigManager

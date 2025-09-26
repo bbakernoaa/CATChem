@@ -517,7 +517,7 @@ contains
 
       call this%error_mgr%push_context("core_run_processes")
       rc = CC_SUCCESS
-
+      
       call this%process_mgr%run_all(this%state_mgr, rc)
       if (rc /= CC_SUCCESS) then
          call this%error_mgr%report_error(rc, "Failed to run processes", rc)
@@ -664,7 +664,8 @@ contains
       class(CATChemCoreType), intent(inout), target :: this
       type(ConfigDataType), pointer :: config_ptr
 
-      config_ptr => this%config
+      ! Return the ConfigManager's config_data, not the Core's separate config
+      config_ptr => this%config_mgr%config_data
 
    end function core_get_config
 
@@ -775,14 +776,18 @@ contains
    end function builder_with_name
 
    !> \brief Set grid dimensions
-   function builder_with_grid(this, nx, ny, nz) result(builder_ref)
+   function builder_with_grid(this, nx, ny, nz, nsoil, nsoiltype, nsurftype) result(builder_ref)
       class(CATChemBuilderType), intent(inout) :: this
       integer, intent(in) :: nx, ny, nz
+      integer, intent(in), optional :: nsoil, nsoiltype, nsurftype
       type(CATChemBuilderType) :: builder_ref
 
       this%nx = nx
       this%ny = ny
       this%nz = nz
+      if(present(nsoil)) this%nsoil = nsoil
+      if(present(nsoiltype)) this%nsoiltype = nsoiltype
+      if(present(nsurftype)) this%nsurftype = nsurftype
       builder_ref = this
 
    end function builder_with_grid

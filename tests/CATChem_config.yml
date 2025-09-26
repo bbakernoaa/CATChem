@@ -27,15 +27,15 @@ timesteps:
 #============================================================================
 # Settings for CATChem processes
 #============================================================================
-process:
+processes:
   seasalt:
     activate: true
-    scheme_opt: 3
+    scheme: "geos12"
     scale_factor: 1.0
     weibull: true
   dust:
     activate: true
-    scheme_opt: 1
+    scheme: "fengsha"
     dust_drag_opt: 1
     dust_moist_opt: 1
     dust_horizflux_opt: 1
@@ -43,5 +43,5 @@ process:
     dust_beta: 1.0
   drydep:
     activate: true
-    scheme_opt: 1
+    scheme: "wesley"
     resuspension: false

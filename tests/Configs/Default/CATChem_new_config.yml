@@ -42,6 +42,23 @@ diagnostics:
     enabled: true
     buffer_size: 1000
 #============================================================================
+# RunPhase settings: define process running order
+#============================================================================
+run_phases:
+  test1:
+    description: "Test phase 1"
+    processes:
+      seasalt
+  #     dust
+  #     drydep
+  # test2:
+  #   description: "Test phase 2"
+  #   processes:
+  #     dust
+  #     drydep
+  #     #wetdep
+
+#============================================================================
 # Settings for CATChem processes
 #============================================================================
 processes:

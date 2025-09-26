@@ -64,6 +64,8 @@ module ConfigManager_Mod
    public :: ConfigDataType      ! Modern YAML-based configuration data structure
    public :: ConfigSchemaType
    public :: ConfigPresetType
+   public :: RunPhaseType        ! Run phase configuration type
+   public :: ProcessConfigType   ! Process configuration type
    public :: EmissionCategoryMapping  ! Emission category mapping structure
    public :: EmisSpeciesMappingEntry  ! Individual emission species mapping
    public :: CONFIG_STRATEGY_STRICT, CONFIG_STRATEGY_PERMISSIVE, CONFIG_STRATEGY_FALLBACK
@@ -182,6 +184,7 @@ module ConfigManager_Mod
       character(len=64) :: config_version = '2.0'       !< Configuration version
       character(len=256) :: source_file = ''            !< Source configuration file
       logical :: is_validated = .false.                 !< Has configuration been validated?
+      logical :: run_phases_enabled = .false.           !< Are run phases configured?
 
       type(ProcessConfigType), allocatable :: run_phase_processes(:)  !< All process configs for run phases
       type(RunPhaseType), allocatable :: run_phases(:)               !< Array of run phase configurations
@@ -207,9 +210,10 @@ module ConfigManager_Mod
       character(len=64) :: scheme           !< Scheme name (e.g., 'YSU')
       logical :: enabled                    !< Whether process is enabled
       integer :: priority                   !< Execution priority (lower = earlier)
+      integer :: process_index              !< Index mapping to global process numbers
       character(len=16) :: timing           !< Timing type ('explicit', 'implicit')
       integer :: subcycling                 !< Number of subcycles
-      character(len=256) :: config_details  !< Additional configuration as string (YAML/JSON)
+      !character(len=256) :: config_details  !< Additional configuration as string (YAML/JSON)
    end type ProcessConfigType
 
    !> \brief Run phase configuration for phase-based execution
@@ -325,6 +329,7 @@ module ConfigManager_Mod
       ! Configuration update methods
       procedure :: update_runtime_from_configs => config_manager_update_runtime_from_configs
       procedure :: parse_config_data
+      procedure :: load_run_phases => config_manager_load_run_phases
 
       ! Utility methods
       procedure :: print_summary => config_manager_print_summary
@@ -728,6 +733,12 @@ contains
 
       ! Parse structured configuration data
       call this%parse_config_data(rc)
+
+      ! Parse run phases configuration
+      call this%load_run_phases(rc)
+      if (rc /= CC_SUCCESS) then
+         write(*,*) 'Warning: Failed to load run phases or process configuration'
+      endif
 
    end subroutine config_manager_load_from_file
 
@@ -1931,8 +1942,8 @@ contains
          ! Get all emission field names for this category using character-based discovery
          ! Since yaml_get_node is not available, we'll use the text-based approach
          allocate(all_species(100))  ! Temporary array, we'll reallocate later
-         call discover_emission_fields_from_text(filename, trim(all_categories(i)), &
-                                                all_species, n_species, rc)
+         call discover_yaml_section_items(filename, trim(all_categories(i)), 'emission_fields', &
+                                          all_species, n_species, rc)
          
          if (rc /= CC_SUCCESS .or. n_species == 0) then
             ! Skip this category if we can't find any emission fields
@@ -2051,28 +2062,41 @@ contains
 
    end subroutine config_manager_load_emission_mapping
 
-   !> \brief Parse YAML text file to discover emission fields under a category
-   !! This function reads the YAML file as plain text and extracts emission field names
-   !! by parsing the structure line by line, looking for keys with ':' under the category
-   subroutine discover_emission_fields_from_text(filename, category_name, emission_fields, n_fields, rc)
+   !> \brief Generic YAML text parser for discovering items in a section
+   !! This function reads the YAML file as plain text and extracts item names
+   !! by parsing the structure line by line, looking for keys with ':' under the section
+   !! \param[in] filename YAML configuration file path
+   !! \param[in] section_name Section name to search for items
+   !! \param[in] parse_mode Parsing mode: 'simple', 'emission_fields'
+   !! \param[out] item_names Array to store discovered item names
+   !! \param[out] n_items Number of items discovered
+   !! \param[out] rc Return code
+   subroutine discover_yaml_section_items(filename, section_name, parse_mode, item_names, n_items, rc)
       implicit none
       character(len=*), intent(in) :: filename
-      character(len=*), intent(in) :: category_name
-      character(len=64), intent(inout) :: emission_fields(:)
-      integer, intent(out) :: n_fields
+      character(len=*), intent(in) :: section_name
+      character(len=*), intent(in) :: parse_mode  ! 'simple' or 'emission_fields'
+      character(len=64), intent(inout) :: item_names(:)
+      integer, intent(out) :: n_items
       integer, intent(out) :: rc
 
-      integer :: unit_num, io_stat, colon_pos, indent_level, category_indent
+      integer :: unit_num, io_stat, colon_pos, indent_level, section_indent
       character(len=256) :: line, trimmed_line, field_name
-      logical :: in_category, found_category, field_has_map, field_has_scale
+      logical :: in_section, found_section
       integer :: line_number, field_indent
+      
+      ! Emission field specific variables
+      logical :: field_has_map, field_has_scale
       character(len=64) :: current_field
 
       rc = CC_SUCCESS
-      n_fields = 0
-      in_category = .false.
-      found_category = .false.
-      category_indent = -1
+      n_items = 0
+      in_section = .false.
+      found_section = .false.
+      section_indent = -1
+      line_number = 0
+
+      ! Initialize emission field specific variables
       field_has_map = .false.
       field_has_scale = .false.
       current_field = ''
@@ -2081,7 +2105,7 @@ contains
       ! Open file for reading
       open(newunit=unit_num, file=trim(filename), status='old', action='read', iostat=io_stat)
       if (io_stat /= 0) then
-         write(*, '(A,A)') 'ERROR: Cannot open emission mapping file: ', trim(filename)
+         write(*, '(A,A)') 'ERROR: Cannot open configuration file: ', trim(filename)
          rc = CC_FAILURE
          return
       endif
@@ -2097,8 +2121,7 @@ contains
          ! Skip empty lines and comments
          if (len_trim(trimmed_line) == 0 .or. trimmed_line(1:1) == '#') cycle
 
-         ! Calculate indentation level (number of leading spaces)
-         ! Find the actual content length and calculate leading spaces
+         ! Calculate indentation level
          do indent_level = 1, len_trim(line)
             if (line(indent_level:indent_level) /= ' ') exit
          end do
@@ -2110,81 +2133,105 @@ contains
             field_name = trimmed_line(1:colon_pos-1)
             field_name = trim(adjustl(field_name))
 
-            if (trim(field_name) == trim(category_name) .and. indent_level == 0) then
-               ! Found our category at top level
-               in_category = .true.
-               found_category = .true.
-               category_indent = indent_level
-               write(*, '(A,A,A,I0)') 'INFO: Found category "', trim(category_name), '" at line ', line_number
+            ! Check if we found our target section
+            if (trim(field_name) == trim(section_name) .and. indent_level == 0) then
+               in_section = .true.
+               found_section = .true.
+               section_indent = indent_level
+               if (trim(parse_mode) == 'emission_fields') then
+                  write(*, '(A,A,A,I0)') 'INFO: Found category "', trim(section_name), '" at line ', line_number
+               endif
                cycle
             endif
 
-            if (in_category .and. indent_level > category_indent) then
-               ! We're inside our category
-               if (indent_level == category_indent + 2) then
-                  ! Direct child of category - this could be an emission field
-                  ! Check if we have a previous field to finalize
-                  if (current_field /= '' .and. field_has_map .and. field_has_scale) then
-                     if (n_fields < size(emission_fields)) then
-                        n_fields = n_fields + 1
-                        emission_fields(n_fields) = trim(current_field)
-                        write(*, '(A,A)') 'INFO: Added emission field: ', trim(current_field)
+            ! Process items within the section
+            if (in_section .and. indent_level > section_indent) then
+               
+               if (trim(parse_mode) == 'simple') then
+                  ! Simple mode: direct children are items
+                  if (indent_level == section_indent + 2) then
+                     if (n_items < size(item_names)) then
+                        n_items = n_items + 1
+                        item_names(n_items) = trim(field_name)
+                        write(*, '(A,A)') 'INFO: Discovered item: ', trim(field_name)
                      endif
                   endif
                   
-                  ! Start tracking new potential field
-                  current_field = trim(field_name)
-                  field_indent = indent_level
-                  field_has_map = .false.
-                  field_has_scale = .false.
-                  
-               elseif (indent_level == field_indent + 2 .and. current_field /= '') then
-                  ! Properties of current field
-                  if (trim(field_name) == 'map') then
-                     field_has_map = .true.
-                  elseif (trim(field_name) == 'scale') then
-                     field_has_scale = .true.
+               elseif (trim(parse_mode) == 'emission_fields') then
+                  ! Emission fields mode: validate fields have both 'map' and 'scale'
+                  if (indent_level == section_indent + 2) then
+                     ! Direct child of category - potential emission field
+                     if (current_field /= '' .and. field_has_map .and. field_has_scale) then
+                        if (n_items < size(item_names)) then
+                           n_items = n_items + 1
+                           item_names(n_items) = trim(current_field)
+                           write(*, '(A,A)') 'INFO: Added emission field: ', trim(current_field)
+                        endif
+                     endif
+                     
+                     ! Start tracking new potential field
+                     current_field = trim(field_name)
+                     field_indent = indent_level
+                     field_has_map = .false.
+                     field_has_scale = .false.
+                     
+                  elseif (indent_level == field_indent + 2 .and. current_field /= '') then
+                     ! Properties of current field
+                     if (trim(field_name) == 'map') then
+                        field_has_map = .true.
+                     elseif (trim(field_name) == 'scale') then
+                        field_has_scale = .true.
+                     endif
                   endif
                endif
-            elseif (in_category .and. indent_level <= category_indent) then
-               ! We've left our category - check pending field
-               if (current_field /= '' .and. field_has_map .and. field_has_scale) then
-                  if (n_fields < size(emission_fields)) then
-                     n_fields = n_fields + 1
-                     emission_fields(n_fields) = trim(current_field)
+               
+            elseif (in_section .and. indent_level <= section_indent) then
+               ! We've left our section
+               if (trim(parse_mode) == 'emission_fields' .and. current_field /= '' .and. &
+                   field_has_map .and. field_has_scale) then
+                  if (n_items < size(item_names)) then
+                     n_items = n_items + 1
+                     item_names(n_items) = trim(current_field)
                      write(*, '(A,A)') 'INFO: Added emission field: ', trim(current_field)
                   endif
                endif
-               ! Reset tracking state when exiting category
-               current_field = ''
-               in_category = .false.
-               exit  ! Exit when we leave the category
+               exit
             endif
          endif
       end do
 
-      ! Check if we have a pending field at end of file
-      if (current_field /= '' .and. field_has_map .and. field_has_scale) then
-         if (n_fields < size(emission_fields)) then
-            n_fields = n_fields + 1
-            emission_fields(n_fields) = trim(current_field)
+      ! Handle pending emission field at end of file
+      if (trim(parse_mode) == 'emission_fields' .and. current_field /= '' .and. &
+          field_has_map .and. field_has_scale) then
+         if (n_items < size(item_names)) then
+            n_items = n_items + 1
+            item_names(n_items) = trim(current_field)
             write(*, '(A,A)') 'INFO: Added emission field: ', trim(current_field)
          endif
       endif
 
       close(unit_num)
 
-      if (.not. found_category) then
-         write(*, '(A,A)') 'WARNING: Category not found: ', trim(category_name)
-         rc = CC_SUCCESS  ! Not an error - category may not exist
-      elseif (n_fields == 0) then
-         write(*, '(A,A)') 'INFO: No emission fields found for category: ', trim(category_name)
+      ! Report results
+      if (.not. found_section) then
+         write(*, '(A,A)') 'INFO: Section not found: ', trim(section_name)
+         rc = CC_SUCCESS  ! Not an error - section may not exist
+      elseif (n_items == 0) then
+         if (trim(parse_mode) == 'emission_fields') then
+            write(*, '(A,A)') 'INFO: No emission fields found for category: ', trim(section_name)
+         else
+            write(*, '(A,A)') 'INFO: No items found in section: ', trim(section_name)
+         endif
          rc = CC_SUCCESS
       else
-         write(*, '(A,I0,A,A)') 'INFO: Found ', n_fields, ' emission fields in category: ', trim(category_name)
+         if (trim(parse_mode) == 'emission_fields') then
+            write(*, '(A,I0,A,A)') 'INFO: Found ', n_items, ' emission fields in category: ', trim(section_name)
+         else
+            write(*, '(A,I0,A,A)') 'INFO: Found ', n_items, ' items in section: ', trim(section_name)
+         endif
       endif
 
-   end subroutine discover_emission_fields_from_text
+   end subroutine discover_yaml_section_items
 
    !> \brief Update runtime configuration from loaded configs
    subroutine config_manager_update_runtime_from_configs(this, rc)
@@ -2354,5 +2401,492 @@ contains
       this%is_loaded = .false.
 
    end subroutine emis_mapping_config_cleanup
+
+   !> \brief Load run phases configuration from YAML
+   !!
+   !! Parses the run_phases section from the loaded YAML configuration and populates
+   !! the ConfigDataType%run_phases and ConfigDataType%run_phase_processes arrays.
+   !!
+   !! Expected YAML format:
+   !! run_phases:
+   !!   phase_name:
+   !!     process1
+   !!     process2
+   !!     process3
+   !!
+   !! \param[out] rc Return code (CC_SUCCESS/CC_FAILURE)
+   subroutine config_manager_load_run_phases(this, rc)
+      implicit none
+      class(ConfigManagerType), intent(inout) :: this
+      integer, intent(out) :: rc
+
+      character(len=64), allocatable :: process_array(:)
+      character(len=64), allocatable :: discovered_phases(:)
+      character(len=64), allocatable :: unique_processes(:)  ! Track unique process names
+      integer, allocatable :: unique_process_indices(:)      ! Map unique process names to indices
+      character(len=64) :: phase_name, process_name, test_value
+      integer :: phase_idx, process_idx, num_phases, num_processes
+      integer :: total_processes, n_discovered_phases, global_process_idx
+      integer :: n_unique_processes, unique_idx
+      logical :: has_run_phases, has_processes, success, process_found, is_duplicate
+      character(len=256) :: process_scheme, temp_string
+      logical :: temp_logical
+      integer :: temp_integer, valid_phases
+
+      rc = CC_SUCCESS
+
+      if (.not. this%is_loaded) then
+         write(*,*) 'Warning: No YAML configuration loaded for run phases'
+         rc = CC_FAILURE
+         return
+      endif
+
+      ! Initialize arrays
+      allocate(process_array(50))  
+      allocate(discovered_phases(20))
+      allocate(unique_processes(50))    
+      allocate(unique_process_indices(50))  
+      n_unique_processes = 0
+      
+      ! Initialize run_phases_enabled to false
+      this%config_data%run_phases_enabled = .false.
+
+      ! Check if run_phases section exists by trying to discover phases
+      call discover_yaml_section_items(this%config_file, 'run_phases', 'simple', discovered_phases, n_discovered_phases, rc)
+      has_run_phases = (rc == CC_SUCCESS .and. n_discovered_phases > 0)
+      
+      if (has_run_phases) then
+         write(*,*) 'Loading run phases from configuration...'
+         
+         if (n_discovered_phases == 0) then
+            write(*,*) 'Warning: No phases found in run_phases section'
+            deallocate(process_array, discovered_phases, unique_processes, unique_process_indices)
+            return
+         endif
+         
+         ! Set run_phases_enabled to true since we found phases
+         this%config_data%run_phases_enabled = .true.
+         
+         ! First pass: count unique processes and valid phases
+         n_unique_processes = 0
+         valid_phases = 0
+         
+         do phase_idx = 1, n_discovered_phases
+            phase_name = trim(discovered_phases(phase_idx))
+            
+            ! Get processes for this phase - try new nested structure first
+            success = yaml_get_string_array(this%yaml_data, 'run_phases/' // trim(phase_name) // '/processes', process_array, num_processes)
+            
+            if (.not. success) then
+               ! Try old direct structure for backward compatibility
+               success = yaml_get_string_array(this%yaml_data, 'run_phases/' // trim(phase_name), process_array, num_processes)
+               
+               if (.not. success) then
+                  ! Try as a single string and parse it manually (new structure)
+                  success = yaml_get_string(this%yaml_data, 'run_phases/' // trim(phase_name) // '/processes', test_value)
+                  if (.not. success) then
+                     ! Try old structure as single string
+                     success = yaml_get_string(this%yaml_data, 'run_phases/' // trim(phase_name), test_value)
+                  endif
+                  
+                  if (success) then
+                     call parse_space_separated_string(test_value, process_array, num_processes)
+                     if (num_processes > 0) then
+                        success = .true.
+                     endif
+                  endif
+               endif
+            endif
+            
+            if (success .and. num_processes > 0) then
+               ! Validate that all processes exist in processes section before counting
+               do process_idx = 1, num_processes
+                  process_name = trim(process_array(process_idx))
+                  ! Try to read a value from the process to validate it exists
+                  success = yaml_get_string(this%yaml_data, 'processes/' // trim(process_name) // '/scheme', temp_string)
+                  if (.not. success) then
+                     ! If scheme doesn't exist, try another field to double-check
+                     success = yaml_get_logical(this%yaml_data, 'processes/' // trim(process_name) // '/activate', temp_logical)
+                  endif
+                  if (.not. success) then
+                     write(*,'(A,A,A,A,A)') 'ERROR: Run phases process "', trim(process_name), &
+                          '" listed in phase "', trim(phase_name), '" is not defined in the processes section of the configuration YAML file'
+                     rc = CC_FAILURE
+                     deallocate(process_array, discovered_phases, unique_processes, unique_process_indices)
+                     return
+                  endif
+               end do
+               
+               valid_phases = valid_phases + 1
+               
+               ! Check for unique processes
+               do process_idx = 1, num_processes
+                  process_name = trim(process_array(process_idx))
+                  
+                  ! Check if already in unique list
+                  is_duplicate = .false.
+                  do unique_idx = 1, n_unique_processes
+                     if (trim(unique_processes(unique_idx)) == trim(process_name)) then
+                        is_duplicate = .true.
+                        exit
+                     endif
+                  end do
+                  
+                  ! Add to unique list if not duplicate
+                  if (.not. is_duplicate) then
+                     n_unique_processes = n_unique_processes + 1
+                     unique_processes(n_unique_processes) = trim(process_name)
+                     unique_process_indices(n_unique_processes) = n_unique_processes
+                  endif
+               end do
+            else
+               write(*,'(A,A,A)') 'Info: Skipping phase "', trim(phase_name), '" - no processes found'
+            endif
+         end do
+         
+         write(*,'(A,I0,A,I0,A)') 'Found ', valid_phases, ' valid phases with ', n_unique_processes, ' unique processes'
+         
+         ! Allocate arrays based on valid phase count
+         if (allocated(this%config_data%run_phases)) then
+            deallocate(this%config_data%run_phases)
+         endif
+         allocate(this%config_data%run_phases(valid_phases))
+
+         if (allocated(this%config_data%run_phase_processes)) then
+            deallocate(this%config_data%run_phase_processes)
+         endif
+         allocate(this%config_data%run_phase_processes(n_unique_processes))
+         
+         ! Second pass: populate the data structures (only valid phases)
+         valid_phases = 0
+         
+         do phase_idx = 1, n_discovered_phases
+            phase_name = trim(discovered_phases(phase_idx))
+            
+            ! Get processes for this phase - try new nested structure first  
+            success = yaml_get_string_array(this%yaml_data, 'run_phases/' // trim(phase_name) // '/processes', process_array, num_processes)
+            
+            if (.not. success) then
+               ! Try old direct structure for backward compatibility
+               success = yaml_get_string_array(this%yaml_data, 'run_phases/' // trim(phase_name), process_array, num_processes)
+               
+               if (.not. success) then
+                  ! Try as a single string and parse it manually (new structure)
+                  success = yaml_get_string(this%yaml_data, 'run_phases/' // trim(phase_name) // '/processes', test_value)
+                  if (.not. success) then
+                     ! Try old structure as single string
+                     success = yaml_get_string(this%yaml_data, 'run_phases/' // trim(phase_name), test_value)
+                  endif
+                  
+                  if (success) then
+                     call parse_space_separated_string(test_value, process_array, num_processes)
+                     if (num_processes > 0) then
+                        success = .true.
+                     endif
+                  endif
+               endif
+            endif
+            
+            if (.not. success .or. num_processes == 0) then
+               cycle  ! Skip phases with no processes
+            endif
+            
+            ! Increment the valid phase counter
+            valid_phases = valid_phases + 1
+            
+            ! Initialize phase metadata with flexible YAML reading
+            call populate_phase_config(this, phase_name, this%config_data%run_phases(valid_phases), rc)
+            if (rc /= CC_SUCCESS) then
+               deallocate(process_array, discovered_phases, unique_processes, unique_process_indices)
+               return
+            endif
+            this%config_data%run_phases(valid_phases)%num_processes = num_processes
+            
+            ! Allocate processes array for this phase
+            if (allocated(this%config_data%run_phases(valid_phases)%processes)) then
+               deallocate(this%config_data%run_phases(valid_phases)%processes)
+            endif
+            allocate(this%config_data%run_phases(valid_phases)%processes(num_processes))
+
+            ! Process each process in this phase
+            do process_idx = 1, num_processes
+               process_name = trim(process_array(process_idx))
+               
+               ! Note: Process validation already done in first pass, no need to check again
+               
+               ! Find unique index for this process
+               unique_idx = 0
+               do global_process_idx = 1, n_unique_processes
+                  if (trim(unique_processes(global_process_idx)) == trim(process_name)) then
+                     unique_idx = unique_process_indices(global_process_idx)
+                     exit
+                  endif
+               end do
+               
+               ! Initialize process in phase with flexible configuration reading
+               call populate_process_config(this, process_name, phase_name, &
+                                          this%config_data%run_phases(valid_phases)%processes(process_idx), &
+                                          unique_idx, process_idx, rc)
+               if (rc /= CC_SUCCESS) then
+                  deallocate(process_array, discovered_phases, unique_processes, unique_process_indices)
+                  return
+               endif
+
+               write(*,'(A,A,A,I0,A,A,A,A,A,I0,A)') 'Phase "', trim(phase_name), '" Process ', process_idx, &
+                  ': ', trim(process_name), ' (scheme: ', &
+                  trim(this%config_data%run_phases(valid_phases)%processes(process_idx)%scheme), &
+                  ', index: ', unique_idx, ')'
+            end do
+            
+            write(*,'(A,A,A,I0,A)') 'Completed phase "', trim(phase_name), '" with ', num_processes, ' processes'
+         end do
+         
+         ! Populate global run_phase_processes array with unique processes
+         do unique_idx = 1, n_unique_processes
+            process_name = trim(unique_processes(unique_idx))
+            
+            call populate_process_config(this, process_name, '', &
+                                       this%config_data%run_phase_processes(unique_idx), &
+                                       unique_idx, unique_idx, rc)
+            if (rc /= CC_SUCCESS) then
+               deallocate(process_array, discovered_phases, unique_processes, unique_process_indices)
+               return
+            endif
+            
+            write(*,'(A,I0,A,A,A,A,A)') 'Global Process ', unique_idx, ': ', trim(process_name), &
+               ' (scheme: ', trim(this%config_data%run_phase_processes(unique_idx)%scheme), ')'
+         end do
+         
+         write(*,*) 'All run phases loaded successfully!'
+         
+      else
+         ! No run_phases section found - try direct 'processes' section
+         ! Check if processes section exists by trying to discover processes
+         call discover_yaml_section_items(this%config_file, 'processes', 'simple', process_array, num_processes, rc)
+         has_processes = (rc == CC_SUCCESS .and. num_processes > 0)
+         if (has_processes) then
+            write(*,*) 'No run_phases found, loading direct processes section...'
+            
+            ! Set run_phases_enabled to false for direct processes mode
+            this%config_data%run_phases_enabled = .false.
+            
+            if (num_processes == 0) then
+               write(*,*) 'Info: No processes found in direct processes section'
+               deallocate(process_array, discovered_phases, unique_processes, unique_process_indices)
+               return
+            endif
+            
+            write(*,'(A,I0,A)') 'Found ', num_processes, ' processes in direct processes section'
+            
+            ! Allocate only run_phase_processes array (no phases structure)
+            if (allocated(this%config_data%run_phase_processes)) then
+               deallocate(this%config_data%run_phase_processes)
+            endif
+            allocate(this%config_data%run_phase_processes(num_processes))
+            
+            ! Populate run_phase_processes array directly
+            do process_idx = 1, num_processes
+               process_name = trim(process_array(process_idx))
+               
+               call populate_process_config(this, process_name, '', &
+                                          this%config_data%run_phase_processes(process_idx), &
+                                          process_idx, process_idx, rc)
+               if (rc /= CC_SUCCESS) then
+                  deallocate(process_array, discovered_phases, unique_processes, unique_process_indices)
+                  return
+               endif
+               
+               write(*,'(A,I0,A,A,A,A,A)') 'Process ', process_idx, ': ', trim(process_name), &
+                  ' (scheme: ', trim(this%config_data%run_phase_processes(process_idx)%scheme), ')'
+            end do
+            
+            write(*,*) 'Direct processes loaded successfully!'
+         else
+            write(*,*) 'Info: No run_phases or processes section found in configuration'
+         endif
+      endif
+
+      deallocate(process_array)
+      deallocate(discovered_phases)
+      deallocate(unique_processes)
+      deallocate(unique_process_indices)
+      
+   end subroutine config_manager_load_run_phases
+
+   !> \brief Helper subroutine to populate ProcessConfigType with flexible YAML reading
+   !! Reads configuration values from YAML first, then assigns defaults if not found
+   !! \param[in] config_mgr ConfigManager instance  
+   !! \param[in] process_name Process name to read configuration for
+   !! \param[in] phase_name Phase name (empty for direct processes)
+   !! \param[inout] process_config ProcessConfigType to populate
+   !! \param[in] process_index Global process index to assign
+   !! \param[in] local_priority Local priority within phase/global list
+   !! \param[out] rc Return code
+   subroutine populate_process_config(config_mgr, process_name, phase_name, process_config, &
+                                     process_index, local_priority, rc)
+      implicit none
+      class(ConfigManagerType), intent(in) :: config_mgr
+      character(len=*), intent(in) :: process_name
+      character(len=*), intent(in) :: phase_name
+      type(ProcessConfigType), intent(inout) :: process_config
+      integer, intent(in) :: process_index
+      integer, intent(in) :: local_priority
+      integer, intent(out) :: rc
+
+      character(len=256) :: process_path, temp_string
+      logical :: temp_logical, success
+      integer :: temp_integer
+
+      rc = CC_SUCCESS
+      
+      ! Build base path for this process in YAML
+      write(process_path, '(A,A)') 'processes/', trim(process_name)
+      
+      ! Always set basic required fields
+      process_config%name = trim(process_name)
+      process_config%process_index = process_index
+      
+      ! Read process_type from YAML or default to process name
+      success = yaml_get_string(config_mgr%yaml_data, trim(process_path) // '/type', temp_string)
+      if (success) then
+         process_config%process_type = trim(temp_string)
+      else
+         process_config%process_type = trim(process_name)
+      endif
+      
+      ! Read enabled from YAML or default to true
+      success = yaml_get_logical(config_mgr%yaml_data, trim(process_path) // '/activate', temp_logical)
+      if (success) then
+         process_config%enabled = temp_logical
+      else
+         process_config%enabled = .true.
+      endif
+      
+      ! Read priority from YAML or default to local priority
+      success = yaml_get_integer(config_mgr%yaml_data, trim(process_path) // '/priority', temp_integer)
+      if (success) then
+         process_config%priority = temp_integer
+      else
+         process_config%priority = local_priority
+      endif
+      
+      ! Read timing from YAML or default to 'default'
+      success = yaml_get_string(config_mgr%yaml_data, trim(process_path) // '/timing', temp_string)
+      if (success) then
+         process_config%timing = trim(temp_string)
+      else
+         process_config%timing = 'explicit'
+      endif
+      
+      ! Read subcycling from YAML or default to 1
+      success = yaml_get_integer(config_mgr%yaml_data, trim(process_path) // '/subcycling', temp_integer)
+      if (success) then
+         process_config%subcycling = temp_integer
+      else
+         process_config%subcycling = 1
+      endif
+      
+      ! Read scheme from YAML or use process name as default
+      success = yaml_get_string(config_mgr%yaml_data, trim(process_path) // '/scheme', temp_string)
+      if (success) then
+         process_config%scheme = trim(temp_string)
+      else
+         write(*,'(A,A,A)') 'Warning: Scheme of process "', trim(process_name), '" is not defined!'
+         process_config%scheme = 'default'
+      endif
+      
+   end subroutine populate_process_config
+
+   !> \brief Helper subroutine to populate run phase metadata with flexible YAML reading
+   !! Reads phase configuration values from YAML first, then assigns defaults if not found
+   !! \param[in] config_mgr ConfigManager instance  
+   !! \param[in] phase_name Phase name to read configuration for
+   !! \param[inout] phase_config RunPhaseType to populate
+   !! \param[out] rc Return code
+   subroutine populate_phase_config(config_mgr, phase_name, phase_config, rc)
+      implicit none
+      class(ConfigManagerType), intent(in) :: config_mgr
+      character(len=*), intent(in) :: phase_name
+      type(RunPhaseType), intent(inout) :: phase_config
+      integer, intent(out) :: rc
+
+      character(len=256) :: phase_path, temp_string
+      logical :: success
+      integer :: temp_integer
+
+      rc = CC_SUCCESS
+      
+      ! Build base path for this phase in YAML
+      write(phase_path, '(A,A)') 'run_phases/', trim(phase_name)
+      
+      ! Always set the phase name
+      phase_config%name = trim(phase_name)
+      
+      ! Read description from YAML or default to 'Phase: <phase_name>'
+      success = yaml_get_string(config_mgr%yaml_data, trim(phase_path) // '/description', temp_string)
+      if (success) then
+         phase_config%description = trim(temp_string)
+      else
+         phase_config%description = 'Phase: ' // trim(phase_name)
+      endif
+      
+      ! Read frequency from YAML or default to 'every timestep'
+      success = yaml_get_string(config_mgr%yaml_data, trim(phase_path) // '/frequency', temp_string)
+      if (success) then
+         phase_config%frequency = trim(temp_string)
+      else
+         phase_config%frequency = 'every timestep'
+      endif
+      
+      ! Read subcycling from YAML or default to 1
+      success = yaml_get_integer(config_mgr%yaml_data, trim(phase_path) // '/subcycling', temp_integer)
+      if (success) then
+         phase_config%subcycling = temp_integer
+      else
+         phase_config%subcycling = 1
+      endif
+      
+   end subroutine populate_phase_config
+   !> \brief Parse space-separated string into array elements
+   subroutine parse_space_separated_string(input_string, output_array, num_elements)
+      implicit none
+      character(len=*), intent(in) :: input_string
+      character(len=64), intent(out) :: output_array(:)
+      integer, intent(out) :: num_elements
+      
+      character(len=len(input_string)) :: work_string
+      integer :: pos, start_pos, str_len, i
+      logical :: in_word
+      
+      num_elements = 0
+      work_string = trim(adjustl(input_string))
+      str_len = len_trim(work_string)
+      
+      if (str_len == 0) return
+      
+      ! Simple space-separated parsing
+      start_pos = 1
+      in_word = .false.
+      
+      do pos = 1, str_len + 1
+         if (pos > str_len .or. work_string(pos:pos) == ' ') then
+            ! End of word or end of string
+            if (in_word) then
+               num_elements = num_elements + 1
+               if (num_elements <= size(output_array)) then
+                  output_array(num_elements) = work_string(start_pos:pos-1)
+               endif
+               in_word = .false.
+            endif
+         else
+            ! Start of new word
+            if (.not. in_word) then
+               start_pos = pos
+               in_word = .true.
+            endif
+         endif
+      end do
+      
+   end subroutine parse_space_separated_string
 
 end module ConfigManager_Mod

@@ -266,6 +266,24 @@ add_test(
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# New CATChem API test
+add_executable(test_catchem_api test_catchem_api.F90 ../src/api/CATChem_API.F90)
+target_link_libraries(test_catchem_api PRIVATE CATChem_core)
+target_link_libraries(test_catchem_api PRIVATE CATChem_process_seasalt)
+target_link_libraries(test_catchem_api PRIVATE testing)
+set_target_properties(
+  test_catchem_api
+  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+)
+target_include_directories(test_catchem_api PRIVATE ${CMAKE_BINARY_DIR}/include)
+add_dependencies(test_catchem_api CATChem_core)
+add_dependencies(test_catchem_api CATChem_process_seasalt)
+add_test(
+  NAME test_catchem_api
+  COMMAND test_catchem_api
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 
 # # Legacy tests (to be updated)
 # add_executable(test_main test_main.F90)
