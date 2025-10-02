@@ -3,7 +3,7 @@
 !!
 !! This file contains unit tests for the seasalt process implementation
 !! following the same pattern as core tests like test_ConfigManager.F90
-!! Generated on: 2025-09-22T16:20:04.781839
+!! Generated on: 2025-10-01T13:11:31.198862
 
 program test_seasalt_unit
    use testing_mod, only: assert, assert_close

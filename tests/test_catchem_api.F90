@@ -18,9 +18,14 @@
 !! Generated on: 2025-09-23
 
 program test_catchem_api
-   use CATChem_API, only: CATChem_Model, CATChem_SUCCESS, CATChem_FAILURE
+   use CATChem_API, only: CATChem_Model
+   use error_mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType
    use Precision_Mod, only: fp
    use iso_fortran_env, only: output_unit, error_unit
+   use ProcessManager_Mod, only: ProcessManagerType
+   use StateManager_Mod, only: StateManagerType
+   use metstate_mod, only: MetStateType
+   use error_mod, only: ErrorManagerType
    
    implicit none
    
@@ -28,7 +33,7 @@ program test_catchem_api
    type(CATChem_Model) :: catchem
    
    ! Test configuration parameters
-   character(len=*), parameter :: config_file = './CATChem_new_config.yml'
+   character(len=256) :: config_file
    integer, parameter :: nx = 10     ! Grid columns
    integer, parameter :: ny = 1      ! Grid rows (1D test)
    integer, parameter :: nz = 20     ! Vertical levels
@@ -38,18 +43,11 @@ program test_catchem_api
    integer, parameter :: n_timesteps = 3  ! Number of test timesteps
    real(fp), parameter :: dt = 3600.0_fp   ! 1 hour timestep
    
-   ! Meteorological test data
-   real(fp), allocatable :: temperature(:,:,:)
-   real(fp), allocatable :: pressure(:,:,:)
-   real(fp), allocatable :: humidity(:,:,:)
-   real(fp), allocatable :: wind_u(:,:,:)
-   real(fp), allocatable :: wind_v(:,:,:)
-   
    ! Test tracking
    integer :: rc
-   integer :: i, j, k, step
+   !integer :: i, j, k, step
    logical :: all_tests_passed = .true.
-   character(len=512) :: error_msg
+   logical :: file_exists
    
    ! Test result tracking
    integer :: tests_run = 0
@@ -65,6 +63,22 @@ program test_catchem_api
    ! Test 1: Basic Initialization and Grid Setup
    write(output_unit,'(A)') 'Test 1: Basic Initialization and Grid Setup'
    write(output_unit,'(A)') '-------------------------------------------'
+   
+   config_file = './CATChem_new_config.yml'
+   inquire(file=config_file, exist=file_exists)
+   if (.not. file_exists) then
+      config_file = './Configs/Default/CATChem_new_config.yml'
+      inquire(file=config_file, exist=file_exists)
+      if (.not. file_exists) then
+         config_file = '../tests/Configs/Default/CATChem_new_config.yml'
+         inquire(file=config_file, exist=file_exists)
+      endif
+   endif
+   if (.not. file_exists) then
+      write(*,*) 'ERROR: Could not find CATChem_new_config.yml'
+      write(*,*) 'Skipping run phases test.'
+      return
+   endif
    
    call test_initialization_with_grid(catchem, config_file, nx, ny, nz, nsoil, nsoiltype, nsurftype, tests_run, tests_passed)
    
@@ -98,10 +112,8 @@ program test_catchem_api
       call test_timestep_execution(catchem, n_timesteps, dt, tests_run, tests_passed)
    else
       write(output_unit,'(A)') '  Skipping timestep execution - model not ready'
-      call catchem%get_error_message(error_msg)
-      if (len_trim(error_msg) > 0) then
-         write(output_unit,'(A,A)') '  Reason: ', trim(error_msg)
-      endif
+      ! Error details available in error manager if needed
+      write(output_unit,'(A)') '  Check error manager for details'
       tests_run = tests_run + 1
    endif
    
@@ -156,7 +168,6 @@ contains
       
       integer :: init_rc
       integer :: check_nx, check_ny, check_nz, check_nsoil, check_nsoiltype, check_nsurftype
-      character(len=512) :: err_msg
       
       tests_total = tests_total + 1
       
@@ -166,7 +177,7 @@ contains
       
       call model%initialize(config_path, grid_nx, grid_ny, grid_nz, grid_nsoil, grid_nsoiltype, grid_nsurftype, init_rc)
       
-      if (init_rc == CATChem_SUCCESS) then
+      if (init_rc == CC_SUCCESS) then
          write(output_unit,'(A)') '  ✓ Initialization and grid setup successful'
          
          ! Test status check
@@ -189,8 +200,16 @@ contains
          endif
       else
          write(output_unit,'(A)') '  ✗ Initialization failed'
-         call model%get_error_message(err_msg)
-         write(output_unit,'(A,A)') '    Error: ', trim(err_msg)
+         ! Access error manager for detailed error information
+         block
+            type(ErrorManagerType), pointer :: error_mgr => null()
+            error_mgr => model%get_error_manager()
+            if (associated(error_mgr)) then
+               write(output_unit,'(A)') '    Error details available in error manager context stack'
+            else
+               write(output_unit,'(A)') '    Error manager not accessible'
+            endif
+         end block
       endif
       
    end subroutine test_initialization_with_grid
@@ -201,7 +220,6 @@ contains
       integer, intent(inout) :: tests_total, tests_success
       
       integer :: rc, i, num_processes
-      character(len=512) :: err_msg
       character(len=64), allocatable :: retrieved_processes(:)
       logical :: test_passed = .true.
       
@@ -212,12 +230,20 @@ contains
       ! Add all enabled processes from configuration
       call model%add_process(rc)
       
-      if (rc == CATChem_SUCCESS) then
+      if (rc == CC_SUCCESS) then
          write(output_unit,'(A)') '    ✓ Enabled processes added successfully'
       else
          write(output_unit,'(A)') '    ✗ Failed to add enabled processes'
-         call model%get_error_message(err_msg)
-         write(output_unit,'(A,A)') '      Error: ', trim(err_msg)
+         ! Access error manager for detailed error information
+         block
+            type(ErrorManagerType), pointer :: error_mgr => null()
+            error_mgr => model%get_error_manager()
+            if (associated(error_mgr)) then
+               write(output_unit,'(A)') '      Error details available in error manager context stack'
+            else
+               write(output_unit,'(A)') '      Error manager not accessible'
+            endif
+         end block
          test_passed = .false.
       endif
       
@@ -234,7 +260,7 @@ contains
       
       ! Get process names
       call model%get_process_names(retrieved_processes, rc)
-      if (rc == CATChem_SUCCESS) then
+      if (rc == CC_SUCCESS) then
          write(output_unit,'(A)') '  ✓ Retrieved process names successfully'
          do i = 1, size(retrieved_processes)
             write(output_unit,'(A,A)') '    - ', trim(retrieved_processes(i))
@@ -256,7 +282,6 @@ contains
       integer, intent(inout) :: tests_total, tests_success
       
       integer :: rc, i, current_phase
-      character(len=512) :: err_msg
       character(len=64), allocatable :: retrieved_phases(:)
       logical :: test_passed = .true.
       
@@ -266,7 +291,7 @@ contains
          
       ! Verify phase retrieval
       call model%get_phase_names(retrieved_phases, rc)
-      if (rc == CATChem_SUCCESS) then
+      if (rc == CC_SUCCESS) then
         write(output_unit,'(A)') '  ✓ Retrieved phase names:'
         do i = 1, size(retrieved_phases)
             write(output_unit,'(A,A)') '    - ', trim(retrieved_phases(i))
@@ -290,10 +315,9 @@ contains
       
       real(fp), allocatable :: temp(:,:,:), pres(:,:,:), humid(:,:,:), u_wind(:,:,:), v_wind(:,:,:), delp(:,:,:)
       real(fp), allocatable :: frocean(:,:), frseaice(:,:),sst(:,:), u10m(:,:), v10m(:,:), ustar(:,:)
-      real(fp), allocatable :: temp_out(:,:,:), pres_out(:,:,:), humid_out(:,:,:), u_out(:,:,:), v_out(:,:,:)
+      !real(fp), allocatable :: temp_out(:,:,:), pres_out(:,:,:), humid_out(:,:,:), u_out(:,:,:), v_out(:,:,:)
       real(fp) :: lat, wind_speed, altitude_km !, edge_altitude_km
       integer :: rc, i, j, k
-      character(len=512) :: err_msg
       logical :: test_passed = .true.
       
       tests_total = tests_total + 1
@@ -342,30 +366,85 @@ contains
          end do
       end do
       
-      write(output_unit,'(A)') '    Setting meteorological data...'
+      write(output_unit,'(A)') '    Setting meteorological data using ProcessManager required fields...'
       
-      ! Set meteorological data
-      call model%set_meteorology(temp, pres, humid, u_wind, v_wind, delp, frocean, frseaice, sst, u10m, v10m, ustar, rc)
-      
-      if (rc == CATChem_SUCCESS) then
-         write(output_unit,'(A)') '    ✓ Meteorological data set successfully'
+      ! Get ProcessManager and required fields
+      block
+         type(ProcessManagerType), pointer :: process_mgr
+         type(StateManagerType), pointer :: state_mgr
+         type(MetStateType), pointer :: met_state
+         type(ErrorManagerType), pointer :: error_mgr
+         character(len=64), allocatable :: required_fields(:)
+         integer :: i, num_fields
          
-         ! Try to retrieve the data back
-         write(output_unit,'(A)') '    Retrieving meteorological data...'
-         call model%get_meteorology(temp_out, pres_out, humid_out, u_out, v_out, rc)
+         process_mgr => model%get_process_manager()
+         state_mgr => model%get_state_manager()
          
-         if (rc == CATChem_SUCCESS) then
-            write(output_unit,'(A)') '    ✓ Meteorological data retrieved successfully'
-            ! Could add validation of data consistency here
+         if (associated(process_mgr) .and. associated(state_mgr)) then
+            ! Get required met fields from ProcessManager
+            if (allocated(process_mgr%required_met_fields)) then
+               num_fields = size(process_mgr%required_met_fields)
+               allocate(required_fields(num_fields))
+               required_fields = process_mgr%required_met_fields
+               
+               write(output_unit,'(A,I0,A)') '      Found ', num_fields, ' required meteorological fields:'
+               do i = 1, min(num_fields, 10)  ! Show first 10 fields
+                  write(output_unit,'(A,A)') '        - ', trim(required_fields(i))
+               end do
+               if (num_fields > 10) then
+                  write(output_unit,'(A,I0,A)') '        ... and ', num_fields - 10, ' more'
+               endif
+               
+               ! Get MetState from StateManager
+               met_state => state_mgr%get_met_state_ptr()
+               error_mgr => state_mgr%get_error_manager()
+               
+               if (associated(met_state) .and. associated(error_mgr)) then
+                  ! Use MetState set_multiple_fields with only the required fields
+                  call met_state%set_multiple_fields(required_fields, error_mgr, rc, &
+                                                     T_data=temp, &
+                                                     PMID_data=pres, &
+                                                     QV_data=humid, &
+                                                     U_data=u_wind, &
+                                                     V_data=v_wind, &
+                                                     DELP_data=delp, &
+                                                     FROCEAN_data=frocean, &
+                                                     FRSEAICE_data=frseaice, &
+                                                     SST_data=sst, &
+                                                     U10M_data=u10m, &
+                                                     V10M_data=v10m, &
+                                                     USTAR_data=ustar)
+               else
+                  write(output_unit,'(A)') '      Error: Could not access MetState or ErrorManager'
+                  rc = CC_FAILURE
+               endif
+               
+               if (allocated(required_fields)) deallocate(required_fields)
+            else
+               write(output_unit,'(A)') '      No required meteorological fields found in ProcessManager'
+               rc = CC_SUCCESS  ! Not an error if no fields required
+            endif
          else
-            write(output_unit,'(A)') '    ✗ Failed to retrieve meteorological data'
-            test_passed = .false.
+            write(output_unit,'(A)') '      Error: Could not access ProcessManager or StateManager'
+            rc = CC_FAILURE
          endif
+      end block
+      
+      if (rc == CC_SUCCESS) then
+         write(output_unit,'(A)') '    ✓ Meteorological data set successfully'
          
       else
          write(output_unit,'(A)') '    ✗ Failed to set meteorological data'
-         call model%get_error_message(err_msg)
-         write(output_unit,'(A,A)') '      Error: ', trim(err_msg)
+         ! Access error manager for detailed error information
+         block
+            type(ErrorManagerType), pointer :: error_mgr => null()
+            error_mgr => model%get_error_manager()
+            if (associated(error_mgr)) then
+               write(output_unit,'(A)') '      Error details available in error manager context stack'
+            else
+               write(output_unit,'(A)') '      Error manager not accessible'
+            endif
+         end block
          test_passed = .false.
       endif
       
@@ -397,7 +476,6 @@ contains
       integer, intent(inout) :: tests_total, tests_success
       
       integer :: rc, step
-      character(len=512) :: err_msg
       logical :: test_passed = .true.
       
       tests_total = tests_total + 1
@@ -409,12 +487,20 @@ contains
          
          call model%run_timestep(step, timestep_dt, rc)
          
-         if (rc == CATChem_SUCCESS) then
+         if (rc == CC_SUCCESS) then
             write(output_unit,'(A,I0)') '    ✓ Timestep ', step, ' completed'
          else
             write(output_unit,'(A,I0)') '    ✗ Timestep ', step, ' failed'
-            call model%get_error_message(err_msg)
-            write(output_unit,'(A,A)') '      Error: ', trim(err_msg)
+            ! Access error manager for detailed error information
+            block
+               type(ErrorManagerType), pointer :: error_mgr => null()
+               error_mgr => model%get_error_manager()
+               if (associated(error_mgr)) then
+                  write(output_unit,'(A)') '      Error details available in error manager context stack'
+               else
+                  write(output_unit,'(A)') '      Error manager not accessible'
+               endif
+            end block
             test_passed = .false.
             exit
          endif
@@ -432,10 +518,9 @@ contains
       type(CATChem_Model), intent(inout) :: model
       integer, intent(inout) :: tests_total, tests_success
       
-      integer :: rc
-      character(len=64), allocatable :: diag_names(:)
-      real(fp), allocatable :: diag_data(:,:,:)
-      character(len=512) :: err_msg
+      integer :: rc, diag_idx
+      character(len=64), allocatable :: diag_names(:), all_diag_names(:)
+      real(fp), allocatable :: diag_data(:,:,:), all_diagnostic_data(:,:,:,:)
       logical :: test_passed = .true.
       
       tests_total = tests_total + 1
@@ -445,12 +530,12 @@ contains
       ! Get diagnostic names
       call model%get_diagnostic_names(diag_names, rc)
       
-      if (rc == CATChem_SUCCESS) then
+      if (rc == CC_SUCCESS) then
          write(output_unit,'(A,I0,A)') '  ✓ Retrieved ', size(diag_names), ' diagnostic names'
          if (size(diag_names) > 0) then
             write(output_unit,'(A)') '    Available diagnostics:'
-            do rc = 1, min(size(diag_names), 5)  ! Show first 5
-               write(output_unit,'(A,A)') '      - ', trim(diag_names(rc))
+            do diag_idx = 1, min(size(diag_names), 5)  ! Show first 5
+               write(output_unit,'(A,A)') '      - ', trim(diag_names(diag_idx))
             end do
             if (size(diag_names) > 5) then
                write(output_unit,'(A,I0,A)') '      ... and ', size(diag_names) - 5, ' more'
@@ -466,11 +551,31 @@ contains
          write(output_unit,'(A,A,A)') '    Getting diagnostic: ', trim(diag_names(1)), '...'
          call model%get_diagnostic(diag_names(1), diag_data, rc)
          
-         if (rc == CATChem_SUCCESS) then
+         if (rc == CC_SUCCESS) then
             write(output_unit,'(A)') '    ✓ Diagnostic data retrieved successfully'
          else
             write(output_unit,'(A)') '    ! Specific diagnostic retrieval not yet implemented'
          endif
+      endif
+      
+      ! Test get_all_diagnostics functionality
+      write(output_unit,'(A)') '  Testing get_all_diagnostics...'
+      call model%get_all_diagnostics(all_diag_names, all_diagnostic_data, rc)
+      if (rc == CC_SUCCESS) then
+         write(output_unit,'(A,I0,A)') '    ✓ Successfully collected all diagnostics (', &
+                                       size(all_diag_names), ' fields)'
+      else
+         ! Access error manager for detailed error information
+         block
+            type(ErrorManagerType), pointer :: error_mgr => null()
+            error_mgr => model%get_error_manager()
+            if (associated(error_mgr)) then
+               write(output_unit,'(A)') '    ! Failed to collect all diagnostics - error details in error manager'
+            else
+               write(output_unit,'(A)') '    ! Failed to collect all diagnostics - error manager not accessible'
+            endif
+         end block
+         ! Don't fail test for unimplemented features
       endif
       
       ! For now, consider this test passed since diagnostics may not be fully implemented
@@ -484,7 +589,6 @@ contains
       
       type(CATChem_Model) :: error_test_model
       integer :: local_rc
-      character(len=512) :: err_msg
       logical :: test_passed = .true.
       
       tests_total = tests_total + 1
@@ -495,10 +599,18 @@ contains
       write(output_unit,'(A)') '    Testing invalid config file...'
       call error_test_model%initialize('nonexistent_config.yml', 10, 1, 20, rc=local_rc)
       
-      if (local_rc == CATChem_FAILURE) then
-         call error_test_model%get_error_message(err_msg)
+      if (local_rc == CC_FAILURE) then
          write(output_unit,'(A)') '    ✓ Invalid config properly handled'
-         write(output_unit,'(A,A)') '      Error message: ', trim(err_msg)
+         ! Access error manager for detailed error information
+         block
+            type(ErrorManagerType), pointer :: error_mgr => null()
+            error_mgr => error_test_model%get_error_manager()
+            if (associated(error_mgr)) then
+               write(output_unit,'(A)') '      Error details available in error manager context stack'
+            else
+               write(output_unit,'(A)') '      Error manager not accessible'
+            endif
+         end block
       else
          write(output_unit,'(A)') '    ✗ Invalid config should have failed'
          test_passed = .false.
@@ -509,10 +621,18 @@ contains
       call error_test_model%finalize(local_rc)  ! Reset model
       call error_test_model%add_process(local_rc)
       
-      if (local_rc == CATChem_FAILURE) then
-         call error_test_model%get_error_message(err_msg)
+      if (local_rc == CC_FAILURE) then
          write(output_unit,'(A)') '    ✓ Uninitialized model operations properly handled'
-         write(output_unit,'(A,A)') '      Error message: ', trim(err_msg)
+         ! Access error manager for detailed error information
+         block
+            type(ErrorManagerType), pointer :: error_mgr => null()
+            error_mgr => error_test_model%get_error_manager()
+            if (associated(error_mgr)) then
+               write(output_unit,'(A)') '      Error details available in error manager context stack'
+            else
+               write(output_unit,'(A)') '      Error manager not accessible'
+            endif
+         end block
       else
          write(output_unit,'(A)') '    ✗ Uninitialized model operations should have failed'
          test_passed = .false.
@@ -522,10 +642,18 @@ contains
       write(output_unit,'(A)') '    Testing invalid grid dimensions...'
       call error_test_model%initialize(config_file, -1, 0, 20, rc=local_rc)  ! Invalid dimensions
       
-      if (local_rc == CATChem_FAILURE) then
-         call error_test_model%get_error_message(err_msg)
+      if (local_rc == CC_FAILURE) then
          write(output_unit,'(A)') '    ✓ Invalid grid dimensions properly handled'
-         write(output_unit,'(A,A)') '      Error message: ', trim(err_msg)
+         ! Access error manager for detailed error information
+         block
+            type(ErrorManagerType), pointer :: error_mgr => null()
+            error_mgr => error_test_model%get_error_manager()
+            if (associated(error_mgr)) then
+               write(output_unit,'(A)') '      Error details available in error manager context stack'
+            else
+               write(output_unit,'(A)') '      Error manager not accessible'
+            endif
+         end block
       else
          write(output_unit,'(A)') '    ✗ Invalid grid dimensions should have failed'
          test_passed = .false.
@@ -546,7 +674,6 @@ contains
       integer, intent(inout) :: tests_total, tests_success
       
       integer :: rc
-      character(len=512) :: err_msg
       
       tests_total = tests_total + 1
       
@@ -554,7 +681,7 @@ contains
       
       call model%finalize(rc)
       
-      if (rc == CATChem_SUCCESS) then
+      if (rc == CC_SUCCESS) then
          write(output_unit,'(A)') '  ✓ Model finalized successfully'
          
          ! Verify model is no longer ready
@@ -566,8 +693,16 @@ contains
          endif
       else
          write(output_unit,'(A)') '  ✗ Model finalization failed'
-         call model%get_error_message(err_msg)
-         write(output_unit,'(A,A)') '    Error: ', trim(err_msg)
+         ! Access error manager for detailed error information
+         block
+            type(ErrorManagerType), pointer :: error_mgr => null()
+            error_mgr => model%get_error_manager()
+            if (associated(error_mgr)) then
+               write(output_unit,'(A)') '    Error details available in error manager context stack'
+            else
+               write(output_unit,'(A)') '    Error manager not accessible'
+            endif
+         end block
       endif
       
    end subroutine test_finalization

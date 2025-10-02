@@ -54,10 +54,26 @@ target_link_libraries(CATChem_core PRIVATE yaml_interface catchem_utilities)
 
 set(METSTATE_MOD_F90 ${CMAKE_CURRENT_SOURCE_DIR}/MetState_Mod.F90)
 set(METSTATE_ACCESSOR_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_column_accessor.inc)
+set(METSTATE_ACCESSOR_INT_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_column_accessor_int.inc)
+set(METSTATE_ACCESSOR_LOGICAL_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_column_accessor_logical.inc)
 set(METSTATE_ALLOCATE_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_allocate_fields.inc)
 set(METSTATE_DEALLOCATE_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_deallocate_fields.inc)
 set(METSTATE_2D_SCALAR_ACCESSOR_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_2d_scalar_accessor.inc)
+set(METSTATE_2D_SCALAR_ACCESSOR_INT_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_2d_scalar_accessor_int.inc)
+set(METSTATE_2D_SCALAR_ACCESSOR_LOGICAL_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_2d_scalar_accessor_logical.inc)
 set(METSTATE_SCALAR_ACCESSOR_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_scalar_accessor.inc)
+set(METSTATE_SCALAR_ACCESSOR_INT_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_scalar_accessor_int.inc)
+set(METSTATE_SCALAR_ACCESSOR_LOGICAL_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_scalar_accessor_logical.inc)
+set(METSTATE_SET_FIELD_2D_REAL_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_set_field_2d_real.inc)
+set(METSTATE_SET_FIELD_2D_INT_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_set_field_2d_int.inc)
+set(METSTATE_SET_FIELD_2D_LOGICAL_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_set_field_2d_logical.inc)
+set(METSTATE_SET_FIELD_3D_REAL_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_set_field_3d_real.inc)
+set(METSTATE_SET_FIELD_3D_INT_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_set_field_3d_int.inc)
+set(METSTATE_SET_FIELD_3D_LOGICAL_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_set_field_3d_logical.inc)
+set(METSTATE_SET_FIELD_SCALAR_REAL_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_set_field_scalar_real.inc)
+set(METSTATE_SET_FIELD_SCALAR_INT_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_set_field_scalar_int.inc)
+set(METSTATE_SET_FIELD_SCALAR_LOGICAL_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_set_field_scalar_logical.inc)
+set(METSTATE_MULTIPLE_FIELDS_INTERFACE_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_multiple_fields_interface.inc)
 set(VIRTUALMET_TYPE_INC ${CMAKE_CURRENT_BINARY_DIR}/virtualmet_type.inc)
 set(VIRTUALMET_POPULATE_INC ${CMAKE_CURRENT_BINARY_DIR}/virtualmet_populate.inc)
 set(VIRTUALMET_CLEANUP_INC ${CMAKE_CURRENT_BINARY_DIR}/virtualmet_cleanup.inc)
@@ -67,7 +83,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_column_accessor.inc from MetState_Mod.F90"
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
   COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
-    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py accessor ${METSTATE_MOD_F90} ${METSTATE_ACCESSOR_INC}
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py column_accessor ${METSTATE_MOD_F90} ${METSTATE_ACCESSOR_INC}
   DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
   COMMENT "Auto-generating metstate_column_accessor.inc"
   VERBATIM
@@ -118,6 +134,182 @@ add_custom_command(
 )
 
 add_custom_command(
+  OUTPUT ${METSTATE_ACCESSOR_INT_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_column_accessor_int.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py column_accessor_int ${METSTATE_MOD_F90} ${METSTATE_ACCESSOR_INT_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_column_accessor_int.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_ACCESSOR_LOGICAL_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_column_accessor_logical.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py column_accessor_logical ${METSTATE_MOD_F90} ${METSTATE_ACCESSOR_LOGICAL_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_column_accessor_logical.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_2D_SCALAR_ACCESSOR_INT_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_2d_scalar_accessor_int.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py 2d_scalar_accessor_int ${METSTATE_MOD_F90} ${METSTATE_2D_SCALAR_ACCESSOR_INT_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_2d_scalar_accessor_int.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_2D_SCALAR_ACCESSOR_LOGICAL_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_2d_scalar_accessor_logical.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py 2d_scalar_accessor_logical ${METSTATE_MOD_F90} ${METSTATE_2D_SCALAR_ACCESSOR_LOGICAL_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_2d_scalar_accessor_logical.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_SCALAR_ACCESSOR_INT_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_scalar_accessor_int.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py scalar_accessor_int ${METSTATE_MOD_F90} ${METSTATE_SCALAR_ACCESSOR_INT_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_scalar_accessor_int.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_SCALAR_ACCESSOR_LOGICAL_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_scalar_accessor_logical.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py scalar_accessor_logical ${METSTATE_MOD_F90} ${METSTATE_SCALAR_ACCESSOR_LOGICAL_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_scalar_accessor_logical.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_SET_FIELD_2D_REAL_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_set_field_2d_real.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py set_field_2d_real ${METSTATE_MOD_F90} ${METSTATE_SET_FIELD_2D_REAL_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_set_field_2d_real.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_SET_FIELD_2D_INT_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_set_field_2d_int.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py set_field_2d_int ${METSTATE_MOD_F90} ${METSTATE_SET_FIELD_2D_INT_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_set_field_2d_int.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_SET_FIELD_2D_LOGICAL_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_set_field_2d_logical.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py set_field_2d_logical ${METSTATE_MOD_F90} ${METSTATE_SET_FIELD_2D_LOGICAL_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_set_field_2d_logical.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_SET_FIELD_3D_REAL_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_set_field_3d_real.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py set_field_3d_real ${METSTATE_MOD_F90} ${METSTATE_SET_FIELD_3D_REAL_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_set_field_3d_real.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_SET_FIELD_3D_INT_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_set_field_3d_int.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py set_field_3d_int ${METSTATE_MOD_F90} ${METSTATE_SET_FIELD_3D_INT_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_set_field_3d_int.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_SET_FIELD_3D_LOGICAL_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_set_field_3d_logical.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py set_field_3d_logical ${METSTATE_MOD_F90} ${METSTATE_SET_FIELD_3D_LOGICAL_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_set_field_3d_logical.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_SET_FIELD_SCALAR_REAL_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_set_field_scalar_real.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py set_field_scalar_real ${METSTATE_MOD_F90} ${METSTATE_SET_FIELD_SCALAR_REAL_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_set_field_scalar_real.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_SET_FIELD_SCALAR_INT_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_set_field_scalar_int.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py set_field_scalar_int ${METSTATE_MOD_F90} ${METSTATE_SET_FIELD_SCALAR_INT_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_set_field_scalar_int.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_SET_FIELD_SCALAR_LOGICAL_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_set_field_scalar_logical.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py set_field_scalar_logical ${METSTATE_MOD_F90} ${METSTATE_SET_FIELD_SCALAR_LOGICAL_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_set_field_scalar_logical.inc"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT ${METSTATE_MULTIPLE_FIELDS_INTERFACE_INC}
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating metstate_multiple_fields_interface.inc from MetState_Mod.F90"
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_SOURCE_DIR}/cmake
+    ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py multiple_fields_interface ${METSTATE_MOD_F90} ${METSTATE_MULTIPLE_FIELDS_INTERFACE_INC}
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/generate_metstate_macros.py ${METSTATE_MOD_F90}
+  COMMENT "Auto-generating metstate_multiple_fields_interface.inc"
+  VERBATIM
+)
+
+add_custom_command(
   OUTPUT ${VIRTUALMET_TYPE_INC}
   COMMAND ${CMAKE_COMMAND} -E echo "Generating virtualmet_type.inc from MetState_Mod.F90"
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
@@ -152,14 +344,14 @@ add_custom_command(
 
 add_custom_target(
   metstate_macros ALL
-  DEPENDS ${METSTATE_ACCESSOR_INC} ${METSTATE_ALLOCATE_INC} ${METSTATE_DEALLOCATE_INC} ${METSTATE_2D_SCALAR_ACCESSOR_INC} ${METSTATE_SCALAR_ACCESSOR_INC} ${VIRTUALMET_TYPE_INC} ${VIRTUALMET_POPULATE_INC} ${VIRTUALMET_CLEANUP_INC}
+  DEPENDS ${METSTATE_ACCESSOR_INC} ${METSTATE_ACCESSOR_INT_INC} ${METSTATE_ACCESSOR_LOGICAL_INC} ${METSTATE_ALLOCATE_INC} ${METSTATE_DEALLOCATE_INC} ${METSTATE_2D_SCALAR_ACCESSOR_INC} ${METSTATE_2D_SCALAR_ACCESSOR_INT_INC} ${METSTATE_2D_SCALAR_ACCESSOR_LOGICAL_INC} ${METSTATE_SCALAR_ACCESSOR_INC} ${METSTATE_SCALAR_ACCESSOR_INT_INC} ${METSTATE_SCALAR_ACCESSOR_LOGICAL_INC} ${METSTATE_SET_FIELD_INC} ${METSTATE_SET_FIELD_2D_REAL_INC} ${METSTATE_SET_FIELD_2D_INT_INC} ${METSTATE_SET_FIELD_2D_LOGICAL_INC} ${METSTATE_SET_FIELD_3D_REAL_INC} ${METSTATE_SET_FIELD_3D_INT_INC} ${METSTATE_SET_FIELD_3D_LOGICAL_INC} ${METSTATE_SET_FIELD_SCALAR_REAL_INC} ${METSTATE_SET_FIELD_SCALAR_INT_INC} ${METSTATE_SET_FIELD_SCALAR_LOGICAL_INC} ${METSTATE_MULTIPLE_FIELDS_INTERFACE_INC} ${VIRTUALMET_TYPE_INC} ${VIRTUALMET_POPULATE_INC} ${VIRTUALMET_CLEANUP_INC}
 )
 
 add_dependencies(CATChem_core metstate_macros)
 
 set_source_files_properties(MetState_Mod.F90 PROPERTIES
   COMPILE_FLAGS "-cpp"
-  OBJECT_DEPENDS "${METSTATE_ACCESSOR_INC};${METSTATE_ALLOCATE_INC};${METSTATE_DEALLOCATE_INC};${METSTATE_2D_SCALAR_ACCESSOR_INC};${METSTATE_SCALAR_ACCESSOR_INC}"
+  OBJECT_DEPENDS "${METSTATE_ACCESSOR_INC};${METSTATE_ACCESSOR_INT_INC};${METSTATE_ACCESSOR_LOGICAL_INC};${METSTATE_ALLOCATE_INC};${METSTATE_DEALLOCATE_INC};${METSTATE_2D_SCALAR_ACCESSOR_INC};${METSTATE_2D_SCALAR_ACCESSOR_INT_INC};${METSTATE_2D_SCALAR_ACCESSOR_LOGICAL_INC};${METSTATE_SCALAR_ACCESSOR_INC};${METSTATE_SCALAR_ACCESSOR_INT_INC};${METSTATE_SCALAR_ACCESSOR_LOGICAL_INC};${METSTATE_SET_FIELD_INC};${METSTATE_SET_FIELD_2D_REAL_INC};${METSTATE_SET_FIELD_2D_INT_INC};${METSTATE_SET_FIELD_2D_LOGICAL_INC};${METSTATE_SET_FIELD_3D_REAL_INC};${METSTATE_SET_FIELD_3D_INT_INC};${METSTATE_SET_FIELD_3D_LOGICAL_INC};${METSTATE_SET_FIELD_SCALAR_REAL_INC};${METSTATE_SET_FIELD_SCALAR_INT_INC};${METSTATE_SET_FIELD_SCALAR_LOGICAL_INC};${METSTATE_MULTIPLE_FIELDS_INTERFACE_INC}"
 )
 
 set_source_files_properties(VirtualColumn_Mod.F90 PROPERTIES

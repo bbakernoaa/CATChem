@@ -112,19 +112,19 @@ program test_DiagnosticManager
    write(*,*) 'Test 10 passed!'
    write(*,*) ''
 
-   ! Test 11: Disable collection
-   write(*,*) 'Test 11: Disable collection'
-   call diag_mgr%disable_collection(rc)
-   call assert(rc == CC_SUCCESS, "Disabling collection should succeed")
+   ! Test 11: Collect all diagnostics
+   write(*,*) 'Test 11: Collect all diagnostics'
+   call diag_mgr%collect_all_diagnostics(rc)
+   ! This might not do anything since no processes are registered
+   call assert(rc == CC_SUCCESS, "Collecting all diagnostics should succeed")
 
    write(*,*) 'Test 11 passed!'
    write(*,*) ''
 
-   ! Test 12: Collect all diagnostics
-   write(*,*) 'Test 12: Collect all diagnostics'
-   call diag_mgr%collect_all_diagnostics(rc)
-   ! This might not do anything since no processes are registered
-   call assert(rc == CC_SUCCESS, "Collecting all diagnostics should succeed")
+   ! Test 12: Disable collection
+   write(*,*) 'Test 12: Disable collection'
+   call diag_mgr%disable_collection(rc)
+   call assert(rc == CC_SUCCESS, "Disabling collection should succeed")
 
    write(*,*) 'Test 12 passed!'
    write(*,*) ''

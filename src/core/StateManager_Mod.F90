@@ -421,7 +421,11 @@ contains
       integer :: grid_i, grid_j, k, ispec
       integer :: nlev, nspec_chem, nspec_emis
       real(fp), pointer :: column_ptr(:)
+      integer, pointer :: column_ptr_int(:)
+      logical, pointer :: column_ptr_logical(:)
       real(fp) :: scalar_val
+      integer :: scalar_val_int
+      logical :: scalar_val_logical
       real(fp) :: chem_value
       integer :: field_rc
 

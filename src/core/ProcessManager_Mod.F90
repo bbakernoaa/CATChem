@@ -32,6 +32,7 @@ module ProcessManager_Mod
       integer :: max_processes = 50
       type(ProcessFactoryType) :: factory
       type(ColumnProcessorType) :: column_processor  !< Batch column processor
+      character(len=64), public, allocatable :: required_met_fields(:)  !< All unique required met fields from processes
    contains
       procedure :: init => manager_init
       procedure :: add_process => manager_add_process
@@ -48,6 +49,7 @@ module ProcessManager_Mod
       procedure :: set_max_processes => manager_set_max_processes
       procedure :: enable_column_batching => manager_enable_column_batching
       procedure :: register_process => manager_register_process
+      procedure, private :: add_met_fields_from_process => manager_add_met_fields_from_process
    end type ProcessManagerType
 
 contains
@@ -62,6 +64,10 @@ contains
 
       ! Initialize counters - allocatable array will be allocated on first assignment
       this%num_processes = 0
+
+      ! Initialize empty required met fields array
+      if (allocated(this%required_met_fields)) deallocate(this%required_met_fields)
+      allocate(this%required_met_fields(0))
 
       ! Initialize column processor with default max columns
       call this%column_processor%init(100, rc)  ! Default max columns
@@ -90,6 +96,10 @@ contains
 
       ! Initialize the process
       call new_process%init(container, rc)
+      if (rc /= CC_SUCCESS) return
+
+      ! Collect required met fields from this process
+      call this%add_met_fields_from_process(new_process, rc)
       if (rc /= CC_SUCCESS) return
 
       ! Add to manager
@@ -500,6 +510,7 @@ contains
       call this%column_processor%cleanup()
 
       if (allocated(this%processes)) deallocate(this%processes)
+      if (allocated(this%required_met_fields)) deallocate(this%required_met_fields)
       this%num_processes = 0
    end subroutine manager_finalize
 
@@ -539,5 +550,82 @@ contains
 
       call this%factory%register_process(name, category, description, creator, rc)
    end subroutine manager_register_process
+
+   !> \brief Add required met fields from a process, ensuring no duplicates
+   !!
+   !! This private helper function collects the required meteorological fields
+   !! from a newly added process and merges them with the existing list,
+   !! ensuring no duplicate field names.
+   !!
+   !! \param[inout] this ProcessManager instance
+   !! \param[in] process Process to get required fields from
+   !! \param[out] rc Return code
+   subroutine manager_add_met_fields_from_process(this, process, rc)
+      class(ProcessManagerType), intent(inout) :: this
+      class(ProcessInterface), intent(in) :: process
+      integer, intent(out) :: rc
+
+      character(len=64), allocatable :: new_fields(:), merged_fields(:)
+      character(len=64), allocatable :: current_fields(:)
+      integer :: i, j, current_size, new_size, merged_size
+      logical :: field_exists
+
+      rc = CC_SUCCESS
+
+      ! Get required fields from the new process
+      new_fields = process%get_required_met_fields()
+      new_size = size(new_fields)
+
+      ! If no new fields, nothing to do
+      if (new_size == 0) return
+
+      ! Get current fields (make a copy for merging)
+      if (allocated(this%required_met_fields)) then
+         current_size = size(this%required_met_fields)
+         allocate(current_fields(current_size))
+         current_fields = this%required_met_fields
+      else
+         current_size = 0
+         allocate(current_fields(0))
+      endif
+
+      ! Merge fields, avoiding duplicates
+      ! Worst case: all new fields are unique, so allocate maximum possible size
+      allocate(merged_fields(current_size + new_size))
+      
+      ! Start with current fields
+      merged_fields(1:current_size) = current_fields(1:current_size)
+      merged_size = current_size
+
+      ! Add new fields if they're not already present
+      do i = 1, new_size
+         field_exists = .false.
+         
+         ! Check if this field already exists (case insensitive)
+         do j = 1, merged_size
+            if (trim(adjustl(new_fields(i))) == trim(adjustl(merged_fields(j)))) then
+               field_exists = .true.
+               exit
+            endif
+         end do
+         
+         ! Add if it's a new field
+         if (.not. field_exists) then
+            merged_size = merged_size + 1
+            merged_fields(merged_size) = new_fields(i)
+         endif
+      end do
+
+      ! Update the manager's required fields list with proper size
+      if (allocated(this%required_met_fields)) deallocate(this%required_met_fields)
+      allocate(this%required_met_fields(merged_size))
+      this%required_met_fields(1:merged_size) = merged_fields(1:merged_size)
+
+      ! Cleanup
+      if (allocated(current_fields)) deallocate(current_fields)
+      if (allocated(new_fields)) deallocate(new_fields)
+      if (allocated(merged_fields)) deallocate(merged_fields)
+
+   end subroutine manager_add_met_fields_from_process
 
 end module ProcessManager_Mod

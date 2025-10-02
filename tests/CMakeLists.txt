@@ -41,6 +41,21 @@ add_test(
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+add_executable(test_MetState test_MetState.f90)
+target_link_libraries(test_MetState PRIVATE CATChem_core)
+target_link_libraries(test_MetState PRIVATE testing)
+set_target_properties(
+  test_MetState
+  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+)
+target_include_directories(test_MetState PRIVATE ${CMAKE_BINARY_DIR}/include)
+add_dependencies(test_MetState CATChem_core)
+add_test(
+  NAME test_MetState
+  COMMAND test_MetState
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 add_executable(test_GridManager test_GridManager.f90)
 target_link_libraries(test_GridManager PRIVATE CATChem_core)
 target_link_libraries(test_GridManager PRIVATE testing)

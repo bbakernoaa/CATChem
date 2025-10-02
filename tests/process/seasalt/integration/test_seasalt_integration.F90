@@ -4,7 +4,7 @@
 !! This file contains comprehensive integration tests for the seasalt process implementation
 !! using the centralized CATChemCore framework. Tests complete workflow: core initialization,
 !! configuration loading, process registration, and all scheme validation.
-!! Generated on: 2025-09-22T16:20:04.907539
+!! Generated on: 2025-10-01T13:11:31.265975
 
 program test_seasalt_integration
    use precision_mod, only: fp
@@ -205,6 +205,17 @@ contains
          end do
       end do      
 
+      ! Set up 3D atmospheric fields (nx, ny, nz)
+      do j = 1, ny
+         do i = 1, nx
+            do k = 1, nz
+               ! Calculate height-dependent values
+               ! Approximate altitude in km (assuming ~1 km per level near surface)
+               altitude_km = real(k-1, fp) * 1.0_fp               
+               met_state%DELP(i,j,k) = 50.0_fp                                  ! Pressure thickness [hPa]
+            end do
+         end do
+      end do
       
 
 

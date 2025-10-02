@@ -4,7 +4,7 @@
 !! This program demonstrates how to use the seasalt process
 !! in a standalone application or host model integration.
 !!
-!! Generated on: 2025-09-22T16:20:05.006278
+!! Generated on: 2025-10-01T13:11:31.304378
 !! Author: Barry Baker & Wei Li
 
 program seasalt_example
@@ -195,6 +195,8 @@ contains
       type(ErrorHandler), intent(inout) :: error_handler
 
       ! Add required meteorological fields
+      call state_manager%add_met_field('DELP', error_handler)
+      if (error_handler%has_error()) return
 
       ! Add optional meteorological fields
 
@@ -219,6 +221,9 @@ contains
             latitude = 45.0_fp + real(i_col - 1, fp) * 1.0_fp  ! Latitude
             longitude = -120.0_fp + real(i_col - 1, fp) * 1.0_fp  ! Longitude
 
+            call state_manager%set_met_field('DELP', i_col, i_lev, &
+               1.0_fp, error_handler)  ! Default value
+            if (error_handler%has_error()) return
 
          end do
       end do

@@ -195,10 +195,38 @@ MODULE MetState_Mod
       procedure :: print_summary => metstate_print_summary
       procedure :: get_dimensions => metstate_get_dimensions
       procedure :: get_field_ptr => metstate_get_field_ptr
+      procedure :: get_field_ptr_int => metstate_get_field_ptr_int
+      procedure :: get_field_ptr_logical => metstate_get_field_ptr_logical
       procedure, public :: get_column_ptr_func => metstate_get_column_ptr_func
+      procedure, public :: get_column_ptr_func_int => metstate_get_column_ptr_func_int
+      procedure, public :: get_column_ptr_func_logical => metstate_get_column_ptr_func_logical
       procedure, public :: get_column_ptr => metstate_get_column_ptr_subroutine
       procedure, public :: get_2Dto0D_value => metstate_get_2Dto0D_value
+      procedure, public :: get_2Dto0D_value_int => metstate_get_2Dto0D_value_int
+      procedure, public :: get_2Dto0D_value_logical => metstate_get_2Dto0D_value_logical
       procedure, public :: get_scalar_value => metstate_get_scalar_value
+      procedure, public :: get_scalar_value_int => metstate_get_scalar_value_int
+      procedure, public :: get_scalar_value_logical => metstate_get_scalar_value_logical
+      ! Generic interface for setting fields with proper dimensions
+      generic, public :: set_field => metstate_set_field_scalar_real, &
+                                      metstate_set_field_scalar_int, &
+                                      metstate_set_field_scalar_logical, &
+                                      metstate_set_field_2d_real, &
+                                      metstate_set_field_2d_int, &
+                                      metstate_set_field_2d_logical, &
+                                      metstate_set_field_3d_real, &
+                                      metstate_set_field_3d_int, &
+                                      metstate_set_field_3d_logical
+      procedure, public :: metstate_set_field_scalar_real
+      procedure, public :: metstate_set_field_scalar_int
+      procedure, public :: metstate_set_field_scalar_logical
+      procedure, public :: metstate_set_field_2d_real
+      procedure, public :: metstate_set_field_2d_int
+      procedure, public :: metstate_set_field_2d_logical
+      procedure, public :: metstate_set_field_3d_real
+      procedure, public :: metstate_set_field_3d_int
+      procedure, public :: metstate_set_field_3d_logical
+      procedure, public :: set_multiple_fields => metstate_set_multiple_fields
       procedure :: allocate_field => metstate_allocate_field
       procedure :: deallocate_field => metstate_deallocate_field
       procedure, private :: allocate_arrays => allocate_metstate_arrays
@@ -670,6 +698,86 @@ CONTAINS
       end select
    end function metstate_get_scalar_value
 
+   !> INTEGER versions of accessor functions
+   function metstate_get_column_ptr_func_int(this, field_name, i, j) result(column_ptr)
+      implicit none
+      class(MetStateType), intent(in), target :: this
+      character(len=*), intent(in) :: field_name
+      integer, intent(in), optional :: i, j
+      integer, pointer :: column_ptr(:)
+      integer :: nx, ny, nlev, col_i, col_j
+      column_ptr => null()
+      call this%get_dimensions(nx, ny, nlev)
+      col_i = 1; col_j = 1
+      if (present(i)) col_i = max(1, min(i, nx))
+      if (present(j)) col_j = max(1, min(j, ny))
+      select case (trim(field_name))
+#include "metstate_column_accessor_int.inc"
+      end select
+   end function metstate_get_column_ptr_func_int
+
+   function metstate_get_2Dto0D_value_int(this, field_name, i, j) result(scalar_val)
+      class(MetStateType), intent(in) :: this
+      character(len=*), intent(in) :: field_name
+      integer, intent(in) :: i, j
+      integer :: scalar_val
+      integer :: col_i, col_j
+      col_i = i
+      col_j = j
+      select case (trim(field_name))
+#include "metstate_2d_scalar_accessor_int.inc"
+      end select
+   end function metstate_get_2Dto0D_value_int
+
+   function metstate_get_scalar_value_int(this, field_name) result(scalar_val)
+      class(MetStateType), intent(in) :: this
+      character(len=*), intent(in) :: field_name
+      integer :: scalar_val
+      select case (trim(field_name))
+#include "metstate_scalar_accessor_int.inc"
+      end select
+   end function metstate_get_scalar_value_int
+
+   !> LOGICAL versions of accessor functions
+   function metstate_get_column_ptr_func_logical(this, field_name, i, j) result(column_ptr)
+      implicit none
+      class(MetStateType), intent(in), target :: this
+      character(len=*), intent(in) :: field_name
+      integer, intent(in), optional :: i, j
+      logical, pointer :: column_ptr(:)
+      integer :: nx, ny, nlev, col_i, col_j
+      column_ptr => null()
+      call this%get_dimensions(nx, ny, nlev)
+      col_i = 1; col_j = 1
+      if (present(i)) col_i = max(1, min(i, nx))
+      if (present(j)) col_j = max(1, min(j, ny))
+      select case (trim(field_name))
+#include "metstate_column_accessor_logical.inc"
+      end select
+   end function metstate_get_column_ptr_func_logical
+
+   function metstate_get_2Dto0D_value_logical(this, field_name, i, j) result(scalar_val)
+      class(MetStateType), intent(in) :: this
+      character(len=*), intent(in) :: field_name
+      integer, intent(in) :: i, j
+      logical :: scalar_val
+      integer :: col_i, col_j
+      col_i = i
+      col_j = j
+      select case (trim(field_name))
+#include "metstate_2d_scalar_accessor_logical.inc"
+      end select
+   end function metstate_get_2Dto0D_value_logical
+
+   function metstate_get_scalar_value_logical(this, field_name) result(scalar_val)
+      class(MetStateType), intent(in) :: this
+      character(len=*), intent(in) :: field_name
+      logical :: scalar_val
+      select case (trim(field_name))
+#include "metstate_scalar_accessor_logical.inc"
+      end select
+   end function metstate_get_scalar_value_logical
+
    !> High-level interface: get any field (column, 2D, or scalar)
    subroutine metstate_get_field_ptr(this, field_name, i, j, col_ptr, scalar_val, rc)
       class(MetStateType), intent(in) :: this
@@ -700,6 +808,68 @@ CONTAINS
       end if
       rc = 1 ! Not found
    end subroutine metstate_get_field_ptr
+
+   !> Integer version of get_field_ptr
+   subroutine metstate_get_field_ptr_int(this, field_name, i, j, col_ptr, scalar_val, rc)
+      class(MetStateType), intent(in) :: this
+      character(len=*), intent(in) :: field_name
+      integer, intent(in), optional :: i, j
+      integer, pointer, optional :: col_ptr(:)
+      integer, optional :: scalar_val
+      integer, intent(out) :: rc
+      ! Try 3D column first
+      if (present(col_ptr) .and. present(i) .and. present(j)) then
+         col_ptr => this%get_column_ptr_func_int(field_name, i, j)
+         if (associated(col_ptr)) then
+               rc = 0
+               return
+         end if
+      end if
+      ! Try 2D scalar
+      if (present(scalar_val) .and. present(i) .and. present(j)) then
+         scalar_val = this%get_2Dto0D_value_int(field_name, i, j)
+         rc = 0
+         return
+      end if
+      ! Try scalar field
+      if (present(scalar_val)) then
+         scalar_val = this%get_scalar_value_int(field_name)
+         rc = 0
+         return
+      end if
+      rc = 1 ! Not found
+   end subroutine metstate_get_field_ptr_int
+
+   !> Logical version of get_field_ptr
+   subroutine metstate_get_field_ptr_logical(this, field_name, i, j, col_ptr, scalar_val, rc)
+      class(MetStateType), intent(in) :: this
+      character(len=*), intent(in) :: field_name
+      integer, intent(in), optional :: i, j
+      logical, pointer, optional :: col_ptr(:)
+      logical, optional :: scalar_val
+      integer, intent(out) :: rc
+      ! Try 3D column first
+      if (present(col_ptr) .and. present(i) .and. present(j)) then
+         col_ptr => this%get_column_ptr_func_logical(field_name, i, j)
+         if (associated(col_ptr)) then
+               rc = 0
+               return
+         end if
+      end if
+      ! Try 2D scalar
+      if (present(scalar_val) .and. present(i) .and. present(j)) then
+         scalar_val = this%get_2Dto0D_value_logical(field_name, i, j)
+         rc = 0
+         return
+      end if
+      ! Try scalar field
+      if (present(scalar_val)) then
+         scalar_val = this%get_scalar_value_logical(field_name)
+         rc = 0
+         return
+      end if
+      rc = 1 ! Not found
+   end subroutine metstate_get_field_ptr_logical
 
    !> \brief Get a pointer to a vertical column for a given field name and (i,j) indices (subroutine version)
    !!
@@ -770,5 +940,235 @@ CONTAINS
       end select
 
    end subroutine metstate_get_column_ptr_subroutine
+
+
+   !---------------------------------------------------------------------------
+   !                 Dimensional MetState Set Field Subroutines
+   !---------------------------------------------------------------------------
+   
+   !> @brief Set a scalar REAL field
+   subroutine metstate_set_field_scalar_real(this, field_name, field_data, error_mgr, rc)
+      use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE
+      implicit none
+      class(MetStateType), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      real(fp), intent(in) :: field_data
+      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
+      integer, intent(out) :: rc
+      
+      rc = CC_SUCCESS
+      
+      ! Handle scalar REAL fields directly
+      select case (trim(adjustl(field_name)))
+#include "metstate_set_field_scalar_real.inc"
+      case default
+         ! If not a scalar field, try broadcasting to 2D REAL arrays
+         select case (trim(adjustl(field_name)))
+#include "metstate_set_field_2d_real.inc"
+         case default
+            ! Try broadcasting to 3D REAL arrays
+            select case (trim(adjustl(field_name)))
+#include "metstate_set_field_3d_real.inc"
+            case default
+               call error_mgr%report_error(ERROR_NOT_FOUND, &
+                  'Unknown REAL field name: ' // trim(field_name), rc)
+               rc = CC_FAILURE
+            end select
+         end select
+      end select
+   end subroutine metstate_set_field_scalar_real
+
+   !> @brief Set a scalar INTEGER field
+   subroutine metstate_set_field_scalar_int(this, field_name, field_data, error_mgr, rc)
+      use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE
+      implicit none
+      class(MetStateType), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      integer, intent(in) :: field_data
+      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
+      integer, intent(out) :: rc
+      
+      rc = CC_SUCCESS
+      
+      ! Handle scalar INTEGER fields directly
+      select case (trim(adjustl(field_name)))
+#include "metstate_set_field_scalar_int.inc"
+      case default
+         ! If not a scalar field, try broadcasting to 2D INTEGER arrays
+         select case (trim(adjustl(field_name)))
+#include "metstate_set_field_2d_int.inc"
+         case default
+            ! Try broadcasting to 3D INTEGER arrays
+            select case (trim(adjustl(field_name)))
+#include "metstate_set_field_3d_int.inc"
+            case default
+               call error_mgr%report_error(ERROR_NOT_FOUND, &
+                  'Unknown INTEGER field name: ' // trim(field_name), rc)
+               rc = CC_FAILURE
+            end select
+         end select
+      end select
+   end subroutine metstate_set_field_scalar_int
+
+   !> @brief Set a scalar LOGICAL field
+   subroutine metstate_set_field_scalar_logical(this, field_name, field_data, error_mgr, rc)
+      use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE
+      implicit none
+      class(MetStateType), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      logical, intent(in) :: field_data
+      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
+      integer, intent(out) :: rc
+      
+      rc = CC_SUCCESS
+      
+      ! Handle scalar LOGICAL fields directly
+      select case (trim(adjustl(field_name)))
+#include "metstate_set_field_scalar_logical.inc"
+      case default
+         ! If not a scalar field, try broadcasting to 2D LOGICAL arrays
+         select case (trim(adjustl(field_name)))
+#include "metstate_set_field_2d_logical.inc"
+         case default
+            ! Try broadcasting to 3D LOGICAL arrays
+            select case (trim(adjustl(field_name)))
+#include "metstate_set_field_3d_logical.inc"
+            case default
+               call error_mgr%report_error(ERROR_NOT_FOUND, &
+                  'Unknown LOGICAL field name: ' // trim(field_name), rc)
+               rc = CC_FAILURE
+            end select
+         end select
+      end select
+   end subroutine metstate_set_field_scalar_logical
+
+   !> @brief Set a 2D REAL field
+   subroutine metstate_set_field_2d_real(this, field_name, field_data, error_mgr, rc)
+      use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE
+      implicit none
+      class(MetStateType), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      real(fp), intent(in) :: field_data(:,:)
+      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
+      integer, intent(out) :: rc
+      
+      ! Generated include file for 2D REAL field assignment
+      rc = CC_SUCCESS
+      select case (trim(adjustl(field_name)))
+#include "metstate_set_field_2d_real.inc"
+      case default
+         call error_mgr%report_error(ERROR_NOT_FOUND, &
+            "Unknown field name: " // trim(field_name), rc)
+         rc = CC_FAILURE
+      end select
+   end subroutine metstate_set_field_2d_real
+
+   !> @brief Set a 2D INTEGER field
+   subroutine metstate_set_field_2d_int(this, field_name, field_data, error_mgr, rc)
+      use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE
+      implicit none
+      class(MetStateType), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      integer, intent(in) :: field_data(:,:)
+      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
+      integer, intent(out) :: rc
+      
+      ! Generated include file for 2D INTEGER field assignment
+      rc = CC_SUCCESS
+      select case (trim(adjustl(field_name)))
+#include "metstate_set_field_2d_int.inc"
+      case default
+         call error_mgr%report_error(ERROR_NOT_FOUND, &
+            "Unknown field name: " // trim(field_name), rc)
+         rc = CC_FAILURE
+      end select
+   end subroutine metstate_set_field_2d_int
+
+   !> @brief Set a 2D LOGICAL field
+   subroutine metstate_set_field_2d_logical(this, field_name, field_data, error_mgr, rc)
+      use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE
+      implicit none
+      class(MetStateType), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      logical, intent(in) :: field_data(:,:)
+      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
+      integer, intent(out) :: rc
+      
+      ! Generated include file for 2D LOGICAL field assignment
+      rc = CC_SUCCESS
+      select case (trim(adjustl(field_name)))
+#include "metstate_set_field_2d_logical.inc"
+      case default
+         call error_mgr%report_error(ERROR_NOT_FOUND, &
+            "Unknown field name: " // trim(field_name), rc)
+         rc = CC_FAILURE
+      end select
+   end subroutine metstate_set_field_2d_logical
+
+   !> @brief Set a 3D REAL field
+   subroutine metstate_set_field_3d_real(this, field_name, field_data, error_mgr, rc)
+      use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE
+      implicit none
+      class(MetStateType), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      real(fp), intent(in) :: field_data(:,:,:)
+      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
+      integer, intent(out) :: rc
+      
+      ! Generated include file for 3D REAL field assignment
+      rc = CC_SUCCESS
+      select case (trim(adjustl(field_name)))
+#include "metstate_set_field_3d_real.inc"
+      case default
+         call error_mgr%report_error(ERROR_NOT_FOUND, &
+            "Unknown field name: " // trim(field_name), rc)
+         rc = CC_FAILURE
+      end select
+   end subroutine metstate_set_field_3d_real
+
+   !> @brief Set a 3D INTEGER field
+   subroutine metstate_set_field_3d_int(this, field_name, field_data, error_mgr, rc)
+      use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE
+      implicit none
+      class(MetStateType), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      integer, intent(in) :: field_data(:,:,:)
+      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
+      integer, intent(out) :: rc
+      
+      ! Generated include file for 3D INTEGER field assignment
+      rc = CC_SUCCESS
+      select case (trim(adjustl(field_name)))
+#include "metstate_set_field_3d_int.inc"
+      case default
+         call error_mgr%report_error(ERROR_NOT_FOUND, &
+            "Unknown field name: " // trim(field_name), rc)
+         rc = CC_FAILURE
+      end select
+   end subroutine metstate_set_field_3d_int
+
+   !> @brief Set a 3D LOGICAL field
+   subroutine metstate_set_field_3d_logical(this, field_name, field_data, error_mgr, rc)
+      use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE
+      implicit none
+      class(MetStateType), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      logical, intent(in) :: field_data(:,:,:)
+      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
+      integer, intent(out) :: rc
+      
+      ! Generated include file for 3D LOGICAL field assignment
+      rc = CC_SUCCESS
+      select case (trim(adjustl(field_name)))
+#include "metstate_set_field_3d_logical.inc"
+      case default
+         call error_mgr%report_error(ERROR_NOT_FOUND, &
+            "Unknown field name: " // trim(field_name), rc)
+         rc = CC_FAILURE
+      end select
+   end subroutine metstate_set_field_3d_logical
+
+! Include the auto-generated multiple fields interface
+#include "metstate_multiple_fields_interface.inc"
 
 END MODULE MetState_Mod

@@ -25,6 +25,9 @@ process_behavior:
   parallelization: "column"  #column: (extends(ColumnProcessInterface); use VirtualColumnType ) or global: (extends(ProcessInterface))  
   memory_requirements: "low" #is not doing anything now
 
+required_met_fields: #needed for other purposes, such as unit conversion
+  - DELP
+
 schemes:
   gong97:
     name: "gong97"
@@ -35,7 +38,7 @@ schemes:
     reference: "Gong et al. [1997]"
     author: "Barry Baker"
 
-    required_met_fields:
+    required_met_fields: #needed for scheme calculations
       - FROCEAN
       - FRSEAICE
       - SST

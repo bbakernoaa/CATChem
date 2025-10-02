@@ -30,7 +30,7 @@
 !!
 module CATChem_API
    use Precision_Mod, only: fp
-   use Error_Mod, only: CC_SUCCESS, CC_FAILURE
+   use Error_Mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType
    use CATChemCore_Mod, only: CATChemCoreType, CATChemBuilderType
    use StateManager_Mod, only: StateManagerType
    use ProcessManager_Mod, only: ProcessManagerType
@@ -51,11 +51,6 @@ module CATChem_API
    
    ! Public interface types and constants
    public :: CATChem_Model
-   public :: CATChem_SUCCESS, CATChem_FAILURE
-   
-   ! Return codes
-   integer, parameter :: CATChem_SUCCESS = 0
-   integer, parameter :: CATChem_FAILURE = -1
    
    !> Main CATChem API interface type
    !! This type provides a simplified interface to the CATChem core functionality
@@ -70,7 +65,7 @@ module CATChem_API
       logical :: grid_setup = .false.
       logical :: enable_run_phase = .false.
       character(len=512) :: config_file = ''
-      character(len=512) :: last_error_msg = ''
+      type(ErrorManagerType) :: error_manager
       
       ! Grid information
       integer :: nx = 0, ny = 0, nz = 0
@@ -97,11 +92,8 @@ module CATChem_API
       procedure :: get_phase_names => model_get_phase_names
       
       ! Data exchange methods
-      procedure :: set_meteorology => model_set_meteorology
-      procedure :: get_meteorology => model_get_meteorology
       procedure :: set_chemistry => model_set_chemistry
       procedure :: get_chemistry => model_get_chemistry
-      procedure :: set_emissions => model_set_emissions
       
       ! Diagnostic methods
       procedure :: get_diagnostic_names => model_get_diagnostic_names
@@ -111,8 +103,7 @@ module CATChem_API
       ! Utility methods
       procedure :: is_ready => model_is_ready
       procedure :: is_initialized => model_is_initialized
-      procedure :: get_error_message => model_get_error_message
-      procedure :: reset_error => model_reset_error
+      procedure :: get_error_manager => model_get_error_manager
       
       ! Core access methods (for advanced users)
       procedure :: get_state_manager => model_get_state_manager
@@ -136,19 +127,21 @@ contains
       type(CATChemBuilderType) :: builder
       type(ConfigDataType), pointer :: config_data => null()
       
-      rc = CATChem_SUCCESS
-      call this%reset_error()
+      rc = CC_SUCCESS
+      call this%error_manager%init()
       
       ! Validate inputs
       if (len_trim(config_file) == 0) then
-         this%last_error_msg = 'Configuration file path is empty'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_initialize', 'validating configuration file')
+         call this%error_manager%report_error(1001, 'Configuration file path is empty', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
       if (nx <= 0 .or. ny <= 0 .or. nz <= 0) then
-         this%last_error_msg = 'Grid dimensions must be positive'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_initialize', 'validating grid dimensions')
+         call this%error_manager%report_error(1001, 'Grid dimensions must be positive', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
@@ -171,8 +164,9 @@ contains
       call builder%build(this%core, rc)
       
       if (rc /= CC_SUCCESS) then
-         this%last_error_msg = 'Failed to initialize CATChem core with config: ' // trim(config_file)
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_initialize', 'building CATChem core')
+         call this%error_manager%report_error(1014, 'Failed to initialize CATChem core with config: ' // trim(config_file), rc)
+         call this%error_manager%pop_context()
          return
       endif
       
@@ -182,8 +176,9 @@ contains
       ! Get configuration data from core
       config_data => this%core%get_config()
       if ( .not. associated(config_data)) then
-         this%last_error_msg = 'Required managers or config data not available'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_initialize', 'accessing configuration data')
+         call this%error_manager%report_error(1002, 'Required managers or config data not available', rc)
+         call this%error_manager%pop_context()
          return
       endif
       this%enable_run_phase = config_data%run_phases_enabled
@@ -195,20 +190,21 @@ contains
       class(CATChem_Model), intent(inout) :: this
       integer, intent(out) :: rc
       
-      rc = CATChem_SUCCESS
-      call this%reset_error()
+      rc = CC_SUCCESS
       
       if (.not. this%initialized) then
-         rc = CATChem_SUCCESS  ! Already finalized
+         rc = CC_SUCCESS  ! Already finalized
          return
       endif
       
       ! Finalize core
       call this%core%finalize(rc)
       if (rc /= CC_SUCCESS) then
-         this%last_error_msg = 'Warning: Core finalization had issues'
+         call this%error_manager%push_context('model_finalize', 'finalizing CATChem core')
+         call this%error_manager%report_error(1015, 'Core finalization had issues', rc)
+         call this%error_manager%pop_context()
          ! Don't return failure for finalization warnings
-         rc = CATChem_SUCCESS
+         rc = CC_SUCCESS
       endif
       
       ! Reset state
@@ -247,35 +243,38 @@ contains
       type(ProcessManagerType), pointer :: process_mgr => null()
       integer :: i, reg_rc, add_rc
       
-      rc = CATChem_SUCCESS
-      call this%reset_error()
+      rc = CC_SUCCESS
       
       if (.not. this%initialized) then
-         this%last_error_msg = 'Model must be initialized first'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_add_process', 'checking initialization status')
+         call this%error_manager%report_error(1003, 'Model must be initialized first', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
       ! Get configuration data from core
       config_data => this%core%get_config()
       if (.not. associated(config_data)) then
-         this%last_error_msg = 'Configuration data not available'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_add_process', 'accessing configuration data')
+         call this%error_manager%report_error(1002, 'Configuration data not available', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
       ! Get process manager
       process_mgr => this%core%get_process_manager()
       if (.not. associated(process_mgr)) then
-         this%last_error_msg = 'ProcessManager not available from core'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_add_process', 'accessing process manager')
+         call this%error_manager%report_error(1014, 'ProcessManager not available from core', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
       ! Check if processes are available (either run phase or direct processes)
       if (.not. allocated(config_data%run_phase_processes)) then
-         this%last_error_msg = 'No processes configured'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_add_process', 'checking process configuration')
+         call this%error_manager%report_error(1002, 'No processes configured', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
@@ -324,7 +323,9 @@ contains
       case ('seasalt')
          call register_seasalt_process(process_mgr, rc)
          if (rc /= CC_SUCCESS) then
-            this%last_error_msg = 'Failed to register seasalt process'
+            call this%error_manager%push_context('model_register_process', 'registering seasalt process')
+            call this%error_manager%report_error(1014, 'Failed to register seasalt process', rc)
+            call this%error_manager%pop_context()
          endif
       
       ! Add more processes here as they become available
@@ -334,9 +335,10 @@ contains
       !    call register_chemistry_process(process_mgr, rc)
       
       case default
-         this%last_error_msg = 'Unknown process type: ' // trim(process_name) // &
-                               '. Supported processes: seasalt'
-         rc = CC_FAILURE
+         call this%error_manager%push_context('model_register_process', 'validating process type')
+         call this%error_manager%report_error(1016, 'Unknown process type: ' // trim(process_name) // &
+                               '. Supported processes: seasalt', rc)
+         call this%error_manager%pop_context()
       end select
       
    end subroutine model_register_process
@@ -351,11 +353,11 @@ contains
       character(len=64) :: temp_names(50)  ! Temporary array with max size
       integer :: count, i
       
-      rc = CATChem_SUCCESS
+      rc = CC_SUCCESS
       
       if (.not. this%initialized) then
          allocate(process_names(0))
-         rc = CATChem_FAILURE
+         rc = CC_FAILURE
          return
       endif
       
@@ -363,7 +365,7 @@ contains
       process_mgr => this%core%get_process_manager()
       if (.not. associated(process_mgr)) then
          allocate(process_names(0))
-         rc = CATChem_FAILURE
+         rc = CC_FAILURE
          return
       endif
       
@@ -410,34 +412,37 @@ contains
       real(fp), intent(in) :: dt              ! Timestep size [s]
       integer, intent(out) :: rc
       
-      rc = CATChem_SUCCESS
-      call this%reset_error()
+      rc = CC_SUCCESS
       
       if (.not. this%is_ready()) then
-         this%last_error_msg = 'Model is not ready to run timestep'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_run_timestep', 'checking model readiness')
+         call this%error_manager%report_error(1003, 'Model is not ready to run timestep', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
       if (dt <= 0.0_fp) then
-         this%last_error_msg = 'Timestep size must be positive'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_run_timestep', 'validating timestep size')
+         call this%error_manager%report_error(1001, 'Timestep size must be positive', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
       if (this%enable_run_phase) then
         call this%run_all_phases(rc)
         if (rc /= CC_SUCCESS) then
-           this%last_error_msg = 'Failed to run all phases during timestep'
-           rc = CATChem_FAILURE
+           call this%error_manager%push_context('model_run_timestep', 'running all phases')
+           call this%error_manager%report_error(1015, 'Failed to run all phases during timestep', rc)
+           call this%error_manager%pop_context()
            return
         endif
       else
         ! Run the core timestep
         call this%core%run_timestep(timestep, dt, rc)      
         if (rc /= CC_SUCCESS) then
-            this%last_error_msg = 'Failed to run all processes during timestep'
-            rc = CATChem_FAILURE
+            call this%error_manager%push_context('model_run_timestep', 'running core timestep')
+            call this%error_manager%report_error(1015, 'Failed to run all processes during timestep', rc)
+            call this%error_manager%pop_context()
             return
         endif
       endif
@@ -454,12 +459,12 @@ contains
       type(StateManagerType), pointer :: state_mgr => null()
       type(ConfigDataType), pointer :: config_data => null()
       
-      rc = CATChem_SUCCESS
-      call this%reset_error()
+      rc = CC_SUCCESS
       
       if (.not. this%is_ready()) then
-         this%last_error_msg = 'Model is not ready for phase execution'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_run_phase', 'checking model readiness')
+         call this%error_manager%report_error(1003, 'Model is not ready for phase execution', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
@@ -469,16 +474,18 @@ contains
       config_data => this%core%get_config()
       
       if (.not. associated(process_mgr) .or. .not. associated(state_mgr) .or. .not. associated(config_data)) then
-         this%last_error_msg = 'Required managers or config data not available'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_run_phase', 'accessing required managers')
+         call this%error_manager%report_error(1014, 'Required managers or config data not available', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
       ! Run the specific phase via ProcessManager
       call process_mgr%run_phase(phase_name, config_data, state_mgr, rc)
       if (rc /= CC_SUCCESS) then
-         this%last_error_msg = 'Failed to run phase: ' // trim(phase_name)
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_run_phase', 'executing phase: ' // trim(phase_name))
+         call this%error_manager%report_error(1015, 'Failed to run phase: ' // trim(phase_name), rc)
+         call this%error_manager%pop_context()
       endif
       
    end subroutine model_run_phase
@@ -493,12 +500,12 @@ contains
       type(StateManagerType), pointer :: state_mgr => null()
       type(ConfigDataType), pointer :: config_data => null()
       
-      rc = CATChem_SUCCESS
-      call this%reset_error()
+      rc = CC_SUCCESS
       
       if (.not. this%is_ready()) then
-         this%last_error_msg = 'Model is not ready for phase execution'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_run_all_phases', 'checking model readiness')
+         call this%error_manager%report_error(1003, 'Model is not ready for phase execution', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
@@ -508,16 +515,18 @@ contains
       config_data => this%core%get_config()
       
       if (.not. associated(process_mgr) .or. .not. associated(state_mgr) .or. .not. associated(config_data)) then
-         this%last_error_msg = 'Required managers or config data not available'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_run_all_phases', 'accessing required managers')
+         call this%error_manager%report_error(1014, 'Required managers or config data not available', rc)
+         call this%error_manager%pop_context()
          return
       endif
       
       ! Run all phases in sequence using ConfigManager data
       call process_mgr%run_all_phases(config_data, state_mgr, rc)
       if (rc /= CC_SUCCESS) then
-         this%last_error_msg = 'Failed to run all phases'
-         rc = CATChem_FAILURE
+         call this%error_manager%push_context('model_run_all_phases', 'executing all phases')
+         call this%error_manager%report_error(1015, 'Failed to run all phases', rc)
+         call this%error_manager%pop_context()
       endif
       
    end subroutine model_run_all_phases
@@ -533,11 +542,11 @@ contains
       type(ConfigDataType), pointer :: config_data => null()
       integer :: i
       
-      rc = CATChem_SUCCESS
+      rc = CC_SUCCESS
       
       if (.not. this%initialized) then
          allocate(phase_names(0))
-         rc = CATChem_FAILURE
+         rc = CC_FAILURE
          return
       endif
       
@@ -545,7 +554,7 @@ contains
       config_data => this%core%get_config()
       if (.not. associated(config_data)) then
          allocate(phase_names(0))
-         rc = CATChem_FAILURE
+         rc = CC_FAILURE
          return
       endif
       
@@ -563,175 +572,6 @@ contains
    end subroutine model_get_phase_names
 
 
-   !> Set meteorological data from host model
-   !! This method transfers meteorological data from the host model to CATChem
-   subroutine model_set_meteorology(this, temp, pressure, humidity, wind_u, wind_v, delp, frocean, frseaice, sst, u10m, v10m, ustar,rc)
-      class(CATChem_Model), intent(inout) :: this
-      real(fp), intent(in) :: temp(:,:,:)      ! Temperature [K]
-      real(fp), intent(in) :: pressure(:,:,:)  ! Pressure [Pa]
-      real(fp), intent(in) :: humidity(:,:,:)  ! Specific humidity [kg/kg]
-      real(fp), intent(in) :: wind_u(:,:,:)    ! U-wind [m/s]
-      real(fp), intent(in) :: wind_v(:,:,:)    ! V-wind [m/s]
-      real(fp), intent(in), optional :: delp(:,:,:)    ! Pressure thickness [Pa]
-      real(fp), intent(in), optional :: frocean(:,:)   ! Fraction ocean
-      real(fp), intent(in), optional :: frseaice(:,:)  ! Fraction sea ice
-      real(fp), intent(in), optional :: sst(:,:)       ! Sea surface temperature [K]
-      real(fp), intent(in), optional :: u10m(:,:)      ! 10m U-wind [m/s]
-      real(fp), intent(in), optional :: v10m(:,:)      ! 10m V-wind [m/s]
-      real(fp), intent(in), optional :: ustar(:,:)     ! Friction velocity [m/s]
-      integer, intent(out) :: rc
-      
-      type(StateManagerType), pointer :: state_mgr => null()
-      type(MetStateType), pointer :: met_state => null()
-      integer, dimension(3) :: expected_shape, actual_shape
-      
-      rc = CATChem_SUCCESS
-      call this%reset_error()
-      
-      if (.not. this%is_ready()) then
-         this%last_error_msg = 'Model is not ready for meteorology data'
-         rc = CATChem_FAILURE
-         return
-      endif
-      
-      ! Validate array dimensions
-      expected_shape = [this%nx, this%ny, this%nz]
-      actual_shape = shape(temp)
-      
-      if (any(actual_shape /= expected_shape)) then
-         this%last_error_msg = 'Temperature array dimensions do not match grid'
-         rc = CATChem_FAILURE
-         return
-      endif
-      
-      ! Get state manager and meteorology state
-      state_mgr => this%core%get_state_manager()
-      if (.not. associated(state_mgr)) then
-         this%last_error_msg = 'State manager not available'
-         rc = CATChem_FAILURE
-         return
-      endif
-      
-      met_state => state_mgr%get_met_state_ptr()
-      if (.not. associated(met_state)) then
-         this%last_error_msg = 'Meteorology state not available'
-         rc = CATChem_FAILURE
-         return
-      endif
-      
-      ! Copy data to meteorology state
-      ! Note: These assignments use the actual MetState field names
-      if (allocated(met_state%T)) then
-         met_state%T = temp
-      endif
-      if (allocated(met_state%PMID)) then
-         met_state%PMID = pressure
-      endif
-      if (allocated(met_state%QV)) then
-         met_state%QV = humidity
-      endif
-      if (allocated(met_state%U)) then
-         met_state%U = wind_u
-      endif
-      if (allocated(met_state%V)) then
-         met_state%V = wind_v
-      endif
-      if (present(delp)) then
-         if (allocated(met_state%DELP)) then
-            met_state%DELP = delp
-         endif
-      endif
-      if (present(frocean)) then
-        if (allocated(met_state%FROCEAN)) then
-            met_state%FROCEAN = frocean
-        endif
-      endif
-      if (present(frseaice)) then
-        if (allocated(met_state%FRSEAICE)) then
-            met_state%FRSEAICE = frseaice
-        endif
-      endif
-      if (present(sst)) then
-        if (allocated(met_state%SST)) then
-            met_state%SST = sst
-        endif
-      endif
-      if (present(u10m)) then
-        if (allocated(met_state%U10M)) then
-            met_state%U10M = u10m
-        endif
-      endif
-      if (present(v10m)) then
-        if (allocated(met_state%V10M)) then
-            met_state%V10M = v10m   
-        endif
-      endif
-      if (present(ustar)) then
-        if (allocated(met_state%USTAR)) then
-            met_state%USTAR = ustar
-        endif
-      endif
-   end subroutine model_set_meteorology
-
-   !> Get meteorological data to host model
-   !! This method transfers meteorological data from CATChem to the host model
-   subroutine model_get_meteorology(this, temp, pressure, humidity, wind_u, wind_v, rc)
-      class(CATChem_Model), intent(inout) :: this
-      real(fp), allocatable, intent(out) :: temp(:,:,:)      ! Temperature [K]
-      real(fp), allocatable, intent(out) :: pressure(:,:,:)  ! Pressure [Pa]
-      real(fp), allocatable, intent(out) :: humidity(:,:,:)  ! Specific humidity [kg/kg]
-      real(fp), allocatable, intent(out) :: wind_u(:,:,:)    ! U-wind [m/s]
-      real(fp), allocatable, intent(out) :: wind_v(:,:,:)    ! V-wind [m/s]
-      integer, intent(out) :: rc
-      
-      type(StateManagerType), pointer :: state_mgr => null()
-      type(MetStateType), pointer :: met_state => null()
-      
-      rc = CATChem_SUCCESS
-      
-      if (.not. this%is_ready()) then
-         rc = CATChem_FAILURE
-         return
-      endif
-      
-      ! Get state manager and meteorology state
-      state_mgr => this%core%get_state_manager()
-      if (.not. associated(state_mgr)) then
-         rc = CATChem_FAILURE
-         return
-      endif
-      
-      met_state => state_mgr%get_met_state_ptr()
-      if (.not. associated(met_state)) then
-         rc = CATChem_FAILURE
-         return
-      endif
-      
-      ! Allocate and copy data from meteorology state
-      allocate(temp(this%nx, this%ny, this%nz))
-      allocate(pressure(this%nx, this%ny, this%nz))
-      allocate(humidity(this%nx, this%ny, this%nz))
-      allocate(wind_u(this%nx, this%ny, this%nz))
-      allocate(wind_v(this%nx, this%ny, this%nz))
-      
-      if (allocated(met_state%T)) then
-         temp = met_state%T
-      endif
-      if (allocated(met_state%PMID)) then
-         pressure = met_state%PMID
-      endif
-      if (allocated(met_state%QV)) then
-         humidity = met_state%QV
-      endif
-      if (allocated(met_state%U)) then
-         wind_u = met_state%U
-      endif
-      if (allocated(met_state%V)) then
-         wind_v = met_state%V
-      endif
-      
-   end subroutine model_get_meteorology
-
    !> Set chemical concentrations from host model
    !! This method transfers chemical species data from the host model to CATChem
    subroutine model_set_chemistry(this, species_names, concentrations, rc)
@@ -744,41 +584,41 @@ contains
       type(ChemStateType), pointer :: chem_state => null()
       integer :: num_species
       
-      rc = CATChem_SUCCESS
-      call this%reset_error()
+      rc = CC_SUCCESS
+      ! Initialize error handling
       
       if (.not. this%is_ready()) then
-         this%last_error_msg = 'Model is not ready for chemistry data'
-         rc = CATChem_FAILURE
+         ! Error: 'Model is not ready for chemistry data'
+         rc = CC_FAILURE
          return
       endif
       
       num_species = size(species_names)
       if (num_species /= size(concentrations, 1)) then
-         this%last_error_msg = 'Number of species names does not match concentration dimensions'
-         rc = CATChem_FAILURE
+         ! Error: 'Number of species names does not match concentration dimensions'
+         rc = CC_FAILURE
          return
       endif
       
       ! Get state manager and chemistry state
       state_mgr => this%core%get_state_manager()
       if (.not. associated(state_mgr)) then
-         this%last_error_msg = 'State manager not available'
-         rc = CATChem_FAILURE
+         ! Error: 'State manager not available'
+         rc = CC_FAILURE
          return
       endif
       
       chem_state => state_mgr%get_chem_state_ptr()
       if (.not. associated(chem_state)) then
-         this%last_error_msg = 'Chemistry state not available'
-         rc = CATChem_FAILURE
+         ! Error: 'Chemistry state not available'
+         rc = CC_FAILURE
          return
       endif
       
       ! TODO: Implement chemistry data transfer
       ! This would involve mapping species names to indices and copying data
-      this%last_error_msg = 'Chemistry data transfer not yet implemented'
-      rc = CATChem_FAILURE
+      ! Error: 'Chemistry data transfer not yet implemented'
+      rc = CC_FAILURE
       
    end subroutine model_set_chemistry
 
@@ -793,23 +633,23 @@ contains
       type(StateManagerType), pointer :: state_mgr => null()
       type(ChemStateType), pointer :: chem_state => null()
       
-      rc = CATChem_SUCCESS
+      rc = CC_SUCCESS
       
       if (.not. this%is_ready()) then
-         rc = CATChem_FAILURE
+         rc = CC_FAILURE
          return
       endif
       
       ! Get state manager and chemistry state
       state_mgr => this%core%get_state_manager()
       if (.not. associated(state_mgr)) then
-         rc = CATChem_FAILURE
+         rc = CC_FAILURE
          return
       endif
       
       chem_state => state_mgr%get_chem_state_ptr()
       if (.not. associated(chem_state)) then
-         rc = CATChem_FAILURE
+         rc = CC_FAILURE
          return
       endif
       
@@ -820,28 +660,6 @@ contains
       
    end subroutine model_get_chemistry
 
-   !> Set emission data from host model
-   !! This method transfers emission data from the host model to CATChem
-   subroutine model_set_emissions(this, species_names, emissions, rc)
-      class(CATChem_Model), intent(inout) :: this
-      character(len=*), intent(in) :: species_names(:)
-      real(fp), intent(in) :: emissions(:,:,:,:)  ! [species, nx, ny, nz]
-      integer, intent(out) :: rc
-      
-      rc = CATChem_SUCCESS
-      call this%reset_error()
-      
-      if (.not. this%is_ready()) then
-         this%last_error_msg = 'Model is not ready for emission data'
-         rc = CATChem_FAILURE
-         return
-      endif
-      
-      ! TODO: Implement emission data transfer when EmisState is available
-      this%last_error_msg = 'Emission data transfer not yet implemented'
-      rc = CATChem_FAILURE
-      
-   end subroutine model_set_emissions
 
    !> Get names of available diagnostics
    !! This method retrieves the names of all available diagnostic fields
@@ -851,24 +669,71 @@ contains
       integer, intent(out) :: rc
       
       type(DiagnosticManagerType), pointer :: diag_mgr => null()
+      type(DiagnosticRegistryType), pointer :: registry => null()
+      character(len=64), allocatable :: process_list(:), field_names(:)
+      integer :: num_processes, i, j, field_count, total_fields, name_idx
+      integer :: local_rc
       
-      rc = CATChem_SUCCESS
+      rc = CC_SUCCESS
+      ! Initialize error handling
       
       if (.not. this%initialized) then
          allocate(diagnostic_names(0))
-         rc = CATChem_FAILURE
+         ! Error: 'Model not initialized'
+         rc = CC_FAILURE
          return
       endif
       
       diag_mgr => this%core%get_diagnostic_manager()
       if (.not. associated(diag_mgr)) then
          allocate(diagnostic_names(0))
-         rc = CATChem_FAILURE
+         ! Error: 'Diagnostic manager not available'
+         rc = CC_FAILURE
          return
       endif
       
-      ! TODO: Implement diagnostic name retrieval
-      allocate(diagnostic_names(0))
+      ! Get list of all processes with diagnostics
+      call diag_mgr%list_processes(process_list, num_processes, local_rc)
+      if (local_rc /= CC_SUCCESS .or. num_processes == 0) then
+         allocate(diagnostic_names(0))
+         return  ! No processes or failed to get list - return empty array
+      endif
+      
+      ! Count total diagnostic fields across all processes
+      total_fields = 0
+      do i = 1, num_processes
+         call diag_mgr%get_process_registry(process_list(i), registry, local_rc)
+         if (local_rc == CC_SUCCESS .and. associated(registry)) then
+            total_fields = total_fields + registry%get_field_count()
+         endif
+      end do
+      
+      ! Allocate output array
+      allocate(diagnostic_names(total_fields))
+      
+      ! Collect all diagnostic field names with process prefix
+      name_idx = 0
+      do i = 1, num_processes
+         call diag_mgr%get_process_registry(process_list(i), registry, local_rc)
+         if (local_rc == CC_SUCCESS .and. associated(registry)) then
+            field_count = registry%get_field_count()
+            if (field_count > 0) then
+               allocate(field_names(field_count))
+               call registry%list_fields(field_names, field_count)
+               
+               do j = 1, field_count
+                  name_idx = name_idx + 1
+                  ! Create qualified name: process_name.field_name
+                  diagnostic_names(name_idx) = trim(process_list(i)) // '.' // trim(field_names(j))
+               end do
+               
+               deallocate(field_names)
+            endif
+         endif
+      end do
+      
+      ! Clean up
+      if (allocated(process_list)) deallocate(process_list)
       
    end subroutine model_get_diagnostic_names
 
@@ -881,26 +746,87 @@ contains
       integer, intent(out) :: rc
       
       type(DiagnosticManagerType), pointer :: diag_mgr => null()
+      type(DiagnosticRegistryType), pointer :: registry => null()
+      character(len=64), allocatable :: process_list(:), field_names(:)
+      character(len=64) :: process_name, field_name
+      integer :: num_processes, i, j, field_count, dot_pos, data_type
+      integer :: local_rc
+      real(fp) :: scalar_value
+      real(fp), pointer :: array_1d_ptr(:) => null()
+      real(fp), pointer :: array_2d_ptr(:,:) => null()
+      real(fp), pointer :: array_3d_ptr(:,:,:) => null()
+      logical :: found = .false.
       
-      rc = CATChem_SUCCESS
+      rc = CC_SUCCESS
+      ! Initialize error handling
       
       if (.not. this%initialized) then
-         rc = CATChem_FAILURE
+         ! Error: 'Model not initialized'
+         rc = CC_FAILURE
          return
       endif
       
       diag_mgr => this%core%get_diagnostic_manager()
       if (.not. associated(diag_mgr)) then
-         rc = CATChem_FAILURE
+         ! Error: 'Diagnostic manager not available'
+         rc = CC_FAILURE
          return
       endif
       
-      ! Allocate output array
+      ! Parse diagnostic name (format: process_name.field_name)
+      dot_pos = index(diagnostic_name, '.')
+      if (dot_pos <= 1) then
+         ! Error: 'Invalid diagnostic name format. Expected: process_name.field_name'
+         rc = CC_FAILURE
+         return
+      endif
+      
+      process_name = diagnostic_name(1:dot_pos-1)
+      field_name = diagnostic_name(dot_pos+1:)
+      
+      ! Get field value using DiagnosticManager
+      call diag_mgr%get_field_value(process_name, field_name, &
+                                    scalar_value, array_1d_ptr, array_2d_ptr, array_3d_ptr, &
+                                    data_type, local_rc)
+      
+      if (local_rc /= CC_SUCCESS) then
+         ! Error: 'Failed to retrieve diagnostic field: ' // trim(diagnostic_name)
+         rc = CC_FAILURE
+         return
+      endif
+      
+      ! Allocate and populate output array based on data type
       allocate(diagnostic_data(this%nx, this%ny, this%nz))
       diagnostic_data = 0.0_fp
       
-      ! TODO: Implement specific diagnostic retrieval
-      rc = CATChem_FAILURE
+      select case (data_type)
+      case (DIAG_REAL_SCALAR)
+         diagnostic_data = scalar_value
+         found = .true.
+         
+      case (DIAG_REAL_2D)
+         if (associated(array_2d_ptr)) then
+            ! Copy 2D data to first level of 3D array
+            diagnostic_data(:,:,1) = array_2d_ptr
+            found = .true.
+         endif
+         
+      case (DIAG_REAL_3D)
+         if (associated(array_3d_ptr)) then
+            diagnostic_data = array_3d_ptr
+            found = .true.
+         endif
+         
+      case default
+         ! Error: 'Unsupported diagnostic data type for: ' // trim(diagnostic_name)
+         rc = CC_FAILURE
+         return
+      end select
+      
+      if (.not. found) then
+         ! Error: 'No data available for diagnostic: ' // trim(diagnostic_name)
+         rc = CC_FAILURE
+      endif
       
    end subroutine model_get_diagnostic
 
@@ -912,16 +838,55 @@ contains
       real(fp), allocatable, intent(out) :: diagnostic_data(:,:,:,:)  ! [diag, nx, ny, nz]
       integer, intent(out) :: rc
       
-      rc = CATChem_SUCCESS
+      type(DiagnosticManagerType), pointer :: diag_mgr => null()
+      integer :: local_rc
+      
+      rc = CC_SUCCESS
+      ! Initialize error handling
       
       if (.not. this%initialized) then
-         rc = CATChem_FAILURE
+         ! Error: 'Model not initialized'
+         allocate(diagnostic_names(0))
+         allocate(diagnostic_data(0, this%nx, this%ny, this%nz))
+         rc = CC_FAILURE
          return
       endif
       
-      ! TODO: Implement all diagnostics retrieval
-      allocate(diagnostic_names(0))
-      allocate(diagnostic_data(0, this%nx, this%ny, this%nz))
+      diag_mgr => this%core%get_diagnostic_manager()
+      if (.not. associated(diag_mgr)) then
+         ! Error: 'Diagnostic manager not available'
+         allocate(diagnostic_names(0))
+         allocate(diagnostic_data(0, this%nx, this%ny, this%nz))
+         rc = CC_FAILURE
+         return
+      endif
+      
+      ! First get all diagnostic field names
+      call this%get_diagnostic_names(diagnostic_names, local_rc)
+      if (local_rc /= CC_SUCCESS) then
+         ! Error: 'Failed to get diagnostic names'
+         allocate(diagnostic_data(0, this%nx, this%ny, this%nz))
+         rc = CC_FAILURE
+         return
+      endif
+      
+      ! Collect all diagnostic data using DiagnosticManager
+      call diag_mgr%collect_all_diagnostics(local_rc)
+      if (local_rc /= CC_SUCCESS) then
+         ! Error: 'Failed to collect diagnostic data'
+         allocate(diagnostic_data(size(diagnostic_names), this%nx, this%ny, this%nz))
+         rc = CC_FAILURE
+         return
+      endif
+      
+      ! For now, allocate the data array but don't populate it
+      ! TODO: Extract individual diagnostic values and populate diagnostic_data array
+      ! This would require iterating through diagnostic_names and calling get_field_value for each
+      allocate(diagnostic_data(size(diagnostic_names), this%nx, this%ny, this%nz))
+      diagnostic_data = 0.0_fp
+      
+      ! Note: The actual data collection has been performed and stored in each field's
+      ! DiagnosticDataType structure. Individual fields can be accessed using get_diagnostic()
       
    end subroutine model_get_all_diagnostics
 
@@ -942,20 +907,13 @@ contains
       is_initialized = this%initialized
    end function model_is_initialized
 
-   !> Get the last error message
-   subroutine model_get_error_message(this, error_msg)
-      class(CATChem_Model), intent(in) :: this
-      character(len=*), intent(out) :: error_msg
+   !> Get direct access to the error manager
+   function model_get_error_manager(this) result(error_mgr_ptr)
+      class(CATChem_Model), intent(inout), target :: this
+      type(ErrorManagerType), pointer :: error_mgr_ptr
       
-      error_msg = trim(this%last_error_msg)
-   end subroutine model_get_error_message
-
-   !> Reset the error message
-   subroutine model_reset_error(this)
-      class(CATChem_Model), intent(inout) :: this
-      
-      this%last_error_msg = ''
-   end subroutine model_reset_error
+      error_mgr_ptr => this%error_manager
+   end function model_get_error_manager
 
    ! Core access methods for advanced users
    

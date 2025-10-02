@@ -432,7 +432,8 @@ contains
       class(DiagnosticManagerType), intent(inout) :: this
       integer, intent(out) :: rc
 
-      integer :: i, local_rc
+      integer :: i, local_rc, total_fields
+      character(len=64) :: current_process
 
       rc = CC_SUCCESS
 
@@ -441,16 +442,31 @@ contains
       call this%error_mgr%push_context('diagnostic_manager_collect_all', &
                                   'Collecting diagnostics from all processes')
 
-      ! Collect from each process
+      total_fields = 0
+
+      ! Collect from each registered process
       do i = 1, this%num_processes
-         call this%collect_process_diagnostics(this%process_names(i), local_rc)
+         current_process = trim(this%process_names(i))
+         
+         call this%collect_process_diagnostics(current_process, local_rc)
          if (local_rc /= CC_SUCCESS) then
             call this%error_mgr%report_error(local_rc, &
                                         'Failed to collect diagnostics from: ' // &
-                                        trim(this%process_names(i)), rc)
-            ! Continue with other processes
+                                        trim(current_process), local_rc)
+            ! Continue with other processes - don't let one failure stop collection
+         else
+            ! Count fields collected from this process
+            total_fields = total_fields + this%process_registries(i)%get_field_count()
          endif
       enddo
+
+      ! Log collection summary
+      if (this%num_processes > 0) then
+         write(*,'(A,I0,A,I0,A)') 'DiagnosticManager: Collected diagnostics from ', &
+                                  this%num_processes, ' processes (', total_fields, ' total fields)'
+      else
+         write(*,'(A)') 'DiagnosticManager: No processes registered for diagnostic collection'
+      end if
 
       call this%error_mgr%pop_context()
 
@@ -467,15 +483,77 @@ contains
       integer, intent(out) :: rc
 
       type(DiagnosticRegistryType), pointer :: registry
+      character(len=64), allocatable :: field_names(:)
+      integer :: num_fields, i, local_rc, data_type
+      real(fp) :: scalar_value
+      real(fp), pointer :: array_1d_ptr(:) => null()
+      real(fp), pointer :: array_2d_ptr(:,:) => null()
+      real(fp), pointer :: array_3d_ptr(:,:,:) => null()
+      character(len=64) :: field_name
+
+      rc = CC_SUCCESS
+
+      call this%error_mgr%push_context('diagnostic_manager_collect_process', &
+                                  'Collecting diagnostics from process: ' // trim(process_name))
 
       ! Get process registry
       call this%get_process_registry(process_name, registry, rc)
-      if (rc /= CC_SUCCESS) return
+      if (rc /= CC_SUCCESS) then
+         call this%error_mgr%pop_context()
+         return
+      end if
 
-      ! Collect diagnostics (would access state data to update diagnostic values)
-      ! This is a placeholder - actual implementation would extract data from
-      ! StateContainer components and update diagnostic field values
-      rc = CC_SUCCESS
+      ! Get the number of registered diagnostic fields
+      num_fields = registry%get_field_count()
+      if (num_fields == 0) then
+         call this%error_mgr%pop_context()
+         return  ! No fields to collect
+      end if
+
+      ! Allocate array for field names
+      allocate(field_names(num_fields), stat=local_rc)
+      if (local_rc /= 0) then
+         call this%error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
+                                     'Failed to allocate field names array', rc)
+         call this%error_mgr%pop_context()
+         return
+      end if
+
+      ! Get all field names
+      call registry%list_fields(field_names, num_fields)
+
+      ! Iterate through all diagnostic fields and collect their current values
+      do i = 1, num_fields
+         field_name = trim(field_names(i))
+
+         ! Get field value using existing get_field_value method
+         call this%get_field_value(process_name, field_name, &
+                                  scalar_value, array_1d_ptr, array_2d_ptr, array_3d_ptr, &
+                                  data_type, local_rc)
+         
+         if (local_rc /= CC_SUCCESS) then
+            ! Log warning but continue with other fields
+            call this%error_mgr%report_error(local_rc, &
+                                        'Failed to collect field: ' // trim(field_name), local_rc)
+            ! Don't fail the entire collection for one field
+         else
+            ! TODO: Write diagnostic fields to output file
+            ! This is where we would write each field's values to a diagnostic output file
+            ! The file format could be NetCDF, CSV, or custom binary format
+            ! Example: call write_field_to_file(process_name, field_name, data_type, values)
+            ! For now, we just verify the field is accessible and report successful collection
+         end if
+
+         ! Clean up pointers
+         if (associated(array_1d_ptr)) nullify(array_1d_ptr)
+         if (associated(array_2d_ptr)) nullify(array_2d_ptr)
+         if (associated(array_3d_ptr)) nullify(array_3d_ptr)
+      end do
+
+      ! Clean up
+      deallocate(field_names)
+
+      call this%error_mgr%pop_context()
 
    end subroutine diagnostic_manager_collect_process
 

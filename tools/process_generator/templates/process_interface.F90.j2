@@ -959,27 +959,68 @@ contains
    function get_required_met_fields(this) result(field_names)
       class(Process{{ config.class_name }}Interface), intent(in) :: this
       character(len=32), allocatable :: field_names(:)
+      character(len=32), allocatable :: scheme_fields(:)
+      character(len=32), allocatable :: process_fields(:)
+      integer :: total_fields, scheme_count, process_count, i
+
+{% if config.required_met_fields %}
+      ! Process-level required fields
+      process_count = {{ config.required_met_fields | length }}
+      allocate(process_fields(process_count))
+{% for field in config.required_met_fields %}
+{% if field is string %}
+      process_fields({{ loop.index }}) = '{{ field }}'
+{% else %}
+      process_fields({{ loop.index }}) = '{{ field.name }}'
+{% endif %}
+{% endfor %}
+{% else %}
+      ! No process-level required fields
+      process_count = 0
+      allocate(process_fields(0))
+{% endif %}
 
       ! Get scheme-specific fields based on selected scheme
       select case (trim(this%process_config%{{ config.name }}_config%scheme))
 {% for scheme in config.schemes %}
       case ('{{ scheme.name }}')
 {% if scheme.required_met_fields %}
-         allocate(field_names({{ scheme.required_met_fields | length }}))
+         scheme_count = {{ scheme.required_met_fields | length }}
+         allocate(scheme_fields(scheme_count))
 {% for field in scheme.required_met_fields %}
 {% if field is string %}
-         field_names({{ loop.index }}) = '{{ field }}'
+         scheme_fields({{ loop.index }}) = '{{ field }}'
 {% else %}
-         field_names({{ loop.index }}) = '{{ field.name }}'
+         scheme_fields({{ loop.index }}) = '{{ field.name }}'
 {% endif %}
 {% endfor %}
 {% else %}
-         allocate(field_names(0))
+         scheme_count = 0
+         allocate(scheme_fields(0))
 {% endif %}
 {% endfor %}
       case default
-         allocate(field_names(0))
+         scheme_count = 0
+         allocate(scheme_fields(0))
       end select
+
+      ! Combine process-level and scheme-specific fields
+      total_fields = process_count + scheme_count
+      allocate(field_names(total_fields))
+
+      ! Copy process-level fields first
+      do i = 1, process_count
+         field_names(i) = process_fields(i)
+      end do
+
+      ! Copy scheme-specific fields
+      do i = 1, scheme_count
+         field_names(process_count + i) = scheme_fields(i)
+      end do
+
+      ! Clean up temporary arrays
+      if (allocated(process_fields)) deallocate(process_fields)
+      if (allocated(scheme_fields)) deallocate(scheme_fields)
 
    end function get_required_met_fields
 
