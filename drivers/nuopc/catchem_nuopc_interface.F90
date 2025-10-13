@@ -27,11 +27,15 @@ module catchem_nuopc_interface
 
   use ESMF
   use NUOPC
-  use CATChem
-  use catchem_types, only: catchem_container_type
+  use CATChem_API, only: CATChem_Model
   use catchem_nuopc_cf_input
   use catchem_nuopc_netcdf_out
   use machine, only: kind_phys
+  use Error_Mod, only : CC_SUCCESS, CC_FAILURE
+  use StateManager_Mod, only: StateManagerType
+  use error_mod, only: ErrorManagerType
+  use MetState_Mod, only: MetStateType
+  use ChemState_Mod, only: ChemStateType
 
   implicit none
 
@@ -43,6 +47,9 @@ module catchem_nuopc_interface
   public :: transform_nuopc_to_catchem
   public :: transform_catchem_to_nuopc
   public :: load_field_config
+  type(CATChem_Model), public :: catchem
+  type(field_config_type), public :: field_config
+  type(tracer_index_map), public :: tracer_map
 
   !> \brief Field mapping configuration structure
   !!
@@ -58,17 +65,29 @@ module catchem_nuopc_interface
   end type field_mapping_type
   !! \}
 
-  !> \brief Module-level field configuration storage
+  !> \brief Field configuration structure for NUOPC interface
   !!
-  !! These variables maintain the field mapping configuration loaded
-  !! from external YAML files and used throughout the interface.
+  !! Contains the complete field mapping configuration including both
+  !! import and export field definitions with associated metadata.
   !! \{
-  type(QFYAML_t) :: field_config_yaml                    !< YAML configuration parser
-  type(field_mapping_type), allocatable :: import_fields(:) !< Import field mapping array
-  type(field_mapping_type), allocatable :: export_fields(:) !< Export field mapping array
-  integer :: n_import_fields = 0                         !< Number of import fields
-  integer :: n_export_fields = 0                         !< Number of export fields
+  type :: field_config_type
+    integer :: n_import_fields = 0                         !< Number of import fields
+    integer :: n_export_fields = 0                         !< Number of export fields
+    type(field_mapping_type), allocatable :: import_fields(:) !< Import field mapping array
+    type(field_mapping_type), allocatable :: export_fields(:) !< Export field mapping array
+  end type field_config_type
+
+  !> \brief tracer mapping between CATChem and NUOPC
+  !!
+  !! Defines the tracer mapping index between NUOPC and chem_state if CATChem
+  !! \{
+  type :: tracer_index_map
+    integer, allocatable :: nuopc_to_cc(:)  !< mapping index from NUOPC to CATChem
+    character(len=128), allocatable :: names(:) !< NUOPC tracer name
+    character(len=128), allocatable :: units(:) !< NUOPC tracer unit 
+  end type tracer_index_map
   !! \}
+
 
 contains
 
@@ -106,142 +125,104 @@ contains
   !!       and requires valid ESMF grid and configuration files
   !!
   !! @warning Proper error checking should be performed on errflg after calling
-  subroutine catchem_nuopc_init(config, catchem_states, dustState, seaSaltState, &
-                               dryDepState, im, config_file, grid, errflg, errmsg)
+  subroutine catchem_nuopc_init(config_file, lat, lon, nlev, tracerinfo, nsoil, nsoiltype, nsurftype, rc)
+    use ChemSpeciesUtils_Mod, only : create_species_mapping
 
-    type(ConfigType), intent(inout) :: config
-    type(catchem_container_type), intent(inout) :: catchem_states
-    type(DustStateType), intent(inout) :: dustState
-    type(SeaSaltStateType), intent(inout) :: seaSaltState
-    type(DryDepStateType), intent(inout) :: dryDepState
-    integer, intent(in) :: im
     character(len=*), intent(in) :: config_file
-    type(ESMF_Grid), intent(in) :: grid
-    integer, intent(out) :: errflg
-    character(len=*), intent(out) :: errmsg
+    real(ESMF_KIND_R8), intent(in) :: lat
+    real(ESMF_KIND_R8), intent(in) :: lon
+    integer, intent(in) :: nlev
+    type(ESMF_Info), intent(in) :: tracerinfo
+    integer, intent(in), optional :: nsoil, nsoiltype, nsurftype
+    integer, intent(out) :: rc
 
     ! Local variables
-    type(EmisStateType) :: EmisState
-    type(ChemStateType) :: ChemState
-    type(MetStateType) :: MetState
-    type(DiagStateType) :: DiagState
-    type(GridStateType) :: GridState
-    integer :: i
+    type(StateManagerType), pointer :: state_mgr
+    type(MetStateType), pointer :: met_state
+    type(ChemStateType), pointer :: chem_state
+    integer :: nx, ny
 
     ! Initialize
-    errflg = CC_SUCCESS
-    errmsg = ''
+    rc = CC_SUCCESS
 
-    ! Read configuration
-    call cc_read_config(config, GridState, EmisState, ChemState, errflg, config_file)
-    if (errflg /= CC_SUCCESS) then
-      errmsg = 'Error reading CATChem configuration file: '//trim(config_file)
+    !get nx, ny
+    nx = size(lat, 1)
+    ny = size(lat, 2)
+
+    ! Initialize catchem
+    if (present(nsoil) .and. present(nsoiltype) .and. present(nsurftype)) then
+      call catchem%initialize(config_file, nx, ny, nlev, nsoil, nsoiltype, nsurftype, rc)
+    else 
+      call catchem%initialize(config_file, nx, ny, nlev, rc)
+    end if
+
+    if (rc /= CC_SUCCESS) then 
+      call catchem%error_manager%push_context('catchem_nuopc_init', 'failed!!')
+      call catchem%error_manager%pop_context()
       return
     end if
 
-    ! Initialize states and processes
-    call cc_init_met(GridState, MetState, errflg)
-    if (errflg /= CC_SUCCESS) then
-      errmsg = 'Error initializing MetState'
+    !assign lat and lon to metstate
+    state_mgr => model%get_state_manager()
+    met_state => state_mgr%get_met_state_ptr()
+    met_state%lat = lat
+    met_state%lon = lon
+
+    !populate tracer mapping
+    call TracerInfoGet(tracerinfo, 'tracerNames', tracer_map % names, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__,  file=__FILE__)) return  ! bail out
+
+    if (.not.allocated(tracer_map%names)) then
+      call ESMF_LogWrite("Unable to retrieve imported tracer list", &
+        ESMF_LOGMSG_WARNING, line=__LINE__, file=__FILE__, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, file=__FILE__)) return
       return
     end if
 
-    call cc_init_emis(GridState, EmisState, errflg)
-    if (errflg /= CC_SUCCESS) then
-      errmsg = 'Error initializing EmisState'
+    ! - import tracer units if available
+    call TracerInfoGet(info, 'tracerUnits', tracer_map % units, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__,  file=__FILE__)) return  ! bail out
+
+    if (.not.allocated(tracer_map % units)) then
+      allocate(tracer_map % units(size(tracer_map % names)), stat=stat)
+      if (ESMF_LogFoundAllocError(statusToCheck=stat, &
+        msg="Unable to allocate internal workspace", &
+        line=__LINE__,  file=__FILE__)) return  ! bail out
+      tracer_map % units = 'n/a'
+    end if
+
+    ! assign mapping index
+    call create_species_mapping(state_mgr, tracer_map%names, tracer_map%nuopc_to_cc, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__,  file=__FILE__)) return  ! bail out
+
+    ! Add all enabled processes from configuration
+    call catchem%add_process(rc)
+    num_processes = catchem%get_num_processes()
+    if (rc /= CC_SUCCESS .or. num_processes <= 0) then
+      call catchem%error_manager%push_context('catchem_nuopc_init', 'failed to add processes')
+      call catchem%error_manager%pop_context()
       return
     end if
 
-    call cc_init_chem(GridState, ChemState, errflg)
-    if (errflg /= CC_SUCCESS) then
-      errmsg = 'Error initializing ChemState'
-      return
-    end if
+    ! ! Initialize CF input system
+    ! call cf_input_init('catchem_input_config.yml', grid, errflg)
+    ! if (errflg /= ESMF_SUCCESS) then
+    !   errmsg = 'Error initializing CF input system'
+    !   errflg = CC_FAILURE
+    !   return
+    ! end if
 
-    call cc_init_diag(config, DiagState, ChemState, errflg)
-    if (errflg /= CC_SUCCESS) then
-      errmsg = 'Error initializing DiagState'
-      return
-    end if
-
-    call cc_init_process(config, ChemState, EmisState, dustState, seaSaltState, dryDepState, errflg)
-    if (errflg /= CC_SUCCESS) then
-      errmsg = 'Error initializing processes'
-      return
-    end if
-
-    ! Store the grid state (not an array)
-    catchem_states%GridState = GridState
-    catchem_states%im = im
-
-    ! Allocate and initialize state arrays
-    if (.not. allocated(catchem_states%MetState)) then
-      allocate(catchem_states%MetState(im), stat=errflg)
-      if (errflg /= 0) then
-        errmsg = 'Error allocating MetState array'
-        errflg = CC_FAILURE
-        return
-      end if
-      do i = 1, im
-        catchem_states%MetState(i) = MetState
-      end do
-    end if
-
-    if (.not. allocated(catchem_states%EmisState)) then
-      allocate(catchem_states%EmisState(im), stat=errflg)
-      if (errflg /= 0) then
-        errmsg = 'Error allocating EmisState array'
-        errflg = CC_FAILURE
-        return
-      end if
-      do i = 1, im
-        catchem_states%EmisState(i) = EmisState
-      end do
-    end if
-
-    if (.not. allocated(catchem_states%ChemState)) then
-      allocate(catchem_states%ChemState(im), stat=errflg)
-      if (errflg /= 0) then
-        errmsg = 'Error allocating ChemState array'
-        errflg = CC_FAILURE
-        return
-      end if
-      do i = 1, im
-        catchem_states%ChemState(i) = ChemState
-      end do
-    end if
-
-    if (.not. allocated(catchem_states%DiagState)) then
-      allocate(catchem_states%DiagState(im), stat=errflg)
-      if (errflg /= 0) then
-        errmsg = 'Error allocating DiagState array'
-        errflg = CC_FAILURE
-        return
-      end if
-      do i = 1, im
-        catchem_states%DiagState(i) = DiagState
-      end do
-    end if
-
-    ! Load field mapping configuration
-    call load_field_mappings('catchem_field_config.yml', errflg, errmsg)
-    if (errflg /= CC_SUCCESS) return
-
-    ! Initialize CF input system
-    call cf_input_init('catchem_input_config.yml', grid, errflg)
-    if (errflg /= ESMF_SUCCESS) then
-      errmsg = 'Error initializing CF input system'
-      errflg = CC_FAILURE
-      return
-    end if
-
-    ! Initialize NetCDF output system
-    call output_diagnostics_init('catchem_output_config.yml', grid, errflg)
-    if (errflg /= ESMF_SUCCESS) then
-      errmsg = 'Error initializing NetCDF output system'
-      errflg = CC_FAILURE
-      return
-    end if
+    ! ! Initialize NetCDF output system
+    ! call output_diagnostics_init('catchem_output_config.yml', grid, errflg)
+    ! if (errflg /= ESMF_SUCCESS) then
+    !   errmsg = 'Error initializing NetCDF output system'
+    !   errflg = CC_FAILURE
+    !   return
+    ! end if
 
   end subroutine catchem_nuopc_init
 
@@ -257,83 +238,37 @@ contains
   !! \param   errflg         Error flag
   !! \param   errmsg         Error message
   !!
-  subroutine catchem_nuopc_run(config, catchem_states, dustState, seaSaltState, &
-                              dryDepState, dt, current_time, errflg, errmsg)
+  subroutine catchem_nuopc_run( dt, current_time, errmsg, rc)
 
-    type(ConfigType), intent(inout) :: config
-    type(catchem_container_type), intent(inout) :: catchem_states
-    type(DustStateType), intent(inout) :: dustState
-    type(SeaSaltStateType), intent(inout) :: seaSaltState
-    type(DryDepStateType), intent(inout) :: dryDepState
-    real(kind_phys), intent(in) :: dt
+    real(ESMF_KIND_R8), intent(in) :: dt
     type(ESMF_Time), intent(in) :: current_time
-    integer, intent(out) :: errflg
     character(len=*), intent(out) :: errmsg
+    integer, intent(out) :: rc
 
-    integer :: i, rc
+    integer, save :: timestep = 0
 
-    errflg = CC_SUCCESS
+    rc = CC_SUCCESS
     errmsg = ''
 
     ! Update CF input data if needed
-    call cf_input_update(current_time, catchem_states, rc)
+    call cf_input_update(current_time, rc)
     if (rc /= ESMF_SUCCESS) then
       errmsg = 'Error updating CF input data'
-      errflg = CC_FAILURE
       return
     end if
-    errmsg = ''
 
-    ! Run chemistry processes for each grid point
-    do i = 1, catchem_states%im
-
-      ! Run dust process
-      call cc_dust_run(dustState, catchem_states%GridState, &
-                      catchem_states%MetState(i), catchem_states%ChemState(i), &
-                      catchem_states%EmisState(i), catchem_states%DiagState(i), &
-                      dt, errflg)
-      if (errflg /= CC_SUCCESS) then
-        write(errmsg, '(A,I0)') 'Error in dust process at grid point ', i
+    !Run CATChem processes
+    timestep = timestep + 1
+    call catchem%run_timestep(timestep, dt, rc)
+    if (rc /= CC_SUCCESS) then
+        write(errmsg, '(A,I0)') 'Error in run_timestep at timestep = ', timestep
         return
-      end if
-
-      ! Run sea salt process
-      call cc_seasalt_run(seaSaltState, catchem_states%GridState, &
-                         catchem_states%MetState(i), catchem_states%ChemState(i), &
-                         catchem_states%EmisState(i), catchem_states%DiagState(i), &
-                         dt, errflg)
-      if (errflg /= CC_SUCCESS) then
-        write(errmsg, '(A,I0)') 'Error in sea salt process at grid point ', i
-        return
-      end if
-
-      ! Run dry deposition process
-      call cc_drydep_run(dryDepState, catchem_states%GridState, &
-                        catchem_states%MetState(i), catchem_states%ChemState(i), &
-                        catchem_states%EmisState(i), catchem_states%DiagState(i), &
-                        dt, errflg)
-      if (errflg /= CC_SUCCESS) then
-        write(errmsg, '(A,I0)') 'Error in dry deposition process at grid point ', i
-        return
-      end if
-
-      ! Run main chemistry solver
-      call cc_run_process(config, catchem_states%GridState, &
-                         catchem_states%MetState(i), catchem_states%ChemState(i), &
-                         catchem_states%EmisState(i), catchem_states%DiagState(i), &
-                         dt, errflg)
-      if (errflg /= CC_SUCCESS) then
-        write(errmsg, '(A,I0)') 'Error in chemistry process at grid point ', i
-        return
-      end if
-
-    end do
+    end if
 
     ! Write NetCDF output diagnostics if needed
-    call output_diagnostics_write(current_time, catchem_states, rc)
+    call output_diagnostics_write(current_time, rc)
     if (rc /= ESMF_SUCCESS) then
       errmsg = 'Error writing NetCDF output diagnostics'
-      errflg = CC_FAILURE
       return
     end if
 
@@ -348,17 +283,12 @@ contains
   !! \param   errflg         Error flag
   !! \param   errmsg         Error message
   !!
-  subroutine catchem_nuopc_finalize(catchem_states, dustState, seaSaltState, &
-                                   dryDepState, errflg, errmsg)
+  subroutine catchem_nuopc_finalize(rc, errmsg)
 
-    type(catchem_container_type), intent(inout) :: catchem_states
-    type(DustStateType), intent(inout) :: dustState
-    type(SeaSaltStateType), intent(inout) :: seaSaltState
-    type(DryDepStateType), intent(inout) :: dryDepState
-    integer, intent(out) :: errflg
+    integer, intent(out) :: rc
     character(len=*), intent(out) :: errmsg
 
-    errflg = CC_SUCCESS
+    rc = CC_SUCCESS
     errmsg = ''
 
     ! Finalize CF input system
@@ -367,23 +297,16 @@ contains
     ! Finalize NetCDF output system
     call output_diagnostics_finalize()
 
-    ! Finalize processes
-    call cc_dust_finalize(dustState, errflg)
-    call cc_seasalt_finalize(seaSaltState, errflg)
-    call cc_drydep_finalize(dryDepState, errflg)
-
-    ! Deallocate state arrays
-    if (allocated(catchem_states%MetState)) deallocate(catchem_states%MetState)
-    if (allocated(catchem_states%ChemState)) deallocate(catchem_states%ChemState)
-    if (allocated(catchem_states%EmisState)) deallocate(catchem_states%EmisState)
-    if (allocated(catchem_states%DiagState)) deallocate(catchem_states%DiagState)
+    ! Finalize CATChem model
+    call catchem%finalize(rc)
+    if (rc /= CC_SUCCESS) then
+        errmsg = 'Error in calling catchem%finalize!'
+        return
+    end if
 
     ! Deallocate field mappings
-    if (allocated(import_fields)) deallocate(import_fields)
-    if (allocated(export_fields)) deallocate(export_fields)
-
-    ! Clean up YAML parser
-    call cc_yaml_cleanup(field_config_yaml)
+    if (allocated(field_config%import_fields)) deallocate(field_config%import_fields)
+    if (allocated(field_config%export_fields)) deallocate(field_config%export_fields)
 
   end subroutine catchem_nuopc_finalize
 
@@ -395,31 +318,36 @@ contains
   !! \param    kme            Vertical dimension
   !! \param   rc             ESMF return code
   !!
-  subroutine transform_nuopc_to_catchem(importState, catchem_states, im, kme, rc)
+  subroutine transform_nuopc_to_catchem(importState, rc)
 
     type(ESMF_State), intent(in) :: importState
-    type(catchem_container_type), intent(inout) :: catchem_states
-    integer, intent(in) :: im, kme
     integer, intent(out) :: rc
 
     type(ESMF_Field) :: field
-    real(ESMF_KIND_R8), pointer :: fptr3d(:,:,:), fptr2d(:,:)
-    integer :: i, j, k, n
+    logical, allocatable :: set_required_met(:)
+    integer :: i, n, n_met
     logical :: isPresent
 
     rc = ESMF_SUCCESS
 
+    ! This is to check if all required met fields in CATChem are set 
+    if (allocated(catchem%required_fields)) then 
+      n_met = size(catchem%required_fields)
+      allocate(set_required_met(n_met))
+      set_required_met = .false. 
+    end if
+
     ! Loop through all import fields and transform to CATChem states
-    do n = 1, n_import_fields
+    do n = 1, field_config%n_import_fields
 
       ! Check if field is present in import state
-      call ESMF_StateGet(importState, trim(import_fields(n)%standard_name), &
+      call ESMF_StateGet(importState, trim(field_config%import_fields(n)%standard_name), &
                         isPresent=isPresent, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, file=__FILE__)) return
 
       if (.not. isPresent) then
-        if (.not. import_fields(n)%optional) then
+        if (.not. field_config%import_fields(n)%optional) then
           call ESMF_LogWrite("Required field not found: "// &
             trim(import_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
           rc = ESMF_FAILURE
@@ -430,16 +358,30 @@ contains
       end if
 
       ! Get the field
-      call ESMF_StateGet(importState, trim(import_fields(n)%standard_name), field, rc=rc)
+      call ESMF_StateGet(importState, trim(field_config%import_fields(n)%standard_name), field, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, file=__FILE__)) return
 
       ! Transform based on field type and dimensions
-      call transform_field_to_catchem(field, import_fields(n), catchem_states, im, kme, rc)
+      call transform_field_to_catchem(field, field_config%import_fields(n), set_required_met, rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, file=__FILE__)) return
 
     end do
+
+    !check if all require met fields are set
+    if (allocated(catchem%required_fields)) then 
+      do i = 1, n_met
+        if (.not. set_required_met(i)) then 
+          call ESMF_LogWrite("Required met field not set yet: "// &
+            trim(catchem%required_fields(i)), ESMF_LOGMSG_ERROR, rc=rc)
+          rc = ESMF_FAILURE
+          return
+        end if     
+      end do
+      !deallocate array
+      deallocate(set_required_met)
+    end if
 
   end subroutine transform_nuopc_to_catchem
 
@@ -451,11 +393,9 @@ contains
   !! \param    kme            Vertical dimension
   !! \param   rc             ESMF return code
   !!
-  subroutine transform_catchem_to_nuopc(exportState, catchem_states, im, kme, rc)
+  subroutine transform_catchem_to_nuopc(exportState, rc)
 
     type(ESMF_State), intent(inout) :: exportState
-    type(catchem_container_type), intent(in) :: catchem_states
-    integer, intent(in) :: im, kme
     integer, intent(out) :: rc
 
     type(ESMF_Field) :: field
@@ -465,18 +405,18 @@ contains
     rc = ESMF_SUCCESS
 
     ! Loop through all export fields and transform from CATChem states
-    do n = 1, n_export_fields
+    do n = 1, field_config%n_export_fields
 
       ! Check if field is present in export state
-      call ESMF_StateGet(exportState, trim(export_fields(n)%standard_name), &
+      call ESMF_StateGet(exportState, trim(field_config%export_fields(n)%standard_name), &
                         isPresent=isPresent, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, file=__FILE__)) return
 
       if (.not. isPresent) then
-        if (.not. export_fields(n)%optional) then
+        if (.not. field_config%export_fields(n)%optional) then
           call ESMF_LogWrite("Required export field not found: "// &
-            trim(export_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
+            trim(field_config%export_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
           rc = ESMF_FAILURE
           return
         else
@@ -485,35 +425,18 @@ contains
       end if
 
       ! Get the field
-      call ESMF_StateGet(exportState, trim(export_fields(n)%standard_name), field, rc=rc)
+      call ESMF_StateGet(exportState, trim(field_config%export_fields(n)%standard_name), field, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, file=__FILE__)) return
 
       ! Transform from CATChem to field
-      call transform_catchem_to_field(catchem_states, export_fields(n), field, im, kme, rc)
+      call transform_catchem_to_field(field, field_config%export_fields(n), rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, file=__FILE__)) return
 
     end do
 
   end subroutine transform_catchem_to_nuopc
-
-  ! Load field mappings from configuration file using the utilities module
-  !!
-  !! \param  config_file Configuration file path
-  !! \param errflg      Error flag
-  !! \param errmsg      Error message
-  !!
-  subroutine load_field_mappings(config_file, errflg, errmsg)
-
-    character(len=*), intent(in) :: config_file
-    integer, intent(out) :: errflg
-    character(len=*), intent(out) :: errmsg
-
-    ! Simply call the local load_field_config routine
-    call load_field_config(config_file, errflg, errmsg)
-
-  end subroutine load_field_mappings
 
   ! Transform individual field to CATChem state
   !!
@@ -524,198 +447,147 @@ contains
   !! \param    kme            Vertical dimension
   !! \param   rc             ESMF return code
   !!
-  subroutine transform_field_to_catchem(field, field_map, catchem_states, im, kme, rc)
+  subroutine transform_field_to_catchem(field, field_map, is_met_set, rc)
 
     type(ESMF_Field), intent(in) :: field
     type(field_mapping_type), intent(in) :: field_map
-    type(catchem_container_type), intent(inout) :: catchem_states
-    integer, intent(in) :: im, kme
+    logical, dimension(:), intent(in) :: is_met_set
     integer, intent(out) :: rc
 
-    real(ESMF_KIND_R8), pointer :: fptr3d(:,:,:), fptr2d(:,:)
-    integer :: i, j, k
+    !local vars
+    type(ProcessManagerType), pointer :: process_mgr
+    type(StateManagerType), pointer :: state_mgr
+    type(ErrorManagerType), pointer :: error_mgr
+    type(MetStateType), pointer :: met_state
+    type(ChemStateType), pointer :: chem_state
+    real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
+    real(ESMF_KIND_R8), pointer :: fptr4d_rev(:,:,:,:), fptr3d_rev(:,:,:)
+    real(ESMF_KIND_R8) :: unit_conv
+    integer :: i, j, k, v, ni, nj, nk, nv, kk, v_cc, met_index
 
     rc = ESMF_SUCCESS
 
+    process_mgr => model%get_process_manager()
+    state_mgr => model%get_state_manager()
+    error_mgr => state_mgr%get_error_manager()
+    met_state => state_mgr%get_met_state_ptr()
+
+    if ( .not. associated(met_state) ) then 
+      call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+        msg="met_state is not associated in CATChem before transformation from NUOPC", &
+        line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+    end if
+
     ! Transform based on field mapping
-    select case (trim(field_map%catchem_var))
-
-      ! 3D meteorological fields
-      case ("MetState%Temperature")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do k = 1, kme
-            do j = 1, size(fptr3d, 2)
-              catchem_states%MetState(i)%Temperature(j,k) = fptr3d(i,j,k)
-            end do
-          end do
-        end do
-      case ("MetState%Pressure")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do k = 1, kme
-            do j = 1, size(fptr3d, 2)
-              catchem_states%MetState(i)%Pressure(j,k) = fptr3d(i,j,k)
-            end do
-          end do
-        end do
-
-      case ("MetState%U")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do k = 1, kme
-            do j = 1, size(fptr3d, 2)
-              catchem_states%MetState(i)%U(j,k) = fptr3d(i,j,k)
-            end do
-          end do
-        end do
-
-      case ("MetState%V")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do k = 1, kme
-            do j = 1, size(fptr3d, 2)
-              catchem_states%MetState(i)%V(j,k) = fptr3d(i,j,k)
-            end do
-          end do
-        end do
-
-      case ("MetState%W")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do k = 1, kme
-            do j = 1, size(fptr3d, 2)
-              catchem_states%MetState(i)%W(j,k) = fptr3d(i,j,k)
-            end do
-          end do
-        end do
+    !select case (trim(field_map%catchem_var))
+    select case (field_map%dimensions)
 
       ! 2D meteorological fields
-      case ("MetState%SurfacePressure")
+      case (2)
+        nullify(fptr2d)
         call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            catchem_states%MetState(i)%SurfacePressure(j) = fptr2d(i,j)
-          end do
-        end do
+        
+        !set to met_state in CATChem
+        met_state%set_field(trim(field_map%catchem_var), fptr2d, error_mgr, rc)
 
-      case ("MetState%SkinTemperature")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            catchem_states%MetState(i)%SkinTemperature(j) = fptr2d(i,j)
-          end do
-        end do
+        if (rc == CC_SUCCESS) then 
+          if (allocated(catchem%required_fields)) then 
+            met_index = catchem%get_required_met_index( trim(field_map%catchem_var) )
+            if (met_index >0 ) then 
+              is_met_set(met_index) = .true.
+            end if
+          end if
+        else 
+          call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+            msg="Met field is not set successfully for: " // trim(field_map%catchem_var), &
+            line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+        end if
 
-      case ("MetState%SolarRadiation")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            catchem_states%MetState(i)%SolarRadiation(j) = fptr2d(i,j)
-          end do
-        end do
-
-      case ("MetState%PBL_Height")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            catchem_states%MetState(i)%PBL_Height(j) = fptr2d(i,j)
-          end do
-        end do
-
-      case ("MetState%FrictionVelocity")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            catchem_states%MetState(i)%FrictionVelocity(j) = fptr2d(i,j)
-          end do
-        end do
-
-      case ("MetState%SnowDepth")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            catchem_states%MetState(i)%SnowDepth(j) = fptr2d(i,j)
-          end do
-        end do
-
-      ! Grid state fields
-      case ("GridState%LandMask")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            catchem_states%GridState%LandMask(i,j) = fptr2d(i,j)
-          end do
-        end do
-
-      case ("GridState%VegetationFraction")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            catchem_states%GridState%VegetationFraction(i,j) = fptr2d(i,j)
-          end do
-        end do
-
-      case ("MetState%SpecificHumidity")
+      ! 3D meteorological fields
+      case (3)
+        nullify(fptr3d, fptr3d_rev)
         call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do k = 1, kme
-            do j = 1, size(fptr3d, 2)
-              catchem_states%MetState(i)%SpecificHumidity(j,k) = fptr3d(i,j,k)
+
+        ni = size(fptr3d, 1)
+        nj = size(fptr3d, 2)
+        nk = size(fptr3d, 3)
+        !revserse vertical layers
+        do k = 1, nk
+          kk = nk - k + 1
+          do j = 1, nj
+            do i = 1, ni
+              fptr3d_rev(i,j,kk) = fptr3d(i,j,k)
             end do
           end do
         end do
 
-      case ("MetState%SensibleHeatFlux")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
+        !set to met_state in CATChem
+        met_state%set_field(trim(field_map%catchem_var), fptr3d_rev, error_mgr, rc)
+
+        if (rc == CC_SUCCESS) then 
+          if (allocated(catchem%required_fields)) then 
+            met_index = catchem%get_required_met_index( trim(field_map%catchem_var) )
+            if (met_index >0 ) then 
+              is_met_set(met_index) = .true.
+            end if
+          end if
+        else 
+          call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+            msg="Met field is not set successfully for: " // trim(field_map%catchem_var), &
+            line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+        end if
+        
+      ! 4D tracer concentrations
+      case (4)
+        nullify(fptr4d, fptr4d_rev)
+        call ESMF_FieldGet(field, farrayPtr=fptr4d, rc=rc)
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            catchem_states%MetState(i)%SensibleHeatFlux(j) = fptr2d(i,j)
+
+        chem_state => state_mgr%get_chem_state_ptr()
+        if ( .not. associated(chem_state) ) then
+          call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+            msg="chem_state is not associated in CATChem before transformation from NUOPC", &
+            line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+        end if
+
+        ni = size(fptr4d, 1)
+        nj = size(fptr4d, 2)
+        nk = size(fptr4d, 3)
+        nv = size(fptr4d, 4)
+        ! Reverse vertical layers
+        do v = 1, nv
+          v_cc = tracer_map%nuopc_to_cc(v)
+          if (chem_state%ChemSpecies(v_cc)%is_gas) then
+            unit_conv = 28.9644  / chem_state%ChemSpecies(v_cc)%mw_g * 1.0e-3  ! convert from ug/kg to ppm for gases
+          else 
+            unit_conv = 1.00  ! convert from ug/kg to ug/kg for aerosols
+          end if
+
+          do k = 1, nk
+            kk = nk - k + 1
+            do j = 1, nj
+              do i = 1, ni
+                fptr4d_rev(i,j,kk,v_cc) = fptr4d(i,j,k,v) * unit_conv
+              end do
+            end do
           end do
         end do
 
-      case ("MetState%LatentHeatFlux")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            catchem_states%MetState(i)%LatentHeatFlux(j) = fptr2d(i,j)
-          end do
-        end do
+        !set to concentrations in CATChem
+        chem_state%set_all_concentrations(fptr4d_rev, rc)
+        if (rc /= CC_SUCCESS) then 
+          call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+            msg="Tracer array is not retrieved successfully for: " // trim(field_map%catchem_var), &
+            line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+        end if
 
       case default
-        call ESMF_LogWrite("Unknown field mapping: " // trim(field_map%catchem_var), &
+        call ESMF_LogWrite("Unknown field mapping dimension for: " // trim(field_map%catchem_var), &
                           ESMF_LOGMSG_WARNING, rc=rc)
 
     end select
@@ -731,284 +603,190 @@ contains
   !! \param    kme            Vertical dimension
   !! \param   rc             ESMF return code
   !!
-  subroutine transform_catchem_to_field(catchem_states, field_map, field, im, kme, rc)
+  subroutine transform_catchem_to_field(field, field_map, rc)
 
-    type(catchem_container_type), intent(in) :: catchem_states
     type(field_mapping_type), intent(in) :: field_map
     type(ESMF_Field), intent(inout) :: field
-    integer, intent(in) :: im, kme
     integer, intent(out) :: rc
 
-    real(ESMF_KIND_R8), pointer :: fptr3d(:,:,:), fptr2d(:,:)
-    integer :: i, j, k, species_id
+    type(ChemStateType), pointer :: chem_state
+    real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
+    real(ESMF_KIND_R8), allocatable :: cc_diag_data(:,:,:)
+    character(len=*), allocatable :: diagnostic_names(:)
+    real(ESMF_KIND_R8) :: unit_conv
+    integer :: i, j, k, v, ni, nj, nk, kk, nv, v_cc, found_index
 
     rc = ESMF_SUCCESS
 
+    !TODO: we assume all the export fields are from DiagManager
+    call catchem%get_diagnostic_names(diagnostic_names, rc)
+
     ! Transform based on field mapping
-    select case (trim(field_map%catchem_var))
+    select case (trim(field_map%dimensions))
 
-      ! 3D chemical species fields
-      case ("ChemState%Species%O3")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        call cc_find_species_by_name(catchem_states%ChemState(1), "O3", species_id)
-        if (species_id > 0) then
-          do i = 1, im
-            do k = 1, kme
-              do j = 1, size(fptr3d, 2)
-                fptr3d(i,j,k) = catchem_states%ChemState(i)%Species(species_id)%Conc(j,k)
-              end do
-            end do
-          end do
-        else
-          fptr3d = 0.0_ESMF_KIND_R8  ! Species not found
-        end if
-
-      case ("ChemState%Species%NO2")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        call cc_find_species_by_name(catchem_states%ChemState(1), "NO2", species_id)
-        if (species_id > 0) then
-          do i = 1, im
-            do k = 1, kme
-              do j = 1, size(fptr3d, 2)
-                fptr3d(i,j,k) = catchem_states%ChemState(i)%Species(species_id)%Conc(j,k)
-              end do
-            end do
-          end do
-        else
-          fptr3d = 0.0_ESMF_KIND_R8  ! Species not found
-        end if
-
-      case ("ChemState%Species%CO")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        call cc_find_species_by_name(catchem_states%ChemState(1), "CO", species_id)
-        if (species_id > 0) then
-          do i = 1, im
-            do k = 1, kme
-              do j = 1, size(fptr3d, 2)
-                fptr3d(i,j,k) = catchem_states%ChemState(i)%Species(species_id)%Conc(j,k)
-              end do
-            end do
-          end do
-        else
-          fptr3d = 0.0_ESMF_KIND_R8  ! Species not found
-        end if
-
-      case ("ChemState%Species%NO")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        call cc_find_species_by_name(catchem_states%ChemState(1), "NO", species_id)
-        if (species_id > 0) then
-          do i = 1, im
-            do k = 1, kme
-              do j = 1, size(fptr3d, 2)
-                fptr3d(i,j,k) = catchem_states%ChemState(i)%Species(species_id)%Conc(j,k)
-              end do
-            end do
-          end do
-        else
-          fptr3d = 0.0_ESMF_KIND_R8  ! Species not found
-        end if
-
-      case ("ChemState%Species%SO2")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        call cc_find_species_by_name(catchem_states%ChemState(1), "SO2", species_id)
-        if (species_id > 0) then
-          do i = 1, im
-            do k = 1, kme
-              do j = 1, size(fptr3d, 2)
-                fptr3d(i,j,k) = catchem_states%ChemState(i)%Species(species_id)%Conc(j,k)
-              end do
-            end do
-          end do
-        else
-          fptr3d = 0.0_ESMF_KIND_R8  ! Species not found
-        end if
-
-      case ("ChemState%Species%DUST")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        call cc_find_species_by_name(catchem_states%ChemState(1), "DUST", species_id)
-        if (species_id > 0) then
-          do i = 1, im
-            do k = 1, kme
-              do j = 1, size(fptr3d, 2)
-                fptr3d(i,j,k) = catchem_states%ChemState(i)%Species(species_id)%Conc(j,k)
-              end do
-            end do
-          end do
-        else
-          fptr3d = 0.0_ESMF_KIND_R8  ! Species not found
-        end if
-
-      case ("ChemState%Species%SEAS")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        call cc_find_species_by_name(catchem_states%ChemState(1), "SEAS", species_id)
-        if (species_id > 0) then
-          do i = 1, im
-            do k = 1, kme
-              do j = 1, size(fptr3d, 2)
-                fptr3d(i,j,k) = catchem_states%ChemState(i)%Species(species_id)%Conc(j,k)
-              end do
-            end do
-          end do
-        else
-          fptr3d = 0.0_ESMF_KIND_R8  ! Species not found
-        end if
-
-      ! 2D diagnostic and emission fields
-      case ("DiagState%DustDryDep")
+      ! 2D  fields
+      case (2)
+        nullify(fptr2d)
+        if(allocated(cc_diag_data)) deallocate(cc_diag_data)
+        ! get field pointer
         call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            fptr2d(i,j) = catchem_states%DiagState(i)%DustDryDep(j)
-          end do
-        end do
+        !find index of diagnostic name in the format of process_name.field_name
+        found_index = catchem%get_diag_index_from_field(field_map%catchem_var)
+        if (found_index > 0) then
+          call catchem%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
+          if (rc /= ESMF_SUCCESS) then
+            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+              msg="Failed to get diagnostic data for: " // trim(diagnostic_names(found_index)), &
+              line=__LINE__, file=__FILE__, rcToReturn=rc) return
+          end if
 
-      case ("DiagState%SeasDryDep")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
+          !assign data back to NUOPC
+          fptr2d = cc_diag_data(:,:,1)
+
+        else
+          fptr2d = 0.0_ESMF_KIND_R8  ! Species not found
+        end if
+      
+      ! 3D  fields
+      case (3)
+        nullify(fptr3d)
+        if(allocated(cc_diag_data)) deallocate(cc_diag_data)
+        ! get field pointer
+        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            fptr2d(i,j) = catchem_states%DiagState(i)%SeasDryDep(j)
-          end do
-        end do
+        !find index of diagnostic name in the format of process_name.field_name
+        found_index = catchem%get_diag_index_from_field(field_map%catchem_var)
+        if (found_index > 0) then
+          call catchem%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
+          if (rc /= ESMF_SUCCESS) then
+            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+              msg="Failed to get diagnostic data for: " // trim(diagnostic_names(found_index)), &
+              line=__LINE__, file=__FILE__, rcToReturn=rc) return
+          end if
 
-      case ("DiagState%O3DryDep")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
+          !assign data back to NUOPC
+          ni = size(fptr3d, 1)
+          nj = size(fptr3d, 2)
+          nk = size(fptr3d, 3)
+          !revserse vertical layers
+          do k = 1, nk
+            kk = nk - k + 1
+            do j = 1, nj
+              do i = 1, ni
+                fptr3d(i,j,kk) = cc_diag_data(i,j,k)
+              end do
+            end do
+          end do
+
+        else
+          fptr3d = 0.0_ESMF_KIND_R8  ! Species not found
+        end if
+
+      ! 4D  fields for chemical species
+      case (4)
+        nullify(fptr4d)
+        if(allocated(cc_diag_data)) deallocate(cc_diag_data)
+        ! get field pointer
+        call ESMF_FieldGet(field, farrayPtr=fptr4d, rc=rc)
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            fptr2d(i,j) = catchem_states%DiagState(i)%O3DryDep(j)
-          end do
-        end do
+        
+        chem_state => state_mgr%get_chem_state_ptr()
+        if ( .not. associated(chem_state) ) then
+          call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+            msg="chem_state is not associated in CATChem before transformation to NUOPC", &
+            line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+        end if
 
-      case ("EmisState%DustEmission")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            fptr2d(i,j) = catchem_states%EmisState(i)%DustEmission(j)
-          end do
-        end do
+        ni = size(fptr4d, 1)
+        nj = size(fptr4d, 2)
+        nk = size(fptr4d, 3)
+        nv = size(fptr4d, 4)
+        ! Reverse vertical layers
+        do v = 1, nv
+          v_cc = tracer_map%nuopc_to_cc(v)
+          if (v_cc > 0) then
+            cc_diag_data = chem_state%ChemSpecies(v_cc)%conc
+            if (chem_state%ChemSpecies(v_cc)%is_gas) then
+              unit_conv = 1.0e3 * chem_state%ChemSpecies(v_cc)%mw_g /28.9644  ! convert from ppm to ug/kg for gases
+            else 
+              unit_conv = 1.00  ! convert from ug/kg to ug/kg for aerosols
+            end if
 
-      case ("EmisState%SeasEmission")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            fptr2d(i,j) = catchem_states%EmisState(i)%SeasEmission(j)
-          end do
-        end do
+            do k = 1, nk
+              kk = nk - k + 1
+              do j = 1, nj
+                do i = 1, ni
+                  fptr4d(i,j,kk,v) = cc_diag_data(i,j,k,v_cc) * unit_conv
+                end do
+              end do
+            end do   
+          else
+            fptr4d(:,:,:,v) = 0.0_ESMF_KIND_R8  ! Species not found
+          end if
+        end do   !nv 
 
       case default
-        call ESMF_LogWrite("Unknown export field mapping: " // trim(field_map%catchem_var), &
-                          ESMF_LOGMSG_WARNING, rc=rc)
-
-    end select
-        do i = 1, im
-          do k = 1, kme
-            do j = 1, size(fptr3d, 2)
-              fptr3d(i,j,k) = 0.0_ESMF_KIND_R8  ! Placeholder - need species lookup
-            end do
-          end do
-        end do
-
-      case ("ChemState%Species%CO")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do k = 1, kme
-            do j = 1, size(fptr3d, 2)
-              fptr3d(i,j,k) = 0.0_ESMF_KIND_R8  ! Placeholder - need species lookup
-            end do
-          end do
-        end do
-
-      case ("ChemState%Species%DUST")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do k = 1, kme
-            do j = 1, size(fptr3d, 2)
-              fptr3d(i,j,k) = 0.0_ESMF_KIND_R8  ! Placeholder - need species lookup
-            end do
-          end do
-        end do
-
-      case ("ChemState%Species%SEAS")
-        call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do k = 1, kme
-            do j = 1, size(fptr3d, 2)
-              fptr3d(i,j,k) = 0.0_ESMF_KIND_R8  ! Placeholder - need species lookup
-            end do
-          end do
-        end do
-
-      ! 2D diagnostic and emission fields
-      case ("DiagState%DustDryDep")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            fptr2d(i,j) = 0.0_ESMF_KIND_R8  ! Placeholder - need actual diagnostic data
-          end do
-        end do
-
-      case ("DiagState%SeasDryDep")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            fptr2d(i,j) = 0.0_ESMF_KIND_R8  ! Placeholder - need actual diagnostic data
-          end do
-        end do
-
-      case ("EmisState%DustEmission")
-        call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-        do i = 1, im
-          do j = 1, size(fptr2d, 2)
-            fptr2d(i,j) = 0.0_ESMF_KIND_R8  ! Placeholder - need actual emission data
-          end do
-        end do
-
-      case default
-        call ESMF_LogWrite("Unknown export field mapping: "//trim(field_map%catchem_var), &
+        call ESMF_LogWrite("Unknown export field dimension for: "//trim(field_map%catchem_var), &
                           ESMF_LOGMSG_WARNING, rc=rc)
 
     end select
 
   end subroutine transform_catchem_to_field
+  
+
+   ! Load field configuration from YAML file
+  !!
+  !! \param info  tracerinfo from NUOPC
+  !! \param key   infor intended to get
+  !! \param values  infor values returned
+  !! \param rc  return status
+  !!
+  subroutine TracerInfoGet(info, key, values, rc)
+    ! -- interface variables
+    type(ESMF_Info),               intent(in)  :: info
+    character(len=*),              intent(in)  :: key
+    character(len=*), allocatable, intent(out) :: values(:)
+    integer,          optional,    intent(out) :: rc
+
+    ! -- local variables
+    integer :: localrc
+    logical :: isKeyFound
+
+    ! -- begin
+    if (present(rc)) rc = ESMF_SUCCESS
+
+    ! -- check if metadata key is present in ESMF_Info object
+    isKeyFound = ESMF_InfoIsPresent(info, trim(key), rc=localrc)
+    if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__, &
+      rcToReturn=rc)) return
+
+    if (isKeyFound) then
+      isKeyFound = ESMF_InfoIsSet(info, trim(key), rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)) return
+    end if
+
+    if (isKeyFound) then
+      call ESMF_InfoGetAlloc(info, trim(key), values, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)) return
+    end if
+
+  end subroutine TracerInfoGet
 
   ! Load field configuration from YAML file
   !!
-  !! \param  config_file Configuration file name
+  !! \param  config_file Configuration file path
   !! \param errflg      Error flag
   !! \param errmsg      Error message
   !!
@@ -1018,133 +796,230 @@ contains
     integer, intent(out) :: errflg
     character(len=*), intent(out) :: errmsg
 
-    integer :: rc, i, n_fields
-    character(len=128) :: field_key, temp_str
-    character(len=512) :: err_msg
-
     errflg = CC_SUCCESS
     errmsg = ''
 
-    ! Initialize YAML parser
-    call cc_yaml_init(field_config_yaml, trim(config_file), rc)
-    if (rc /= QFYAML_Success) then
-      errflg = CC_FAILURE
-      write(errmsg, '(A,A)') 'Failed to initialize YAML parser for: ', trim(config_file)
-      return
-    end if
+    ! Parse import fields
+    call parse_field_section(config_file, 'import_fields', field_config%import_fields, field_config%n_import_fields, errflg, errmsg)
+    if (errflg /= CC_SUCCESS) return
 
-    ! Get number of import fields
-    call cc_yaml_get(field_config_yaml, 'import_fields%n_fields', n_import_fields, rc)
-    if (rc /= QFYAML_Success) then
-      errflg = CC_FAILURE
-      errmsg = 'Failed to read import_fields%n_fields from config'
-      return
-    end if
-
-    ! Allocate import fields array
-    if (allocated(import_fields)) deallocate(import_fields)
-    allocate(import_fields(n_import_fields))
-
-    ! Read import field configurations
-    do i = 1, n_import_fields
-      write(field_key, '(A,I0,A)') 'import_fields%field_', i, '%standard_name'
-      call cc_yaml_get(field_config_yaml, trim(field_key), import_fields(i)%standard_name, rc)
-      if (rc /= QFYAML_Success) then
-        write(errmsg, '(A,I0)') 'Failed to read import field standard_name for field ', i
-        errflg = CC_FAILURE
-        return
-      end if
-
-      write(field_key, '(A,I0,A)') 'import_fields%field_', i, '%catchem_var'
-      call cc_yaml_get(field_config_yaml, trim(field_key), import_fields(i)%catchem_var, rc)
-      if (rc /= QFYAML_Success) then
-        write(errmsg, '(A,I0)') 'Failed to read import field catchem_var for field ', i
-        errflg = CC_FAILURE
-        return
-      end if
-
-      write(field_key, '(A,I0,A)') 'import_fields%field_', i, '%dimensions'
-      call cc_yaml_get(field_config_yaml, trim(field_key), import_fields(i)%dimensions, rc)
-      if (rc /= QFYAML_Success) then
-        write(errmsg, '(A,I0)') 'Failed to read import field dimensions for field ', i
-        errflg = CC_FAILURE
-        return
-      end if
-
-      write(field_key, '(A,I0,A)') 'import_fields%field_', i, '%units'
-      call cc_yaml_get(field_config_yaml, trim(field_key), import_fields(i)%units, rc)
-      if (rc /= QFYAML_Success) then
-        write(errmsg, '(A,I0)') 'Failed to read import field units for field ', i
-        errflg = CC_FAILURE
-        return
-      end if
-
-      ! Optional field (default to false)
-      write(field_key, '(A,I0,A)') 'import_fields%field_', i, '%optional'
-      call cc_yaml_get(field_config_yaml, trim(field_key), temp_str, rc)
-      if (rc == QFYAML_Success) then
-        import_fields(i)%optional = (trim(temp_str) == 'true' .or. trim(temp_str) == 'True' .or. trim(temp_str) == 'TRUE')
-      else
-        import_fields(i)%optional = .false.
-      end if
-    end do
-
-    ! Get number of export fields
-    call cc_yaml_get(field_config_yaml, 'export_fields%n_fields', n_export_fields, rc)
-    if (rc /= QFYAML_Success) then
-      errflg = CC_FAILURE
-      errmsg = 'Failed to read export_fields%n_fields from config'
-      return
-    end if
-
-    ! Allocate export fields array
-    if (allocated(export_fields)) deallocate(export_fields)
-    allocate(export_fields(n_export_fields))
-
-    ! Read export field configurations
-    do i = 1, n_export_fields
-      write(field_key, '(A,I0,A)') 'export_fields%field_', i, '%standard_name'
-      call cc_yaml_get(field_config_yaml, trim(field_key), export_fields(i)%standard_name, rc)
-      if (rc /= QFYAML_Success) then
-        write(errmsg, '(A,I0)') 'Failed to read export field standard_name for field ', i
-        errflg = CC_FAILURE
-        return
-      end if
-
-      write(field_key, '(A,I0,A)') 'export_fields%field_', i, '%catchem_var'
-      call cc_yaml_get(field_config_yaml, trim(field_key), export_fields(i)%catchem_var, rc)
-      if (rc /= QFYAML_Success) then
-        write(errmsg, '(A,I0)') 'Failed to read export field catchem_var for field ', i
-        errflg = CC_FAILURE
-        return
-      end if
-
-      write(field_key, '(A,I0,A)') 'export_fields%field_', i, '%dimensions'
-      call cc_yaml_get(field_config_yaml, trim(field_key), export_fields(i)%dimensions, rc)
-      if (rc /= QFYAML_Success) then
-        write(errmsg, '(A,I0)') 'Failed to read export field dimensions for field ', i
-        errflg = CC_FAILURE
-        return
-      end if
-
-      write(field_key, '(A,I0,A)') 'export_fields%field_', i, '%units'
-      call cc_yaml_get(field_config_yaml, trim(field_key), export_fields(i)%units, rc)
-      if (rc /= QFYAML_Success) then
-        write(errmsg, '(A,I0)') 'Failed to read export field units for field ', i
-        errflg = CC_FAILURE
-        return
-      end if
-
-      ! Optional field (default to false)
-      write(field_key, '(A,I0,A)') 'export_fields%field_', i, '%optional'
-      call cc_yaml_get(field_config_yaml, trim(field_key), temp_str, rc)
-      if (rc == QFYAML_Success) then
-        export_fields(i)%optional = (trim(temp_str) == 'true' .or. trim(temp_str) == 'True' .or. trim(temp_str) == 'TRUE')
-      else
-        export_fields(i)%optional = .false.
-      end if
-    end do
+    ! Parse export fields  
+    call parse_field_section(config_file, 'export_fields', field_config%export_fields, field_config%n_export_fields, errflg, errmsg)
+    if (errflg /= CC_SUCCESS) return
 
   end subroutine load_field_config
+
+  !> Parse a field section (import_fields or export_fields) from YAML file
+  !!
+  !! \param filename YAML configuration file
+  !! \param section_name Section name ('import_fields' or 'export_fields')
+  !! \param fields Array to store parsed fields  
+  !! \param n_fields Number of fields found
+  !! \param errflg Error flag
+  !! \param errmsg Error message
+  !!
+  subroutine parse_field_section(filename, section_name, fields, n_fields, errflg, errmsg)
+    character(len=*), intent(in) :: filename
+    character(len=*), intent(in) :: section_name
+    type(field_mapping_type), allocatable, intent(out) :: fields(:)
+    integer, intent(out) :: n_fields
+    integer, intent(out) :: errflg
+    character(len=*), intent(out) :: errmsg
+
+    integer :: unit_num, io_stat, indent_level, section_indent
+    character(len=256) :: line, trimmed_line, field_name, field_value
+    logical :: in_section, found_section
+    integer :: line_number, field_idx, colon_pos
+    type(field_mapping_type), allocatable :: temp_fields(:)
+    type(field_mapping_type) :: current_field
+    logical :: in_field_item
+    
+    errflg = CC_SUCCESS
+    errmsg = ''
+    n_fields = 0
+    in_section = .false.
+    found_section = .false.
+    section_indent = -1
+    line_number = 0
+    field_idx = 0
+    in_field_item = .false.
+    
+    ! Initialize current field
+    current_field%standard_name = ''
+    current_field%catchem_var = ''
+    current_field%dimensions = 0
+    current_field%units = ''
+    current_field%optional = .false.
+
+    ! Open file for reading
+    open(newunit=unit_num, file=trim(filename), status='old', action='read', iostat=io_stat)
+    if (io_stat /= 0) then
+      write(errmsg, '(A,A)') 'Cannot open configuration file: ', trim(filename)
+      errflg = CC_FAILURE
+      return
+    endif
+
+    ! Allocate temporary storage for up to 50 fields
+    allocate(temp_fields(50))
+
+    ! Read file line by line
+    do
+      read(unit_num, '(A)', iostat=io_stat) line
+      if (io_stat /= 0) exit  ! End of file or error
+
+      line_number = line_number + 1
+      trimmed_line = trim(adjustl(line))
+
+      ! Skip empty lines and comments
+      if (len_trim(trimmed_line) == 0 .or. trimmed_line(1:1) == '#') cycle
+
+      ! Calculate indentation level
+      do indent_level = 1, len_trim(line)
+        if (line(indent_level:indent_level) /= ' ') exit
+      end do
+      indent_level = indent_level - 1
+
+      ! Look for section header
+      if (index(trimmed_line, ':') > 0) then
+        colon_pos = index(trimmed_line, ':')
+        field_name = trimmed_line(1:colon_pos-1)
+        field_name = trim(adjustl(field_name))
+
+        ! Check if we found our target section
+        if (trim(field_name) == trim(section_name) .and. indent_level == 0) then
+          in_section = .true.
+          found_section = .true.
+          section_indent = indent_level
+          cycle
+        endif
+
+        ! Process items within the section
+        if (in_section .and. indent_level > section_indent) then
+          
+          ! Look for array items (lines starting with "- ")
+          if (index(trimmed_line, '- ') == 1) then
+            ! Save previous field if we have one
+            if (in_field_item .and. current_field%standard_name /= '') then
+              n_fields = n_fields + 1
+              if (n_fields <= size(temp_fields)) then
+                temp_fields(n_fields) = current_field
+              endif
+            endif
+            
+            ! Start new field item
+            in_field_item = .true.
+            current_field%standard_name = ''
+            current_field%catchem_var = ''
+            current_field%dimensions = 0
+            current_field%units = ''
+            current_field%optional = .false.
+            
+            ! Parse the first property if it's on the same line as the dash
+            if (len_trim(trimmed_line) > 2) then
+              trimmed_line = trim(adjustl(trimmed_line(3:)))  ! Remove "- "
+              if (index(trimmed_line, ':') > 0) then
+                colon_pos = index(trimmed_line, ':')
+                field_name = trim(adjustl(trimmed_line(1:colon_pos-1)))
+                field_value = trim(adjustl(trimmed_line(colon_pos+1:)))
+                call parse_field_property(field_name, field_value, current_field)
+              endif
+            endif
+            
+          elseif (in_field_item .and. indent_level > section_indent + 2) then
+            ! Parse field properties
+            if (index(trimmed_line, ':') > 0) then
+              colon_pos = index(trimmed_line, ':')
+              field_name = trim(adjustl(trimmed_line(1:colon_pos-1)))
+              field_value = trim(adjustl(trimmed_line(colon_pos+1:)))
+              call parse_field_property(field_name, field_value, current_field)
+            endif
+          endif
+          
+        elseif (in_section .and. indent_level <= section_indent) then
+          ! We've left our section
+          if (in_field_item .and. current_field%standard_name /= '') then
+            n_fields = n_fields + 1
+            if (n_fields <= size(temp_fields)) then
+              temp_fields(n_fields) = current_field
+            endif
+          endif
+          exit
+        endif
+      endif
+    end do
+
+    ! Save the last field if we're still processing one
+    if (in_field_item .and. current_field%standard_name /= '') then
+      n_fields = n_fields + 1
+      if (n_fields <= size(temp_fields)) then
+        temp_fields(n_fields) = current_field
+      endif
+    endif
+
+    close(unit_num)
+
+    ! Check if we found the section
+    if (.not. found_section) then
+      write(errmsg, '(A,A,A)') 'Section "', trim(section_name), '" not found in configuration file'
+      errflg = CC_FAILURE
+      deallocate(temp_fields)
+      return
+    endif
+
+    ! Allocate final array and copy data
+    if (n_fields > 0) then
+      allocate(fields(n_fields))
+      fields(1:n_fields) = temp_fields(1:n_fields)
+    endif
+
+    deallocate(temp_fields)
+
+  end subroutine parse_field_section
+
+  !> Parse a field property and set it in the field structure
+  !!
+  !! \param property_name Name of the property
+  !! \param property_value Value of the property
+  !! \param field Field structure to update
+  !!
+  subroutine parse_field_property(property_name, property_value, field)
+    character(len=*), intent(in) :: property_name
+    character(len=*), intent(in) :: property_value
+    type(field_mapping_type), intent(inout) :: field
+
+    character(len=256) :: clean_value
+    integer :: read_stat
+
+    ! Remove quotes from string values
+    clean_value = property_value
+    if (len_trim(clean_value) >= 2) then
+      if ((clean_value(1:1) == '"' .and. clean_value(len_trim(clean_value):len_trim(clean_value)) == '"') .or. &
+          (clean_value(1:1) == "'" .and. clean_value(len_trim(clean_value):len_trim(clean_value)) == "'")) then
+        clean_value = clean_value(2:len_trim(clean_value)-1)
+      endif
+    endif
+
+    select case (trim(property_name))
+    case ('standard_name')
+      field%standard_name = trim(clean_value)
+    case ('catchem_var')  
+      field%catchem_var = trim(clean_value)
+    case ('dimensions')
+      read(clean_value, *, iostat=read_stat) field%dimensions
+      if (read_stat /= 0) field%dimensions = 0
+    case ('units')
+      field%units = trim(clean_value)
+    case ('optional')
+      select case (trim(clean_value))
+      case ('true', 'True', 'TRUE', '.true.')
+        field%optional = .true.
+      case ('false', 'False', 'FALSE', '.false.')
+        field%optional = .false.
+      case default
+        field%optional = .false.
+      end select
+    end select
+
+  end subroutine parse_field_property
 
 end module catchem_nuopc_interface

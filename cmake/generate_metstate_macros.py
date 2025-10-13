@@ -153,6 +153,7 @@ def write_allocate(fields, output_file):
     Write a macro for allocation statements for MetStateType fields.
     Skips scalar (rank-0) fields. Adds a case for 'ALL'.
     Handles edge fields (nz+1) properly.
+    Now uses automatic detection of conditional allocation patterns.
 
     Parameters
     ----------
@@ -167,22 +168,35 @@ def write_allocate(fields, output_file):
         for name, type_name, rank, dims, is_edge in fields:
             if rank == 0:
                 continue
-            if name.lower() in ("soilm"):
-                if rank == 3:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nsoil))\n")
-                else:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
-            elif name.lower() in ("frsoil"):
-                if rank == 3:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nsoiltype))\n")
-                else:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
-            elif name.lower() in ("frlanduse", "frlai", "frz0"):
-                if rank == 3:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nSURFTYPE))\n")
-                else:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
+            
+            # Check if this field has conditional allocation
+            conditional_info = get_conditional_allocation_info(name)
+            
+            if conditional_info:
+                # Handle conditional allocation based on the field type
+                if conditional_info['type'] == 'soil':
+                    if rank == 3:
+                        f.write(f"  if (nsoil > 0) then\n")
+                        f.write(f"    if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nsoil))\n")
+                        f.write(f"  endif\n")
+                    else:
+                        f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
+                elif conditional_info['type'] == 'soiltype':
+                    if rank == 3:
+                        f.write(f"  if (nsoiltype > 0) then\n")
+                        f.write(f"    if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nsoiltype))\n")
+                        f.write(f"  endif\n")
+                    else:
+                        f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
+                elif conditional_info['type'] == 'surftype':
+                    if rank == 3:
+                        f.write(f"  if (nSURFTYPE > 0) then\n")
+                        f.write(f"    if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nSURFTYPE))\n")
+                        f.write(f"  endif\n")
+                    else:
+                        f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
             else:
+                # Standard allocation for non-conditional fields
                 if rank == 2:
                     f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
                 elif rank == 3:
@@ -192,28 +206,42 @@ def write_allocate(fields, output_file):
                         f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nz))\n")
                 else:
                     raise ValueError(f"Unsupported rank {rank} for field {name}")
+                    
         # Individual field cases
         for name, type_name, rank, dims, is_edge in fields:
             if rank == 0:
                 continue  # Skip scalars
             labels = sorted({name, name.lower()})
             f.write("case (" + ", ".join(f"'{label}'" for label in labels) + ")\n")
-            if name.lower() in ("soilm"):
-                if rank == 3:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nsoil))\n")
-                else:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
-            elif name.lower() in ("frsoil"):
-                if rank == 3:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nsoiltype))\n")
-                else:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
-            elif name.lower() in ("frlanduse", "frlai", "frz0"):
-                if rank == 3:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nSURFTYPE))\n")
-                else:
-                    f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
+            
+            # Check if this field has conditional allocation
+            conditional_info = get_conditional_allocation_info(name)
+            
+            if conditional_info:
+                # Handle conditional allocation based on the field type
+                if conditional_info['type'] == 'soil':
+                    if rank == 3:
+                        f.write(f"  if (nsoil > 0) then\n")
+                        f.write(f"    if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nsoil))\n")
+                        f.write(f"  endif\n")
+                    else:
+                        f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
+                elif conditional_info['type'] == 'soiltype':
+                    if rank == 3:
+                        f.write(f"  if (nsoiltype > 0) then\n")
+                        f.write(f"    if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nsoiltype))\n")
+                        f.write(f"  endif\n")
+                    else:
+                        f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
+                elif conditional_info['type'] == 'surftype':
+                    if rank == 3:
+                        f.write(f"  if (nSURFTYPE > 0) then\n")
+                        f.write(f"    if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nSURFTYPE))\n")
+                        f.write(f"  endif\n")
+                    else:
+                        f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
             else:
+                # Standard allocation for non-conditional fields
                 if rank == 2:
                     f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny))\n")
                 elif rank == 3:
@@ -223,6 +251,7 @@ def write_allocate(fields, output_file):
                         f.write(f"  if (.not.allocated(this%{name})) allocate(this%{name}(nx,ny,nz))\n")
                 else:
                     raise ValueError(f"Unsupported rank {rank} for field {name}")
+                    
         f.write("case default\n")
         f.write("  ! No allocation for unknown field\n")
 
@@ -892,21 +921,48 @@ def write_virtualcolumn_populate(fields, output_file):
 def write_set_field_2d_real(fields, output_file):
     """
     Write a macro for setting 2D REAL field values.
+    Now handles case where arrays may not be allocated.
     """
     with open(output_file, 'w') as f:
         f.write("! Generated macro for setting 2D REAL MetState field values\n")
-        f.write("! Auto-generated from MetState field definitions\n\n")
+        f.write("! Auto-generated from MetState field definitions\n")
+        f.write("! Now handles arrays that may not be allocated\n\n")
         
         # Generate cases for 2D REAL fields
         for name, type_name, rank, dims, is_edge in fields:
             if rank == 2 and type_name == 'real':
                 labels = sorted({name, name.lower()})
                 f.write("case (" + ", ".join(f"'{label}'" for label in labels) + ")\n")
-                f.write(f"   if (.not. allocated(this%{name})) then\n")
-                f.write(f"      call error_mgr%report_error(ERROR_INVALID_INPUT, &\n")
-                f.write(f"         'Field {name} not allocated', rc)\n")
-                f.write(f"      return\n")
-                f.write(f"   end if\n")
+                # Check if field needs special allocation parameters
+                if name.lower() in ("frlanduse", "frlai", "frz0"):
+                    f.write(f"   if (.not. allocated(this%{name})) then\n")
+                    f.write(f"      ! Allocate with default NSURFTYPE if not already allocated\n")
+                    f.write(f"      if (this%NSURFTYPE > 0) then\n")
+                    f.write(f"         call this%allocate_arrays('{name}', error_mgr, rc)\n")
+                    f.write(f"         if (rc /= CC_SUCCESS) return\n")
+                    f.write(f"      else\n")
+                    f.write(f"         call error_mgr%report_error(ERROR_INVALID_INPUT, &\n")
+                    f.write(f"            'Cannot allocate {name}: NSURFTYPE not set', rc)\n")
+                    f.write(f"         return\n")
+                    f.write(f"      end if\n")
+                    f.write(f"   end if\n")
+                elif name.lower() in ("frsoil", "soilm"):
+                    f.write(f"   if (.not. allocated(this%{name})) then\n")
+                    f.write(f"      ! Allocate with default soil parameters if not already allocated\n")
+                    f.write(f"      if (this%nSOILTYPE > 0) then\n")
+                    f.write(f"         call this%allocate_arrays('{name}', error_mgr, rc)\n")
+                    f.write(f"         if (rc /= CC_SUCCESS) return\n")
+                    f.write(f"      else\n")
+                    f.write(f"         call error_mgr%report_error(ERROR_INVALID_INPUT, &\n")
+                    f.write(f"            'Cannot allocate {name}: soil parameters not set', rc)\n")
+                    f.write(f"         return\n")
+                    f.write(f"      end if\n")
+                    f.write(f"   end if\n")
+                else:
+                    f.write(f"   if (.not. allocated(this%{name})) then\n")
+                    f.write(f"      call this%allocate_arrays('{name}', error_mgr, rc)\n")
+                    f.write(f"      if (rc /= CC_SUCCESS) return\n")
+                    f.write(f"   end if\n")
                 f.write(f"   this%{name} = field_data\n")
                 f.write(f"   rc = CC_SUCCESS\n\n")
 
@@ -952,6 +1008,51 @@ def write_set_field_2d_logical(fields, output_file):
                 f.write(f"   this%{name} = field_data\n")
                 f.write(f"   rc = CC_SUCCESS\n\n")
 
+def get_conditional_allocation_info(field_name):
+    """
+    Determine if a field requires conditional allocation and return allocation details.
+    
+    Parameters
+    ----------
+    field_name : str
+        Name of the field to check
+        
+    Returns
+    -------
+    dict or None
+        Dictionary with 'condition', 'dimension', and 'type' if conditional,
+        None if standard allocation
+    """
+    field_lower = field_name.lower()
+    
+    # Define conditional allocation patterns
+    conditional_patterns = {
+        'soilm': {
+            'condition': 'nsoil > 0',
+            'dimension': 'nsoil',
+            'dimension_var': 'this%nSOIL',
+            'type': 'soil'
+        },
+        'frsoil': {
+            'condition': 'nsoiltype > 0', 
+            'dimension': 'nsoiltype',
+            'dimension_var': 'this%nSOILTYPE',
+            'type': 'soiltype'
+        }
+    }
+    
+    # Check for surface type fields (fields starting with 'fr' that aren't soil-related)
+    if field_lower.startswith('fr') and field_lower not in ['frsoil']:
+        # Common surface type fields: frlanduse, frlai, frz0, etc.
+        conditional_patterns[field_lower] = {
+            'condition': 'nSURFTYPE > 0',
+            'dimension': 'nSURFTYPE', 
+            'dimension_var': 'this%NSURFTYPE',
+            'type': 'surftype'
+        }
+    
+    return conditional_patterns.get(field_lower)
+
 def write_set_field_3d_real(fields, output_file):
     """
     Write a macro for setting 3D REAL field values.
@@ -965,13 +1066,25 @@ def write_set_field_3d_real(fields, output_file):
             if rank == 3 and type_name == 'real':
                 labels = sorted({name, name.lower()})
                 f.write("case (" + ", ".join(f"'{label}'" for label in labels) + ")\n")
-                f.write(f"   if (.not. allocated(this%{name})) then\n")
-                f.write(f"      call error_mgr%report_error(ERROR_INVALID_INPUT, &\n")
-                f.write(f"         'Field {name} not allocated', rc)\n")
-                f.write(f"      return\n")
-                f.write(f"   end if\n")
-                f.write(f"   this%{name} = field_data\n")
-                f.write(f"   rc = CC_SUCCESS\n\n")
+                
+                # Check if this field has conditional allocation
+                conditional_info = get_conditional_allocation_info(name)
+                
+                if conditional_info:
+                    # Use automatic allocation on assignment for conditional fields
+                    f.write(f"   ! Automatic allocation on assignment for conditional field {name}\n")
+                    f.write(f"   ! Field type: {conditional_info['type']}\n")
+                    f.write(f"   this%{name} = field_data\n")
+                    f.write(f"   rc = CC_SUCCESS\n\n")
+                else:
+                    # Standard allocation check for other fields
+                    f.write(f"   if (.not. allocated(this%{name})) then\n")
+                    f.write(f"      call error_mgr%report_error(ERROR_INVALID_INPUT, &\n")
+                    f.write(f"         'Field {name} not allocated', rc)\n")
+                    f.write(f"      return\n")
+                    f.write(f"   end if\n")
+                    f.write(f"   this%{name} = field_data\n")
+                    f.write(f"   rc = CC_SUCCESS\n\n")
 
 def write_set_field_3d_int(fields, output_file):
     """

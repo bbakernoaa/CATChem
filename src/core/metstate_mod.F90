@@ -253,7 +253,7 @@ CONTAINS
       implicit none
       class(MetStateType), intent(inout) :: this
       integer, intent(in) :: nx, ny, nlevs
-      integer, intent(in) :: nsoil, nsoiltype, nsurftype
+      integer, intent(in), optional :: nsoil, nsoiltype, nsurftype
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
       character(len=256) :: thisLoc
@@ -265,20 +265,30 @@ CONTAINS
 
       ! Initialize default values for integer parameters
       this%NLEVS = nlevs
-      ! Initialize integer parameters with default values
-      if (this%nSOIL == 0) this%nSOIL = 1
-      if (this%nSOILTYPE == 0) this%nSOILTYPE = 1
 
       call this%geometry%set(nx, ny, nlevs) ! Add a set() method to GridGeometryType
       
       this%State = 'MET'
 
-      ! Set soil and surface parameters
-      this%NSURFTYPE = nsurftype
+      ! Set soil and surface parameters if provided
+      if (present(nsurftype)) then
+         this%NSURFTYPE = nsurftype
+      else
+         this%NSURFTYPE = 0  ! Will prevent allocation of surface arrays
+      end if
       
-      ! Set soil parameters directly
-      this%nSOIL = nsoil
-      this%nSOILTYPE = nsoiltype
+      ! Set soil parameters if provided
+      if (present(nsoil)) then
+         this%nSOIL = nsoil
+      else
+         this%nSOIL = 0  ! Will prevent allocation of soil arrays
+      end if
+      
+      if (present(nsoiltype)) then
+         this%nSOILTYPE = nsoiltype
+      else
+         this%nSOILTYPE = 0  ! Will prevent allocation of soil type arrays
+      end if
 
       ! Call helper procedure to allocate arrays
       call this%allocate_arrays('ALL', error_mgr, rc)

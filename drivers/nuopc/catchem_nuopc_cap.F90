@@ -45,10 +45,7 @@ module catchem_nuopc_cap
     model_label_CheckImport => label_CheckImport, &
     model_label_SetRunClock => label_SetRunClock
 
-  use CATChem
-  use catchem_types, only: catchem_container_type
   use catchem_nuopc_interface
-  use catchem_nuopc_utils
 
   implicit none
 
@@ -56,23 +53,11 @@ module catchem_nuopc_cap
 
   public :: SetServices
 
-  !> \brief CATChem component data containers
-  !!
-  !! These module-level variables maintain the state of the CATChem component
-  !! throughout the simulation, including all chemistry, meteorological,
-  !! emissions, and diagnostic state information.
-  !! \{
-  type(catchem_container_type), save :: catchem_states  !< Main CATChem state container
-  type(ConfigType), save :: config                      !< CATChem configuration object
-  type(DustStateType), save :: dustState               !< Dust emission and transport state
-  type(SeaSaltStateType), save :: seaSaltState         !< Sea salt emission and transport state
-  type(DryDepStateType), save :: dryDepState           !< Dry deposition process state
-  !! \}
-
   !> \brief Component configuration parameters
   !! \{
   character(len=256), save :: config_file = 'CATChem_config.yml' !< Configuration file path
-  logical, save :: do_chemistry = .true.                         !< Enable chemistry calculations
+  character(len=256), save :: field_mapping_file = 'CATChem_field_mapping.yml' !< Field mapping file path
+  !logical, save :: do_chemistry = .true.                         !< Enable chemistry calculations
   !! \}
 
 contains
@@ -169,6 +154,7 @@ contains
 
     type(ESMF_State) :: importState, exportState
     character(len=*), parameter :: routine = 'InitializeP1'
+    integer :: i
 
     rc = ESMF_SUCCESS
 
@@ -177,10 +163,26 @@ contains
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return
 
-    ! Advertise fields
-    call catchem_advertise_fields(importState, exportState, rc)
+    ! Load field configuration
+    call load_field_config(field_mapping_file, field_config, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return
+
+    ! Advertise import fields
+    do i = 1, field_config%n_import_fields
+      call NUOPC_Advertise(importState, &
+        StandardName=trim(field_config%import_fields(i)%standard_name), rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, file=__FILE__)) return
+    end do
+
+    ! Advertise export fields
+    do i = 1, field_config%n_export_fields
+      call NUOPC_Advertise(exportState, &
+        StandardName=trim(field_config%export_fields(i)%standard_name), rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, file=__FILE__)) return
+    end do
 
     ! Log successful completion
     call ESMF_LogWrite("CATChem: Completed "//routine, ESMF_LOGMSG_INFO, rc=rc)
@@ -221,13 +223,23 @@ contains
 
     type(ESMF_State) :: importState, exportState
     type(ESMF_Grid) :: grid
-    type(ESMF_Config) :: config_esmf
+    type(ESMF_Array) :: array
+    type(ESMF_Info) :: tracerInfo
+    type(ESMF_Field), pointer :: fieldList(:)
+    real(ESMF_KIND_R8), dimension(:,:), pointer :: coord
+    real(ESMF_KIND_R8), dimension(:,:) :: lon
+    real(ESMF_KIND_R8), dimension(:,:) :: lat
+    type(ESMF_CoordSys_Flag)   :: coordSys
     character(len=*), parameter :: routine = 'InitializeP2'
     character(len=512) :: errmsg
     integer :: localPet, petCount
     integer :: im, jm  ! Grid dimensions
+    integer :: item, rank, localDeCount, numLevels
+    integer, dimension(2) :: lb, ub
+    logical :: has_tracer_array
 
     rc = ESMF_SUCCESS
+    has_tracer_array = .false.
 
     ! Get component information
     call ESMF_GridCompGet(model, localPet=localPet, petCount=petCount, rc=rc)
@@ -239,54 +251,88 @@ contains
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return
 
-    ! Get or create grid (this should be provided by the driver)
-    call ESMF_StateGet(importState, "grid", grid, rc=rc)
-    if (rc /= ESMF_SUCCESS) then
-      ! Create a simple grid if not provided
-      grid = ESMF_GridCreateNoPeriDim(minIndex=(/1,1/), maxIndex=(/144,91/), &
-        regDecomp=(/petCount,1/), rc=rc)
-      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-        line=__LINE__, file=__FILE__)) return
+    ! retrieve member list from import state, if any
+    nullify(fieldList)
+    call NUOPC_GetStateMemberLists(importState, fieldList=fieldList, nestedFlag=.true., rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__,  file=__FILE__)) return 
+
+    ! retrieve number of vertical levels from imported fields
+    if (associated(fieldList)) then
+      do item = 1, size(fieldList)
+
+        call ESMF_FieldGet(fieldList(item), rank=rank, localDeCount=localDeCount, rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, file=__FILE__)) return 
+        ! -- validate field data decomposition
+        if (localDeCount /= 1) then
+          call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, msg="localDeCount must be 1", &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)
+        end if
+
+        if (rank == 4) then !use tracer array to get domain
+          has_tracer_array = .true.
+          call ESMF_FieldGet(fieldList(item), array=array, grid=grid, &
+            ungriddedLBound=lb, ungriddedUBound=ub, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__)) return  ! bail out
+          ! -- populate remaining output arguments
+          numLevels = ub(1) - lb(1) + 1
+          call ESMF_InfoGetFromHost(array, tracerInfo, rc=localrc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__)) return  ! bail out
+          end if
+
+          ! -- get local coordinate arrays
+          call ESMF_GridGet(grid, coordSys=coordSys, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__)) return  ! bail out
+          
+          if (coordSys == ESMF_COORDSYS_SPH_DEG) then
+            do item = 1, 2
+              call ESMF_GridGetCoord(grid, coordDim=item, staggerloc=ESMF_STAGGERLOC_CENTER, &
+              localDE=localDe, farrayPtr=coord, rc=rc)
+              if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+                line=__LINE__, file=__FILE__)) return  ! bail out
+              select case (item)
+                case(1)
+                  lon = coord
+                case(2)
+                  lat = coord
+                case default
+                  !do nothing
+              end select
+            end do
+          else 
+            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+              msg="Unsupported coordinate system - Failed to set coordinates for air quality model", &
+              line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+          end if !coordSys
+
+        end if !rank = 4
+      end do
+      if (.not. has_tracer_array) then 
+        call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, msg="tracer array is needed!", &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)
+      end if
+
+      deallocate(fieldList, stat=stat)
+      if (ESMF_LogFoundDeallocError(statusToCheck=stat, msg="Unable to deallocate internal memory", &
+        line=__LINE__, file=__FILE__, rcToReturn=rc)) return  ! bail out
+      nullify(fieldList)
+
     end if
 
-    ! Get grid dimensions
-    call ESMF_GridGet(grid, tile=1, staggerloc=ESMF_STAGGERLOC_CENTER, &
-      computationalCount=(/im, jm/), rc=rc)
+    ! Initialize CATChem using the interface (TODO: not provide nsoil, nsoiltype and nsurftype)
+    call catchem_nuopc_init(config_file, lon, lat, numLevels, tracerInfo, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, file=__FILE__)) return
+            line=__LINE__, file=__FILE__)) return  ! bail out
 
-    ! Realize fields
-    call catchem_realize_fields(importState, exportState, grid, rc)
+    ! -- indicate that data initialization is complete (breaking out of init-loop)
+    call NUOPC_CompAttributeSet(model, &
+      name="InitializeCATChemComplete", value="true", rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, file=__FILE__)) return
-
-    ! Read configuration
-    config_esmf = ESMF_ConfigCreate(rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, file=__FILE__)) return
-
-    call ESMF_ConfigLoadFile(config_esmf, filename=config_file, rc=rc)
-    if (rc /= ESMF_SUCCESS) then
-      call ESMF_LogWrite("CATChem: Could not load config file, using defaults", &
-        ESMF_LOGMSG_WARNING, rc=rc)
-      rc = ESMF_SUCCESS
-    end if
-
-    ! Initialize CATChem using the interface
-    call catchem_nuopc_init(config, catchem_states, dustState, seaSaltState, &
-                           dryDepState, im*jm, config_file, grid, rc, errmsg)
-    if (rc /= CC_SUCCESS) then
-      call ESMF_LogWrite("CATChem: Failed to initialize - " // trim(errmsg), &
-        ESMF_LOGMSG_ERROR, rc=rc)
-      rc = ESMF_FAILURE
-      return
-    end if
-
-    ! Clean up
-    call ESMF_ConfigDestroy(config_esmf, rc=rc)
-
-    ! Log successful completion
-    call ESMF_LogWrite("CATChem: Completed "//routine, ESMF_LOGMSG_INFO, rc=rc)
+      line=__LINE__, file=__FILE__)) return  ! bail out
 
   end subroutine InitializeP2
 
@@ -331,7 +377,7 @@ contains
     type(ESMF_TimeInterval) :: timeStep
     character(len=*), parameter :: routine = 'ModelAdvance'
     character(len=512) :: errmsg
-    integer :: localPet, im, jm, kme
+    integer :: localPet
     real(ESMF_KIND_R8) :: dt_seconds
 
     rc = ESMF_SUCCESS
@@ -357,35 +403,27 @@ contains
       line=__LINE__, file=__FILE__)) return
 
     if (localPet == 0) then
-      call ESMF_LogWrite("CATChem: Running chemistry for dt = " // &
+      call ESMF_LogWrite("CATChem: Running CATChem for dt = " // &
         trim(adjustl(real_to_string(dt_seconds))) // " seconds", &
         ESMF_LOGMSG_INFO, rc=rc)
     end if
 
-    ! Get grid dimensions (placeholder - should come from grid)
-    im = catchem_states%im
-    jm = 1  ! Assume 1D for now
-    kme = 1  ! Will be updated based on actual grid
-
     ! Import meteorological data from other components
-    call transform_nuopc_to_catchem(importState, catchem_states, im, kme, rc)
+    call transform_nuopc_to_catchem(importState, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return
 
-    if (do_chemistry) then
-      ! Run chemistry processes using new interface with current time
-      call catchem_nuopc_run(config, catchem_states, dustState, seaSaltState, &
-                            dryDepState, dt_seconds, currTime, rc, errmsg)
-      if (rc /= CC_SUCCESS) then
-        call ESMF_LogWrite("CATChem: Failed to run chemistry - " // trim(errmsg), &
-          ESMF_LOGMSG_ERROR, rc=rc)
-        rc = ESMF_FAILURE
-        return
-      end if
+    ! Run CATChem processes with current time
+    call catchem_nuopc_run(dt_seconds, currTime, errmsg, rc)
+    if (rc /= CC_SUCCESS) then
+      call ESMF_LogWrite("CATChem: Failed to run CATChem - " // trim(errmsg), &
+        ESMF_LOGMSG_ERROR, rc=rc)
+      rc = ESMF_FAILURE
+      return
     end if
 
     ! Export results to other components
-    call transform_catchem_to_nuopc(exportState, catchem_states, im, kme, rc)
+    call transform_catchem_to_nuopc(exportState, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return
 
@@ -395,68 +433,6 @@ contains
     end if
 
   end subroutine ModelAdvance
-
-  !> \brief Execute all chemistry processes for one time step
-  !!
-  !! This internal routine runs all enabled atmospheric chemistry processes
-  !! for each horizontal grid point, including emissions, transport, and
-  !! deposition calculations.
-  !!
-  !! \param[in] dt Time step duration in seconds
-  !! \param[out] rc Return code (CC_SUCCESS on success)
-  !!
-  !! \details
-  !! This routine executes the following chemistry processes sequentially:
-  !! - Dust emission and transport calculations
-  !! - Sea salt emission and transport calculations
-  !! - Dry deposition processes for all species
-  !! - Additional chemistry processes as configured
-  !!
-  !! Each process is called for all horizontal grid points in sequence,
-  !! with error checking after each major process group.
-  !!
-  !! \note This routine is called internally by ModelAdvance
-  !!
-  !! \ingroup catchem_nuopc_group
-  subroutine run_chemistry_processes(dt, rc)
-    real(ESMF_KIND_R8), intent(in) :: dt
-    integer, intent(out) :: rc
-
-    integer :: i
-
-    rc = CC_SUCCESS
-
-    do i = 1, catchem_states%im
-      ! Run dust process
-      call cc_dust_run(dustState, catchem_states%GridState, &
-        catchem_states%MetState(i), catchem_states%ChemState(i), &
-        catchem_states%EmisState(i), catchem_states%DiagState(i), &
-        dt, rc)
-      if (rc /= CC_SUCCESS) return
-
-      ! Run seasalt process
-      call cc_seasalt_run(seaSaltState, catchem_states%GridState, &
-        catchem_states%MetState(i), catchem_states%ChemState(i), &
-        catchem_states%EmisState(i), catchem_states%DiagState(i), &
-        dt, rc)
-      if (rc /= CC_SUCCESS) return
-
-      ! Run dry deposition process
-      call cc_drydep_run(dryDepState, catchem_states%GridState, &
-        catchem_states%MetState(i), catchem_states%ChemState(i), &
-        catchem_states%EmisState(i), catchem_states%DiagState(i), &
-        dt, rc)
-      if (rc /= CC_SUCCESS) return
-
-      ! Run other chemistry processes as needed
-      call cc_run_process(config, catchem_states%GridState, &
-        catchem_states%MetState(i), catchem_states%ChemState(i), &
-        catchem_states%EmisState(i), catchem_states%DiagState(i), &
-        dt, rc)
-      if (rc /= CC_SUCCESS) return
-    end do
-
-  end subroutine run_chemistry_processes
 
   !> \brief Finalize the CATChem model component
   !!
@@ -497,8 +473,7 @@ contains
       line=__LINE__, file=__FILE__)) return
 
     ! Finalize CATChem using the interface
-    call catchem_nuopc_finalize(config, catchem_states, dustState, seaSaltState, &
-                               dryDepState, rc, errmsg)
+    call catchem_nuopc_finalize(rc, errmsg)
     if (rc /= CC_SUCCESS) then
       call ESMF_LogWrite("CATChem: Warning - " // trim(errmsg), &
         ESMF_LOGMSG_WARNING, rc=rc)

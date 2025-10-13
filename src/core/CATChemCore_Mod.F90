@@ -82,6 +82,7 @@ module CATChemCore_Mod
       integer :: nsoil = 4                          !< Number of soil layers
       integer :: nsoiltype = 19                     !< Number of soil types  
       integer :: nsurftype = 13                     !< Number of surface types
+      logical :: nsoil_surftype_provided = .false.  !< true when nsoil, nsurftype and nsoiltype are provided at initialization
 
    contains
       ! Core lifecycle
@@ -130,6 +131,7 @@ module CATChemCore_Mod
       integer :: nsoil = 4                          !< Number of soil layers
       integer :: nsoiltype = 19                     !< Number of soil types  
       integer :: nsurftype = 13                     !< Number of surface types
+      logical :: nsoil_surftype_provided = .false.  !< true when nsoil, nsurftype and nsoiltype are provided at initialization
       logical :: verbose = .false.
       logical :: validate_config = .true.
 
@@ -363,7 +365,12 @@ contains
       write(*,*) 'calling state_mgr%get_met_state_ptr in setup_state'
       met_ptr => this%state_mgr%get_met_state_ptr()
       if (associated(met_ptr)) then
-          call met_ptr%init(this%nx, this%ny, this%nz, this%nsoil, this%nsoiltype, this%nsurftype, error_mgr_ptr, local_rc)
+          ! Only pass soil/surface parameters if they were provided
+          if (this%nsoil_surftype_provided) then
+              call met_ptr%init(this%nx, this%ny, this%nz, this%nsoil, this%nsoiltype, this%nsurftype, error_mgr_ptr, local_rc)
+          else
+              call met_ptr%init(this%nx, this%ny, this%nz, error_mgr=error_mgr_ptr, rc=local_rc)
+          end if
           if (local_rc /= CC_SUCCESS) then
              call this%error_mgr%report_error(local_rc, 'Failed to initialize met state', rc)
              call this%error_mgr%pop_context()
@@ -788,6 +795,7 @@ contains
       if(present(nsoil)) this%nsoil = nsoil
       if(present(nsoiltype)) this%nsoiltype = nsoiltype
       if(present(nsurftype)) this%nsurftype = nsurftype
+      if (present(nsoil) .and. present(nsoiltype) .and. present(nsurftype)) this%nsoil_surftype_provided = .true.
       builder_ref = this
 
    end function builder_with_grid
@@ -843,12 +851,23 @@ contains
 
       ! Configure core
       if (len_trim(this%config_file) > 0) then
-         call core%configure(this%config_file, this%nx, this%ny, this%nz, &
-                           this%nsoil, this%nsoiltype, this%nsurftype, local_rc)
+         if (this%nsoil_surftype_provided) then
+            call core%configure(this%config_file, this%nx, this%ny, this%nz, &
+                              this%nsoil, this%nsoiltype, this%nsurftype, local_rc)
+         else
+            call core%configure(this%config_file, this%nx, this%ny, this%nz, rc=local_rc)
+         endif
       else
-         call core%configure(nx=this%nx, ny=this%ny, nz=this%nz, &
-                           nsoil=this%nsoil, nsoiltype=this%nsoiltype, nsurftype=this%nsurftype, rc=local_rc)
+         if (this%nsoil_surftype_provided) then
+            call core%configure(nx=this%nx, ny=this%ny, nz=this%nz, &
+                              nsoil=this%nsoil, nsoiltype=this%nsoiltype, nsurftype=this%nsurftype, rc=local_rc)
+         else
+            call core%configure(nx=this%nx, ny=this%ny, nz=this%nz, rc=local_rc)
+         end if
       endif
+
+      ! Transfer the soil/surface type availability flag
+      core%nsoil_surftype_provided = this%nsoil_surftype_provided
 
       if (local_rc /= CC_SUCCESS) then
          rc = local_rc

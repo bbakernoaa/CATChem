@@ -65,11 +65,12 @@ module CATChem_API
       logical :: grid_setup = .false.
       logical :: enable_run_phase = .false.
       character(len=512) :: config_file = ''
+      character(len=64), allocatable :: required_fields(:)
       type(ErrorManagerType) :: error_manager
       
       ! Grid information
       integer :: nx = 0, ny = 0, nz = 0
-      integer :: nsoil = 4, nsoiltype = 19, nsurftype = 13
+      integer :: nsoil = 4, nsoiltype = 19, nsurftype = 20
       
    contains
       ! Basic lifecycle methods
@@ -103,11 +104,13 @@ module CATChem_API
       ! Utility methods
       procedure :: is_ready => model_is_ready
       procedure :: is_initialized => model_is_initialized
-      procedure :: get_error_manager => model_get_error_manager
+      procedure :: get_required_met_index  => model_get_required_met_index
+      procedure :: get_diag_index_from_field  => model_get_diag_index_from_field
       
       ! Core access methods (for advanced users)
       procedure :: get_state_manager => model_get_state_manager
       procedure :: get_process_manager => model_get_process_manager
+      procedure :: get_error_manager => model_get_error_manager
       procedure :: get_grid_manager => model_get_grid_manager
       procedure :: get_diagnostic_manager => model_get_diagnostic_manager
    end type CATChem_Model
@@ -214,7 +217,11 @@ contains
       this%nx = 0
       this%ny = 0
       this%nz = 0
+      this%nsoil = 4
+      this%nsoiltype = 19
+      this%nsurftype = 20
       this%config_file = ''
+      if (allocated(this%required_fields)) deallocate(this%required_fields)
    end subroutine model_finalize
 
    !> Get current grid dimensions
@@ -241,7 +248,7 @@ contains
       
       type(ConfigDataType), pointer :: config_data => null()
       type(ProcessManagerType), pointer :: process_mgr => null()
-      integer :: i, reg_rc, add_rc
+      integer :: i, reg_rc, add_rc, num_fields
       
       rc = CC_SUCCESS
       
@@ -305,6 +312,18 @@ contains
                trim(config_data%run_phase_processes(i)%name)
          endif
       end do
+
+      ! Get required met fields from process_mgr
+      if (allocated(process_mgr%required_met_fields)) then
+         num_fields = size(process_mgr%required_met_fields)
+         allocate(this%required_fields(num_fields))
+         this%required_fields = process_mgr%required_met_fields
+      else 
+         call this%error_manager%push_context('model_add_process', 'checking required met fields')
+         call this%error_manager%report_error(1014, 'No met fields found', rc)
+         call this%error_manager%pop_context()
+      endif
+
    end subroutine model_add_process
 
    !> Automatically register a process based on its name
@@ -663,9 +682,10 @@ contains
 
    !> Get names of available diagnostics
    !! This method retrieves the names of all available diagnostic fields
-   subroutine model_get_diagnostic_names(this, diagnostic_names, rc)
+   subroutine model_get_diagnostic_names(this, diagnostic_names, diagnostic_fields, rc)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), allocatable, intent(out) :: diagnostic_names(:)
+      character(len=*), allocatable, optional, intent(out) :: diagnostic_fields(:)
       integer, intent(out) :: rc
       
       type(DiagnosticManagerType), pointer :: diag_mgr => null()
@@ -710,6 +730,7 @@ contains
       
       ! Allocate output array
       allocate(diagnostic_names(total_fields))
+      if (present(diagnostic_fields))  allocate( diagnostic_fields(total_fields) )
       
       ! Collect all diagnostic field names with process prefix
       name_idx = 0
@@ -725,6 +746,7 @@ contains
                   name_idx = name_idx + 1
                   ! Create qualified name: process_name.field_name
                   diagnostic_names(name_idx) = trim(process_list(i)) // '.' // trim(field_names(j))
+                  if (present(diagnostic_fields)) diagnostic_fields(name_idx) = trim(field_names(j))
                end do
                
                deallocate(field_names)
@@ -862,7 +884,7 @@ contains
       endif
       
       ! First get all diagnostic field names
-      call this%get_diagnostic_names(diagnostic_names, local_rc)
+      call this%get_diagnostic_names(diagnostic_names, rc =local_rc)
       if (local_rc /= CC_SUCCESS) then
          ! Error: 'Failed to get diagnostic names'
          allocate(diagnostic_data(0, this%nx, this%ny, this%nz))
@@ -890,6 +912,28 @@ contains
       
    end subroutine model_get_all_diagnostics
 
+   !> Get diagnostic index based on field name
+   function model_get_diag_index_from_field(this, field_name) result(found_index)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      character(len=128), allocatable :: diagnostic_names(:)
+      character(len=128), allocatable :: diagnostic_fields(:)
+      integer :: found_index, rc, i
+
+      found_index = 0
+      call this%get_diagnostic_names(diagnostic_names, diagnostic_fields, rc)
+      if (allocated(diagnostic_fields)) then
+         do i = 1, size(diagnostic_fields)
+            if (trim(field_name) == trim(diagnostic_fields(i))) then
+               found_index = i
+               exit !exit the loop once found; TODO: this assumes we do not have duplicated field names
+            end if
+         end do
+      else
+         write(*,'(A)') ' Warning: No diagnostic fields are registered!!'
+      end if
+   end function model_get_diag_index_from_field
+
    !> Check if model is ready to run
    !! This method checks if all necessary components are initialized and configured
    function model_is_ready(this) result(is_ready)
@@ -906,6 +950,27 @@ contains
       
       is_initialized = this%initialized
    end function model_is_initialized
+
+   !> get required met index for all the required met variables registered in process manager
+   function model_get_required_met_index(this, var_name) result(found_index)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: var_name
+      integer :: found_index
+      integer :: i
+      type(ProcessManagerType), pointer :: process_mgr
+
+      found_index = 0
+      if (allocated(this%required_fields)) then
+         do i = 1, size(this%required_fields)
+            if (trim(var_name) == trim(this%required_fields(i))) then
+               found_index = i
+               exit !exit the loop once found
+            end if
+         end do
+      else
+         write(*,'(A)') ' Warning: No met fields are registered!!'
+      end if
+   end function model_get_required_met_index
 
    !> Get direct access to the error manager
    function model_get_error_manager(this) result(error_mgr_ptr)

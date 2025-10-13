@@ -166,9 +166,22 @@ contains
       class(StateManagerType), intent(inout) :: this
       integer, intent(out) :: rc
 
-      integer :: config_rc
+      integer :: config_rc, met_rc, chem_rc
 
       rc = CC_SUCCESS
+
+      ! Clean up and deallocate state objects - call their cleanup procedures first!
+      if (allocated(this%met_state)) then
+         call this%met_state%cleanup('ALL', met_rc)
+         if (met_rc /= CC_SUCCESS) rc = met_rc  ! Don't stop cleanup on error
+         deallocate(this%met_state)
+      end if
+      
+      if (allocated(this%chem_state)) then
+         call this%chem_state%cleanup(chem_rc)
+         if (chem_rc /= CC_SUCCESS) rc = chem_rc  ! Don't stop cleanup on error
+         deallocate(this%chem_state)
+      end if
 
       ! Finalize and deallocate state objects
       if (associated(this%config)) then
@@ -176,8 +189,6 @@ contains
          if (config_rc /= CC_SUCCESS) rc = config_rc  ! Don't stop cleanup on error
          nullify(this%config)  ! Just nullify pointer, don't deallocate (owned by CATChemCore)
       end if
-      if (allocated(this%met_state)) deallocate(this%met_state)
-      if (allocated(this%chem_state)) deallocate(this%chem_state)
 
       this%is_initialized = .false.
       this%is_configured = .false.

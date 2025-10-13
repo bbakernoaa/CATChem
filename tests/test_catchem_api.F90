@@ -60,9 +60,9 @@ program test_catchem_api
    write(output_unit,'(A)') 'with multiple processes and run phases'
    write(output_unit,'(A)') ''
    
-   ! Test 1: Basic Initialization and Grid Setup
-   write(output_unit,'(A)') 'Test 1: Basic Initialization and Grid Setup'
-   write(output_unit,'(A)') '-------------------------------------------'
+   ! Test 1a: Basic Initialization and Grid Setup (with soil parameters)
+   write(output_unit,'(A)') 'Test 1a: Basic Initialization and Grid Setup (with soil parameters)'
+   write(output_unit,'(A)') '-------------------------------------------------------------------'
    
    config_file = './CATChem_new_config.yml'
    inquire(file=config_file, exist=file_exists)
@@ -80,7 +80,23 @@ program test_catchem_api
       return
    endif
    
-   call test_initialization_with_grid(catchem, config_file, nx, ny, nz, nsoil, nsoiltype, nsurftype, tests_run, tests_passed)
+   ! Test 1a: Initialization with all soil/surface parameters
+   call test_initialization_with_grid(catchem, config_file, nx, ny, nz, tests_run, tests_passed, &
+                                       nsoil, nsoiltype, nsurftype)
+   
+   ! Test 1b: Initialization without soil/surface parameters (NUOPC-style)
+   write(output_unit,'(A)') ''
+   write(output_unit,'(A)') 'Test 1b: Initialization without Soil/Surface Parameters (NUOPC-style)'
+   write(output_unit,'(A)') '---------------------------------------------------------------------'
+   
+   ! First finalize the previous model
+   call catchem%finalize(rc)
+   if (rc /= CC_SUCCESS) then
+      write(output_unit,'(A)') 'Warning: Failed to finalize previous model'
+   endif
+   
+   ! Test without soil parameters
+   call test_initialization_with_grid(catchem, config_file, nx, ny, nz, tests_run, tests_passed)
    
    ! Test 2: Process Management
    write(output_unit,'(A)') ''
@@ -160,22 +176,32 @@ program test_catchem_api
 contains
 
    !> Test combined initialization and grid setup functionality
-   subroutine test_initialization_with_grid(model, config_path, grid_nx, grid_ny, grid_nz, grid_nsoil, grid_nsoiltype, grid_nsurftype, tests_total, tests_success)
+   subroutine test_initialization_with_grid(model, config_path, grid_nx, grid_ny, grid_nz, tests_total, tests_success, &
+                                            grid_nsoil, grid_nsoiltype, grid_nsurftype)
       type(CATChem_Model), intent(inout) :: model
       character(len=*), intent(in) :: config_path
-      integer, intent(in) :: grid_nx, grid_ny, grid_nz, grid_nsoil, grid_nsoiltype, grid_nsurftype
+      integer, intent(in) :: grid_nx, grid_ny, grid_nz
       integer, intent(inout) :: tests_total, tests_success
+      integer, intent(in), optional :: grid_nsoil, grid_nsoiltype, grid_nsurftype
       
       integer :: init_rc
       integer :: check_nx, check_ny, check_nz, check_nsoil, check_nsoiltype, check_nsurftype
+      logical :: has_soil_params
       
       tests_total = tests_total + 1
       
+      has_soil_params = present(grid_nsoil) .and. present(grid_nsoiltype) .and. present(grid_nsurftype)
+      
       write(output_unit,'(A,A,A)') '  Initializing CATChem with config: ', trim(config_path), '...'
       write(output_unit,'(A,I0,A,I0,A,I0,A)') '  Setting up grid: ', grid_nx, ' x ', grid_ny, ' x ', grid_nz, '...'
-      write(output_unit,'(A,I0,A,I0,A,I0,A)') '  Soil parameters: nsoil=', grid_nsoil, ', nsoiltype=', grid_nsoiltype, ', nsurftype=', grid_nsurftype, '...'
       
-      call model%initialize(config_path, grid_nx, grid_ny, grid_nz, grid_nsoil, grid_nsoiltype, grid_nsurftype, init_rc)
+      if (has_soil_params) then
+         write(output_unit,'(A,I0,A,I0,A,I0,A)') '  Soil parameters: nsoil=', grid_nsoil, ', nsoiltype=', grid_nsoiltype, ', nsurftype=', grid_nsurftype, '...'
+         call model%initialize(config_path, grid_nx, grid_ny, grid_nz, grid_nsoil, grid_nsoiltype, grid_nsurftype, init_rc)
+      else
+         write(output_unit,'(A)') '  No soil/surface parameters provided (NUOPC-style initialization)...'
+         call model%initialize(config_path, grid_nx, grid_ny, grid_nz, rc=init_rc)
+      endif
       
       if (init_rc == CC_SUCCESS) then
          write(output_unit,'(A)') '  ✓ Initialization and grid setup successful'
@@ -186,14 +212,30 @@ contains
             
             ! Verify grid dimensions
             call model%get_grid_dimensions(check_nx, check_ny, check_nz, check_nsoil, check_nsoiltype, check_nsurftype)
-            if (check_nx == grid_nx .and. check_ny == grid_ny .and. check_nz == grid_nz .and. &
-                check_nsoil == grid_nsoil .and. check_nsoiltype == grid_nsoiltype .and. check_nsurftype == grid_nsurftype) then
-               write(output_unit,'(A)') '  ✓ Grid dimensions and soil parameters verified'
-               tests_success = tests_success + 1
+            
+            ! Check grid dimensions - always verify these
+            if (check_nx == grid_nx .and. check_ny == grid_ny .and. check_nz == grid_nz) then
+               write(output_unit,'(A)') '  ✓ Grid dimensions verified'
+               
+               ! Check soil parameters only if they were provided
+               if (has_soil_params) then
+                  if (check_nsoil == grid_nsoil .and. check_nsoiltype == grid_nsoiltype .and. check_nsurftype == grid_nsurftype) then
+                     write(output_unit,'(A)') '  ✓ Soil parameters verified as expected'
+                     tests_success = tests_success + 1
+                  else
+                     write(output_unit,'(A)') '  ✗ Soil parameters mismatch'
+                     write(output_unit,'(A,I0,A,I0,A,I0)') '    Expected soil: ', grid_nsoil, '/', grid_nsoiltype, '/', grid_nsurftype
+                     write(output_unit,'(A,I0,A,I0,A,I0)') '    Got soil: ', check_nsoil, '/', check_nsoiltype, '/', check_nsurftype
+                  endif
+               else
+                  ! For NUOPC-style initialization, soil parameters should be defaults or zero
+                  write(output_unit,'(A,I0,A,I0,A,I0)') '  ✓ Soil parameters in model: ', check_nsoil, '/', check_nsoiltype, '/', check_nsurftype, ' (defaults/unset)'
+                  tests_success = tests_success + 1
+               endif
             else
-               write(output_unit,'(A)') '  ✗ Grid dimensions or soil parameters mismatch'
-               write(output_unit,'(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') '    Expected: ', grid_nx, 'x', grid_ny, 'x', grid_nz, ', soil: ', grid_nsoil, '/', grid_nsoiltype, '/', grid_nsurftype
-               write(output_unit,'(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0)') '    Got: ', check_nx, 'x', check_ny, 'x', check_nz, ', soil: ', check_nsoil, '/', check_nsoiltype, '/', check_nsurftype
+               write(output_unit,'(A)') '  ✗ Grid dimensions mismatch'
+               write(output_unit,'(A,I0,A,I0,A,I0)') '    Expected: ', grid_nx, 'x', grid_ny, 'x', grid_nz
+               write(output_unit,'(A,I0,A,I0,A,I0)') '    Got: ', check_nx, 'x', check_ny, 'x', check_nz
             endif
          else
             write(output_unit,'(A)') '  ✗ Model does not report as initialized'
@@ -418,7 +460,7 @@ contains
                   write(output_unit,'(A)') '      Error: Could not access MetState or ErrorManager'
                   rc = CC_FAILURE
                endif
-               
+
                if (allocated(required_fields)) deallocate(required_fields)
             else
                write(output_unit,'(A)') '      No required meteorological fields found in ProcessManager'
@@ -528,7 +570,7 @@ contains
       write(output_unit,'(A)') '  Testing diagnostic retrieval...'
       
       ! Get diagnostic names
-      call model%get_diagnostic_names(diag_names, rc)
+      call model%get_diagnostic_names(diag_names, rc = rc)
       
       if (rc == CC_SUCCESS) then
          write(output_unit,'(A,I0,A)') '  ✓ Retrieved ', size(diag_names), ' diagnostic names'
