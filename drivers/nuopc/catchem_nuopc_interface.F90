@@ -28,14 +28,19 @@ module catchem_nuopc_interface
   use ESMF
   use NUOPC
   use CATChem_API, only: CATChem_Model
-  use catchem_nuopc_cf_input
-  use catchem_nuopc_netcdf_out
-  use machine, only: kind_phys
+  ! use catchem_nuopc_cf_input
+  ! use catchem_nuopc_netcdf_out
+  ! use machine, only: kind_phys
+  use precision_mod, only: fp
   use Error_Mod, only : CC_SUCCESS, CC_FAILURE
   use StateManager_Mod, only: StateManagerType
+  use ProcessManager_Mod, only: ProcessManagerType
   use error_mod, only: ErrorManagerType
   use MetState_Mod, only: MetStateType
   use ChemState_Mod, only: ChemStateType
+  use DiagnosticManager_Mod, only: DiagnosticManagerType
+  use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DIAG_REAL_SCALAR, DIAG_REAL_1D, DIAG_REAL_2D, DIAG_REAL_3D
+  use aqmio, only: AQMIO_Create, AQMIO_Write, AQMIO_Close, AQMIO_FMT_NETCDF
 
   implicit none
 
@@ -47,9 +52,7 @@ module catchem_nuopc_interface
   public :: transform_nuopc_to_catchem
   public :: transform_catchem_to_nuopc
   public :: load_field_config
-  type(CATChem_Model), public :: catchem
-  type(field_config_type), public :: field_config
-  type(tracer_index_map), public :: tracer_map
+  public :: catchem_diagnostics_write
 
   !> \brief Field mapping configuration structure
   !!
@@ -88,6 +91,21 @@ module catchem_nuopc_interface
   end type tracer_index_map
   !! \}
 
+  ! Module-level instances
+  type(CATChem_Model), public :: catchem
+  type(field_config_type), public :: field_config
+  type(tracer_index_map), public :: tracer_map
+
+  ! Module-level variables for diagnostic output
+  type(ESMF_Time), save :: last_output_time
+  type(ESMF_TimeInterval), save :: output_interval
+  logical, save :: output_timing_initialized = .false.
+  character(len=256), save :: output_directory = './output'
+  character(len=64), save :: output_prefix = 'catchem_diag'
+  integer, save :: output_frequency = 3600  ! Default: 1 hour in seconds
+  type(ESMF_GridComp), save :: iocomp
+  type(ESMF_Grid), save :: grid
+
 
 contains
 
@@ -125,14 +143,15 @@ contains
   !!       and requires valid ESMF grid and configuration files
   !!
   !! @warning Proper error checking should be performed on errflg after calling
-  subroutine catchem_nuopc_init(config_file, lat, lon, nlev, tracerinfo, nsoil, nsoiltype, nsurftype, rc)
+  subroutine catchem_nuopc_init(config_file, lat, lon, nlev, tracerinfo, input_grid, nsoil, nsoiltype, nsurftype, rc)
     use ChemSpeciesUtils_Mod, only : create_species_mapping
 
     character(len=*), intent(in) :: config_file
-    real(ESMF_KIND_R8), intent(in) :: lat
-    real(ESMF_KIND_R8), intent(in) :: lon
+    real(ESMF_KIND_R8), dimension(:,:), intent(in) :: lat
+    real(ESMF_KIND_R8), dimension(:,:), intent(in) :: lon
     integer, intent(in) :: nlev
     type(ESMF_Info), intent(in) :: tracerinfo
+    type(ESMF_Grid), intent(in) :: input_grid
     integer, intent(in), optional :: nsoil, nsoiltype, nsurftype
     integer, intent(out) :: rc
 
@@ -140,10 +159,13 @@ contains
     type(StateManagerType), pointer :: state_mgr
     type(MetStateType), pointer :: met_state
     type(ChemStateType), pointer :: chem_state
-    integer :: nx, ny
+    integer :: nx, ny, num_processes, stat
 
     ! Initialize
     rc = CC_SUCCESS
+
+    ! Set the module-level grid variable for diagnostic output
+    grid = input_grid
 
     !get nx, ny
     nx = size(lat, 1)
@@ -153,17 +175,18 @@ contains
     if (present(nsoil) .and. present(nsoiltype) .and. present(nsurftype)) then
       call catchem%initialize(config_file, nx, ny, nlev, nsoil, nsoiltype, nsurftype, rc)
     else 
-      call catchem%initialize(config_file, nx, ny, nlev, rc)
+      call catchem%initialize(config_file, nx, ny, nlev, rc = rc)
     end if
 
     if (rc /= CC_SUCCESS) then 
-      call catchem%error_manager%push_context('catchem_nuopc_init', 'failed!!')
-      call catchem%error_manager%pop_context()
-      return
+      call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+        msg="CATChem initialization failed", &
+        line=__LINE__, file=__FILE__, rcToReturn=rc) 
+      return  ! bail out
     end if
 
     !assign lat and lon to metstate
-    state_mgr => model%get_state_manager()
+    state_mgr => catchem%get_state_manager()
     met_state => state_mgr%get_met_state_ptr()
     met_state%lat = lat
     met_state%lon = lon
@@ -182,7 +205,7 @@ contains
     end if
 
     ! - import tracer units if available
-    call TracerInfoGet(info, 'tracerUnits', tracer_map % units, rc=rc)
+    call TracerInfoGet(tracerinfo, 'tracerUnits', tracer_map % units, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__,  file=__FILE__)) return  ! bail out
 
@@ -203,9 +226,10 @@ contains
     call catchem%add_process(rc)
     num_processes = catchem%get_num_processes()
     if (rc /= CC_SUCCESS .or. num_processes <= 0) then
-      call catchem%error_manager%push_context('catchem_nuopc_init', 'failed to add processes')
-      call catchem%error_manager%pop_context()
-      return
+      call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+        msg="CATChem initialization failed", &
+        line=__LINE__, file=__FILE__, rcToReturn=rc) 
+      return  ! bail out
     end if
 
     ! ! Initialize CF input system
@@ -251,22 +275,22 @@ contains
     errmsg = ''
 
     ! Update CF input data if needed
-    call cf_input_update(current_time, rc)
-    if (rc /= ESMF_SUCCESS) then
-      errmsg = 'Error updating CF input data'
-      return
-    end if
+    ! call cf_input_update(current_time, rc)
+    ! if (rc /= ESMF_SUCCESS) then
+    !   errmsg = 'Error updating CF input data'
+    !   return
+    ! end if
 
     !Run CATChem processes
     timestep = timestep + 1
-    call catchem%run_timestep(timestep, dt, rc)
+    call catchem%run_timestep(timestep, real(dt, fp), rc)
     if (rc /= CC_SUCCESS) then
         write(errmsg, '(A,I0)') 'Error in run_timestep at timestep = ', timestep
         return
     end if
 
     ! Write NetCDF output diagnostics if needed
-    call output_diagnostics_write(current_time, rc)
+    call catchem_diagnostics_write(current_time, rc)
     if (rc /= ESMF_SUCCESS) then
       errmsg = 'Error writing NetCDF output diagnostics'
       return
@@ -292,10 +316,10 @@ contains
     errmsg = ''
 
     ! Finalize CF input system
-    call cf_input_finalize()
+    !call cf_input_finalize()
 
     ! Finalize NetCDF output system
-    call output_diagnostics_finalize()
+    !call output_diagnostics_finalize()
 
     ! Finalize CATChem model
     call catchem%finalize(rc)
@@ -326,7 +350,6 @@ contains
     type(ESMF_Field) :: field
     logical, allocatable :: set_required_met(:)
     integer :: i, n, n_met
-    logical :: isPresent
 
     rc = ESMF_SUCCESS
 
@@ -340,27 +363,19 @@ contains
     ! Loop through all import fields and transform to CATChem states
     do n = 1, field_config%n_import_fields
 
-      ! Check if field is present in import state
-      call ESMF_StateGet(importState, trim(field_config%import_fields(n)%standard_name), &
-                        isPresent=isPresent, rc=rc)
-      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-        line=__LINE__, file=__FILE__)) return
-
-      if (.not. isPresent) then
+      ! Try to get field from import state (will fail if not present)
+      call ESMF_StateGet(importState, trim(field_config%import_fields(n)%standard_name), field, rc=rc)
+      
+      if (rc /= ESMF_SUCCESS) then
         if (.not. field_config%import_fields(n)%optional) then
           call ESMF_LogWrite("Required field not found: "// &
-            trim(import_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
+            trim(field_config%import_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
           rc = ESMF_FAILURE
           return
         else
           cycle  ! Skip optional fields that are not present
         end if
       end if
-
-      ! Get the field
-      call ESMF_StateGet(importState, trim(field_config%import_fields(n)%standard_name), field, rc=rc)
-      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-        line=__LINE__, file=__FILE__)) return
 
       ! Transform based on field type and dimensions
       call transform_field_to_catchem(field, field_config%import_fields(n), set_required_met, rc)
@@ -400,20 +415,16 @@ contains
 
     type(ESMF_Field) :: field
     integer :: n
-    logical :: isPresent
 
     rc = ESMF_SUCCESS
 
     ! Loop through all export fields and transform from CATChem states
     do n = 1, field_config%n_export_fields
 
-      ! Check if field is present in export state
-      call ESMF_StateGet(exportState, trim(field_config%export_fields(n)%standard_name), &
-                        isPresent=isPresent, rc=rc)
-      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-        line=__LINE__, file=__FILE__)) return
-
-      if (.not. isPresent) then
+      ! Try to get field from export state (will fail if not present)
+      call ESMF_StateGet(exportState, trim(field_config%export_fields(n)%standard_name), field, rc=rc)
+      
+      if (rc /= ESMF_SUCCESS) then
         if (.not. field_config%export_fields(n)%optional) then
           call ESMF_LogWrite("Required export field not found: "// &
             trim(field_config%export_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
@@ -423,11 +434,6 @@ contains
           cycle  ! Skip optional fields that are not present
         end if
       end if
-
-      ! Get the field
-      call ESMF_StateGet(exportState, trim(field_config%export_fields(n)%standard_name), field, rc=rc)
-      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-        line=__LINE__, file=__FILE__)) return
 
       ! Transform from CATChem to field
       call transform_catchem_to_field(field, field_config%export_fields(n), rc)
@@ -451,7 +457,7 @@ contains
 
     type(ESMF_Field), intent(in) :: field
     type(field_mapping_type), intent(in) :: field_map
-    logical, dimension(:), intent(in) :: is_met_set
+    logical, dimension(:), intent(inout) :: is_met_set
     integer, intent(out) :: rc
 
     !local vars
@@ -467,15 +473,16 @@ contains
 
     rc = ESMF_SUCCESS
 
-    process_mgr => model%get_process_manager()
-    state_mgr => model%get_state_manager()
+    process_mgr => catchem%get_process_manager()
+    state_mgr => catchem%get_state_manager()
     error_mgr => state_mgr%get_error_manager()
     met_state => state_mgr%get_met_state_ptr()
 
     if ( .not. associated(met_state) ) then 
       call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
         msg="met_state is not associated in CATChem before transformation from NUOPC", &
-        line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+        line=__LINE__, file=__FILE__, rcToReturn=rc) 
+      return  ! bail out
     end if
 
     ! Transform based on field mapping
@@ -490,7 +497,7 @@ contains
           line=__LINE__, file=__FILE__)) return
         
         !set to met_state in CATChem
-        met_state%set_field(trim(field_map%catchem_var), fptr2d, error_mgr, rc)
+        call met_state%set_field(trim(field_map%catchem_var), real(fptr2d, fp), error_mgr, rc)
 
         if (rc == CC_SUCCESS) then 
           if (allocated(catchem%required_fields)) then 
@@ -502,7 +509,8 @@ contains
         else 
           call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
             msg="Met field is not set successfully for: " // trim(field_map%catchem_var), &
-            line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+            line=__LINE__, file=__FILE__, rcToReturn=rc) 
+          return  ! bail out
         end if
 
       ! 3D meteorological fields
@@ -526,7 +534,7 @@ contains
         end do
 
         !set to met_state in CATChem
-        met_state%set_field(trim(field_map%catchem_var), fptr3d_rev, error_mgr, rc)
+        call met_state%set_field(trim(field_map%catchem_var), real(fptr3d_rev,fp), error_mgr, rc)
 
         if (rc == CC_SUCCESS) then 
           if (allocated(catchem%required_fields)) then 
@@ -538,7 +546,8 @@ contains
         else 
           call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
             msg="Met field is not set successfully for: " // trim(field_map%catchem_var), &
-            line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+            line=__LINE__, file=__FILE__, rcToReturn=rc) 
+          return  ! bail out
         end if
         
       ! 4D tracer concentrations
@@ -552,7 +561,8 @@ contains
         if ( .not. associated(chem_state) ) then
           call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
             msg="chem_state is not associated in CATChem before transformation from NUOPC", &
-            line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+            line=__LINE__, file=__FILE__, rcToReturn=rc) 
+          return  ! bail out
         end if
 
         ni = size(fptr4d, 1)
@@ -579,11 +589,12 @@ contains
         end do
 
         !set to concentrations in CATChem
-        chem_state%set_all_concentrations(fptr4d_rev, rc)
+        call chem_state%set_all_concentrations(real(fptr4d_rev, fp), rc)
         if (rc /= CC_SUCCESS) then 
           call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
             msg="Tracer array is not retrieved successfully for: " // trim(field_map%catchem_var), &
-            line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+            line=__LINE__, file=__FILE__, rcToReturn=rc) 
+          return  ! bail out
         end if
 
       case default
@@ -609,20 +620,23 @@ contains
     type(ESMF_Field), intent(inout) :: field
     integer, intent(out) :: rc
 
+    type(StateManagerType), pointer :: state_mgr
     type(ChemStateType), pointer :: chem_state
     real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
-    real(ESMF_KIND_R8), allocatable :: cc_diag_data(:,:,:)
-    character(len=*), allocatable :: diagnostic_names(:)
+    real(fp), allocatable :: cc_diag_data(:,:,:)
+    character(len=128), allocatable :: diagnostic_names(:)
     real(ESMF_KIND_R8) :: unit_conv
     integer :: i, j, k, v, ni, nj, nk, kk, nv, v_cc, found_index
 
     rc = ESMF_SUCCESS
 
     !TODO: we assume all the export fields are from DiagManager
-    call catchem%get_diagnostic_names(diagnostic_names, rc)
+    call catchem%get_diagnostic_names(diagnostic_names, rc = rc)
+
+    state_mgr => catchem%get_state_manager()
 
     ! Transform based on field mapping
-    select case (trim(field_map%dimensions))
+    select case (field_map%dimensions)
 
       ! 2D  fields
       case (2)
@@ -639,7 +653,8 @@ contains
           if (rc /= ESMF_SUCCESS) then
             call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
               msg="Failed to get diagnostic data for: " // trim(diagnostic_names(found_index)), &
-              line=__LINE__, file=__FILE__, rcToReturn=rc) return
+              line=__LINE__, file=__FILE__, rcToReturn=rc) 
+            return
           end if
 
           !assign data back to NUOPC
@@ -664,7 +679,8 @@ contains
           if (rc /= ESMF_SUCCESS) then
             call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
               msg="Failed to get diagnostic data for: " // trim(diagnostic_names(found_index)), &
-              line=__LINE__, file=__FILE__, rcToReturn=rc) return
+              line=__LINE__, file=__FILE__, rcToReturn=rc) 
+            return
           end if
 
           !assign data back to NUOPC
@@ -698,7 +714,8 @@ contains
         if ( .not. associated(chem_state) ) then
           call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
             msg="chem_state is not associated in CATChem before transformation to NUOPC", &
-            line=__LINE__, file=__FILE__, rcToReturn=rc) return  ! bail out
+            line=__LINE__, file=__FILE__, rcToReturn=rc) 
+          return  ! bail out
         end if
 
         ni = size(fptr4d, 1)
@@ -720,7 +737,7 @@ contains
               kk = nk - k + 1
               do j = 1, nj
                 do i = 1, ni
-                  fptr4d(i,j,kk,v) = cc_diag_data(i,j,k,v_cc) * unit_conv
+                  fptr4d(i,j,kk,v) = cc_diag_data(i,j,k) * unit_conv
                 end do
               end do
             end do   
@@ -736,6 +753,326 @@ contains
     end select
 
   end subroutine transform_catchem_to_field
+
+  !> \brief Write diagnostic output using AQMIO
+  !!
+  !! This subroutine writes CATChem diagnostic fields to NetCDF files using the
+  !! working AQMIO module. It retrieves field data, metadata (description, units),
+  !! and configuration from the DiagnosticManager and creates properly documented
+  !! NetCDF output files.
+  !!
+  !! \param current_time Current simulation time
+  !! \param rc Return code
+  subroutine catchem_diagnostics_write(current_time, rc)
+    type(ESMF_Time), intent(in) :: current_time
+    integer, intent(out) :: rc
+
+    type(DiagnosticManagerType), pointer :: diag_mgr => null()
+    character(len=64), allocatable :: process_list(:)
+    character(len=64), allocatable :: field_names(:)
+    integer :: num_processes, num_fields, i, j
+    logical :: time_to_write
+    character(len=256) :: filename
+  ! Use public grid variable
+    character(len=*), parameter :: routine = 'catchem_diagnostics_write'
+
+    rc = CC_SUCCESS
+
+    ! Initialize output timing if not done
+    if (.not. output_timing_initialized) then
+      call initialize_output_timing(current_time, rc)
+      if (rc /= CC_SUCCESS) return
+    end if
+
+    ! Check if it's time to write output
+    call check_diagnostic_output_time(current_time, time_to_write, rc)
+    if (rc /= CC_SUCCESS) return
+    if (.not. time_to_write) return
+
+    ! Get diagnostic manager
+    diag_mgr => catchem%get_diagnostic_manager()
+    if (.not. associated(diag_mgr)) then
+      rc = CC_FAILURE
+      return
+    end if
+
+    ! Get list of processes with diagnostics
+    call diag_mgr%list_processes(process_list, num_processes, rc)
+    if (rc /= CC_SUCCESS .or. num_processes == 0) return
+
+    ! Use grid (must be set during initialization)
+    if (.not. ESMF_GridIsCreated(grid)) then
+      rc = CC_FAILURE
+      write(*,'(A)') 'Error: grid not initialized.'
+      return
+    end if
+
+    ! Initialize AQMIO component if not done
+    if (.not. ESMF_GridCompIsCreated(iocomp)) then
+      iocomp = AQMIO_Create(grid, rc =rc)
+      if (rc /= CC_SUCCESS) return
+    end if
+
+    ! Generate filename for current time
+    call generate_diagnostic_filename(current_time, filename, rc)
+    if (rc /= CC_SUCCESS) return
+
+    ! Write diagnostics for each process
+    do i = 1, num_processes
+      call write_process_diagnostics(trim(process_list(i)), filename, rc)
+      if (rc /= CC_SUCCESS) then
+        ! Log warning but continue with other processes
+        write(*,'(A,A)') 'Warning: Failed to write diagnostics for process: ', trim(process_list(i))
+      end if
+    end do
+
+    ! Update last output time
+    last_output_time = current_time
+
+    write(*,'(A,A)') 'CATChem: Wrote diagnostic output to ', trim(filename)
+
+  end subroutine catchem_diagnostics_write
+
+  !> \brief Write diagnostics for a specific process
+  !!
+  !! \param process_name Name of the process
+  !! \param filename Output filename
+  !! \param rc Return code
+  subroutine write_process_diagnostics(process_name, filename, rc)
+    character(len=*), intent(in) :: process_name
+    character(len=*), intent(in) :: filename
+    integer, intent(out) :: rc
+
+    type(DiagnosticManagerType), pointer :: diag_mgr => null()
+    type(DiagnosticRegistryType), pointer :: registry => null()
+    character(len=64), allocatable :: field_names(:)
+    integer :: num_fields, i, data_type
+    real(fp) :: scalar_value
+    real(fp), pointer :: array_1d_ptr(:) => null()
+    real(fp), pointer :: array_2d_ptr(:,:) => null()
+    real(fp), pointer :: array_3d_ptr(:,:,:) => null()
+    character(len=128) :: description
+    character(len=32) :: units
+    character(len=64) :: field_name
+
+    rc = CC_SUCCESS
+
+    ! Get diagnostic manager and process registry
+    diag_mgr => catchem%get_diagnostic_manager()
+    call diag_mgr%get_process_registry(process_name, registry, rc)
+    if (rc /= CC_SUCCESS .or. .not. associated(registry)) return
+
+    ! Get field count
+    num_fields = registry%get_field_count()
+    if (num_fields == 0) return
+
+    ! Get field names
+    allocate(field_names(num_fields))
+    call registry%list_fields(field_names, num_fields)
+
+    ! Write each field
+    do i = 1, num_fields
+      field_name = trim(field_names(i))
+      
+      ! Get field value with metadata
+      call diag_mgr%get_field_value(process_name, field_name, &
+                                   scalar_value, array_1d_ptr, array_2d_ptr, array_3d_ptr, &
+                                   data_type, description, units, rc)
+      
+      if (rc /= CC_SUCCESS) then
+        write(*,'(A,A,A,A)') 'Warning: Failed to get field: ', trim(process_name), '.', trim(field_name)
+        cycle
+      end if
+
+      ! Write field to NetCDF using AQMIO
+      call write_diagnostic_field(field_name, data_type, scalar_value, &
+                                 array_1d_ptr, array_2d_ptr, array_3d_ptr, &
+                                 description, units, filename, rc)
+      
+      if (rc /= CC_SUCCESS) then
+        write(*,'(A,A,A,A)') 'Warning: Failed to write field: ', trim(process_name), '.', trim(field_name)
+      end if
+
+      ! Clean up pointers
+      if (associated(array_1d_ptr)) nullify(array_1d_ptr)
+      if (associated(array_2d_ptr)) nullify(array_2d_ptr)
+      if (associated(array_3d_ptr)) nullify(array_3d_ptr)
+    end do
+
+    deallocate(field_names)
+
+  end subroutine write_process_diagnostics
+
+  !> \brief Write individual diagnostic field to NetCDF
+  !!
+  !! \param field_name Field name for NetCDF variable
+  !! \param data_type Type of diagnostic data  
+  !! \param scalar_value Scalar value (if applicable)
+  !! \param array_1d_ptr 1D array pointer (if applicable)
+  !! \param array_2d_ptr 2D array pointer (if applicable)
+  !! \param array_3d_ptr 3D array pointer (if applicable)
+  !! \param description Field description for metadata
+  !! \param units Field units for metadata
+  !! \param filename Output filename
+  !! \param rc Return code
+  subroutine write_diagnostic_field(field_name, data_type, scalar_value, &
+                                   array_1d_ptr, array_2d_ptr, array_3d_ptr, &
+                                   description, units, filename, rc)
+    
+    character(len=*), intent(in) :: field_name
+    integer, intent(in) :: data_type
+    real(fp), intent(in) :: scalar_value
+    real(fp), pointer, intent(in) :: array_1d_ptr(:)
+    real(fp), pointer, intent(in) :: array_2d_ptr(:,:)
+    real(fp), pointer, intent(in) :: array_3d_ptr(:,:,:)
+    character(len=*), intent(in) :: description
+    character(len=*), intent(in) :: units
+    character(len=*), intent(in) :: filename
+    integer, intent(out) :: rc
+
+  ! Use module grid variable
+    type(ESMF_Field) :: esmf_field
+    real(ESMF_KIND_R4), pointer :: field_data_2d(:,:) => null()
+    real(ESMF_KIND_R4), pointer :: field_data_3d(:,:,:) => null()
+    integer :: i, j, k
+
+    rc = CC_SUCCESS
+
+    ! Create appropriate ESMF field based on data type
+    select case (data_type)
+    case (DIAG_REAL_2D)
+      if (.not. associated(array_2d_ptr)) then
+        rc = CC_FAILURE
+        return
+      end if
+      esmf_field = ESMF_FieldCreate(grid, &
+                                   name=trim(field_name), &
+                                   typekind=ESMF_TYPEKIND_R4, &
+                                   rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      do j = 1, size(array_2d_ptr, 2)
+        do i = 1, size(array_2d_ptr, 1)
+          field_data_2d(i, j) = real(array_2d_ptr(i, j), ESMF_KIND_R4)
+        end do
+      end do
+      call AQMIO_Write(iocomp, (/esmf_field/), fileName=trim(filename), &
+                       iofmt=AQMIO_FMT_NETCDF, rc=rc)
+
+    case (DIAG_REAL_3D)
+      if (.not. associated(array_3d_ptr)) then
+        rc = CC_FAILURE
+        return
+      end if
+      esmf_field = ESMF_FieldCreate(grid, &
+                                   name=trim(field_name), &
+                                   typekind=ESMF_TYPEKIND_R4, &
+                                   ungriddedLBound=(/1/), &
+                                   ungriddedUBound=(/size(array_3d_ptr, 3)/), &
+                                   rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      call ESMF_FieldGet(esmf_field, farrayPtr=field_data_3d, rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      do k = 1, size(array_3d_ptr, 3)
+        do j = 1, size(array_3d_ptr, 2)
+          do i = 1, size(array_3d_ptr, 1)
+            field_data_3d(i, j, k) = real(array_3d_ptr(i, j, k), ESMF_KIND_R4)
+          end do
+        end do
+      end do
+      call AQMIO_Write(iocomp, (/esmf_field/), fileName=trim(filename), &
+                       iofmt=AQMIO_FMT_NETCDF, rc=rc)
+
+    case default
+      rc = CC_FAILURE
+      return
+    end select
+
+    ! TODO: Add NetCDF attributes for description and units
+    ! This would require extending AQMIO or using NetCDF directly
+    ! For now, we rely on the working AQMIO functionality
+
+    ! Clean up
+    if (ESMF_FieldIsCreated(esmf_field)) then
+      call ESMF_FieldDestroy(esmf_field, rc=rc)
+    end if
+
+  end subroutine write_diagnostic_field
+
+  !> \brief Initialize output timing
+  !!
+  !! \param start_time Simulation start time
+  !! \param rc Return code
+  subroutine initialize_output_timing(start_time, rc)
+    type(ESMF_Time), intent(in) :: start_time
+    integer, intent(out) :: rc
+
+    rc = CC_SUCCESS
+
+    ! Create output interval from frequency (in seconds)
+    call ESMF_TimeIntervalSet(output_interval, s=output_frequency, rc=rc)
+    if (rc /= ESMF_SUCCESS) return
+
+    ! Set initial output time (start time minus interval so first check will trigger output)
+    last_output_time = start_time - output_interval
+
+    output_timing_initialized = .true.
+
+  end subroutine initialize_output_timing
+
+  !> \brief Check if it's time to write diagnostic output
+  !!
+  !! \param current_time Current simulation time
+  !! \param time_to_write True if it's time to write
+  !! \param rc Return code
+  subroutine check_diagnostic_output_time(current_time, time_to_write, rc)
+    type(ESMF_Time), intent(in) :: current_time
+    logical, intent(out) :: time_to_write
+    integer, intent(out) :: rc
+
+    type(ESMF_Time) :: next_output_time
+
+    rc = CC_SUCCESS
+    time_to_write = .false.
+
+    ! Calculate next output time
+    next_output_time = last_output_time + output_interval
+
+    ! Check if current time is at or past next output time
+    if (current_time >= next_output_time) then
+      time_to_write = .true.
+    end if
+
+  end subroutine check_diagnostic_output_time
+
+  !> \brief Generate filename for diagnostic output
+  !!
+  !! \param current_time Current simulation time
+  !! \param filename Generated filename
+  !! \param rc Return code
+  subroutine generate_diagnostic_filename(current_time, filename, rc)
+    type(ESMF_Time), intent(in) :: current_time
+    character(len=*), intent(out) :: filename
+    integer, intent(out) :: rc
+
+    integer :: year, month, day, hour, minute, second
+    character(len=256) :: time_string
+
+    rc = CC_SUCCESS
+
+    ! Get time components
+    call ESMF_TimeGet(current_time, yy=year, mm=month, dd=day, &
+                     h=hour, m=minute, s=second, rc=rc)
+    if (rc /= ESMF_SUCCESS) return
+
+    ! Create filename: output_directory/prefix_YYYYMMDD_HHMMSS.nc
+    write(time_string, '(I4.4,I2.2,I2.2,A,I2.2,I2.2,I2.2)') &
+          year, month, day, '_', hour, minute, second
+
+    filename = trim(output_directory) // '/' // trim(output_prefix) // '_' // trim(time_string) // '.nc'
+
+  end subroutine generate_diagnostic_filename
   
 
    ! Load field configuration from YAML file

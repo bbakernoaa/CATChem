@@ -4,7 +4,7 @@ add_subdirectory(external)
 add_subdirectory(core)
 
 # Make process modules optional (some depend on external libraries)
-option(BUILD_PROCESSES "Build process modules (may require external dependencies)" OFF)
+option(BUILD_PROCESSES "Build process modules (may require external dependencies)" ON)
 if(BUILD_PROCESSES)
   add_subdirectory(process)
 endif()

@@ -6,10 +6,10 @@ set(
   _srcs
   catchem_nuopc_cap.F90
   catchem_nuopc_interface.F90
-  catchem_nuopc_utils.F90
-  catchem_nuopc_netcdf_out.F90
-  catchem_nuopc_cf_input.F90
-  catchem_types.F90
+  # catchem_nuopc_utils.F90
+  # catchem_nuopc_netcdf_out.F90
+  # catchem_nuopc_cf_input.F90
+  # catchem_types.F90
 )
 
 set(_lib NUOPC_CATChem_cap)

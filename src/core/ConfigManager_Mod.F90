@@ -84,6 +84,7 @@ module ConfigManager_Mod
       logical :: amIRoot = .true.                    !< Is this the root cpu?
       logical :: DryRun = .false.                    !< Is this a dry run?
       character(len=255) :: SimulationName = ''      !< Name of the simulation
+      logical :: DiagEnabled = .false.               !< Was diagnostic output requested?
       logical :: VerboseRequested = .false.          !< Was verbose output requested?
       character(len=10) :: VerboseOnCores = 'root'   !< Which cores should produce verbose output
       logical :: Verbose = .false.                   !< Should verbose output be produced?
@@ -1338,9 +1339,10 @@ contains
 
       ! Parse runtime configuration
       call yaml_get(this%yaml_data, 'runtime/nEmissionSpecies', this%config_data%runtime%nEmissionSpecies, rc, 50)
+      call yaml_get(this%yaml_data, 'diagnostics/output/enabled', this%config_data%runtime%DiagEnabled, rc, .false.)
 
       ! Parse file paths
-      call yaml_get(this%yaml_data, 'output/directory', this%config_data%file_paths%Output_Directory, rc, './')
+      call yaml_get(this%yaml_data, 'diagnostics/output/directory', this%config_data%file_paths%Output_Directory, rc, './')
       call yaml_get(this%yaml_data, 'simulation/species_filename', this%config_data%file_paths%Species_File, rc, '')
       call yaml_get(this%yaml_data, 'simulation/emission_filename', this%config_data%file_paths%Emission_File, rc, '')
 

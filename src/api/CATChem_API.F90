@@ -65,7 +65,7 @@ module CATChem_API
       logical :: grid_setup = .false.
       logical :: enable_run_phase = .false.
       character(len=512) :: config_file = ''
-      character(len=64), allocatable :: required_fields(:)
+      character(len=64), allocatable, public :: required_fields(:)
       type(ErrorManagerType) :: error_manager
       
       ! Grid information
@@ -809,7 +809,7 @@ contains
       ! Get field value using DiagnosticManager
       call diag_mgr%get_field_value(process_name, field_name, &
                                     scalar_value, array_1d_ptr, array_2d_ptr, array_3d_ptr, &
-                                    data_type, local_rc)
+                                    data_type, rc = local_rc)
       
       if (local_rc /= CC_SUCCESS) then
          ! Error: 'Failed to retrieve diagnostic field: ' // trim(diagnostic_name)

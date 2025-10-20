@@ -529,7 +529,7 @@ contains
          ! Get field value using existing get_field_value method
          call this%get_field_value(process_name, field_name, &
                                   scalar_value, array_1d_ptr, array_2d_ptr, array_3d_ptr, &
-                                  data_type, local_rc)
+                                  data_type, rc=local_rc)
          
          if (local_rc /= CC_SUCCESS) then
             ! Log warning but continue with other fields
@@ -567,10 +567,12 @@ contains
    !! \param[out] array_2d_ptr Pointer to 2D array (for 2D diagnostics)
    !! \param[out] array_3d_ptr Pointer to 3D array (for 3D diagnostics)
    !! \param[out] data_type Type of the diagnostic data
+   !! \param[out] description Optional field description for NetCDF metadata
+   !! \param[out] units Optional field units for NetCDF metadata
    !! \param[out] rc Return code
    subroutine diagnostic_manager_get_field_value(this, process_name, field_name, &
                                                 scalar_value, array_1d_ptr, array_2d_ptr, array_3d_ptr, &
-                                                data_type, rc)
+                                                data_type, description, units, rc)
       class(DiagnosticManagerType), intent(inout) :: this
       character(len=*), intent(in) :: process_name
       character(len=*), intent(in) :: field_name
@@ -579,6 +581,8 @@ contains
       real(fp), pointer, intent(out), optional :: array_2d_ptr(:,:)
       real(fp), pointer, intent(out), optional :: array_3d_ptr(:,:,:)
       integer, intent(out), optional :: data_type
+      character(len=*), intent(out), optional :: description
+      character(len=*), intent(out), optional :: units
       integer, intent(out) :: rc
 
       type(DiagnosticRegistryType), pointer :: registry
@@ -594,6 +598,8 @@ contains
       if (present(array_2d_ptr)) nullify(array_2d_ptr)
       if (present(array_3d_ptr)) nullify(array_3d_ptr)
       if (present(data_type)) data_type = 0
+      if (present(description)) description = ''
+      if (present(units)) units = ''
 
       ! Get process registry
       call this%get_process_registry(process_name, registry, rc)
@@ -626,6 +632,15 @@ contains
       ! Get data type and extract values
       local_data_type = data_ptr%get_data_type()
       if (present(data_type)) data_type = local_data_type
+
+      ! Get field metadata
+      if (present(description)) then
+         description = field_ptr%get_description()
+      end if
+      
+      if (present(units)) then
+         units = field_ptr%get_units()
+      end if
 
       select case (local_data_type)
       case (DIAG_REAL_SCALAR)
