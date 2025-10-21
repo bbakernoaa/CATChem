@@ -77,7 +77,7 @@ program test_catchem_api
    if (.not. file_exists) then
       write(*,*) 'ERROR: Could not find CATChem_new_config.yml'
       write(*,*) 'Skipping run phases test.'
-      return
+      stop 1
    endif
    
    ! Test 1a: Initialization with all soil/surface parameters

@@ -21,7 +21,7 @@ module ChemState_Mod
    PRIVATE
    !
    ! !PUBLIC MEMBER FUNCTIONS:
-   PUBLIC :: ChemStateType          ! Main data type
+   !PUBLIC :: ChemStateType          ! Main data type
    PUBLIC :: Find_Number_of_Species
    ! Legacy routines - commented out in modernization
    ! PUBLIC :: Find_Index_of_Species

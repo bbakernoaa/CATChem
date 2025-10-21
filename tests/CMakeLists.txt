@@ -6,7 +6,9 @@ add_library(testing testing_mod.f90)
 target_link_libraries(testing PRIVATE CATChem_core)
 set_target_properties(
   testing
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 target_include_directories(testing PRIVATE ${CMAKE_BINARY_DIR}/include)
 
@@ -16,7 +18,9 @@ target_link_libraries(test_CATChemCore PRIVATE CATChem_core)
 target_link_libraries(test_CATChemCore PRIVATE testing)
 set_target_properties(
   test_CATChemCore
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES 
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 target_include_directories(test_CATChemCore PRIVATE ${CMAKE_BINARY_DIR}/include)
 add_dependencies(test_CATChemCore CATChem_core)
@@ -31,7 +35,9 @@ target_link_libraries(test_StateManager PRIVATE CATChem_core)
 target_link_libraries(test_StateManager PRIVATE testing)
 set_target_properties(
   test_StateManager
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES 
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 target_include_directories(test_StateManager PRIVATE ${CMAKE_BINARY_DIR}/include)
 add_dependencies(test_StateManager CATChem_core)
@@ -46,7 +52,9 @@ target_link_libraries(test_MetState PRIVATE CATChem_core)
 target_link_libraries(test_MetState PRIVATE testing)
 set_target_properties(
   test_MetState
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 target_include_directories(test_MetState PRIVATE ${CMAKE_BINARY_DIR}/include)
 add_dependencies(test_MetState CATChem_core)
@@ -61,7 +69,9 @@ target_link_libraries(test_GridManager PRIVATE CATChem_core)
 target_link_libraries(test_GridManager PRIVATE testing)
 set_target_properties(
   test_GridManager
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 target_include_directories(test_GridManager PRIVATE ${CMAKE_BINARY_DIR}/include)
 add_dependencies(test_GridManager CATChem_core)
@@ -76,7 +86,9 @@ target_link_libraries(test_ConfigManager PRIVATE CATChem_core)
 target_link_libraries(test_ConfigManager PRIVATE testing)
 set_target_properties(
   test_ConfigManager
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 target_include_directories(test_ConfigManager PRIVATE ${CMAKE_BINARY_DIR}/include)
 add_dependencies(test_ConfigManager CATChem_core)
@@ -91,7 +103,9 @@ target_link_libraries(test_ProcessManager PRIVATE CATChem_core)
 target_link_libraries(test_ProcessManager PRIVATE testing)
 set_target_properties(
   test_ProcessManager
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_ProcessManager
@@ -104,7 +118,9 @@ target_link_libraries(test_DiagnosticManager PRIVATE CATChem_core)
 target_link_libraries(test_DiagnosticManager PRIVATE testing)
 set_target_properties(
   test_DiagnosticManager
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_DiagnosticManager
@@ -117,7 +133,9 @@ target_link_libraries(test_Error PRIVATE CATChem_core)
 target_link_libraries(test_Error PRIVATE testing)
 set_target_properties(
   test_Error
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_Error
@@ -130,7 +148,9 @@ target_link_libraries(test_Precision PRIVATE CATChem_core)
 target_link_libraries(test_Precision PRIVATE testing)
 set_target_properties(
   test_Precision
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_Precision
@@ -143,7 +163,9 @@ target_link_libraries(test_ChemSpeciesUtils PRIVATE CATChem_core)
 target_link_libraries(test_ChemSpeciesUtils PRIVATE testing)
 set_target_properties(
   test_ChemSpeciesUtils
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_ChemSpeciesUtils
@@ -156,7 +178,9 @@ target_link_libraries(test_ProcessInterface PRIVATE CATChem_core)
 target_link_libraries(test_ProcessInterface PRIVATE testing)
 set_target_properties(
   test_ProcessInterface
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_ProcessInterface
@@ -169,7 +193,9 @@ target_link_libraries(test_GridGeometry PRIVATE CATChem_core)
 target_link_libraries(test_GridGeometry PRIVATE testing)
 set_target_properties(
   test_GridGeometry
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_GridGeometry
@@ -182,7 +208,9 @@ target_link_libraries(test_TimeState PRIVATE CATChem_core)
 target_link_libraries(test_TimeState PRIVATE testing)
 set_target_properties(
   test_TimeState
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_TimeState
@@ -195,7 +223,9 @@ target_link_libraries(test_Constants PRIVATE CATChem_core)
 target_link_libraries(test_Constants PRIVATE testing)
 set_target_properties(
   test_Constants
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_Constants
@@ -208,7 +238,9 @@ target_link_libraries(test_VirtualColumn PRIVATE CATChem_core)
 target_link_libraries(test_VirtualColumn PRIVATE testing)
 set_target_properties(
   test_VirtualColumn
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_VirtualColumn
@@ -221,7 +253,9 @@ target_link_libraries(test_ColumnInterface PRIVATE CATChem_core)
 target_link_libraries(test_ColumnInterface PRIVATE testing)
 set_target_properties(
   test_ColumnInterface
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_ColumnInterface
@@ -234,7 +268,9 @@ add_test(
 # target_link_libraries(test_StateInterface PRIVATE testing)
 # set_target_properties(
 #   test_StateInterface
-#   PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#   PROPERTIES
+#     Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#     LINKER_LANGUAGE Fortran
 # )
 # add_test(
 #   NAME test_StateInterface
@@ -247,7 +283,9 @@ target_link_libraries(test_DiagnosticInterface PRIVATE CATChem_core)
 target_link_libraries(test_DiagnosticInterface PRIVATE testing)
 set_target_properties(
   test_DiagnosticInterface
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_DiagnosticInterface
@@ -260,7 +298,9 @@ target_link_libraries(test_ProcessRegistry PRIVATE CATChem_core)
 target_link_libraries(test_ProcessRegistry PRIVATE testing)
 set_target_properties(
   test_ProcessRegistry
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_ProcessRegistry
@@ -273,7 +313,9 @@ target_link_libraries(test_ProcessFactory PRIVATE CATChem_core)
 target_link_libraries(test_ProcessFactory PRIVATE testing)
 set_target_properties(
   test_ProcessFactory
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 add_test(
   NAME test_ProcessFactory
@@ -288,7 +330,9 @@ target_link_libraries(test_catchem_api PRIVATE CATChem_process_seasalt)
 target_link_libraries(test_catchem_api PRIVATE testing)
 set_target_properties(
   test_catchem_api
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
 )
 target_include_directories(test_catchem_api PRIVATE ${CMAKE_BINARY_DIR}/include)
 add_dependencies(test_catchem_api CATChem_core)
@@ -307,7 +351,9 @@ add_test(
 # target_link_libraries(test_main PRIVATE testing)
 # set_target_properties(
 #   test_main
-#   PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#   PROPERTIES
+#     Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#     LINKER_LANGUAGE Fortran
 # )
 # add_test(
 #   NAME test_main
@@ -328,7 +374,9 @@ add_test(
 # target_link_libraries(test_dust PRIVATE testing)
 # set_target_properties(
 #   test_dust
-#   PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#   PROPERTIES
+#     Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#     LINKER_LANGUAGE Fortran
 # )
 # add_test(
 #   NAME test_ccpr_dust
@@ -343,7 +391,9 @@ add_test(
 # target_link_libraries(test_seasalt PRIVATE testing)
 # set_target_properties(
 #   test_seasalt
-#   PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#   PROPERTIES
+#     Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#     LINKER_LANGUAGE Fortran
 # )
 # add_test(
 #   NAME test_ccpr_seasalt
@@ -357,7 +407,9 @@ add_test(
 # target_link_libraries(test_prise PRIVATE testing)
 # set_target_properties(
 #   test_prise
-#   PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#   PROPERTIES
+#     Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#     LINKER_LANGUAGE Fortran
 # )
 # add_test(
 #   NAME test_plumerise
@@ -371,7 +423,9 @@ add_test(
 # target_link_libraries(test_drydep PRIVATE testing)
 # set_target_properties(
 #   test_drydep
-#   PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#   PROPERTIES
+#     Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#     LINKER_LANGUAGE Fortran
 # )
 # add_test(
 #   NAME test_drydep
@@ -384,6 +438,8 @@ add_test(
 #target_link_libraries(test_chem PRIVATE testing)
 #set_target_properties(
 #  test_chem
-#  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#  PROPERTIES
+#     Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#     LINKER_LANGUAGE Fortran
 #)
 #add_test(NAME test_chem COMMAND test_chem)

@@ -10,7 +10,7 @@ if(BUILD_PROCESSES)
 endif()
 
 # API depends on process modules
-option(BUILD_API "Build API (requires process modules)" OFF)
+option(BUILD_API "Build API (requires process modules)" ON)
 if(BUILD_API AND BUILD_PROCESSES)
   add_subdirectory(api)
 endif()

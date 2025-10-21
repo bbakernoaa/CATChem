@@ -1,16 +1,16 @@
 set(_base_srcs
-  Constants.F90
-  Utilities_Mod.F90
-  Met_Utilities_Mod.F90
-  Error_Mod.F90
+  constants.F90
+  utilities_mod.F90
+  met_utilities_mod.F90
+  error_mod.F90
 )
 
 set(_state_srcs
   TimeState_Mod.F90
-  Species_Mod.F90
+  species_mod.F90
   GridGeometry_Mod.F90
-  MetState_Mod.F90
-  ChemState_Mod.F90
+  metstate_mod.F90
+  chemstate_mod.F90
   ExtEmisData_Mod.F90
   DiagnosticInterface_Mod.F90
 )
@@ -52,7 +52,7 @@ target_compile_options(CATChem_core PRIVATE ${_catchem_compiler_options})
 
 target_link_libraries(CATChem_core PRIVATE yaml_interface catchem_utilities)
 
-set(METSTATE_MOD_F90 ${CMAKE_CURRENT_SOURCE_DIR}/MetState_Mod.F90)
+set(METSTATE_MOD_F90 ${CMAKE_CURRENT_SOURCE_DIR}/metstate_mod.F90)
 set(METSTATE_ACCESSOR_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_column_accessor.inc)
 set(METSTATE_ACCESSOR_INT_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_column_accessor_int.inc)
 set(METSTATE_ACCESSOR_LOGICAL_INC ${CMAKE_CURRENT_BINARY_DIR}/metstate_column_accessor_logical.inc)
@@ -349,7 +349,7 @@ add_custom_target(
 
 add_dependencies(CATChem_core metstate_macros)
 
-set_source_files_properties(MetState_Mod.F90 PROPERTIES
+set_source_files_properties(metstate_mod.F90 PROPERTIES
   COMPILE_FLAGS "-cpp"
   OBJECT_DEPENDS "${METSTATE_ACCESSOR_INC};${METSTATE_ACCESSOR_INT_INC};${METSTATE_ACCESSOR_LOGICAL_INC};${METSTATE_ALLOCATE_INC};${METSTATE_DEALLOCATE_INC};${METSTATE_2D_SCALAR_ACCESSOR_INC};${METSTATE_2D_SCALAR_ACCESSOR_INT_INC};${METSTATE_2D_SCALAR_ACCESSOR_LOGICAL_INC};${METSTATE_SCALAR_ACCESSOR_INC};${METSTATE_SCALAR_ACCESSOR_INT_INC};${METSTATE_SCALAR_ACCESSOR_LOGICAL_INC};${METSTATE_SET_FIELD_INC};${METSTATE_SET_FIELD_2D_REAL_INC};${METSTATE_SET_FIELD_2D_INT_INC};${METSTATE_SET_FIELD_2D_LOGICAL_INC};${METSTATE_SET_FIELD_3D_REAL_INC};${METSTATE_SET_FIELD_3D_INT_INC};${METSTATE_SET_FIELD_3D_LOGICAL_INC};${METSTATE_SET_FIELD_SCALAR_REAL_INC};${METSTATE_SET_FIELD_SCALAR_INT_INC};${METSTATE_SET_FIELD_SCALAR_LOGICAL_INC};${METSTATE_MULTIPLE_FIELDS_INTERFACE_INC}"
 )

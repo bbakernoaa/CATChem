@@ -20,7 +20,7 @@ MODULE MetState_Mod
    IMPLICIT NONE
    PRIVATE
 
-   PUBLIC :: MetStateType           ! Main data type
+   !PUBLIC :: MetStateType           ! Main data type
 
    !=========================================================================
    ! Derived type for Meteorology State

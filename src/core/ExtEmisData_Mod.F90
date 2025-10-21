@@ -27,9 +27,9 @@ MODULE ExtEmisData_Mod
    !=========================================================================
    ! Public interfaces
    !=========================================================================
-   PUBLIC :: ExtEmisDataType
-   PUBLIC :: ExtEmisFieldType
-   PUBLIC :: ExtEmisCategoryType
+   !PUBLIC :: ExtEmisDataType
+   !PUBLIC :: ExtEmisFieldType
+   !PUBLIC :: ExtEmisCategoryType
 
    !> \brief Derived type for individual external emission field
    !!

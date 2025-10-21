@@ -62,7 +62,7 @@ module species_mod
    !! @param photolysis_index Index in photolysis array
    !! @param gocart_aero_index Index in GOCART aerosol array
    !! @param conc Species concentration [v/v] or [kg/kg]
-   type, public :: SpeciesType
+   type :: SpeciesType
 
       ! Names
       character(len=30) :: long_name   !< Long name for species used for NetCDF attribute "long_name"

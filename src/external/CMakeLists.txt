@@ -31,8 +31,6 @@ find_package(NetCDF REQUIRED COMPONENTS Fortran)
 
 target_link_libraries(${_lib} NetCDF::NetCDF_Fortran)
 
-# Add yaml-cpp as a subdirectory so its target is available
-#add_subdirectory(yaml-cpp)
 
 set_target_properties(
   ${_lib}
@@ -44,17 +42,35 @@ set_target_properties(
 #
 
 # Set MUSICA build options before adding the subdirectory
-set(MICM_ENABLE_TESTS OFF)
-set(MICM_ENABLE_EXAMPLES OFF)
-set(MUSICA_BUILD_C_CXX_INTERFACE ON)
-set(MUSICA_BUILD_FORTRAN_INTERFACE ON)
-set(MUSICA_ENABLE_INSTALL OFF)
-set(MUSICA_ENABLE_TESTS OFF)
-set(MUSICA_ENABLE_MICM ON)
-set(MUSICA_ENABLE_TUVX ON)
+# set(MICM_ENABLE_TESTS OFF)
+# set(MICM_ENABLE_EXAMPLES OFF)
+# set(MUSICA_BUILD_C_CXX_INTERFACE ON)
+# set(MUSICA_BUILD_FORTRAN_INTERFACE ON)
+# set(MUSICA_ENABLE_INSTALL OFF)
+# set(MUSICA_ENABLE_TESTS OFF)
+# set(MUSICA_ENABLE_MICM ON)
+# set(MUSICA_ENABLE_TUVX ON)
 
-# Add MUSICA as a subdirectory (from submodule v0.11.1.4)
-add_subdirectory(musica)
+# # Add MUSICA as a subdirectory (from submodule v0.11.1.4)
+# add_subdirectory(musica)
 
-# Add our yaml interface (now that yaml-cpp is available from MUSICA)
+#
+# YAML-CPP standalone build (since we're not using MUSICA)
+#
+
+include(FetchContent)
+FetchContent_Declare(
+  yaml-cpp
+  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+  GIT_TAG        yaml-cpp-0.7.0
+)
+
+# Configure yaml-cpp build options
+set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Build yaml-cpp tests")
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build yaml-cpp tools")
+set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build yaml-cpp contrib")
+
+FetchContent_MakeAvailable(yaml-cpp)
+
+# Add our yaml interface (now that yaml-cpp is available independently)
 add_subdirectory(yaml_interface)
