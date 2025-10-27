@@ -91,3 +91,76 @@ endif()
 add_subdirectory(src)
 add_subdirectory(tests)
 add_subdirectory(drivers/nuopc)
+
+# Copy module files from include/ to mod/ for UFS integration during build
+# add_custom_target(copy_modules_to_mod ALL
+#   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/../mod
+#   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/include ${CMAKE_BINARY_DIR}/../mod
+#   DEPENDS NUOPC_CATChem_cap CATChem_core
+#   COMMENT "Copying module files from include/ to mod/ for UFS integration"
+# )
+
+# Create a self-contained aqm library by combining all necessary object files
+# This avoids export dependency issues by not linking to other CMake targets
+
+# Create aqm library directly from source files to avoid dependency exports
+add_library(aqm STATIC
+  drivers/nuopc/aqmio.F90
+  drivers/nuopc/catchem_nuopc_cap.F90 
+  drivers/nuopc/catchem_nuopc_interface.F90
+)
+
+# Link only to external dependencies (not internal CATChem targets)
+target_link_libraries(aqm PUBLIC esmf NetCDF::NetCDF_Fortran)
+
+# Manually handle the CATChem dependencies by linking to built libraries
+# Only need to depend on CATChem - it already depends on CATChem_core, yaml_interface, etc.
+add_dependencies(aqm CATChem)
+
+# Link to library files in dependency order (most dependent first)
+target_link_libraries(aqm PRIVATE 
+  $<TARGET_FILE:CATChem>
+  $<TARGET_FILE:CATChem_process_seasalt>
+  $<TARGET_FILE:CATChem_core>
+  $<TARGET_FILE:yaml_interface>
+  $<TARGET_FILE:catchem_utilities>
+)
+
+# Include directories for compilation
+target_include_directories(aqm PRIVATE
+  ${CMAKE_BINARY_DIR}/include
+  #$<TARGET_PROPERTY:CATChem,INTERFACE_INCLUDE_DIRECTORIES>
+  #$<TARGET_PROPERTY:esmf,INTERFACE_INCLUDE_DIRECTORIES>
+  #$<TARGET_PROPERTY:NetCDF::NetCDF_Fortran,INTERFACE_INCLUDE_DIRECTORIES>
+)
+
+set_target_properties(aqm PROPERTIES 
+  Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/../mod
+  EXPORT_NAME aqm
+)
+
+target_compile_options(aqm PRIVATE ${_catchem_compiler_options})
+
+###############################################################################
+### Installation and Export for UFS integration
+###############################################################################
+
+# Install only the self-contained aqm library - all dependencies are linked directly
+install(TARGETS aqm
+        EXPORT ufs-config
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
+
+# Install module files to both locations for compatibility
+# Keep include/ for standalone CATChem, add mod/ for UFS integration
+# install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
+#         DESTINATION include/
+#         COMPONENT Development
+#         FILES_MATCHING PATTERN "*.mod")
+
+# install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
+#         DESTINATION mod/
+#         COMPONENT Development
+#         FILES_MATCHING PATTERN "*.mod")
+
+# Note: aqm target is exported via ufs-config export set in UFS CMakeLists.txt

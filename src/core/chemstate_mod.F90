@@ -894,7 +894,7 @@ CONTAINS
 
       integer :: i
 
-      species_index = -1  ! Not found
+      species_index = 0  ! Not found
 
       if (allocated(this%SpeciesNames)) then
          do i = 1, this%nSpecies

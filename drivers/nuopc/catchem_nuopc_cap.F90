@@ -35,7 +35,9 @@
 !! \date November 2024
 !! \ingroup catchem_nuopc_group
 
-module catchem_nuopc_cap
+module aqm
+! Renamed from catchem_nuopc_cap to aqm for UFS Driver compatibility
+! UFS expects: use aqm, only: AQM_SS => SetServices (after FRONT_AQM=aqm substitution)
 
   use ESMF
   use NUOPC
@@ -95,14 +97,14 @@ contains
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return
 
-    ! Set component metadata
-    call ESMF_AttributeSet(model, name="model_name", value="CATChem", rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, file=__FILE__)) return
+    ! ! Set component metadata
+    ! call ESMF_AttributeSet(model, name="model_name", value="CATChem", rc=rc)
+    ! if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+    !   line=__LINE__, file=__FILE__)) return
 
-    call ESMF_AttributeSet(model, name="model_version", value="1.0", rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, file=__FILE__)) return
+    ! call ESMF_AttributeSet(model, name="model_version", value="1.0", rc=rc)
+    ! if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+    !   line=__LINE__, file=__FILE__)) return
 
     !Note NUOPC_CompSetEntryPoint is deprecated for newer version of ESMF
     call NUOPC_CompSpecialize(model, specLabel=model_label_Advertise, &
@@ -184,13 +186,21 @@ contains
 
     ! Advertise import fields only when it has nothing 
     !if (size(fieldList) == 0) then
-      ! Advertise import fields
-      do i = 1, field_config%n_import_fields
-        call NUOPC_Advertise(importState, &
-          StandardName=trim(field_config%import_fields(i)%standard_name), rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-      end do
+      ! Advertise import fields using MPI-safe accessor functions
+       do i = 1, size(field_config%import_fields)
+      !   block
+      !     character(len=128) :: standard_name
+      !     logical :: optional
+      !     if (get_import_field_info(i, standard_name, optional)) then
+            call NUOPC_Advertise(importState, &
+              StandardName=trim(field_config%import_fields(i)%standard_name), &
+              TransferOfferGeomObject="cannot provide", &
+              SharePolicyField="share", rc=rc)
+            if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+              line=__LINE__, file=__FILE__)) return
+      !     end if
+      !   end block
+       end do
     !end if
 
     ! retrieve member list from export state, if any
@@ -203,12 +213,21 @@ contains
 
     ! Advertise export fields only when it has nothing
     !if (size(fieldList) == 0) then
-      do i = 1, field_config%n_export_fields
-        call NUOPC_Advertise(exportState, &
-          StandardName=trim(field_config%export_fields(i)%standard_name), rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, file=__FILE__)) return
-      end do
+      ! Advertise export fields using MPI-safe accessor functions
+      do i = 1, size(field_config%export_fields)
+      !   block
+      !     character(len=128) :: standard_name
+      !     logical :: optional
+      !     if (get_export_field_info(i, standard_name, optional)) then
+            call NUOPC_Advertise(exportState, &
+              StandardName=trim(field_config%export_fields(i)%standard_name), &
+              TransferOfferGeomObject="cannot provide", &
+              SharePolicyField="share", rc=rc)
+            if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+              line=__LINE__, file=__FILE__)) return
+      !     end if
+      !   end block
+       end do
     !end if
 
     ! Log successful completion
@@ -258,12 +277,15 @@ contains
     real(ESMF_KIND_R8), dimension(:,:), allocatable :: lat
     type(ESMF_CoordSys_Flag)   :: coordSys
     character(len=*), parameter :: routine = 'InitializeP2'
+    real(ESMF_KIND_R8), parameter :: rad_to_deg = 180._ESMF_KIND_R8 / 3.14159265358979323846_ESMF_KIND_R8
+    real(ESMF_KIND_R8) :: convet_unit
     character(len=512) :: errmsg
     integer :: localPet, petCount
     integer :: im, jm  ! Grid dimensions
     integer :: item, coord_item, rank, localDeCount, numLevels, localDe, localrc, stat
     integer, dimension(2) :: lb, ub
     logical :: has_tracer_array
+    type(CATChem_InternalState) :: is
 
     rc = ESMF_SUCCESS
     has_tracer_array = .false.
@@ -311,32 +333,41 @@ contains
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return  ! bail out
 
-          ! -- get local coordinate arrays
-          call ESMF_GridGet(grid, coordSys=coordSys, rc=rc)
-          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__)) return  ! bail out
-          
-          if (coordSys == ESMF_COORDSYS_SPH_DEG) then
+          do localDe = 0, localDeCount-1
+            ! -- get local coordinate arrays
+            call ESMF_GridGet(grid, coordSys=coordSys, rc=rc)
+            if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+              line=__LINE__, file=__FILE__)) return  ! bail out
+            
             do coord_item = 1, 2
               call ESMF_GridGetCoord(grid, coordDim=coord_item, staggerloc=ESMF_STAGGERLOC_CENTER, &
               localDE=localDe, farrayPtr=coord, rc=rc)
               if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
                 line=__LINE__, file=__FILE__)) return  ! bail out
+
+              if (coordSys == ESMF_COORDSYS_SPH_DEG) then
+                !coordinates are in degrees already
+                convet_unit = 1._ESMF_KIND_R8
+              else if (coordSys == ESMF_COORDSYS_SPH_RAD) then
+                !convert radians to degrees
+                convet_unit = rad_to_deg
+              else
+                call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+                  msg="Unsupported coordinate system - Failed to set coordinates for air quality model", &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)
+                return  ! bail out
+              end if
+
               select case (coord_item)
                 case(1)
-                  lon = coord
+                  lon = coord * convet_unit
                 case(2)
-                  lat = coord
+                  lat = coord * convet_unit
                 case default
                   !do nothing
               end select
-            end do
-          else 
-            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-              msg="Unsupported coordinate system - Failed to set coordinates for air quality model", &
-              line=__LINE__, file=__FILE__, rcToReturn=rc)
-            return  ! bail out
-          end if !coordSys
+            end do ! loop over coordinate dimensions
+          end do ! loop over local DEs
 
         end if !rank = 4
       end do
@@ -353,7 +384,7 @@ contains
     end if
 
     ! Initialize CATChem using the interface (TODO: not provide nsoil, nsoiltype and nsurftype)
-    call catchem_nuopc_init(config_file, lat, lon, numLevels, tracerInfo, grid, rc=rc)
+    call catchem_nuopc_init(model, config_file, lat, lon, numLevels, tracerInfo, grid, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return  ! bail out
 
@@ -362,7 +393,7 @@ contains
       name="InitializeCATChemComplete", value="true", rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return  ! bail out
-
+    
   end subroutine InitializeP2
 
   !> \brief Model advance routine - Execute one time step of chemistry calculations
@@ -411,6 +442,7 @@ contains
 
     rc = ESMF_SUCCESS
 
+    write(*,*) "Entering Model Advance...."
     ! Get component information
     call ESMF_GridCompGet(model, localPet=localPet, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -437,6 +469,7 @@ contains
         ESMF_LOGMSG_INFO, rc=rc)
     end if
 
+    write(*,*) "About to transform_nuopc_to_catchem...."
     ! Import meteorological data from other components
     call transform_nuopc_to_catchem(importState, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -451,6 +484,7 @@ contains
       return
     end if
 
+    write(*,*) "About to transform_catchem_to_nuopc...."
     ! Export results to other components
     call transform_catchem_to_nuopc(exportState, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -539,4 +573,4 @@ contains
     str = adjustl(str)
   end function real_to_string
 
-end module catchem_nuopc_cap
+end module aqm

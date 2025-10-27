@@ -27,6 +27,7 @@ module catchem_nuopc_interface
 
   use ESMF
   use NUOPC
+  use MPI
   use CATChem_API, only: CATChem_Model
   ! use catchem_nuopc_cf_input
   ! use catchem_nuopc_netcdf_out
@@ -53,6 +54,9 @@ module catchem_nuopc_interface
   public :: transform_catchem_to_nuopc
   public :: load_field_config
   public :: catchem_diagnostics_write
+  public :: get_cc_wrap  ! Accessor for process-local wrapper
+  public :: get_n_import_fields, get_import_field_info  ! Safe field_config access
+  public :: get_n_export_fields, get_export_field_info  ! Safe field_config access
 
   !> \brief Field mapping configuration structure
   !!
@@ -80,6 +84,9 @@ module catchem_nuopc_interface
     type(field_mapping_type), allocatable :: export_fields(:) !< Export field mapping array
   end type field_config_type
 
+  !> field_config can be shared among MPIs
+  type(field_config_type), public :: field_config
+
   !> \brief tracer mapping between CATChem and NUOPC
   !!
   !! Defines the tracer mapping index between NUOPC and chem_state if CATChem
@@ -91,20 +98,27 @@ module catchem_nuopc_interface
   end type tracer_index_map
   !! \}
 
-  ! Module-level instances
-  type(CATChem_Model), public :: catchem
-  type(field_config_type), public :: field_config
-  type(tracer_index_map), public :: tracer_map
+  !> Container for process-private CATChem state to avoid MPI sharing
+  type :: cc_wrap_type
+    type(CATChem_Model) :: catchem_model
+    type(field_config_type) :: field_config  ! Moved from module level for MPI safety
+    type(tracer_index_map) :: tracer_map
+    type(ESMF_Grid) :: grid
+    logical :: initialized = .false.
+    ! Diagnostic output variables (moved from module level for MPI safety)
+    type(ESMF_Time) :: last_output_time
+    type(ESMF_TimeInterval) :: output_interval
+    logical :: output_timing_initialized = .false.
+    character(len=256) :: output_directory = './output'
+    character(len=64) :: output_prefix = 'catchem_diag'
+    integer :: output_frequency = 3600  ! Default: 1 hour in seconds
+    type(ESMF_GridComp) :: iocomp
+  end type cc_wrap_type
 
-  ! Module-level variables for diagnostic output
-  type(ESMF_Time), save :: last_output_time
-  type(ESMF_TimeInterval), save :: output_interval
-  logical, save :: output_timing_initialized = .false.
-  character(len=256), save :: output_directory = './output'
-  character(len=64), save :: output_prefix = 'catchem_diag'
-  integer, save :: output_frequency = 3600  ! Default: 1 hour in seconds
-  type(ESMF_GridComp), save :: iocomp
-  type(ESMF_Grid), save :: grid
+  type CATChem_InternalState
+    type(cc_wrap_type), pointer :: wrap => null()
+  end type CATChem_InternalState
+  public :: cc_wrap_type, CATChem_InternalState
 
 
 contains
@@ -143,9 +157,10 @@ contains
   !!       and requires valid ESMF grid and configuration files
   !!
   !! @warning Proper error checking should be performed on errflg after calling
-  subroutine catchem_nuopc_init(config_file, lat, lon, nlev, tracerinfo, input_grid, nsoil, nsoiltype, nsurftype, rc)
+  subroutine catchem_nuopc_init(model, config_file, lat, lon, nlev, tracerinfo, input_grid, nsoil, nsoiltype, nsurftype, rc)
     use ChemSpeciesUtils_Mod, only : create_species_mapping
 
+    type(ESMF_GridComp)  :: model
     character(len=*), intent(in) :: config_file
     real(ESMF_KIND_R8), dimension(:,:), intent(in) :: lat
     real(ESMF_KIND_R8), dimension(:,:), intent(in) :: lon
@@ -160,22 +175,30 @@ contains
     type(MetStateType), pointer :: met_state
     type(ChemStateType), pointer :: chem_state
     integer :: nx, ny, num_processes, stat
+    character(len=128), allocatable :: tracer_names(:) !< NUOPC tracer name
+    character(len=128), allocatable :: tracer_units(:) !< NUOPC tracer unit 
+    type(CATChem_InternalState) :: is
+    type(cc_wrap_type), pointer :: cc_wrap
 
     ! Initialize
     rc = CC_SUCCESS
 
-    ! Set the module-level grid variable for diagnostic output
-    grid = input_grid
+    ! -- allocate memory for the internal state and store it into component
+    allocate(is%wrap, stat=stat)
+    if (ESMF_LogFoundAllocError(statusToCheck=stat, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__,  file=__FILE__,  rcToReturn=rc)) return !bail out
+    
+    cc_wrap => is%wrap
 
     !get nx, ny
     nx = size(lat, 1)
     ny = size(lat, 2)
 
-    ! Initialize catchem
+    ! Initialize catchem using process-local variable
     if (present(nsoil) .and. present(nsoiltype) .and. present(nsurftype)) then
-      call catchem%initialize(config_file, nx, ny, nlev, nsoil, nsoiltype, nsurftype, rc)
+      call cc_wrap%catchem_model%initialize(config_file, nx, ny, nlev, nsoil, nsoiltype, nsurftype, rc)
     else 
-      call catchem%initialize(config_file, nx, ny, nlev, rc = rc)
+      call cc_wrap%catchem_model%initialize(config_file, nx, ny, nlev, rc = rc)
     end if
 
     if (rc /= CC_SUCCESS) then 
@@ -186,17 +209,17 @@ contains
     end if
 
     !assign lat and lon to metstate
-    state_mgr => catchem%get_state_manager()
+    state_mgr => cc_wrap%catchem_model%get_state_manager()
     met_state => state_mgr%get_met_state_ptr()
     met_state%lat = lat
     met_state%lon = lon
 
-    !populate tracer mapping
-    call TracerInfoGet(tracerinfo, 'tracerNames', tracer_map % names, rc=rc)
+    !populate tracer mapping using process-local tracer_map
+    call TracerInfoGet(tracerinfo, 'tracerNames', tracer_names, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__,  file=__FILE__)) return  ! bail out
 
-    if (.not.allocated(tracer_map%names)) then
+    if (.not.allocated(tracer_names)) then
       call ESMF_LogWrite("Unable to retrieve imported tracer list", &
         ESMF_LOGMSG_WARNING, line=__LINE__, file=__FILE__, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -205,32 +228,67 @@ contains
     end if
 
     ! - import tracer units if available
-    call TracerInfoGet(tracerinfo, 'tracerUnits', tracer_map % units, rc=rc)
+    call TracerInfoGet(tracerinfo, 'tracerUnits', tracer_units, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__,  file=__FILE__)) return  ! bail out
 
-    if (.not.allocated(tracer_map % units)) then
-      allocate(tracer_map % units(size(tracer_map % names)), stat=stat)
+    if (.not.allocated(tracer_units)) then
+      allocate(tracer_units(size(tracer_names)), stat=stat)
       if (ESMF_LogFoundAllocError(statusToCheck=stat, &
         msg="Unable to allocate internal workspace", &
         line=__LINE__,  file=__FILE__)) return  ! bail out
-      tracer_map % units = 'n/a'
+      tracer_units = 'n/a'
     end if
 
+    !copy to cc_wrap
+    allocate(cc_wrap%tracer_map%names, stat=stat, source=tracer_names)
+    if (ESMF_LogFoundAllocError(statusToCheck=stat, &
+      msg="Unable to allocate tracers name", &
+      line=__LINE__,  file=__FILE__, rcToReturn=rc)) return  ! bail out
+
+    allocate(cc_wrap%tracer_map%units, stat=stat, source=tracer_units)
+    if (ESMF_LogFoundAllocError(statusToCheck=stat, &
+      msg="Unable to allocate tracers unit", &
+      line=__LINE__,  file=__FILE__, rcToReturn=rc)) return  ! bail out
+    
+    allocate(cc_wrap%tracer_map%nuopc_to_cc(size(tracer_names)), stat=stat)
+    if (ESMF_LogFoundAllocError(statusToCheck=stat, &
+      msg="Unable to allocate nuopc_to_cc mapping", &
+      line=__LINE__,  file=__FILE__, rcToReturn=rc)) return  ! bail out
+
     ! assign mapping index
-    call create_species_mapping(state_mgr, tracer_map%names, tracer_map%nuopc_to_cc, rc)
+    call create_species_mapping(state_mgr, cc_wrap%tracer_map%names, cc_wrap%tracer_map%nuopc_to_cc, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__,  file=__FILE__)) return  ! bail out
+    
+    !copy fields to cc_wrap
+    cc_wrap%field_config = field_config
+    ! Set the process-local grid variable
+    cc_wrap%grid = input_grid
 
     ! Add all enabled processes from configuration
-    call catchem%add_process(rc)
-    num_processes = catchem%get_num_processes()
+    call cc_wrap%catchem_model%add_process(rc)
+    num_processes = cc_wrap%catchem_model%get_num_processes()
     if (rc /= CC_SUCCESS .or. num_processes <= 0) then
       call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
         msg="CATChem initialization failed", &
         line=__LINE__, file=__FILE__, rcToReturn=rc) 
       return  ! bail out
     end if
+
+    ! Mark this process as initialized
+    cc_wrap%initialized = .true.
+
+    !store cc_wrap into component
+    call ESMF_GridCompSetInternalState(model, is, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__,  file=__FILE__)) return  ! bail out
+
+    !deallocate variable
+    if (allocated(tracer_names)) deallocate(tracer_names)
+    if (allocated(tracer_units)) deallocate(tracer_units)
+    if (allocated(field_config%import_fields)) deallocate(field_config%import_fields)
+    if (allocated(field_config%export_fields)) deallocate(field_config%export_fields)
 
     ! ! Initialize CF input system
     ! call cf_input_init('catchem_input_config.yml', grid, errflg)
@@ -249,6 +307,34 @@ contains
     ! end if
 
   end subroutine catchem_nuopc_init
+
+  !> Get process-local CATChem wrapper (guaranteed thread/process safe)
+  !!
+  !! This function provides access to the process-local CATChem state
+  !! using static local variables which are guaranteed to be process-private
+  !! in MPI environments.
+  !!
+  !! \return Pointer to process-local CATChem wrapper
+  function get_cc_wrap() result(wrap_ptr)
+    type(ESMF_GridComp)         :: model
+    type(cc_wrap_type), pointer :: wrap_ptr
+    
+    type(cc_wrap_type), target :: cc_wrap
+    integer                    :: verbosity, localrc
+    character(len=128) :: name
+
+    ! -- get component's information
+    call NUOPC_CompGet(model, name=name, verbosity=verbosity, rc=localrc)
+    if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__,  file=__FILE__)) return  ! bail out
+
+    ! -- get component's internal state
+    call ESMF_GridCompGetInternalState(model, cc_wrap, localrc)
+    if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__,  file=__FILE__))  return  ! bail out
+    
+    wrap_ptr => cc_wrap
+  end function get_cc_wrap
 
   ! Run CATChem processes for NUOPC interface
   !!
@@ -269,8 +355,12 @@ contains
     character(len=*), intent(out) :: errmsg
     integer, intent(out) :: rc
 
+    ! Get process-local state
+    type(cc_wrap_type), pointer :: cc_wrap
     integer, save :: timestep = 0
 
+    cc_wrap => get_cc_wrap()
+    
     rc = CC_SUCCESS
     errmsg = ''
 
@@ -283,7 +373,7 @@ contains
 
     !Run CATChem processes
     timestep = timestep + 1
-    call catchem%run_timestep(timestep, real(dt, fp), rc)
+    call cc_wrap%catchem_model%run_timestep(timestep, real(dt, fp), rc)
     if (rc /= CC_SUCCESS) then
         write(errmsg, '(A,I0)') 'Error in run_timestep at timestep = ', timestep
         return
@@ -312,6 +402,10 @@ contains
     integer, intent(out) :: rc
     character(len=*), intent(out) :: errmsg
 
+    ! Get process-local state
+    type(cc_wrap_type), pointer :: cc_wrap
+    cc_wrap => get_cc_wrap()
+
     rc = CC_SUCCESS
     errmsg = ''
 
@@ -322,15 +416,18 @@ contains
     !call output_diagnostics_finalize()
 
     ! Finalize CATChem model
-    call catchem%finalize(rc)
-    if (rc /= CC_SUCCESS) then
-        errmsg = 'Error in calling catchem%finalize!'
-        return
+    if (cc_wrap%initialized) then
+      call cc_wrap%catchem_model%finalize(rc)
+      if (rc /= CC_SUCCESS) then
+          errmsg = 'Error in calling cc_wrap%catchem_model%finalize!'
+          return
+      end if
+      cc_wrap%initialized = .false.
     end if
 
     ! Deallocate field mappings
-    if (allocated(field_config%import_fields)) deallocate(field_config%import_fields)
-    if (allocated(field_config%export_fields)) deallocate(field_config%export_fields)
+    if (allocated(cc_wrap%field_config%import_fields)) deallocate(cc_wrap%field_config%import_fields)
+    if (allocated(cc_wrap%field_config%export_fields)) deallocate(cc_wrap%field_config%export_fields)
 
   end subroutine catchem_nuopc_finalize
 
@@ -350,26 +447,30 @@ contains
     type(ESMF_Field) :: field
     logical, allocatable :: set_required_met(:)
     integer :: i, n, n_met
+    type(cc_wrap_type), pointer :: cc_wrap
 
     rc = ESMF_SUCCESS
+    
+    ! Get process-local state
+    cc_wrap => get_cc_wrap()
 
     ! This is to check if all required met fields in CATChem are set 
-    if (allocated(catchem%required_fields)) then 
-      n_met = size(catchem%required_fields)
+    if (allocated(cc_wrap%catchem_model%required_fields)) then 
+      n_met = size(cc_wrap%catchem_model%required_fields)
       allocate(set_required_met(n_met))
       set_required_met = .false. 
     end if
 
     ! Loop through all import fields and transform to CATChem states
-    do n = 1, field_config%n_import_fields
+    do n = 1, cc_wrap%field_config%n_import_fields
 
       ! Try to get field from import state (will fail if not present)
-      call ESMF_StateGet(importState, trim(field_config%import_fields(n)%standard_name), field, rc=rc)
+      call ESMF_StateGet(importState, trim(cc_wrap%field_config%import_fields(n)%standard_name), field, rc=rc)
       
       if (rc /= ESMF_SUCCESS) then
-        if (.not. field_config%import_fields(n)%optional) then
+        if (.not. cc_wrap%field_config%import_fields(n)%optional) then
           call ESMF_LogWrite("Required field not found: "// &
-            trim(field_config%import_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
+            trim(cc_wrap%field_config%import_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
           rc = ESMF_FAILURE
           return
         else
@@ -378,18 +479,18 @@ contains
       end if
 
       ! Transform based on field type and dimensions
-      call transform_field_to_catchem(field, field_config%import_fields(n), set_required_met, rc)
+      call transform_field_to_catchem(field, cc_wrap%field_config%import_fields(n), set_required_met, rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, file=__FILE__)) return
 
     end do
 
     !check if all require met fields are set
-    if (allocated(catchem%required_fields)) then 
+    if (allocated(cc_wrap%catchem_model%required_fields)) then 
       do i = 1, n_met
         if (.not. set_required_met(i)) then 
           call ESMF_LogWrite("Required met field not set yet: "// &
-            trim(catchem%required_fields(i)), ESMF_LOGMSG_ERROR, rc=rc)
+            trim(cc_wrap%catchem_model%required_fields(i)), ESMF_LOGMSG_ERROR, rc=rc)
           rc = ESMF_FAILURE
           return
         end if     
@@ -415,19 +516,23 @@ contains
 
     type(ESMF_Field) :: field
     integer :: n
+    type(cc_wrap_type), pointer :: cc_wrap
 
     rc = ESMF_SUCCESS
+    
+    ! Get process-local state
+    cc_wrap => get_cc_wrap()
 
     ! Loop through all export fields and transform from CATChem states
-    do n = 1, field_config%n_export_fields
+    do n = 1, cc_wrap%field_config%n_export_fields
 
       ! Try to get field from export state (will fail if not present)
-      call ESMF_StateGet(exportState, trim(field_config%export_fields(n)%standard_name), field, rc=rc)
+      call ESMF_StateGet(exportState, trim(cc_wrap%field_config%export_fields(n)%standard_name), field, rc=rc)
       
       if (rc /= ESMF_SUCCESS) then
-        if (.not. field_config%export_fields(n)%optional) then
+        if (.not. cc_wrap%field_config%export_fields(n)%optional) then
           call ESMF_LogWrite("Required export field not found: "// &
-            trim(field_config%export_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
+            trim(cc_wrap%field_config%export_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
           rc = ESMF_FAILURE
           return
         else
@@ -436,7 +541,7 @@ contains
       end if
 
       ! Transform from CATChem to field
-      call transform_catchem_to_field(field, field_config%export_fields(n), rc)
+      call transform_catchem_to_field(field, cc_wrap%field_config%export_fields(n), rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, file=__FILE__)) return
 
@@ -466,6 +571,7 @@ contains
     type(ErrorManagerType), pointer :: error_mgr
     type(MetStateType), pointer :: met_state
     type(ChemStateType), pointer :: chem_state
+    type(cc_wrap_type), pointer :: cc_wrap
     real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
     real(ESMF_KIND_R8), pointer :: fptr4d_rev(:,:,:,:), fptr3d_rev(:,:,:)
     real(ESMF_KIND_R8) :: unit_conv
@@ -473,8 +579,11 @@ contains
 
     rc = ESMF_SUCCESS
 
-    process_mgr => catchem%get_process_manager()
-    state_mgr => catchem%get_state_manager()
+    ! Get process-local state
+    cc_wrap => get_cc_wrap()
+
+    process_mgr => cc_wrap%catchem_model%get_process_manager()
+    state_mgr => cc_wrap%catchem_model%get_state_manager()
     error_mgr => state_mgr%get_error_manager()
     met_state => state_mgr%get_met_state_ptr()
 
@@ -500,8 +609,8 @@ contains
         call met_state%set_field(trim(field_map%catchem_var), real(fptr2d, fp), error_mgr, rc)
 
         if (rc == CC_SUCCESS) then 
-          if (allocated(catchem%required_fields)) then 
-            met_index = catchem%get_required_met_index( trim(field_map%catchem_var) )
+          if (allocated(cc_wrap%catchem_model%required_fields)) then 
+            met_index = cc_wrap%catchem_model%get_required_met_index( trim(field_map%catchem_var) )
             if (met_index >0 ) then 
               is_met_set(met_index) = .true.
             end if
@@ -537,8 +646,8 @@ contains
         call met_state%set_field(trim(field_map%catchem_var), real(fptr3d_rev,fp), error_mgr, rc)
 
         if (rc == CC_SUCCESS) then 
-          if (allocated(catchem%required_fields)) then 
-            met_index = catchem%get_required_met_index( trim(field_map%catchem_var) )
+          if (allocated(cc_wrap%catchem_model%required_fields)) then 
+            met_index = cc_wrap%catchem_model%get_required_met_index( trim(field_map%catchem_var) )
             if (met_index >0 ) then 
               is_met_set(met_index) = .true.
             end if
@@ -571,7 +680,7 @@ contains
         nv = size(fptr4d, 4)
         ! Reverse vertical layers
         do v = 1, nv
-          v_cc = tracer_map%nuopc_to_cc(v)
+          v_cc = cc_wrap%tracer_map%nuopc_to_cc(v)
           if (chem_state%ChemSpecies(v_cc)%is_gas) then
             unit_conv = 28.9644  / chem_state%ChemSpecies(v_cc)%mw_g * 1.0e-3  ! convert from ug/kg to ppm for gases
           else 
@@ -622,6 +731,7 @@ contains
 
     type(StateManagerType), pointer :: state_mgr
     type(ChemStateType), pointer :: chem_state
+    type(cc_wrap_type), pointer :: cc_wrap
     real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
     real(fp), allocatable :: cc_diag_data(:,:,:)
     character(len=128), allocatable :: diagnostic_names(:)
@@ -630,10 +740,13 @@ contains
 
     rc = ESMF_SUCCESS
 
-    !TODO: we assume all the export fields are from DiagManager
-    call catchem%get_diagnostic_names(diagnostic_names, rc = rc)
+    ! Get process-local state
+    cc_wrap => get_cc_wrap()
 
-    state_mgr => catchem%get_state_manager()
+    !TODO: we assume all the export fields are from DiagManager
+    call cc_wrap%catchem_model%get_diagnostic_names(diagnostic_names, rc = rc)
+
+    state_mgr => cc_wrap%catchem_model%get_state_manager()
 
     ! Transform based on field mapping
     select case (field_map%dimensions)
@@ -647,9 +760,9 @@ contains
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, file=__FILE__)) return
         !find index of diagnostic name in the format of process_name.field_name
-        found_index = catchem%get_diag_index_from_field(field_map%catchem_var)
+        found_index = cc_wrap%catchem_model%get_diag_index_from_field(field_map%catchem_var)
         if (found_index > 0) then
-          call catchem%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
+          call cc_wrap%catchem_model%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
           if (rc /= ESMF_SUCCESS) then
             call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
               msg="Failed to get diagnostic data for: " // trim(diagnostic_names(found_index)), &
@@ -673,9 +786,9 @@ contains
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, file=__FILE__)) return
         !find index of diagnostic name in the format of process_name.field_name
-        found_index = catchem%get_diag_index_from_field(field_map%catchem_var)
+        found_index = cc_wrap%catchem_model%get_diag_index_from_field(field_map%catchem_var)
         if (found_index > 0) then
-          call catchem%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
+          call cc_wrap%catchem_model%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
           if (rc /= ESMF_SUCCESS) then
             call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
               msg="Failed to get diagnostic data for: " // trim(diagnostic_names(found_index)), &
@@ -724,7 +837,7 @@ contains
         nv = size(fptr4d, 4)
         ! Reverse vertical layers
         do v = 1, nv
-          v_cc = tracer_map%nuopc_to_cc(v)
+          v_cc = cc_wrap%tracer_map%nuopc_to_cc(v)
           if (v_cc > 0) then
             cc_diag_data = chem_state%ChemSpecies(v_cc)%conc
             if (chem_state%ChemSpecies(v_cc)%is_gas) then
@@ -767,19 +880,22 @@ contains
     type(ESMF_Time), intent(in) :: current_time
     integer, intent(out) :: rc
 
+    type(cc_wrap_type), pointer :: cc_wrap
     type(DiagnosticManagerType), pointer :: diag_mgr => null()
     character(len=64), allocatable :: process_list(:)
     character(len=64), allocatable :: field_names(:)
     integer :: num_processes, num_fields, i, j
     logical :: time_to_write
     character(len=256) :: filename
-  ! Use public grid variable
     character(len=*), parameter :: routine = 'catchem_diagnostics_write'
 
     rc = CC_SUCCESS
 
+    ! Get process-local state
+    cc_wrap => get_cc_wrap()
+
     ! Initialize output timing if not done
-    if (.not. output_timing_initialized) then
+    if (.not. cc_wrap%output_timing_initialized) then
       call initialize_output_timing(current_time, rc)
       if (rc /= CC_SUCCESS) return
     end if
@@ -790,7 +906,7 @@ contains
     if (.not. time_to_write) return
 
     ! Get diagnostic manager
-    diag_mgr => catchem%get_diagnostic_manager()
+    diag_mgr => cc_wrap%catchem_model%get_diagnostic_manager()
     if (.not. associated(diag_mgr)) then
       rc = CC_FAILURE
       return
@@ -801,15 +917,15 @@ contains
     if (rc /= CC_SUCCESS .or. num_processes == 0) return
 
     ! Use grid (must be set during initialization)
-    if (.not. ESMF_GridIsCreated(grid)) then
+    if (.not. ESMF_GridIsCreated(cc_wrap%grid)) then
       rc = CC_FAILURE
       write(*,'(A)') 'Error: grid not initialized.'
       return
     end if
 
     ! Initialize AQMIO component if not done
-    if (.not. ESMF_GridCompIsCreated(iocomp)) then
-      iocomp = AQMIO_Create(grid, rc =rc)
+    if (.not. ESMF_GridCompIsCreated(cc_wrap%iocomp)) then
+      cc_wrap%iocomp = AQMIO_Create(cc_wrap%grid, rc =rc)
       if (rc /= CC_SUCCESS) return
     end if
 
@@ -827,7 +943,7 @@ contains
     end do
 
     ! Update last output time
-    last_output_time = current_time
+    cc_wrap%last_output_time = current_time
 
     write(*,'(A,A)') 'CATChem: Wrote diagnostic output to ', trim(filename)
 
@@ -845,6 +961,7 @@ contains
 
     type(DiagnosticManagerType), pointer :: diag_mgr => null()
     type(DiagnosticRegistryType), pointer :: registry => null()
+    type(cc_wrap_type), pointer :: cc_wrap
     character(len=64), allocatable :: field_names(:)
     integer :: num_fields, i, data_type
     real(fp) :: scalar_value
@@ -857,8 +974,11 @@ contains
 
     rc = CC_SUCCESS
 
+    ! Get process-local state
+    cc_wrap => get_cc_wrap()
+
     ! Get diagnostic manager and process registry
-    diag_mgr => catchem%get_diagnostic_manager()
+    diag_mgr => cc_wrap%catchem_model%get_diagnostic_manager()
     call diag_mgr%get_process_registry(process_name, registry, rc)
     if (rc /= CC_SUCCESS .or. .not. associated(registry)) return
 
@@ -930,13 +1050,16 @@ contains
     character(len=*), intent(in) :: filename
     integer, intent(out) :: rc
 
-  ! Use module grid variable
+    type(cc_wrap_type), pointer :: cc_wrap
     type(ESMF_Field) :: esmf_field
     real(ESMF_KIND_R4), pointer :: field_data_2d(:,:) => null()
     real(ESMF_KIND_R4), pointer :: field_data_3d(:,:,:) => null()
     integer :: i, j, k
 
     rc = CC_SUCCESS
+
+    ! Get process-local state
+    cc_wrap => get_cc_wrap()
 
     ! Create appropriate ESMF field based on data type
     select case (data_type)
@@ -945,7 +1068,7 @@ contains
         rc = CC_FAILURE
         return
       end if
-      esmf_field = ESMF_FieldCreate(grid, &
+      esmf_field = ESMF_FieldCreate(cc_wrap%grid, &
                                    name=trim(field_name), &
                                    typekind=ESMF_TYPEKIND_R4, &
                                    rc=rc)
@@ -957,7 +1080,7 @@ contains
           field_data_2d(i, j) = real(array_2d_ptr(i, j), ESMF_KIND_R4)
         end do
       end do
-      call AQMIO_Write(iocomp, (/esmf_field/), fileName=trim(filename), &
+      call AQMIO_Write(cc_wrap%iocomp, (/esmf_field/), fileName=trim(filename), &
                        iofmt=AQMIO_FMT_NETCDF, rc=rc)
 
     case (DIAG_REAL_3D)
@@ -965,7 +1088,7 @@ contains
         rc = CC_FAILURE
         return
       end if
-      esmf_field = ESMF_FieldCreate(grid, &
+      esmf_field = ESMF_FieldCreate(cc_wrap%grid, &
                                    name=trim(field_name), &
                                    typekind=ESMF_TYPEKIND_R4, &
                                    ungriddedLBound=(/1/), &
@@ -981,7 +1104,7 @@ contains
           end do
         end do
       end do
-      call AQMIO_Write(iocomp, (/esmf_field/), fileName=trim(filename), &
+      call AQMIO_Write(cc_wrap%iocomp, (/esmf_field/), fileName=trim(filename), &
                        iofmt=AQMIO_FMT_NETCDF, rc=rc)
 
     case default
@@ -1008,16 +1131,21 @@ contains
     type(ESMF_Time), intent(in) :: start_time
     integer, intent(out) :: rc
 
+    type(cc_wrap_type), pointer :: cc_wrap
+
     rc = CC_SUCCESS
 
+    ! Get process-local state
+    cc_wrap => get_cc_wrap()
+
     ! Create output interval from frequency (in seconds)
-    call ESMF_TimeIntervalSet(output_interval, s=output_frequency, rc=rc)
+    call ESMF_TimeIntervalSet(cc_wrap%output_interval, s=cc_wrap%output_frequency, rc=rc)
     if (rc /= ESMF_SUCCESS) return
 
     ! Set initial output time (start time minus interval so first check will trigger output)
-    last_output_time = start_time - output_interval
+    cc_wrap%last_output_time = start_time - cc_wrap%output_interval
 
-    output_timing_initialized = .true.
+    cc_wrap%output_timing_initialized = .true.
 
   end subroutine initialize_output_timing
 
@@ -1031,13 +1159,17 @@ contains
     logical, intent(out) :: time_to_write
     integer, intent(out) :: rc
 
+    type(cc_wrap_type), pointer :: cc_wrap
     type(ESMF_Time) :: next_output_time
 
     rc = CC_SUCCESS
     time_to_write = .false.
 
+    ! Get process-local state
+    cc_wrap => get_cc_wrap()
+
     ! Calculate next output time
-    next_output_time = last_output_time + output_interval
+    next_output_time = cc_wrap%last_output_time + cc_wrap%output_interval
 
     ! Check if current time is at or past next output time
     if (current_time >= next_output_time) then
@@ -1056,10 +1188,14 @@ contains
     character(len=*), intent(out) :: filename
     integer, intent(out) :: rc
 
+    type(cc_wrap_type), pointer :: cc_wrap
     integer :: year, month, day, hour, minute, second
     character(len=256) :: time_string
 
     rc = CC_SUCCESS
+
+    ! Get process-local state
+    cc_wrap => get_cc_wrap()
 
     ! Get time components
     call ESMF_TimeGet(current_time, yy=year, mm=month, dd=day, &
@@ -1070,7 +1206,7 @@ contains
     write(time_string, '(I4.4,I2.2,I2.2,A,I2.2,I2.2,I2.2)') &
           year, month, day, '_', hour, minute, second
 
-    filename = trim(output_directory) // '/' // trim(output_prefix) // '_' // trim(time_string) // '.nc'
+    filename = trim(cc_wrap%output_directory) // '/' // trim(cc_wrap%output_prefix) // '_' // trim(time_string) // '.nc'
 
   end subroutine generate_diagnostic_filename
   
@@ -1132,16 +1268,20 @@ contains
     character(len=*), intent(in) :: config_file
     integer, intent(out) :: errflg
     character(len=*), intent(out) :: errmsg
+    
+    type(cc_wrap_type), pointer :: cc_wrap
 
     errflg = CC_SUCCESS
     errmsg = ''
 
     ! Parse import fields
-    call parse_field_section(config_file, 'import_fields', field_config%import_fields, field_config%n_import_fields, errflg, errmsg)
+    call parse_field_section(config_file, 'import_fields', field_config%import_fields, &
+      field_config%n_import_fields, errflg, errmsg)
     if (errflg /= CC_SUCCESS) return
 
     ! Parse export fields  
-    call parse_field_section(config_file, 'export_fields', field_config%export_fields, field_config%n_export_fields, errflg, errmsg)
+    call parse_field_section(config_file, 'export_fields', field_config%export_fields, &
+      field_config%n_export_fields, errflg, errmsg)
     if (errflg /= CC_SUCCESS) return
 
   end subroutine load_field_config
@@ -1169,7 +1309,7 @@ contains
     integer :: line_number, field_idx, colon_pos
     type(field_mapping_type), allocatable :: temp_fields(:)
     type(field_mapping_type) :: current_field
-    logical :: in_field_item
+    logical :: in_field_item, field_already_saved
     
     errflg = CC_SUCCESS
     errmsg = ''
@@ -1180,6 +1320,7 @@ contains
     line_number = 0
     field_idx = 0
     in_field_item = .false.
+    field_already_saved = .false.
     
     ! Initialize current field
     current_field%standard_name = ''
@@ -1228,6 +1369,19 @@ contains
           found_section = .true.
           section_indent = indent_level
           cycle
+        endif
+
+        ! If we're already in a section and encounter another top-level section, exit
+        if (in_section .and. indent_level == 0 .and. trim(field_name) /= trim(section_name)) then
+          ! Save the last field if we're still processing one
+          if (in_field_item .and. current_field%standard_name /= '') then
+            n_fields = n_fields + 1
+            if (n_fields <= size(temp_fields)) then
+              temp_fields(n_fields) = current_field
+            endif
+            field_already_saved = .true.  ! Mark that we've saved the field
+          endif
+          exit
         endif
 
         ! Process items within the section
@@ -1279,14 +1433,15 @@ contains
             if (n_fields <= size(temp_fields)) then
               temp_fields(n_fields) = current_field
             endif
+            field_already_saved = .true.  ! Mark that we've saved the field
           endif
           exit
         endif
       endif
     end do
 
-    ! Save the last field if we're still processing one
-    if (in_field_item .and. current_field%standard_name /= '') then
+    ! Save the last field if we're still processing one AND it hasn't been saved yet
+    if (in_field_item .and. current_field%standard_name /= '' .and. .not. field_already_saved) then
       n_fields = n_fields + 1
       if (n_fields <= size(temp_fields)) then
         temp_fields(n_fields) = current_field
@@ -1358,5 +1513,71 @@ contains
     end select
 
   end subroutine parse_field_property
+
+  !> \brief Get number of import fields (MPI-safe accessor)
+  !!
+  !! \return Number of import fields configured
+  function get_n_import_fields() result(n_fields)
+    integer :: n_fields
+    type(cc_wrap_type), pointer :: cc_wrap
+    
+    cc_wrap => get_cc_wrap()
+    n_fields = cc_wrap%field_config%n_import_fields
+  end function get_n_import_fields
+
+  !> \brief Get import field information (MPI-safe accessor)
+  !!
+  !! \param field_index Index of the field (1-based)
+  !! \param standard_name NUOPC standard name
+  !! \param optional Whether field is optional
+  function get_import_field_info(field_index, standard_name, optional) result(success)
+    integer, intent(in) :: field_index
+    character(len=*), intent(out) :: standard_name
+    logical, intent(out) :: optional
+    logical :: success
+    type(cc_wrap_type), pointer :: cc_wrap
+    
+    success = .false.
+    cc_wrap => get_cc_wrap()
+    
+    if (field_index > 0 .and. field_index <= cc_wrap%field_config%n_import_fields) then
+      standard_name = cc_wrap%field_config%import_fields(field_index)%standard_name
+      optional = cc_wrap%field_config%import_fields(field_index)%optional
+      success = .true.
+    end if
+  end function get_import_field_info
+
+  !> \brief Get number of export fields (MPI-safe accessor)
+  !!
+  !! \return Number of export fields configured
+  function get_n_export_fields() result(n_fields)
+    integer :: n_fields
+    type(cc_wrap_type), pointer :: cc_wrap
+    
+    cc_wrap => get_cc_wrap()
+    n_fields = cc_wrap%field_config%n_export_fields
+  end function get_n_export_fields
+
+  !> \brief Get export field information (MPI-safe accessor)
+  !!
+  !! \param field_index Index of the field (1-based)
+  !! \param standard_name NUOPC standard name
+  !! \param optional Whether field is optional
+  function get_export_field_info(field_index, standard_name, optional) result(success)
+    integer, intent(in) :: field_index
+    character(len=*), intent(out) :: standard_name
+    logical, intent(out) :: optional
+    logical :: success
+    type(cc_wrap_type), pointer :: cc_wrap
+    
+    success = .false.
+    cc_wrap => get_cc_wrap()
+    
+    if (field_index > 0 .and. field_index <= cc_wrap%field_config%n_export_fields) then
+      standard_name = cc_wrap%field_config%export_fields(field_index)%standard_name
+      optional = cc_wrap%field_config%export_fields(field_index)%optional
+      success = .true.
+    end if
+  end function get_export_field_info
 
 end module catchem_nuopc_interface

@@ -15,21 +15,21 @@ set(
 
 set(_lib NUOPC_CATChem_cap)
 
-# Find ESMF/NUOPC and NetCDF
-find_package(ESMF MODULE REQUIRED)
-find_package(NetCDF REQUIRED)
+# Note: ESMF and NetCDF are already found by parent CMakeLists.txt
+# find_package(ESMF MODULE REQUIRED)  # Removed to avoid conflicts
+# find_package(NetCDF REQUIRED)      # Removed to avoid conflicts
 
 add_library(${_lib} ${_srcs})
 target_link_libraries(${_lib} PUBLIC
   CATChem
   esmf
-  ${NetCDF_LIBRARIES}
+  NetCDF::NetCDF_Fortran
 )
 
-target_include_directories(${_lib} PUBLIC
-  $<TARGET_PROPERTY:esmf,INTERFACE_INCLUDE_DIRECTORIES>
-  ${NetCDF_INCLUDE_DIRS}
-)
+# target_include_directories(${_lib} PUBLIC
+#   $<TARGET_PROPERTY:esmf,INTERFACE_INCLUDE_DIRECTORIES>
+#   $<TARGET_PROPERTY:NetCDF::NetCDF_Fortran,INTERFACE_INCLUDE_DIRECTORIES>
+# )
 
 set_target_properties(
   ${_lib}

@@ -27,8 +27,9 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU|G95")
   target_compile_options(${_lib} PRIVATE -ffree-line-length-none)
 endif()
 
-find_package(NetCDF REQUIRED COMPONENTS Fortran)
+#find_package(NetCDF REQUIRED COMPONENTS Fortran)
 
+# Use NetCDF from parent scope (already found by main UFS CMakeLists.txt)
 target_link_libraries(${_lib} NetCDF::NetCDF_Fortran)
 
 

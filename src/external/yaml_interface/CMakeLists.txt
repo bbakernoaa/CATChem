@@ -21,9 +21,8 @@ set_target_properties(yaml_interface PROPERTIES
     Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/include"
 )
 
-# Export the target
+# Export the target (removed from CATChemTargets to avoid yaml-cpp export issues)
 install(TARGETS yaml_interface
-    EXPORT CATChemTargets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin

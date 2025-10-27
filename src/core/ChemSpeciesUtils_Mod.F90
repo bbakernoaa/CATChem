@@ -114,9 +114,12 @@ contains
 
       rc = CC_SUCCESS
 
+      !initialize to zero
+      species_indices = 0
+
       do i = 1, size(species_names)
          species_indices(i) = get_species_index(container, species_names(i), rc)
-         if (rc /= CC_SUCCESS) exit
+         !if (rc /= CC_SUCCESS) exit !Do not exit for now
       end do
 
    end subroutine get_species_indices
