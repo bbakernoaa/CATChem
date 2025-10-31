@@ -26,6 +26,9 @@ module yaml_interface_mod
    public :: yaml_set_string, yaml_set_integer, yaml_set_real, yaml_set_logical
    public :: yaml_save_file, yaml_get_all_keys
 
+   ! Safe conversion functions (no yaml-cpp error messages)
+   public :: safe_yaml_get_real, safe_yaml_get_logical, safe_yaml_get_integer
+
    ! High-level generic interfaces
    public :: yaml_get, yaml_set, yaml_get_array
 
@@ -761,5 +764,112 @@ contains
          actual_count = 0
       endif
    end function yaml_get_all_keys
+
+   !========================================================================
+   ! Safe conversion functions (no yaml-cpp error messages)
+   !========================================================================
+
+   !> \brief Safe YAML real number reader
+   !! Reads value as string first, then converts to avoid yaml-cpp conversion errors
+   subroutine safe_yaml_get_real(yaml_root, key, value, rc)
+      implicit none
+      type(yaml_node_t), intent(in) :: yaml_root
+      character(len=*), intent(in) :: key
+      real(fp), intent(out) :: value
+      integer, intent(out) :: rc
+
+      character(len=64) :: str_value
+      integer :: iostat_val
+
+      ! Try to read as string first to avoid yaml-cpp conversion errors
+      call yaml_get(yaml_root, key, str_value, rc)
+      if (rc /= 0) then
+         return  ! Key not found
+      endif
+
+      ! Convert string to real
+      read(str_value, *, iostat=iostat_val) value
+      if (iostat_val /= 0) then
+         rc = -1  ! Conversion failed
+      else
+         rc = 0   ! Success
+      endif
+   end subroutine safe_yaml_get_real
+
+   !> \brief Safe YAML integer reader
+   !! Reads value as string first, then converts to avoid yaml-cpp conversion errors
+   subroutine safe_yaml_get_integer(yaml_root, key, value, rc)
+      implicit none
+      type(yaml_node_t), intent(in) :: yaml_root
+      character(len=*), intent(in) :: key
+      integer, intent(out) :: value
+      integer, intent(out) :: rc
+
+      character(len=64) :: str_value
+      integer :: iostat_val
+
+      ! Try to read as string first to avoid yaml-cpp conversion errors
+      call yaml_get(yaml_root, key, str_value, rc)
+      if (rc /= 0) then
+         return  ! Key not found
+      endif
+
+      ! Convert string to integer
+      read(str_value, *, iostat=iostat_val) value
+      if (iostat_val /= 0) then
+         rc = -1  ! Conversion failed
+      else
+         rc = 0   ! Success
+      endif
+   end subroutine safe_yaml_get_integer
+
+   !> \brief Safe YAML logical reader
+   !! Reads value as string first, then converts to avoid yaml-cpp conversion errors
+   subroutine safe_yaml_get_logical(yaml_root, key, value, rc)
+      implicit none
+      type(yaml_node_t), intent(in) :: yaml_root
+      character(len=*), intent(in) :: key
+      logical, intent(out) :: value
+      integer, intent(out) :: rc
+
+      character(len=64) :: str_value
+      character(len=64) :: lower_str
+
+      ! Try to read as string first to avoid yaml-cpp conversion errors
+      call yaml_get(yaml_root, key, str_value, rc)
+      if (rc /= 0) then
+         return  ! Key not found
+      endif
+
+      ! Convert to lowercase for comparison
+      lower_str = trim(adjustl(str_value))
+      call to_lowercase_internal(lower_str)
+
+      ! Convert string to logical with various accepted formats
+      select case (trim(lower_str))
+         case ('true', 't', '1', 'yes', 'y', 'on')
+            value = .true.
+            rc = 0
+         case ('false', 'f', '0', 'no', 'n', 'off')
+            value = .false.
+            rc = 0
+         case default
+            rc = -1  ! Conversion failed
+      end select
+   end subroutine safe_yaml_get_logical
+
+   !> \brief Convert string to lowercase (internal helper)
+   subroutine to_lowercase_internal(str)
+      implicit none
+      character(len=*), intent(inout) :: str
+      integer :: i, ascii_val
+
+      do i = 1, len_trim(str)
+         ascii_val = ichar(str(i:i))
+         if (ascii_val >= 65 .and. ascii_val <= 90) then  ! A-Z
+            str(i:i) = char(ascii_val + 32)  ! Convert to lowercase
+         endif
+      end do
+   end subroutine to_lowercase_internal
 
 end module yaml_interface_mod

@@ -272,6 +272,9 @@ contains
     type(ESMF_Array) :: array
     type(ESMF_Info) :: tracerInfo
     type(ESMF_Field), pointer :: fieldList(:)
+    type(ESMF_Clock)          :: clock
+    type(ESMF_Time)           :: currTime, startTime, stopTime
+    type(ESMF_TimeInterval)   :: timeStep
     real(ESMF_KIND_R8), dimension(:,:), pointer :: coord
     real(ESMF_KIND_R8), dimension(:,:), allocatable :: lon
     real(ESMF_KIND_R8), dimension(:,:), allocatable :: lat
@@ -298,10 +301,15 @@ contains
       line=__LINE__, file=__FILE__)) return
 
     ! Get import and export states
-    call NUOPC_ModelGet(model, importState=importState, exportState=exportState, rc=rc)
+    call NUOPC_ModelGet(model, importState=importState, exportState=exportState, modelClock=clock, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return
-
+    
+    ! -- get clock information
+    call ESMF_ClockGet(clock, startTime=startTime, stopTime=stopTime, timeStep=timeStep, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, file=__FILE__)) return
+    
     ! retrieve member list from import state, if any
     nullify(fieldList)
     call NUOPC_GetStateMemberLists(importState, fieldList=fieldList, nestedFlag=.true., rc=rc)
@@ -384,13 +392,14 @@ contains
     end if
 
     ! Initialize CATChem using the interface (TODO: not provide nsoil, nsoiltype and nsurftype)
-    call catchem_nuopc_init(model, config_file, lat, lon, numLevels, tracerInfo, grid, rc=rc)
+    call catchem_nuopc_init(model, config_file, lat, lon, numLevels, tracerInfo, grid, &
+          startTime=startTime, stopTime=stopTime, timeStep=timeStep, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return  ! bail out
 
     ! -- indicate that data initialization is complete (breaking out of init-loop)
     call NUOPC_CompAttributeSet(model, &
-      name="InitializeCATChemComplete", value="true", rc=rc)
+      name="InitializeDataComplete", value="true", rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return  ! bail out
     
@@ -435,6 +444,7 @@ contains
     type(ESMF_Clock) :: clock
     type(ESMF_Time) :: currTime
     type(ESMF_TimeInterval) :: timeStep
+    type(CATChem_InternalState) :: is
     character(len=*), parameter :: routine = 'ModelAdvance'
     character(len=512) :: errmsg
     integer :: localPet
@@ -442,7 +452,6 @@ contains
 
     rc = ESMF_SUCCESS
 
-    write(*,*) "Entering Model Advance...."
     ! Get component information
     call ESMF_GridCompGet(model, localPet=localPet, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -469,14 +478,18 @@ contains
         ESMF_LOGMSG_INFO, rc=rc)
     end if
 
-    write(*,*) "About to transform_nuopc_to_catchem...."
+    ! -- get component's internal state
+    call ESMF_GridCompGetInternalState(model, is, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__,  file=__FILE__))  return  ! bail out
+    
     ! Import meteorological data from other components
-    call transform_nuopc_to_catchem(importState, rc)
+    call transform_nuopc_to_catchem(is%wrap, importState, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return
 
     ! Run CATChem processes with current time
-    call catchem_nuopc_run(dt_seconds, currTime, errmsg, rc)
+    call catchem_nuopc_run(is%wrap, dt_seconds, currTime, errmsg, rc)
     if (rc /= ESMF_SUCCESS) then
       call ESMF_LogWrite("CATChem: Failed to run CATChem - " // trim(errmsg), &
         ESMF_LOGMSG_ERROR, rc=rc)
@@ -484,9 +497,8 @@ contains
       return
     end if
 
-    write(*,*) "About to transform_catchem_to_nuopc...."
     ! Export results to other components
-    call transform_catchem_to_nuopc(exportState, rc)
+    call transform_catchem_to_nuopc(is%wrap, exportState, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return
 
@@ -524,6 +536,7 @@ contains
     type(ESMF_GridComp)  :: model
     integer, intent(out) :: rc
 
+    type(CATChem_InternalState) :: is
     character(len=*), parameter :: routine = 'ModelFinalize'
     character(len=512) :: errmsg
     integer :: localPet
@@ -534,9 +547,14 @@ contains
     call ESMF_GridCompGet(model, localPet=localPet, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=__FILE__)) return
+    
+    ! -- get component's internal state
+    call ESMF_GridCompGetInternalState(model, is, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__,  file=__FILE__))  return  ! bail out
 
     ! Finalize CATChem using the interface
-    call catchem_nuopc_finalize(rc, errmsg)
+    call catchem_nuopc_finalize(is%wrap, rc, errmsg)
     if (rc /= ESMF_SUCCESS) then
       call ESMF_LogWrite("CATChem: Warning - " // trim(errmsg), &
         ESMF_LOGMSG_WARNING, rc=rc)

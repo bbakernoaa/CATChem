@@ -64,10 +64,10 @@ schemes:
     diagnostics:
       - name: "seasalt_mass_emission_per_bin"
         description: "Sea salt mass emission flux per bin"
-        units: "ug/m2/s"
+        units: "kg/m2/s"
       - name: "seasalt_number_emission_per_bin"
         description: "Sea salt number emission flux per bin"
-        units: "#/m2/s"
+        units: "kg/m2/s"
 
 
   gong03:
@@ -105,10 +105,10 @@ schemes:
     diagnostics:
       - name: "seasalt_mass_emission_per_bin"
         description: "Sea salt mass emission flux per bin"
-        units: "ug/m2/s"
+        units: "kg/m2/s"
       - name: "seasalt_number_emission_per_bin"
         description: "Sea salt number emission flux per bin"
-        units: "#/m2/s"
+        units: "kg/m2/s"
 
   geos12:
     name: "geos12"
@@ -141,16 +141,16 @@ schemes:
     diagnostics:
       - name: "seasalt_mass_emission_per_bin"
         description: "Sea salt mass emission flux per bin"
-        units: "ug/m2/s"
+        units: "kg/m2/s"
       - name: "seasalt_number_emission_per_bin"
         description: "Sea salt number emission flux per bin"
-        units: "#/m2/s"
+        units: "kg/m2/s"
 
 diagnostics:
   - name: "seasalt_mass_emission_total"
     description: "Sea salt mass emission flux total"
-    units: "ug/m2/s"
+    units: "kg/m2/s"
   - name: "seasalt_number_emission_total"
     description: "Sea salt number emission flux total"
-    units: "#/m2/s"
+    units: "kg/m2/s"
 

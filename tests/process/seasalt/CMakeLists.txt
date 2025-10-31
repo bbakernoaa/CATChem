@@ -3,6 +3,15 @@
 
 cmake_minimum_required(VERSION 3.12)
 
+# Get compiler options from parent scope
+if(NOT DEFINED _catchem_compiler_options)
+    set(_catchem_compiler_options "")
+    # Handle Intel compiler deprecation warnings and incompatible flags
+    if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+        list(APPEND _catchem_compiler_options -diag-disable=6379,10448)
+    endif()
+endif()
+
 # Test executables
 set(TEST_SOURCES
     unit/test_seasalt_unit.F90
@@ -22,9 +31,13 @@ foreach(test_source ${TEST_SOURCES})
         testing
     )
 
+    # Add compiler options consistent with main tests
+    target_compile_options(${test_name} PRIVATE ${_catchem_compiler_options})
+
     # Set Fortran module directory
     set_target_properties(${test_name} PROPERTIES
         Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/modules"
+        LINKER_LANGUAGE Fortran
     )
 
     # Add include directories for module files

@@ -53,7 +53,8 @@ module ConfigManager_Mod
                                   yaml_get_string, yaml_get_integer, yaml_get_real, yaml_get_logical, &
                                   yaml_has_key, yaml_get, yaml_set, yaml_is_map, yaml_is_sequence, &
                                   yaml_get_size, yaml_get_string_array, yaml_get_all_keys, &
-                                  yaml_get_real_array
+                                  yaml_get_real_array, safe_yaml_get_real, safe_yaml_get_logical, &
+                                  safe_yaml_get_integer
 
    implicit none
    private
@@ -482,7 +483,7 @@ contains
 
       logical :: file_exists, key_exists
       type(yaml_node_t) :: emission_config
-      integer :: n_sources, n_species
+      integer :: n_sources, n_species, local_rc
       character(len=256) :: data_directory
 
       ! Suppress warning for unused argument (used for interface compatibility)
@@ -529,7 +530,8 @@ contains
       endif
 
       ! Validate emission sources
-      if (yaml_get_integer(emission_config, "emissions/n_sources", n_sources)) then
+      call safe_yaml_get_integer(emission_config, "emissions/n_sources", n_sources, local_rc)
+      if (local_rc == 0) then
          if (n_sources <= 0) then
             write(*, '(A)') 'WARNING: No emission sources configured'
          else
@@ -538,7 +540,8 @@ contains
       endif
 
       ! Validate species mapping
-      if (yaml_get_integer(emission_config, "emissions/n_species", n_species)) then
+      call safe_yaml_get_integer(emission_config, "emissions/n_species", n_species, local_rc)
+      if (local_rc == 0) then
          if (n_species <= 0) then
             write(*, '(A)') 'WARNING: No emission species configured'
          else
@@ -817,7 +820,7 @@ contains
       logical :: file_exists, success
       character(len=64) :: required_fields(100), optional_fields(100)
       character(len=256) :: schema_name, schema_description
-      integer :: n_required, n_optional, i
+      integer :: n_required, n_optional, i, local_rc
       character(len=256) :: key
 
       rc = CC_SUCCESS
@@ -849,8 +852,8 @@ contains
                                schema_description)
 
       ! Read required fields
-      success = yaml_get_integer(schema_config, "schema/required_fields/n_fields", n_required)
-      if (success .and. n_required > 0) then
+      call safe_yaml_get_integer(schema_config, "schema/required_fields/n_fields", n_required, local_rc)
+      if (local_rc == 0 .and. n_required > 0) then
          do i = 1, min(n_required, size(required_fields))
             write(key, '(A,I0)') 'schema/required_fields/field_', i
             success = yaml_get_string(schema_config, trim(key), required_fields(i))
@@ -862,8 +865,8 @@ contains
       endif
 
       ! Read optional fields
-      success = yaml_get_integer(schema_config, "schema/optional_fields/n_fields", n_optional)
-      if (success .and. n_optional > 0) then
+      call safe_yaml_get_integer(schema_config, "schema/optional_fields/n_fields", n_optional, local_rc)
+      if (local_rc == 0 .and. n_optional > 0) then
          do i = 1, min(n_optional, size(optional_fields))
             write(key, '(A,I0)') 'schema/optional_fields/field_', i
             success = yaml_get_string(schema_config, trim(key), optional_fields(i))
@@ -1330,6 +1333,9 @@ contains
       class(ConfigManagerType), intent(inout) :: this
       integer, intent(out) :: rc
 
+      !local variables
+      integer :: local_rc
+
       rc = CC_SUCCESS
 
       if (.not. this%is_loaded) then
@@ -1337,8 +1343,9 @@ contains
          return
       endif
 
-      ! Parse runtime configuration
-      call yaml_get(this%yaml_data, 'runtime/nEmissionSpecies', this%config_data%runtime%nEmissionSpecies, rc, 50)
+      ! Parse runtime configuration - use safe conversion for numeric values
+      call safe_yaml_get_integer(this%yaml_data, 'runtime/nEmissionSpecies', this%config_data%runtime%nEmissionSpecies, local_rc)
+      if (local_rc /= 0) this%config_data%runtime%nEmissionSpecies = 50  ! default value
       call yaml_get(this%yaml_data, 'diagnostics/output/enabled', this%config_data%runtime%DiagEnabled, rc, .false.)
 
       ! Parse file paths
@@ -1348,7 +1355,8 @@ contains
 
       ! Parse external emissions configuration
       if (yaml_has_key(this%yaml_data, 'external_emissions')) then
-         call yaml_get(this%yaml_data, 'external_emissions/global_scale_factor', this%config_data%external_emissions%global_scale_factor, rc, 1.0_fp)
+         call safe_yaml_get_real(this%yaml_data, 'external_emissions/global_scale_factor', this%config_data%external_emissions%global_scale_factor, local_rc)
+         if (local_rc /= 0) this%config_data%external_emissions%global_scale_factor = 1.0_fp  ! default value
       endif
 
       ! Mark configuration as validated
@@ -1587,21 +1595,21 @@ contains
 
       ! Load long_name if explicitly provided
       write(field_path, '(A,A)') trim(species_path), '/long_name'
-      success = yaml_get_string(yaml_root, trim(field_path), temp_string)
-      if (success) then
+      call yaml_get(yaml_root, trim(field_path), temp_string, yaml_rc)
+      if (yaml_rc == 0) then
          species%long_name = trim(adjustl(temp_string))
       endif
 
       ! Load description (optional)
       write(field_path, '(A,A)') trim(species_path), '/description'
-      success = yaml_get_string(yaml_root, trim(field_path), temp_string)
-      if (success) then
+      call yaml_get(yaml_root, trim(field_path), temp_string, yaml_rc)
+      if (yaml_rc == 0) then
          species%description = trim(adjustl(temp_string))
       endif
 
-      ! Load molecular weight (optional, but important)
+      ! Load molecular weight (optional, but important) - use safe conversion for numeric values
       write(field_path, '(A,A)') trim(species_path), '/molecular_weight'
-      call yaml_get(yaml_root, trim(field_path), temp_real, yaml_rc)
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
       if (yaml_rc == 0) then
          species%mw_g = temp_real
       else
@@ -1612,7 +1620,7 @@ contains
 
       ! Load physical properties
       write(field_path, '(A,A)') trim(species_path), '/density'
-      call yaml_get(yaml_root, trim(field_path), temp_real, yaml_rc)
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
       if (yaml_rc == 0) then
          species%density = temp_real
       else
@@ -1620,7 +1628,7 @@ contains
       endif
 
       write(field_path, '(A,A)') trim(species_path), '/radius'
-      call yaml_get(yaml_root, trim(field_path), temp_real, yaml_rc)
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
       if (yaml_rc == 0) then
          species%radius = temp_real
       else
@@ -1628,7 +1636,7 @@ contains
       endif
 
       write(field_path, '(A,A)') trim(species_path), '/lower_radius'
-      call yaml_get(yaml_root, trim(field_path), temp_real, yaml_rc)
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
       if (yaml_rc == 0) then
          species%lower_radius = temp_real
       else
@@ -1636,7 +1644,7 @@ contains
       endif
 
       write(field_path, '(A,A)') trim(species_path), '/upper_radius'
-      call yaml_get(yaml_root, trim(field_path), temp_real, yaml_rc)
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
       if (yaml_rc == 0) then
          species%upper_radius = temp_real
       else
@@ -1645,56 +1653,56 @@ contains
 
       ! Load type flags (with proper default handling)
       write(field_path, '(A,A)') trim(species_path), '/is_gas'
-      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
-      if (success) then
+      call safe_yaml_get_logical(yaml_root, trim(field_path), temp_logical, yaml_rc)
+      if (yaml_rc == 0) then
          species%is_gas = temp_logical
       else
          species%is_gas = MISSING_BOOL
       endif
 
       write(field_path, '(A,A)') trim(species_path), '/is_aerosol'
-      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
-      if (success) then
+      call safe_yaml_get_logical(yaml_root, trim(field_path), temp_logical, yaml_rc)
+      if (yaml_rc == 0) then
          species%is_aerosol = temp_logical
       else
          species%is_aerosol = MISSING_BOOL
       endif
 
       write(field_path, '(A,A)') trim(species_path), '/is_dust'
-      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
-      if (success) then
+      call safe_yaml_get_logical(yaml_root, trim(field_path), temp_logical, yaml_rc)
+      if (yaml_rc == 0) then
          species%is_dust = temp_logical
       else
          species%is_dust = MISSING_BOOL
       endif
 
       write(field_path, '(A,A)') trim(species_path), '/is_seasalt'
-      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
-      if (success) then
+      call safe_yaml_get_logical(yaml_root, trim(field_path), temp_logical, yaml_rc)
+      if (yaml_rc == 0) then
          species%is_seasalt = temp_logical
       else
          species%is_seasalt = MISSING_BOOL
       endif
 
       write(field_path, '(A,A)') trim(species_path), '/is_tracer'
-      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
-      if (success) then
+      call safe_yaml_get_logical(yaml_root, trim(field_path), temp_logical, yaml_rc)
+      if (yaml_rc == 0) then
          species%is_tracer = temp_logical
       else
          species%is_tracer = MISSING_BOOL
       endif
 
       write(field_path, '(A,A)') trim(species_path), '/is_drydep'
-      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
-      if (success) then
+      call safe_yaml_get_logical(yaml_root, trim(field_path), temp_logical, yaml_rc)
+      if (yaml_rc == 0) then
          species%is_drydep = temp_logical
       else
          species%is_drydep = MISSING_BOOL
       endif
 
       write(field_path, '(A,A)') trim(species_path), '/is_photolysis'
-      success = yaml_get_logical(yaml_root, trim(field_path), temp_logical)
-      if (success) then
+      call safe_yaml_get_logical(yaml_root, trim(field_path), temp_logical, yaml_rc)
+      if (yaml_rc == 0) then
          species%is_photolysis = temp_logical
       else
          species%is_photolysis = MISSING_BOOL
@@ -1702,7 +1710,7 @@ contains
 
       ! Load background concentration (optional)
       write(field_path, '(A,A)') trim(species_path), '/background_vv'
-      call yaml_get(yaml_root, trim(field_path), temp_real, yaml_rc)
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
       if (yaml_rc == 0) then
          species%BackgroundVV = temp_real
       else
@@ -1860,14 +1868,14 @@ contains
          write(*, '(A,A)') 'INFO: Emission scaling method: ', trim(scaling_method)
       endif
 
-      call yaml_get(emission_config, "emissions/global_scaling_factor", &
+      call safe_yaml_get_real(emission_config, "emissions/global_scaling_factor", &
                              global_scaling_factor, local_rc)
       if (local_rc == 0) then
          write(*, '(A,F8.3)') 'INFO: Global emission scaling factor: ', global_scaling_factor
       endif
 
-      success = yaml_get_integer(emission_config, "emissions/n_sources", n_emission_sources)
-      if (success) then
+      call safe_yaml_get_integer(emission_config, "emissions/n_sources", n_emission_sources, local_rc)
+      if (local_rc == 0) then
          write(*, '(A,I0)') 'INFO: Number of emission sources: ', n_emission_sources
       endif
 
@@ -2737,7 +2745,7 @@ contains
 
       character(len=256) :: process_path, temp_string
       logical :: temp_logical, success
-      integer :: temp_integer
+      integer :: temp_integer, local_rc
 
       rc = CC_SUCCESS
       
@@ -2765,8 +2773,8 @@ contains
       endif
       
       ! Read priority from YAML or default to local priority
-      success = yaml_get_integer(config_mgr%yaml_data, trim(process_path) // '/priority', temp_integer)
-      if (success) then
+      call safe_yaml_get_integer(config_mgr%yaml_data, trim(process_path) // '/priority', temp_integer, local_rc)
+      if (local_rc == 0) then
          process_config%priority = temp_integer
       else
          process_config%priority = local_priority
@@ -2781,8 +2789,8 @@ contains
       endif
       
       ! Read subcycling from YAML or default to 1
-      success = yaml_get_integer(config_mgr%yaml_data, trim(process_path) // '/subcycling', temp_integer)
-      if (success) then
+      call safe_yaml_get_integer(config_mgr%yaml_data, trim(process_path) // '/subcycling', temp_integer, local_rc)
+      if (local_rc == 0) then
          process_config%subcycling = temp_integer
       else
          process_config%subcycling = 1
@@ -2814,7 +2822,7 @@ contains
 
       character(len=256) :: phase_path, temp_string
       logical :: success
-      integer :: temp_integer
+      integer :: temp_integer, local_rc
 
       rc = CC_SUCCESS
       
@@ -2841,8 +2849,8 @@ contains
       endif
       
       ! Read subcycling from YAML or default to 1
-      success = yaml_get_integer(config_mgr%yaml_data, trim(phase_path) // '/subcycling', temp_integer)
-      if (success) then
+      call safe_yaml_get_integer(config_mgr%yaml_data, trim(phase_path) // '/subcycling', temp_integer, local_rc)
+      if (local_rc == 0) then
          phase_config%subcycling = temp_integer
       else
          phase_config%subcycling = 1

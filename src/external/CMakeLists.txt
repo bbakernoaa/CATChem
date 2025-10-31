@@ -29,8 +29,10 @@ endif()
 
 #find_package(NetCDF REQUIRED COMPONENTS Fortran)
 
-# Use NetCDF from parent scope (already found by main UFS CMakeLists.txt)
-target_link_libraries(${_lib} NetCDF::NetCDF_Fortran)
+# Use NetCDF from parent scope (already found by main UFS CMakeLists.txt or standalone CMakeLists.txt)
+if(TARGET NetCDF::NetCDF_Fortran)
+  target_link_libraries(${_lib} NetCDF::NetCDF_Fortran)
+endif()
 
 
 set_target_properties(

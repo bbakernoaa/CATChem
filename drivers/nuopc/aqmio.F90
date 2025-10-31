@@ -42,6 +42,10 @@ module AQMIO
   public :: AQMIO_DataRead
   public :: AQMIO_Sync
   public :: AQMIO_Write
+  
+  ! Enhanced direct data I/O functions (no ESMF fields required)
+  public :: AQMIO_Write1D
+  public :: AQMIO_Read1D
 
 contains
 
@@ -2099,7 +2103,7 @@ contains
         end if
       end do
 
-      if (dimLen(1) /= 19) then
+      if (dimLen(1) /= 19) then !YYYY-MM-DD HH:MM:SS has 19 length
         call ESMF_LogSetError(ESMF_RC_FILE_UNEXPECTED, &
           msg="String length must be 19 for variable "//trim(variableName), &
           line=__LINE__, &
@@ -2126,7 +2130,7 @@ contains
       end if
 
       do item = 1, dimlen(2)
-        read(timeStrings(item), '(i4.4,5(1x,i2.2))', iostat=localrc) yy, mm, dd, h, m, s
+        read(timeStrings(item), '(i4,1x,i2,1x,i2,1x,i2,1x,i2,1x,i2)', iostat=localrc) yy, mm, dd, h, m, s
         if (localrc /= 0) then
           call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
             msg="Unable to read timestamp", &
@@ -3005,6 +3009,7 @@ contains
     character(len=ESMF_MAXSTR) :: fieldName
     character(len=ESMF_MAXSTR) :: dimName
     character(len=ESMF_MAXSTR) :: units
+    character(len=ESMF_MAXSTR) :: description
     type(ESMF_DistGrid)      :: distgrid
     type(ESMF_Grid)          :: grid
     type(ESMF_Info)          :: info
@@ -3227,6 +3232,26 @@ contains
     else
     end if
 
+    ! -- add description if available
+    call ESMF_InfoGet(info, "description", description, default="", rc=localrc)
+    if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__, &
+      rcToReturn=rc)) return  ! bail out
+
+    if (len_trim(description) > 0) then
+      ncStatus = nf90_put_att(IOLayout % ncid, lvarId, "description", trim(description))
+      if (ncStatus /= NF90_NOERR) then
+        call ESMF_LogSetError(ESMF_RC_FILE_WRITE, &
+          msg="Error adding description to NetCDF variable: "//trim(fieldName), &
+          line=__LINE__, &
+          file=__FILE__, &
+          rcToReturn=rc)
+        return  ! bail out
+      end if
+    else
+    end if
+
     ncStatus = nf90_enddef(IOLayout % ncid)
     if (ncStatus /= NF90_NOERR) then
       call ESMF_LogSetError(ESMF_RC_FILE_WRITE, &
@@ -3323,6 +3348,408 @@ contains
     end if
 
   end subroutine AQMIO_VariableCheckType
+
+  !> \brief Write 1D data directly to NetCDF file (consolidated function)
+  !!
+  !! This subroutine provides NetCDF I/O for writing 1D data arrays
+  !! without requiring ESMF fields. Handles I4, R4, and R8 data types
+  !! using case statements. Supports both creating new files and appending.
+  !!
+  !! \param filename NetCDF filename to write to
+  !! \param data_i4 Integer data array (I4) - optional
+  !! \param data_r4 Real data array (R4) - optional  
+  !! \param data_r8 Real data array (R8) - optional
+  !! \param varname Variable name in NetCDF file
+  !! \param append If true, read existing data and append new data
+  !! \param del_old_file If true, delete old file before writing for the first time
+  !! \param rc Return code
+  !! \param current_size Current dimension size after writing - optional
+  !! \param iocomp ESMF GridComp for MPI coordination - optional
+  !!
+  subroutine AQMIO_Write1D(filename, varname, append, del_old_file, rc, &
+                                  data_i4, data_r4, data_r8, current_size, iocomp)
+    character(len=*), intent(in) :: filename
+    character(len=*), intent(in) :: varname
+    logical, intent(in), optional :: append
+    logical, intent(in), optional :: del_old_file
+    integer, intent(out), optional :: rc
+    integer(ESMF_KIND_I4), intent(in), optional :: data_i4(:)
+    real(ESMF_KIND_R4), intent(in), optional :: data_r4(:)
+    real(ESMF_KIND_R8), intent(in), optional :: data_r8(:)
+    integer, intent(out), optional :: current_size
+    type(ESMF_GridComp), intent(inout), optional :: iocomp
+
+#if HAVE_NETCDF
+    ! Local variables
+    integer :: localrc, ncid, varid, dimid
+    logical :: file_exists, var_exists, append_mode
+    character(len=ESMF_MAXPATHLEN), save :: current_filename = ""
+    integer :: new_size, existing_size, total_size, data_type, netcdf_type
+    type(ESMF_VM) :: vm
+    integer :: localPet
+    
+    ! Data arrays for different types
+    integer(ESMF_KIND_I4), allocatable :: combined_data_i4(:), existing_data_i4(:)
+    real(ESMF_KIND_R4), allocatable :: combined_data_r4(:), existing_data_r4(:)
+    real(ESMF_KIND_R8), allocatable :: combined_data_r8(:), existing_data_r8(:)
+
+    if (present(rc)) rc = ESMF_SUCCESS
+
+    ! MPI coordination: only PET 0 should perform file operations
+    if (present(iocomp)) then
+      call ESMF_GridCompGet(iocomp, vm=vm, rc=localrc)
+      if (localrc == ESMF_SUCCESS) then
+        call ESMF_VMGet(vm, localPet=localPet, rc=localrc)
+        if (localrc == ESMF_SUCCESS .and. localPet /= 0) then
+          ! Non-root PETs: return early (current_size will be set via broadcast)
+          return
+        end if
+      end if
+    end if
+
+    ! Determine data type and size
+    if (present(data_i4)) then
+      data_type = 1
+      new_size = size(data_i4)
+      netcdf_type = NF90_INT
+    else if (present(data_r4)) then
+      data_type = 2
+      new_size = size(data_r4)
+      netcdf_type = NF90_REAL
+    else if (present(data_r8)) then
+      data_type = 3
+      new_size = size(data_r8)
+      netcdf_type = NF90_DOUBLE
+    else
+      if (present(rc)) rc = ESMF_FAILURE
+      call ESMF_LogSetError(ESMF_RC_ARG_WRONG, &
+        msg="No data array provided to AQMIO_Write1D", &
+        line=__LINE__, file=__FILE__, rcToReturn=rc)
+      return
+    end if
+
+    ! Set append mode (default false)
+    append_mode = .false.
+    if (present(append)) append_mode = append
+
+    ! Check if file exists
+    inquire(file=trim(filename), exist=file_exists)
+
+    !delete file if we have a new file to write into for the first time
+    if (present(del_old_file)) then 
+      if (filename /= current_filename .and. file_exists .and. del_old_file) then
+        ! Use Fortran intrinsic instead of system call for safer operation
+        open(unit=999, file=trim(filename), status='old', iostat=localrc)
+        if (localrc == 0) then
+          close(unit=999, status='delete', iostat=localrc)
+          if (localrc == 0) then
+            current_filename = filename
+            file_exists = .false.  ! Update status since file was deleted
+          end if
+        end if
+      end if
+    end if
+
+    ! open and read existing data if appending
+    if (append_mode .and. file_exists) then
+      ! Read existing data first based on data type
+      select case (data_type)
+        case (1) ! I4
+          call AQMIO_Read1D(filename, varname, localrc, data_i4=existing_data_i4, iocomp=iocomp)
+          if (localrc == ESMF_SUCCESS .and. allocated(existing_data_i4)) then
+            existing_size = size(existing_data_i4)
+            total_size = existing_size + new_size
+            allocate(combined_data_i4(total_size))
+            combined_data_i4(1:existing_size) = existing_data_i4(1:existing_size)
+            combined_data_i4(existing_size+1:total_size) = data_i4(1:new_size)
+            deallocate(existing_data_i4)
+          else
+            total_size = new_size
+            allocate(combined_data_i4(total_size))
+            combined_data_i4(1:new_size) = data_i4(1:new_size)
+          end if
+        case (2) ! R4
+          call AQMIO_Read1D(filename, varname, localrc, data_r4=existing_data_r4, iocomp=iocomp)
+          if (localrc == ESMF_SUCCESS .and. allocated(existing_data_r4)) then
+            existing_size = size(existing_data_r4)
+            total_size = existing_size + new_size
+            allocate(combined_data_r4(total_size))
+            combined_data_r4(1:existing_size) = existing_data_r4(1:existing_size)
+            combined_data_r4(existing_size+1:total_size) = data_r4(1:new_size)
+            deallocate(existing_data_r4)
+          else
+            total_size = new_size
+            allocate(combined_data_r4(total_size))
+            combined_data_r4(1:new_size) = data_r4(1:new_size)
+          end if
+        case (3) ! R8
+          call AQMIO_Read1D(filename, varname, localrc, data_r8=existing_data_r8, iocomp=iocomp)
+          if (localrc == ESMF_SUCCESS .and. allocated(existing_data_r8)) then
+            existing_size = size(existing_data_r8)
+            total_size = existing_size + new_size
+            allocate(combined_data_r8(total_size))
+            combined_data_r8(1:existing_size) = existing_data_r8(1:existing_size)
+            combined_data_r8(existing_size+1:total_size) = data_r8(1:new_size)
+            deallocate(existing_data_r8)
+          else
+            total_size = new_size
+            allocate(combined_data_r8(total_size))
+            combined_data_r8(1:new_size) = data_r8(1:new_size)
+          end if
+      end select
+    else
+      ! No append or file doesn't exist, use new data only
+      total_size = new_size
+      select case (data_type)
+        case (1) ! I4
+          allocate(combined_data_i4(total_size))
+          combined_data_i4(1:new_size) = data_i4(1:new_size)
+        case (2) ! R4
+          allocate(combined_data_r4(total_size))
+          combined_data_r4(1:new_size) = data_r4(1:new_size)
+        case (3) ! R8
+          allocate(combined_data_r8(total_size))
+          combined_data_r8(1:new_size) = data_r8(1:new_size)
+      end select
+    end if
+
+    ! Create or open file
+    if (.not. file_exists) then
+      localrc = nf90_create(trim(filename), NF90_CLOBBER, ncid)
+    else
+      localrc = nf90_open(trim(filename), NF90_WRITE, ncid)
+    end if
+    
+    if (localrc /= NF90_NOERR) then
+      if (present(rc)) rc = ESMF_FAILURE
+      goto 999 ! Cleanup and return
+    end if
+
+    ! Check if variable exists
+    localrc = nf90_inq_varid(ncid, trim(varname), varid)
+    var_exists = (localrc == NF90_NOERR)
+
+    if (.not. var_exists) then
+      ! Define dimension
+      if (trim(varname) == "time") then
+        localrc = nf90_def_dim(ncid, "Time", NF90_UNLIMITED, dimid)
+      else
+        localrc = nf90_def_dim(ncid, trim(varname)//"_dim", total_size, dimid)
+      end if
+      
+      if (localrc /= NF90_NOERR) then
+        localrc = nf90_close(ncid)
+        if (present(rc)) rc = ESMF_FAILURE
+        goto 999 ! Cleanup and return
+      end if
+
+      ! Define variable
+      localrc = nf90_def_var(ncid, trim(varname), netcdf_type, dimid, varid)
+      if (localrc /= NF90_NOERR) then
+        localrc = nf90_close(ncid)
+        if (present(rc)) rc = ESMF_FAILURE
+        goto 999 ! Cleanup and return
+      end if
+
+      ! Add attributes for time variable
+      if (trim(varname) == "time") then
+        localrc = nf90_put_att(ncid, varid, "units", "seconds since 1970-01-01 00:00:00")
+        if (localrc /= NF90_NOERR) then
+          call ESMF_LogWrite("Warning: Failed to add time units attribute", &
+            ESMF_LOGMSG_WARNING, rc=localrc)
+        end if
+        localrc = nf90_put_att(ncid, varid, "calendar", "gregorian")
+        if (localrc /= NF90_NOERR) then
+          call ESMF_LogWrite("Warning: Failed to add time calendar attribute", &
+            ESMF_LOGMSG_WARNING, rc=localrc)
+        end if
+      end if
+
+      ! End define mode
+      localrc = nf90_enddef(ncid)
+      if (localrc /= NF90_NOERR) then
+        localrc = nf90_close(ncid)
+        if (present(rc)) rc = ESMF_FAILURE
+        goto 999 ! Cleanup and return
+      end if
+    end if
+
+    ! Write data based on type
+    select case (data_type)
+      case (1) ! I4
+        localrc = nf90_put_var(ncid, varid, combined_data_i4)
+      case (2) ! R4
+        localrc = nf90_put_var(ncid, varid, combined_data_r4)
+      case (3) ! R8
+        localrc = nf90_put_var(ncid, varid, combined_data_r8)
+    end select
+    
+    if (localrc /= NF90_NOERR) then
+      localrc = nf90_close(ncid)
+      if (present(rc)) rc = ESMF_FAILURE
+      goto 999 ! Cleanup and return
+    end if
+
+    ! Set current_size output parameter if requested
+    if (present(current_size)) then
+      current_size = total_size
+    end if
+
+    ! Close file
+    localrc = nf90_close(ncid)
+    if (localrc /= NF90_NOERR) then
+      if (present(rc)) rc = ESMF_FAILURE
+    end if
+
+999 continue
+    ! Cleanup
+    if (allocated(combined_data_i4)) deallocate(combined_data_i4)
+    if (allocated(combined_data_r4)) deallocate(combined_data_r4)
+    if (allocated(combined_data_r8)) deallocate(combined_data_r8)
+
+#else
+    if (present(rc)) rc = ESMF_FAILURE
+    call ESMF_LogSetError(ESMF_RC_LIB_NOT_PRESENT, &
+      msg="NetCDF not available", &
+      line=__LINE__, file=__FILE__, rcToReturn=rc)
+#endif
+
+  end subroutine AQMIO_Write1D
+
+  !> \brief Read 1D data directly from NetCDF file (consolidated function)
+  !!
+  !! This subroutine provides NetCDF I/O for reading 1D data arrays
+  !! without requiring ESMF fields. Handles I4, R4, and R8 data types
+  !! using case statements. Returns allocated data array of requested type.
+  !!
+  !! \param filename NetCDF filename to read from
+  !! \param varname Variable name in NetCDF file
+  !! \param rc Return code
+  !! \param data_i4 Integer data array (I4) - optional output
+  !! \param data_r4 Real data array (R4) - optional output
+  !! \param data_r8 Real data array (R8) - optional output
+  !!
+  subroutine AQMIO_Read1D(filename, varname, rc, &
+                                 data_i4, data_r4, data_r8, iocomp)
+    character(len=*), intent(in) :: filename
+    character(len=*), intent(in) :: varname
+    integer, intent(out), optional :: rc
+    integer(ESMF_KIND_I4), allocatable, intent(out), optional :: data_i4(:)
+    real(ESMF_KIND_R4), allocatable, intent(out), optional :: data_r4(:)
+    real(ESMF_KIND_R8), allocatable, intent(out), optional :: data_r8(:)
+    type(ESMF_GridComp), intent(inout), optional :: iocomp
+
+#if HAVE_NETCDF
+    ! Local variables
+    integer :: localrc, ncid, varid, var_size, data_type
+    integer :: dimids(1)  ! Array to hold dimension IDs for 1D variable
+    type(ESMF_VM) :: vm
+    integer :: localPet
+
+    if (present(rc)) rc = ESMF_SUCCESS
+
+    ! MPI coordination: only PET 0 should perform file operations
+    if (present(iocomp)) then
+      call ESMF_GridCompGet(iocomp, vm=vm, rc=localrc)
+      if (localrc == ESMF_SUCCESS) then
+        call ESMF_VMGet(vm, localPet=localPet, rc=localrc)
+        if (localrc == ESMF_SUCCESS .and. localPet /= 0) then
+          ! Non-root PETs: return early
+          return
+        end if
+      end if
+    end if
+
+    ! Determine requested data type
+    if (present(data_i4)) then
+      data_type = 1
+    else if (present(data_r4)) then
+      data_type = 2
+    else if (present(data_r8)) then
+      data_type = 3
+    else
+      if (present(rc)) rc = ESMF_FAILURE
+      call ESMF_LogSetError(ESMF_RC_ARG_WRONG, &
+        msg="No output data array provided to AQMIO_Read1D", &
+        line=__LINE__, file=__FILE__, rcToReturn=rc)
+      return
+    end if
+
+    ! Open file for reading
+    localrc = nf90_open(trim(filename), NF90_NOWRITE, ncid)
+    if (localrc /= NF90_NOERR) then
+      if (present(rc)) rc = ESMF_FAILURE
+      return
+    end if
+
+    ! Get variable ID
+    localrc = nf90_inq_varid(ncid, trim(varname), varid)
+    if (localrc /= NF90_NOERR) then
+      localrc = nf90_close(ncid)
+      if (present(rc)) rc = ESMF_FAILURE
+      return
+    end if
+
+    ! Get dimension size
+    localrc = nf90_inquire_variable(ncid, varid, dimids=dimids)
+    if (localrc /= NF90_NOERR) then
+      localrc = nf90_close(ncid)
+      if (present(rc)) rc = ESMF_FAILURE
+      return
+    end if
+
+    localrc = nf90_inquire_dimension(ncid, dimids(1), len=var_size)
+    if (localrc /= NF90_NOERR) then
+      localrc = nf90_close(ncid)
+      if (present(rc)) rc = ESMF_FAILURE
+      return
+    end if
+
+    ! Allocate data array based on type and read data
+    select case (data_type)
+      case (1) ! I4
+        allocate(data_i4(var_size))
+        localrc = nf90_get_var(ncid, varid, data_i4)
+        if (localrc /= NF90_NOERR) then
+          deallocate(data_i4)
+          localrc = nf90_close(ncid)
+          if (present(rc)) rc = ESMF_FAILURE
+          return
+        end if
+      case (2) ! R4
+        allocate(data_r4(var_size))
+        localrc = nf90_get_var(ncid, varid, data_r4)
+        if (localrc /= NF90_NOERR) then
+          deallocate(data_r4)
+          localrc = nf90_close(ncid)
+          if (present(rc)) rc = ESMF_FAILURE
+          return
+        end if
+      case (3) ! R8
+        allocate(data_r8(var_size))
+        localrc = nf90_get_var(ncid, varid, data_r8)
+        if (localrc /= NF90_NOERR) then
+          deallocate(data_r8)
+          localrc = nf90_close(ncid)
+          if (present(rc)) rc = ESMF_FAILURE
+          return
+        end if
+    end select
+
+    ! Close file
+    localrc = nf90_close(ncid)
+    if (localrc /= NF90_NOERR) then
+      if (present(rc)) rc = ESMF_FAILURE
+    end if
+
+#else
+    if (present(rc)) rc = ESMF_FAILURE
+    call ESMF_LogSetError(ESMF_RC_LIB_NOT_PRESENT, &
+      msg="NetCDF not available", &
+      line=__LINE__, file=__FILE__, rcToReturn=rc)
+#endif
+
+  end subroutine AQMIO_Read1D
 
 #endif
 

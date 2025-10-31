@@ -88,6 +88,19 @@ elseif(
   )
 endif()
 
+# Find external dependencies if not already available (for standalone builds)
+# Check if targets exist before trying to find packages
+if(NOT TARGET NetCDF::NetCDF_Fortran)
+  find_package(NetCDF REQUIRED COMPONENTS Fortran)
+endif()
+
+if(NOT TARGET esmf)
+  find_package(ESMF REQUIRED)
+endif()
+
+# Enable testing for standalone builds
+enable_testing()
+
 add_subdirectory(src)
 add_subdirectory(tests)
 add_subdirectory(drivers/nuopc)

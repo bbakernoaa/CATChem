@@ -899,14 +899,14 @@ contains
       ! Register seasalt_mass_emission_total
       call this%register_diagnostic_field(registry, 'seasalt_mass_emission_total', &
                                           'Sea salt mass emission flux total', &
-                                          'ug/m2/s', DIAG_REAL_2D, &
+                                          'kg/m2/s', DIAG_REAL_2D, &
                                           'seasalt', dims_2d, rc)
       if (rc /= CC_SUCCESS) return
       
       ! Register seasalt_number_emission_total
       call this%register_diagnostic_field(registry, 'seasalt_number_emission_total', &
                                           'Sea salt number emission flux total', &
-                                          '#/m2/s', DIAG_REAL_2D, &
+                                          'kg/m2/s', DIAG_REAL_2D, &
                                           'seasalt', dims_2d, rc)
       if (rc /= CC_SUCCESS) return
       
@@ -920,13 +920,13 @@ contains
          ! Register gong97-specific diagnostics
          call this%register_diagnostic_field(registry, 'seasalt_mass_emission_per_bin', &
                                              'Sea salt mass emission flux per bin', &
-                                             'ug/m2/s', DIAG_REAL_3D, &
+                                             'kg/m2/s', DIAG_REAL_3D, &
                                              'seasalt', dims_3d_species, rc)
          if (rc /= CC_SUCCESS) return
          
          call this%register_diagnostic_field(registry, 'seasalt_number_emission_per_bin', &
                                              'Sea salt number emission flux per bin', &
-                                             '#/m2/s', DIAG_REAL_3D, &
+                                             'kg/m2/s', DIAG_REAL_3D, &
                                              'seasalt', dims_3d_species, rc)
          if (rc /= CC_SUCCESS) return
          
@@ -934,13 +934,13 @@ contains
          ! Register gong03-specific diagnostics
          call this%register_diagnostic_field(registry, 'seasalt_mass_emission_per_bin', &
                                              'Sea salt mass emission flux per bin', &
-                                             'ug/m2/s', DIAG_REAL_3D, &
+                                             'kg/m2/s', DIAG_REAL_3D, &
                                              'seasalt', dims_3d_species, rc)
          if (rc /= CC_SUCCESS) return
          
          call this%register_diagnostic_field(registry, 'seasalt_number_emission_per_bin', &
                                              'Sea salt number emission flux per bin', &
-                                             '#/m2/s', DIAG_REAL_3D, &
+                                             'kg/m2/s', DIAG_REAL_3D, &
                                              'seasalt', dims_3d_species, rc)
          if (rc /= CC_SUCCESS) return
          
@@ -948,13 +948,13 @@ contains
          ! Register geos12-specific diagnostics
          call this%register_diagnostic_field(registry, 'seasalt_mass_emission_per_bin', &
                                              'Sea salt mass emission flux per bin', &
-                                             'ug/m2/s', DIAG_REAL_3D, &
+                                             'kg/m2/s', DIAG_REAL_3D, &
                                              'seasalt', dims_3d_species, rc)
          if (rc /= CC_SUCCESS) return
          
          call this%register_diagnostic_field(registry, 'seasalt_number_emission_per_bin', &
                                              'Sea salt number emission flux per bin', &
-                                             '#/m2/s', DIAG_REAL_3D, &
+                                             'kg/m2/s', DIAG_REAL_3D, &
                                              'seasalt', dims_3d_species, rc)
          if (rc /= CC_SUCCESS) return
          
