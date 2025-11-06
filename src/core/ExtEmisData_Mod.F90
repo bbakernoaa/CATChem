@@ -42,18 +42,29 @@ MODULE ExtEmisData_Mod
       CHARACTER(LEN=64)             :: field_name = ''     !< Field name (e.g., "EMIS_NO", "EMIS_SO2")
       CHARACTER(LEN=128)            :: long_name = ''      !< Descriptive name
       CHARACTER(LEN=32)             :: units = ''          !< Units (typically kg/m2/s)
-      CHARACTER(LEN=256)            :: source_file = ''    !< Source file path
+      !CHARACTER(LEN=256)            :: source_file = ''    !< Source file path
       INTEGER                       :: nx = 0              !< Number of longitude points
       INTEGER                       :: ny = 0              !< Number of latitude points
       INTEGER                       :: nz = 1              !< Number of vertical levels (usually 1 for surface)
+      REAL(fp)                      :: factors = 1.0_fp    !< Scaling factors for non-chemical variables
+      REAL(fp), ALLOCATABLE         :: lat(:)              !< Latitude coordinates [degrees]
+      REAL(fp), ALLOCATABLE         :: lon(:)              !< Longitude coordinates [degrees]
+      REAL(fp), ALLOCATABLE         :: stkdm(:)            !< Stack diameter [m]
+      REAL(fp), ALLOCATABLE         :: stkht(:)            !< Stack height [m]
+      REAL(fp), ALLOCATABLE         :: stktk(:)            !< Stack temperature [K]
+      REAL(fp), ALLOCATABLE         :: stkve(:)            !< Stack velocity [m/s]
+      INTEGER,  ALLOCATABLE         :: ip(:)               !< i-indices for point sources
+      INTEGER,  ALLOCATABLE         :: jp(:)               !< j-indices for point sources
+      INTEGER,  ALLOCATABLE         :: ijmap(:)            !< Number of point sources within the model domain
       INTEGER                       :: n_times = 0         !< Number of time steps in file
       INTEGER                       :: current_time_idx = 1 !< Current time index
       LOGICAL                       :: time_interpolate = .true. !< Enable time interpolation
+      LOGICAL                       :: diagnostic = .false. !< Enable diagnostic output of this field
       REAL(fp), ALLOCATABLE         :: emission_data(:,:,:,:) !< Emission flux [kg/m2/s] (nx,ny,nz,n_times)
-      REAL(fp), ALLOCATABLE         :: longitude(:,:)         !< Longitude coordinates [degrees]
-      REAL(fp), ALLOCATABLE         :: latitude(:,:)          !< Latitude coordinates [degrees]
-      REAL(fp), ALLOCATABLE         :: vertical(:,:)          !< Vertical coordinates (if applicable)
-      REAL(fp), ALLOCATABLE         :: time_coords(:,:)       !< Time coordinates
+      ! REAL(fp), ALLOCATABLE         :: longitude(:,:)         !< Longitude coordinates [degrees]
+      ! REAL(fp), ALLOCATABLE         :: latitude(:,:)          !< Latitude coordinates [degrees]
+      ! REAL(fp), ALLOCATABLE         :: vertical(:,:)          !< Vertical coordinates (if applicable)
+      ! REAL(fp), ALLOCATABLE         :: time_coords(:,:)       !< Time coordinates
       LOGICAL                       :: is_loaded = .false. !< Data loading status
       LOGICAL                       :: is_valid = .false.  !< Data validation status
       CHARACTER(LEN=32)             :: interpolation_method = 'bilinear' !< Spatial interpolation method
@@ -89,10 +100,24 @@ MODULE ExtEmisData_Mod
       CHARACTER(LEN=64)                         :: category_name = ''  !< Category name
       CHARACTER(LEN=256)                        :: description = ''    !< Category description
       INTEGER                                   :: n_fields = 0        !< Number of emission fields
+      INTEGER                                   :: irec = 0            !< time slice index 
       TYPE(ExtEmisFieldType), ALLOCATABLE       :: fields(:)           !< Emission fields array
       LOGICAL                                   :: is_active = .true.  !< Category enabled/disabled
+      LOGICAL                                   :: gridded = .true.   !< Is this a gridded emission category
       REAL(fp)                                  :: global_scale = 1.0_fp !< Global scaling factor
-      CHARACTER(LEN=128)                        :: source_info = ''    !< Source information/references
+      REAL(fp)                                  :: topfraction = -1.0_fp !< Top fraction for plumerise
+      CHARACTER(LEN=128)                        :: source_file = ''    !< Source file path and name
+      CHARACTER(LEN=128)                        :: format = ''         !< Format of file (only netcdf for now)
+      CHARACTER(LEN=128)                        :: frequency = ''      !< Frequency of file (e.g., hourly, daily, weekly, monthly,static)
+      CHARACTER(LEN=128)                        :: latname = ''       !< Latitude variable name in the file
+      CHARACTER(LEN=128)                        :: lonname = ''       !< Longitude variable name in the file
+      CHARACTER(LEN=128)                        :: stkdmname = ''      !< Stack dimension name in the file
+      CHARACTER(LEN=128)                        :: stkhtname = ''      !< Stack height variable name in the file
+      CHARACTER(LEN=128)                        :: stktkname = ''      !< Stack temperature variable name in the file
+      CHARACTER(LEN=128)                        :: stkvename = ''      !< Stack velocity variable name in the file
+      CHARACTER(LEN=128)                        :: plumerise = ''      !< plumerise scheme  
+
+
    CONTAINS
       !> \brief Initialize emission category with metadata
       !! \copydoc extemicat_init
@@ -122,6 +147,7 @@ MODULE ExtEmisData_Mod
       INTEGER                                   :: n_categories = 0    !< Number of emission categories
       TYPE(ExtEmisCategoryType), ALLOCATABLE    :: categories(:)       !< Emission categories array
       LOGICAL                                   :: is_active = .true.  !< All emissions enabled/disabled
+      LOGICAL                                   :: diagnostic = .true.  !< Enable diagnostic output for external emissions?
       INTEGER                                   :: total_fields = 0    !< Total number of emission fields
       CHARACTER(LEN=128)                        :: data_source = ''    !< Data source information
       REAL(fp)                                  :: global_scale = 1.0_fp !< Global scaling factor for all emissions
@@ -217,6 +243,13 @@ CONTAINS
          this%units = 'kg/m2/s'
       endif
 
+      if (allocated(this%emission_data)) deallocate(this%emission_data)
+      allocate(this%emission_data(this%nx, this%ny, this%nz, this%n_times))
+
+      this%current_time_idx = 1
+      this%factors = 1.0_fp
+      this%time_interpolate = .true.
+      this%diagnostic = .false.
       this%is_loaded = .false.
       this%is_valid = .false.
 
@@ -236,22 +269,30 @@ CONTAINS
       rc = CC_SUCCESS
 
       if (allocated(this%emission_data)) deallocate(this%emission_data)
-      if (allocated(this%longitude)) deallocate(this%longitude)
-      if (allocated(this%latitude)) deallocate(this%latitude)
-      if (allocated(this%vertical)) deallocate(this%vertical)
-      if (allocated(this%time_coords)) deallocate(this%time_coords)
+      if (allocated(this%lat)) deallocate(this%lat)
+      if (allocated(this%lon)) deallocate(this%lon)
+      if (allocated(this%stkdm)) deallocate(this%stkdm)
+      if (allocated(this%stkht)) deallocate(this%stkht)
+      if (allocated(this%stktk)) deallocate(this%stktk)
+      if (allocated(this%stkve)) deallocate(this%stkve)
+      if (allocated(this%ip)) deallocate(this%ip)
+      if (allocated(this%jp)) deallocate(this%jp)
+      if (allocated(this%ijmap)) deallocate(this%ijmap)
 
       this%field_name = ''
       this%long_name = ''
       this%units = ''
-      this%source_file = ''
       this%nx = 0
       this%ny = 0
       this%nz = 1
+      this%factors = 1.0_fp
       this%n_times = 0
       this%current_time_idx = 1
+      this%time_interpolate = .true.
+      this%diagnostic = .false.
       this%is_loaded = .false.
       this%is_valid = .false.
+      this%interpolation_method = 'bilinear'
 
    end subroutine extemifield_cleanup
 
@@ -353,7 +394,6 @@ CONTAINS
       ! Placeholder implementation - actual file I/O would be handled by the driver
       ! using NetCDF libraries or other format-specific readers
 
-      this%source_file = trim(filename)
       this%is_loaded = .false.  ! Will be set to true by driver after successful load
 
       print *, 'WARNING: ExtEmisField file loading is handled by driver'
@@ -463,9 +503,21 @@ CONTAINS
       this%category_name = ''
       this%description = ''
       this%n_fields = 0
-      this%global_scale = 1.0_fp
+      this%irec = 0
       this%is_active = .true.
-      this%source_info = ''
+      this%gridded = .true.
+      this%global_scale = 1.0_fp
+      this%topfraction = -1.0_fp
+      this%source_file = ''
+      this%format = ''
+      this%frequency = ''
+      this%latname = ''
+      this%lonname = ''
+      this%stkdmname = ''
+      this%stkhtname = ''
+      this%stktkname = ''
+      this%stkvename = ''
+      this%plumerise = ''
 
    end subroutine extemicat_cleanup
 

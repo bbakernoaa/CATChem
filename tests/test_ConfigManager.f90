@@ -402,6 +402,8 @@ contains
                      trim(config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%emission_field)
                write(*,'(A,A)') '          Description: ', &
                      trim(config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%long_name)
+               write(*,'(A,A)') '          units: ', &
+                     trim(config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%units)
                write(*,'(A,I0)') '          Number of mappings: ', &
                      config_manager%config_data%emission_mapping%categories(i)%species_mappings(j)%n_mappings
                write(*,'(A,L1)') '          Active: ', &

@@ -69,6 +69,8 @@ module ConfigManager_Mod
    public :: ProcessConfigType   ! Process configuration type
    public :: EmissionCategoryMapping  ! Emission category mapping structure
    public :: EmisSpeciesMappingEntry  ! Individual emission species mapping
+   public :: discover_yaml_section_items
+   public :: discover_nested_yaml_section_items
    public :: CONFIG_STRATEGY_STRICT, CONFIG_STRATEGY_PERMISSIVE, CONFIG_STRATEGY_FALLBACK
 
    !> \brief Configuration loading strategies
@@ -91,7 +93,9 @@ module ConfigManager_Mod
       logical :: Verbose = .false.                   !< Should verbose output be produced?
 
       ! Simulation dimensions
-      integer :: nLevs = 127                          !< Number of vertical levels
+      integer :: nLevs = 127                         !< Number of vertical levels
+      integer :: nx = 1                              !< Number of grid points in x-direction
+      integer :: ny = 1                              !< Number of grid points in y-direction
       integer :: nSpecies = 50                       !< Total number of chemical species
       integer :: maxSpecies = 500                    !< Maximum number of chemical species
       integer :: nSpecies_drydep = 20                !< Number of species with dry deposition
@@ -124,6 +128,7 @@ module ConfigManager_Mod
    type :: EmisSpeciesMappingEntry
       character(len=64) :: emission_field = ''        !< Emission field name (e.g., "SeaS1")
       character(len=256) :: long_name = ''            !< Human-readable description
+      character(len=64) :: units = ''                  !< units
       integer :: n_mappings = 0                       !< Number of mappings
       character(len=64), allocatable :: map(:)        !< Target chemical species names
       real(fp), allocatable :: scale(:)               !< Scaling factors for each mapping
@@ -307,6 +312,7 @@ module ConfigManager_Mod
       procedure :: get_real => config_manager_get_real
       procedure :: get_logical => config_manager_get_logical
       procedure :: get_array => config_manager_get_array
+      procedure :: get_real_array => config_manager_get_real_array
       procedure :: get_nspecies => config_manager_get_nspecies
       procedure :: get_max_species => config_manager_get_max_species
       procedure :: get_nemission_categories => config_manager_get_nemission_categories
@@ -964,9 +970,13 @@ contains
       integer, intent(out) :: rc
       real(fp), optional, intent(in) :: default_value
 
-      ! Try to get value from loaded YAML data using yaml_get interface
+      ! Try to get value from loaded YAML data using safe conversion
       if (this%is_loaded) then
-         call yaml_get(this%yaml_data, key, value, rc, default_value)
+         call safe_yaml_get_real(this%yaml_data, key, value, rc)
+         if (rc /= 0 .and. present(default_value)) then
+            value = default_value
+            rc = CC_SUCCESS
+         endif
       else
          ! Use default value if provided
          if (present(default_value)) then
@@ -989,9 +999,13 @@ contains
       integer, intent(out) :: rc
       logical, optional, intent(in) :: default_value
 
-      ! Try to get value from loaded YAML data using yaml_get interface
+      ! Try to get value from loaded YAML data using safe conversion
       if (this%is_loaded) then
-         call yaml_get(this%yaml_data, key, value, rc, default_value)
+         call safe_yaml_get_logical(this%yaml_data, key, value, rc)
+         if (rc /= 0 .and. present(default_value)) then
+            value = default_value
+            rc = CC_SUCCESS
+         endif
       else
          ! Use default value if provided
          if (present(default_value)) then
@@ -1007,27 +1021,79 @@ contains
 
    !> \brief Get array value from configuration
    subroutine config_manager_get_array(this, key, values, rc)
+      use yaml_interface_mod, only: yaml_get_string_array
       implicit none
       class(ConfigManagerType), intent(in) :: this
       character(len=*), intent(in) :: key
       character(len=*), allocatable, intent(out) :: values(:)
       integer, intent(out) :: rc
 
-      ! Suppress warnings for unused arguments/variables
-      if (.false.) write(*,*) trim(key)
+      integer :: actual_size, max_size
+      logical :: success
+      character(len=256) :: temp_values(100)  ! Temporary array with maximum size
 
-      ! Try to get array from loaded YAML data
-      if (this%is_loaded) then
-         ! For now, simplified implementation - would need to parse YAML arrays
-         ! This is a placeholder that returns empty array
+      rc = CC_FAILURE
+      
+      ! Check if configuration is loaded
+      if (.not. this%is_loaded) then
          allocate(values(0))
+         return
+      endif
+
+      ! Try to get string array from loaded YAML data
+      max_size = size(temp_values)
+      success = yaml_get_string_array(this%yaml_data, key, temp_values, actual_size)
+      
+      if (success .and. actual_size > 0) then
+         ! Allocate the output array with the correct size
+         allocate(values(actual_size))
+         values(1:actual_size) = temp_values(1:actual_size)
          rc = CC_SUCCESS
       else
+         ! Return empty array if unsuccessful
          allocate(values(0))
          rc = CC_FAILURE
       endif
 
    end subroutine config_manager_get_array
+
+   !> \brief Get real array value from configuration
+   subroutine config_manager_get_real_array(this, key, values, rc)
+      use yaml_interface_mod, only: yaml_get_real_array
+      implicit none
+      class(ConfigManagerType), intent(in) :: this
+      character(len=*), intent(in) :: key
+      real(fp), allocatable, intent(out) :: values(:)
+      integer, intent(out) :: rc
+
+      integer :: actual_size, max_size
+      logical :: success
+      real(fp) :: temp_values(100)  ! Temporary array with maximum size
+
+      rc = CC_FAILURE
+      
+      ! Check if configuration is loaded
+      if (.not. this%is_loaded) then
+         allocate(values(0))
+         return
+      endif
+
+      ! Try to get real array from loaded YAML data
+      max_size = size(temp_values)
+      success = yaml_get_real_array(this%yaml_data, key, temp_values, actual_size)
+      
+      if (success .and. actual_size > 0) then
+         ! Allocate the output array with the correct size
+         allocate(values(actual_size))
+         values(1:actual_size) = temp_values(1:actual_size)
+         rc = CC_SUCCESS
+      else
+         ! Return empty array if unsuccessful
+         allocate(values(0))
+         rc = CC_FAILURE
+      endif
+
+   end subroutine config_manager_get_real_array
 
    !> \brief Get number of species from configuration
    function config_manager_get_nspecies(this) result(nspecies)
@@ -1256,6 +1322,22 @@ contains
          return
       endif
 
+      if (this%runtime%nx < 1) then
+         call error_mgr%report_error(ERROR_INVALID_CONFIG, &
+              'Number of nx must be positive', rc, 'config_data_validate')
+         is_valid = .false.
+         call error_mgr%pop_context()
+         return
+      endif
+
+      if (this%runtime%ny < 1) then
+         call error_mgr%report_error(ERROR_INVALID_CONFIG, &
+              'Number of ny must be positive', rc, 'config_data_validate')
+         is_valid = .false.
+         call error_mgr%pop_context()
+         return
+      endif
+
       if (this%runtime%maxSpecies < 1) then
          call error_mgr%report_error(ERROR_INVALID_CONFIG, &
               'Maximum species must be positive', rc, 'config_data_validate')
@@ -1346,7 +1428,9 @@ contains
       ! Parse runtime configuration - use safe conversion for numeric values
       call safe_yaml_get_integer(this%yaml_data, 'runtime/nEmissionSpecies', this%config_data%runtime%nEmissionSpecies, local_rc)
       if (local_rc /= 0) this%config_data%runtime%nEmissionSpecies = 50  ! default value
-      call yaml_get(this%yaml_data, 'diagnostics/output/enabled', this%config_data%runtime%DiagEnabled, rc, .false.)
+
+      call safe_yaml_get_logical(this%yaml_data, 'diagnostics/output/enabled', this%config_data%runtime%DiagEnabled, local_rc)
+      if (local_rc /= 0) this%config_data%runtime%DiagEnabled = .false.  ! default value
 
       ! Parse file paths
       call yaml_get(this%yaml_data, 'diagnostics/output/directory', this%config_data%file_paths%Output_Directory, rc, './')
@@ -1962,8 +2046,6 @@ contains
             cycle
          end if
          
-         write(*, '(A,A,A,I0,A)') 'INFO: Found ', trim(all_categories(i)), ' category with ', n_species, ' emission fields'
-         
          this%config_data%emission_mapping%categories(i)%n_emission_species = n_species
          allocate(this%config_data%emission_mapping%categories(i)%species_mappings(n_species))
          
@@ -1980,6 +2062,17 @@ contains
             if (.not. success) then
                write(*, '(A,A,A,A)') 'DEBUG: Failed to get long_name for ', trim(all_categories(i)), '/', trim(all_species(j))
                this%config_data%emission_mapping%categories(i)%species_mappings(j)%long_name = 'No description'
+            end if
+            
+            ! Get units using full path
+            success = yaml_get_string(mapping_config, trim(all_categories(i))//'/'//trim(all_species(j))//'/units', &
+               this%config_data%emission_mapping%categories(i)%species_mappings(j)%units)
+            if (.not. success) then
+               write(*, '(A,A,A,A)') 'WARNING: Failed to get units for ', trim(all_categories(i)), '/', trim(all_species(j))
+               this%config_data%emission_mapping%categories(i)%species_mappings(j)%units = 'kg/m2/s'  ! Default units
+            else
+               !write(*, '(A,A,A,A,A,A)') 'DEBUG: Read units "', trim(this%config_data%emission_mapping%categories(i)%species_mappings(j)%units), &
+               !      '" for ', trim(all_categories(i)), '/', trim(all_species(j))
             end if
             
             ! Try to read mapping arrays using YAML API with full key paths
@@ -2000,14 +2093,14 @@ contains
                   ! Make sure both arrays have the same size (use minimum)
                   n_maps = min(n_maps, n_scales)
                   this%config_data%emission_mapping%categories(i)%species_mappings(j)%n_mappings = n_maps
-                  write(*, '(A,I0,A,A,A,A)') 'DEBUG: Successfully read ', n_maps, ' mappings for ', &
-                        trim(all_categories(i)), '/', trim(all_species(j))
+                  !write(*, '(A,I0,A,A,A,A)') 'DEBUG: Successfully read ', n_maps, ' mappings for ', &
+                  !      trim(all_categories(i)), '/', trim(all_species(j))
                else
                   ! If scale reading fails, use default scale of 1.0
                   this%config_data%emission_mapping%categories(i)%species_mappings(j)%scale(1:n_maps) = 1.0_fp
                   this%config_data%emission_mapping%categories(i)%species_mappings(j)%n_mappings = n_maps
-                  write(*, '(A,I0,A,A,A,A)') 'DEBUG: Read ', n_maps, ' mappings with default scale for ', &
-                        trim(all_categories(i)), '/', trim(all_species(j))
+                  !write(*, '(A,I0,A,A,A,A)') 'DEBUG: Read ', n_maps, ' mappings with default scale for ', &
+                  !      trim(all_categories(i)), '/', trim(all_species(j))
                end if
                
                ! Initialize indices to zero (will be resolved later when ChemState is available)
@@ -2018,7 +2111,7 @@ contains
                deallocate(this%config_data%emission_mapping%categories(i)%species_mappings(j)%scale)
                deallocate(this%config_data%emission_mapping%categories(i)%species_mappings(j)%index)
                this%config_data%emission_mapping%categories(i)%species_mappings(j)%n_mappings = 0
-               write(*, '(A,A,A,A)') 'DEBUG: No mapping found for ', trim(all_categories(i)), '/', trim(all_species(j))
+               write(*, '(A,A,A,A)') 'WARNING: No mapping found for ', trim(all_categories(i)), '/', trim(all_species(j))
             end if
          end do
          
@@ -2096,9 +2189,12 @@ contains
       integer :: line_number, field_indent
       
       ! Emission field specific variables
-      logical :: field_has_map, field_has_scale
+      logical :: field_has_map, field_has_scale, field_added_on_exit
       character(len=64) :: current_field
-
+      
+      ! Variables for duplicate detection
+      logical :: already_exists
+      integer :: check_idx, i
       rc = CC_SUCCESS
       n_items = 0
       in_section = .false.
@@ -2111,6 +2207,7 @@ contains
       field_has_scale = .false.
       current_field = ''
       field_indent = -1
+      field_added_on_exit = .false.
 
       ! Open file for reading
       open(newunit=unit_num, file=trim(filename), status='old', action='read', iostat=io_stat)
@@ -2171,11 +2268,25 @@ contains
                   ! Emission fields mode: validate fields have both 'map' and 'scale'
                   if (indent_level == section_indent + 2) then
                      ! Direct child of category - potential emission field
+                     ! Process previous field if it was complete
                      if (current_field /= '' .and. field_has_map .and. field_has_scale) then
                         if (n_items < size(item_names)) then
-                           n_items = n_items + 1
-                           item_names(n_items) = trim(current_field)
-                           write(*, '(A,A)') 'INFO: Added emission field: ', trim(current_field)
+                           ! Check for duplicates before adding
+                           already_exists = .false.
+                           do check_idx = 1, n_items
+                              if (trim(item_names(check_idx)) == trim(current_field)) then
+                                 already_exists = .true.
+                                 write(*, '(A,A)') 'WARNING: Duplicate detected and skipped: ', trim(current_field)
+                                 exit
+                              endif
+                           end do
+                           
+                           if (.not. already_exists) then
+                              n_items = n_items + 1
+                              item_names(n_items) = trim(current_field)
+                              !write(*, '(A,A,A,I0)') 'INFO: Added emission field: ', trim(current_field), ' (new field trigger at line ', line_number, ')'
+                              field_added_on_exit = .true.
+                           endif
                         endif
                      endif
                      
@@ -2184,6 +2295,7 @@ contains
                      field_indent = indent_level
                      field_has_map = .false.
                      field_has_scale = .false.
+                     field_added_on_exit = .false.
                      
                   elseif (indent_level == field_indent + 2 .and. current_field /= '') then
                      ! Properties of current field
@@ -2196,13 +2308,26 @@ contains
                endif
                
             elseif (in_section .and. indent_level <= section_indent) then
-               ! We've left our section
+               ! We've left our section - process final field
                if (trim(parse_mode) == 'emission_fields' .and. current_field /= '' .and. &
-                   field_has_map .and. field_has_scale) then
+                   field_has_map .and. field_has_scale .and. .not. field_added_on_exit) then
                   if (n_items < size(item_names)) then
-                     n_items = n_items + 1
-                     item_names(n_items) = trim(current_field)
-                     write(*, '(A,A)') 'INFO: Added emission field: ', trim(current_field)
+                     ! Check for duplicates before adding
+                     already_exists = .false.
+                     do check_idx = 1, n_items
+                        if (trim(item_names(check_idx)) == trim(current_field)) then
+                           already_exists = .true.
+                           write(*, '(A,A)') 'WARNING: Duplicate detected at exit and skipped: ', trim(current_field)
+                           exit
+                        endif
+                     end do
+                     
+                     if (.not. already_exists) then
+                        n_items = n_items + 1
+                        item_names(n_items) = trim(current_field)
+                        !write(*, '(A,A,A,I0)') 'INFO: Added emission field: ', trim(current_field), ' (section exit trigger at line ', line_number, ')'
+                        field_added_on_exit = .true.
+                     endif
                   endif
                endif
                exit
@@ -2210,13 +2335,25 @@ contains
          endif
       end do
 
-      ! Handle pending emission field at end of file
+      ! Handle pending emission field at end of file (only for the very last category)
       if (trim(parse_mode) == 'emission_fields' .and. current_field /= '' .and. &
-          field_has_map .and. field_has_scale) then
+          field_has_map .and. field_has_scale .and. .not. field_added_on_exit) then
          if (n_items < size(item_names)) then
-            n_items = n_items + 1
-            item_names(n_items) = trim(current_field)
-            write(*, '(A,A)') 'INFO: Added emission field: ', trim(current_field)
+            ! Check for duplicates before adding
+            already_exists = .false.
+            do check_idx = 1, n_items
+               if (trim(item_names(check_idx)) == trim(current_field)) then
+                  already_exists = .true.
+                  write(*, '(A,A)') 'WARNING: Duplicate detected at EOF and skipped: ', trim(current_field)
+                  exit
+               endif
+            end do
+            
+            if (.not. already_exists) then
+               n_items = n_items + 1
+               item_names(n_items) = trim(current_field)
+               !write(*, '(A,A,A,I0)') 'INFO: Added emission field: ', trim(current_field), ' (end of file trigger at line ', line_number, ')'
+            endif
          endif
       endif
 
@@ -2243,6 +2380,221 @@ contains
 
    end subroutine discover_yaml_section_items
 
+   !> \brief Discover items in a nested YAML section (supports arbitrary depth paths)
+   !!
+   !! This function discovers direct child items in any nested YAML section.
+   !! It supports arbitrary nesting depth and flexible indentation.
+   !!
+   !! Examples:
+   !!   - "processes/extemis" -> finds anthro, point, fire, fengsha
+   !!   - "processes/extemis/anthro" -> finds activate, scale_factor, source_file, etc.
+   !!   - "simulation/grid/levels" -> finds any items under that path
+   !!
+   !! \param[in]    filename      YAML file to parse
+   !! \param[in]    section_path  Nested path (e.g., "processes/extemis/anthro")
+   !! \param[inout] item_names    Array to store discovered item names
+   !! \param[out]   n_items       Number of items found
+   !! \param[out]   rc           Return code
+   subroutine discover_nested_yaml_section_items(filename, section_path, item_names, n_items, rc)
+      implicit none
+      character(len=*), intent(in) :: filename
+      character(len=*), intent(in) :: section_path
+      character(len=64), intent(inout) :: item_names(:)
+      integer, intent(out) :: n_items
+      integer, intent(out) :: rc
+
+      integer :: unit_num, io_stat, colon_pos, indent_level
+      character(len=256) :: line, trimmed_line, field_name, content_after_colon
+      integer :: line_number, target_indent
+      
+      ! Path navigation variables
+      character(len=64) :: path_components(10)  ! Support up to 10 levels deep
+      integer :: n_path_components, current_depth
+      integer :: path_indents(10)  ! Track actual indentation for each path level
+      logical :: path_matched, in_target_section
+
+      rc = CC_SUCCESS
+      n_items = 0
+      line_number = 0
+      target_indent = -1
+      
+      ! Initialize path tracking
+      current_depth = 0
+      path_matched = .false.
+      path_indents = -1
+      in_target_section = .false.
+
+      ! Parse the section path (e.g., "processes/extemis/anthro" -> ["processes", "extemis", "anthro"])
+      call parse_yaml_path(section_path, path_components, n_path_components)
+      
+      if (n_path_components == 0) then
+         write(*, '(A,A)') 'ERROR: Invalid section path: ', trim(section_path)
+         rc = CC_FAILURE
+         return
+      end if
+
+      ! Open file for reading
+      open(newunit=unit_num, file=trim(filename), status='old', action='read', iostat=io_stat)
+      if (io_stat /= 0) then
+         write(*, '(A,A)') 'ERROR: Cannot open configuration file: ', trim(filename)
+         rc = CC_FAILURE
+         return
+      endif
+
+      ! Read file line by line
+      do
+         read(unit_num, '(A)', iostat=io_stat) line
+         if (io_stat /= 0) exit  ! End of file or error
+
+         line_number = line_number + 1
+         trimmed_line = trim(adjustl(line))
+
+         ! Skip empty lines and comments
+         if (len_trim(trimmed_line) == 0 .or. trimmed_line(1:1) == '#') cycle
+
+         ! Calculate indentation level
+         do indent_level = 1, len_trim(line)
+            if (line(indent_level:indent_level) /= ' ') exit
+         end do
+         indent_level = indent_level - 1
+
+         ! Look for lines with colons
+         if (index(trimmed_line, ':') > 0) then
+            colon_pos = index(trimmed_line, ':')
+            field_name = trimmed_line(1:colon_pos-1)
+            field_name = trim(adjustl(field_name))
+
+            ! Update path tracking with flexible indentation
+            call update_flexible_path_tracking(field_name, indent_level, path_components, n_path_components, &
+                                              current_depth, path_indents, path_matched, target_indent, in_target_section)
+
+            ! Once we've found the target section, process child items directly
+            ! Don't rely on complex path tracking for children
+            if (in_target_section) then
+               ! We're in the target section, process items at deeper indentation
+               if (indent_level > target_indent) then
+                  ! Check if this is a direct child (first level below target)
+                  if (indent_level == target_indent + 2) then
+                     ! Only add items that don't have a scalar value after the colon (i.e., are nodes)
+                     content_after_colon = adjustl(trimmed_line(colon_pos+1:))
+                     if (len_trim(content_after_colon) == 0) then
+                        ! Nothing after colon - this is a node
+                        if (n_items < size(item_names)) then
+                           n_items = n_items + 1
+                           item_names(n_items) = trim(field_name)
+                           !write(*, '(A,A)') 'INFO: Discovered field in file: ', trim(field_name)
+                        endif
+                     endif
+                  endif
+               endif
+               
+               ! Check exit conditions for the target section
+               if (indent_level <= target_indent .and. trim(field_name) /= trim(path_components(n_path_components))) then
+                  ! We've moved to a different section at the same level or higher
+                  exit
+               endif
+            endif
+         endif
+      end do
+
+      ! Close file
+      close(unit_num)
+
+      ! Report results
+      if (n_items == 0) then
+         write(*, '(A,A)') 'INFO: Section not found or empty: ', trim(section_path)
+         rc = CC_FAILURE
+      else
+         write(*, '(A,I0,A,A)') 'INFO: Found ', n_items, ' categories in section: ', trim(section_path)
+      endif
+
+   end subroutine discover_nested_yaml_section_items
+
+   !> \brief Parse a YAML path into components (e.g., "processes/extemis" -> ["processes", "extemis"])
+   subroutine parse_yaml_path(path_string, components, n_components)
+      implicit none
+      character(len=*), intent(in) :: path_string
+      character(len=64), intent(out) :: components(:)
+      integer, intent(out) :: n_components
+      
+      integer :: start_pos, end_pos, slash_pos
+      character(len=256) :: remaining_path
+      
+      n_components = 0
+      remaining_path = trim(path_string)
+      
+      do while (len_trim(remaining_path) > 0 .and. n_components < size(components))
+         slash_pos = index(remaining_path, '/')
+         
+         if (slash_pos > 0) then
+            ! Found a slash, extract component
+            n_components = n_components + 1
+            components(n_components) = trim(remaining_path(1:slash_pos-1))
+            remaining_path = remaining_path(slash_pos+1:)
+         else
+            ! No more slashes, this is the last component
+            n_components = n_components + 1
+            components(n_components) = trim(remaining_path)
+            exit
+         endif
+      end do
+      
+   end subroutine parse_yaml_path
+
+   !> \brief Update path tracking state while parsing YAML with flexible indentation
+   subroutine update_flexible_path_tracking(field_name, indent_level, path_components, n_path_components, &
+                                       current_depth, path_indents, path_matched, target_indent, in_target_section)
+      implicit none
+      character(len=*), intent(in) :: field_name
+      integer, intent(in) :: indent_level, n_path_components
+      character(len=64), intent(in) :: path_components(:)
+      integer, intent(inout) :: current_depth, path_indents(:)
+      logical, intent(inout) :: path_matched, in_target_section
+      integer, intent(inout) :: target_indent
+      
+      ! Reset tracking if indentation level suggests we've backed out
+      ! Only check if we have a valid current_depth
+      if (current_depth >= 1 .and. current_depth <= size(path_indents)) then
+         if (path_indents(current_depth) >= 0 .and. indent_level <= path_indents(current_depth)) then
+            ! Back out to appropriate depth
+            do while (current_depth >= 1 .and. current_depth <= size(path_indents) .and. &
+                      path_indents(current_depth) >= 0 .and. path_indents(current_depth) >= indent_level)
+               current_depth = current_depth - 1
+               ! Exit early if we've gone to root level
+               if (current_depth < 1) exit
+            end do
+         endif
+      endif
+      
+      ! Update path_matched based on current state
+      path_matched = (current_depth == n_path_components)
+      
+      ! Only set in_target_section to true when we first find the target
+      ! Don't reset it unless we explicitly exit the section
+      if (path_matched .and. current_depth >= 1 .and. current_depth <= size(path_indents)) then
+         target_indent = path_indents(current_depth)
+      endif
+      
+      ! Try to advance to the next path component
+      if (current_depth >= 0 .and. current_depth < n_path_components) then
+         if (current_depth + 1 <= n_path_components .and. &
+             trim(field_name) == trim(path_components(current_depth + 1))) then
+            current_depth = current_depth + 1
+            if (current_depth >= 1 .and. current_depth <= size(path_indents)) then
+               path_indents(current_depth) = indent_level
+               
+               ! Check if we've found our complete target path
+               if (current_depth == n_path_components) then
+                  path_matched = .true.
+                  in_target_section = .true.
+                  target_indent = indent_level
+                  !write(*, '(A,A,A,I0)') 'INFO: Found target section: ', trim(field_name), ' at depth ', current_depth
+               endif
+            endif
+         endif
+      endif
+   end subroutine update_flexible_path_tracking
+
    !> \brief Update runtime configuration from loaded configs
    subroutine config_manager_update_runtime_from_configs(this, rc)
       implicit none
@@ -2262,6 +2614,7 @@ contains
 
       this%emission_field = ''
       this%long_name = ''
+      this%units = ''
       this%n_mappings = 0
       if (allocated(this%map)) deallocate(this%map)
       if (allocated(this%scale)) deallocate(this%scale)
@@ -2294,6 +2647,7 @@ contains
       
       this%emission_field = other%emission_field
       this%long_name = other%long_name
+      this%units = other%units
       this%n_mappings = other%n_mappings
       this%is_active = other%is_active
 
@@ -2898,5 +3252,40 @@ contains
       end do
       
    end subroutine parse_space_separated_string
+
+   !> \brief Remove duplicate strings from an array
+   subroutine remove_duplicates_from_array(array, n_items)
+      implicit none
+      character(len=64), intent(inout) :: array(:)
+      integer, intent(inout) :: n_items
+      
+      integer :: i, j, new_count
+      character(len=64) :: temp_array(size(array))
+      logical :: is_duplicate
+      
+      if (n_items <= 1) return
+      
+      new_count = 0
+      do i = 1, n_items
+         is_duplicate = .false.
+         do j = 1, new_count
+            if (trim(array(i)) == trim(temp_array(j))) then
+               is_duplicate = .true.
+               exit
+            endif
+         end do
+         
+         if (.not. is_duplicate) then
+            new_count = new_count + 1
+            temp_array(new_count) = array(i)
+         endif
+      end do
+      
+      ! Copy back to original array
+      do i = 1, new_count
+         array(i) = temp_array(i)
+      end do
+      n_items = new_count
+   end subroutine remove_duplicates_from_array
 
 end module ConfigManager_Mod

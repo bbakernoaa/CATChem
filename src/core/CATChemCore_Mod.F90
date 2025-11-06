@@ -235,14 +235,6 @@ contains
          endif
       endif
 
-      ! Validate configuration
-      is_valid = this%config%validate(this%error_mgr, local_rc)
-      if (local_rc /= CC_SUCCESS .or. .not. is_valid) then
-         call this%error_mgr%report_error(local_rc, 'Configuration validation failed', rc)
-         call this%error_mgr%pop_context()
-         return
-      endif
-
       ! Initialize components in dependency order
       call this%setup_grid(local_rc)
       if (local_rc /= CC_SUCCESS) then
@@ -254,6 +246,14 @@ contains
       call this%setup_state(local_rc)
       if (local_rc /= CC_SUCCESS) then
          rc = local_rc
+         call this%error_mgr%pop_context()
+         return
+      endif
+
+      ! Validate configuration
+      is_valid = this%config%validate(this%error_mgr, local_rc)
+      if (local_rc /= CC_SUCCESS .or. .not. is_valid) then
+         call this%error_mgr%report_error(local_rc, 'Configuration validation failed', rc)
          call this%error_mgr%pop_context()
          return
       endif
@@ -335,6 +335,11 @@ contains
       ! Allocate and initialize a simple GridGeometry_Mod::GridGeometryType
       allocate(grid_geom_ptr)
       call grid_geom_ptr%set(nx, ny, nz)
+
+      !assign grid geometry to ConfigData
+      this%config%runtime%nx = this%nx
+      this%config%runtime%ny = this%ny
+      this%config%runtime%nLevs = this%nz
 
       ! Initialize state manager
       write(*,*) 'calling state_mgr%init in setup_state'
