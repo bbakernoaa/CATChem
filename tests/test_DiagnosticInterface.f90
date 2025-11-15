@@ -22,7 +22,7 @@ program test_DiagnosticInterface
    ! Test 1: Initialize diagnostic field
    write(*,*) 'Test 1: Initialize diagnostic field'
    call diag_field%create('test_field', 'Test diagnostic field', &
-                         'kg/m2/s', DIAG_REAL_2D, 'TestProcess', rc)
+                         'kg/m2/s', DIAG_REAL_2D, 'TestProcess', rc=rc)
   write(*,*) 'diag_field%create rc:', rc
    call assert(rc == CC_SUCCESS, "Diagnostic field creation should succeed")
    write(*,*) 'assert for diag_field%create passed'

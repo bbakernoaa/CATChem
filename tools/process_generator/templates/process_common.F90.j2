@@ -38,10 +38,20 @@ module {{ config.class_name }}Common_Mod
    type :: {{ config.class_name }}Config
 
       ! Process settings
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      character(len=32) :: gas_scheme = '{{ gas_schemes[0].name if gas_schemes else config.schemes[0].name }}'   ! Scheme for gas species
+      character(len=32) :: aero_scheme = '{{ aero_schemes[0].name if aero_schemes else config.schemes[0].name }}'  ! Scheme for aerosol species
+{% else %}
       character(len=32) :: scheme = '{{ config.default_scheme if config.default_scheme else config.schemes[0].name if config.schemes else "default" }}'
+{% endif %}
       logical :: is_active = .true.
 {% if config.diagnostics %}
       logical :: diagnostics = .false.  ! Diagnostic switch
+      
+      ! Diagnostic species configuration
+      integer :: n_diagnostic_species = 0
+      character(len=32), allocatable :: diagnostic_species(:)  ! User-defined species for diagnostics
+      integer, allocatable :: diagnostic_species_id(:)  ! Indices mapping diagnostic_species to species_names
 {% endif %}
       real(fp) :: dt_min = 1.0_fp     ! Minimum time step (seconds)
       real(fp) :: dt_max = 3600.0_fp  ! Maximum time step (seconds)
@@ -50,6 +60,9 @@ module {{ config.class_name }}Common_Mod
       integer :: n_species = 0
       character(len=32), allocatable :: species_names(:)
       integer, allocatable :: species_indices(:)  ! Indices of {{ config.name }} species in ChemState
+{% if config.gas_aero_differentiation %}
+      logical, allocatable :: is_gas(:)           ! Is gas species (true for gas, false for aerosol)
+{% endif %}
 {% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
       
       ! Emission category mapping (for emission_mapping filter only)
@@ -72,7 +85,13 @@ module {{ config.class_name }}Common_Mod
 {% if all_required_species_properties %}
       ! Species properties
 {% for prop in all_required_species_properties %}
+{% if prop != 'short_name' %}
+{% if prop.startswith('is_') %}
+      logical, allocatable :: species_{{ prop }}(:)      ! {{ prop }} for each species
+{% else %}
       real(fp), allocatable :: species_{{ prop }}(:)      ! {{ prop }} for each species
+{% endif %}
+{% endif %}
 {% endfor %}
 {% endif %}
 
@@ -138,9 +157,20 @@ module {{ config.class_name }}Common_Mod
       type({{ config.class_name }}Config) :: {{ config.name }}_config
       
       ! Scheme configurations
+{% if config.gas_aero_differentiation %}
+      ! Separate gas and aerosol scheme configurations
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' %}
+      type({{ config.class_name }}Scheme{{ scheme.class_name }}Config) :: {{ scheme.name }}_config
+{% elif scheme.gas_or_aero == 'aero' %}
+      type({{ config.class_name }}Scheme{{ scheme.class_name }}Config) :: {{ scheme.name }}_config
+{% endif %}
+{% endfor %}
+{% else %}
 {% for scheme in config.schemes %}
       type({{ config.class_name }}Scheme{{ scheme.class_name }}Config) :: {{ scheme.name }}_config
 {% endfor %}
+{% endif %}
       
    contains
       procedure, public :: load_from_config => {{ config.name }}_process_load_config
@@ -157,6 +187,7 @@ module {{ config.class_name }}Common_Mod
 {% for scheme in config.schemes %}
       procedure, public :: load_{{ scheme.name }}_config
 {% endfor %}
+      procedure, public :: map_diagnostic_species_indices
    end type {{ config.class_name }}ProcessConfig
 
 contains
@@ -182,7 +213,42 @@ contains
          return
       end if
 
-      ! Validate active scheme
+      ! Validate active scheme(s)
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! Validate gas scheme
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' %}
+{% if loop.first %}
+      if (trim(this%gas_scheme) /= '{{ scheme.name }}' .and. &
+{% else %}
+          trim(this%gas_scheme) /= '{{ scheme.name }}' .and. &
+{% endif %}
+{% endif %}
+{% endfor %}
+          .true.) then
+         write(error_msg, '(A)') "Invalid gas scheme: " // trim(this%gas_scheme)
+         call error_handler%report_error(ERROR_INVALID_CONFIG, error_msg, rc)
+         return
+      end if
+
+      ! Validate aerosol scheme
+{% set aero_schemes = [] %}
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' %}
+{% set _ = aero_schemes.append(scheme.name) %}
+{% endif %}
+{% endfor %}
+{% if aero_schemes %}
+      if ({% for scheme_name in aero_schemes %}{% if loop.first %}trim(this%aero_scheme) /= '{{ scheme_name }}'{% else %} .and. &
+          trim(this%aero_scheme) /= '{{ scheme_name }}'{% endif %}{% endfor %} .and. &
+          .true.) then
+         write(error_msg, '(A)') "Invalid aerosol scheme: " // trim(this%aero_scheme)
+         call error_handler%report_error(ERROR_INVALID_CONFIG, error_msg, rc)
+         return
+      end if
+{% endif %}
+{% else %}
+      ! Validate scheme
 {% for scheme in config.schemes %}
 {% if loop.first %}
       if (trim(this%scheme) /= '{{ scheme.name }}' .and. &
@@ -197,6 +263,7 @@ contains
          call error_handler%report_error(ERROR_INVALID_CONFIG, error_msg, rc)
          return
       end if
+{% endif %}
 
    end subroutine validate_{{ config.name }}_config
 
@@ -205,7 +272,12 @@ contains
       class({{ config.class_name }}Config), intent(in) :: this
 
       write(*, '(A)') "=== {{ config.class_name }} Process Configuration ==="
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      write(*, '(A,A)') "  Gas scheme: ", trim(this%gas_scheme)
+      write(*, '(A,A)') "  Aerosol scheme: ", trim(this%aero_scheme)
+{% else %}
       write(*, '(A,A)') "  Active scheme: ", trim(this%scheme)
+{% endif %}
       write(*, '(A,I0)') "  Number of species: ", this%n_species
       write(*, '(A,F0.1,A)') "  Minimum time step: ", this%dt_min, " s"
       write(*, '(A,F0.1,A)') "  Maximum time step: ", this%dt_max, " s"
@@ -240,11 +312,30 @@ contains
 {% if all_required_species_properties %}
       ! Deallocate species properties arrays
 {% for prop in all_required_species_properties %}
+{% if prop != 'short_name' %}
       if (allocated(this%species_{{ prop }})) then
          deallocate(this%species_{{ prop }})
       end if
+{% endif %}
 {% endfor %}
 {% endif %}
+
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! Deallocate gas/aerosol classification array
+      if (allocated(this%is_gas)) then
+         deallocate(this%is_gas)
+      end if
+{% endif %}
+
+      ! Deallocate diagnostic species array
+      if (allocated(this%diagnostic_species)) then
+         deallocate(this%diagnostic_species)
+      end if
+
+      ! Deallocate diagnostic species indices array
+      if (allocated(this%diagnostic_species_id)) then
+         deallocate(this%diagnostic_species_id)
+      end if
 
    end subroutine finalize_{{ config.name }}_config
 
@@ -304,17 +395,50 @@ contains
       if (rc /= CC_SUCCESS) this%is_active = .true.  ! default
 
       ! Load process-specific configuration directly from master YAML
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      call config_manager%get_string("processes/{{ config.name }}/gas_scheme", this%{{ config.name }}_config%gas_scheme, rc, "{{ config.gas_schemes[0].name if config.gas_schemes else config.schemes[0].name }}")
+      if (rc /= CC_SUCCESS) then
+         call error_handler%report_error(ERROR_INVALID_CONFIG, &
+            "Missing required 'gas_scheme' in processes/{{ config.name }} configuration", rc)
+         return
+      end if
+
+      call config_manager%get_string("processes/{{ config.name }}/aero_scheme", this%{{ config.name }}_config%aero_scheme, rc, "{{ aero_schemes[0].name if aero_schemes else config.schemes[0].name }}")
+      if (rc /= CC_SUCCESS) then
+         call error_handler%report_error(ERROR_INVALID_CONFIG, &
+            "Missing required 'aero_scheme' in processes/{{ config.name }} configuration", rc)
+         return
+      end if
+{% else %}
       call config_manager%get_string("processes/{{ config.name }}/scheme", this%{{ config.name }}_config%scheme, rc, "{{ config.schemes[0].name if config.schemes else 'default' }}")
       if (rc /= CC_SUCCESS) then
          call error_handler%report_error(ERROR_INVALID_CONFIG, &
             "Missing required 'scheme' in processes/{{ config.name }} configuration", rc)
          return
       end if
+{% endif %}
 
 {% if config.diagnostics %}
       ! Load diagnostic switch
       call config_manager%get_logical("processes/{{ config.name }}/diagnostics", this%{{ config.name }}_config%diagnostics, rc, .false.)
       if (rc /= CC_SUCCESS) this%{{ config.name }}_config%diagnostics = .false.  ! Default
+
+      ! Load diagnostic species list
+      call config_manager%get_array("processes/{{ config.name }}/diag_species", this%{{ config.name }}_config%diagnostic_species, &
+                                    rc, default_values=["All"])
+      if (rc /= CC_SUCCESS) then
+         ! Default to all species if not specified
+         allocate(this%{{ config.name }}_config%diagnostic_species(1))
+         this%{{ config.name }}_config%diagnostic_species(1) = "All"
+         this%{{ config.name }}_config%n_diagnostic_species = 1
+      else
+         ! Set the count based on the returned array size
+         if (allocated(this%{{ config.name }}_config%diagnostic_species)) then
+            this%{{ config.name }}_config%n_diagnostic_species = size(this%{{ config.name }}_config%diagnostic_species)
+         else
+            this%{{ config.name }}_config%n_diagnostic_species = 0
+         end if
+      end if
 {% endif %}
 
       ! Species configuration is loaded from ChemState in load_species_from_chem_state
@@ -330,6 +454,37 @@ contains
 {% endif %}
 
       ! Load scheme-specific configuration from master YAML
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! Load gas scheme configuration
+      scheme_name = trim(this%{{ config.name }}_config%gas_scheme)
+      select case (scheme_name)
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' %}
+      case ('{{ scheme.name }}')
+         call this%load_{{ scheme.name }}_config(config_manager, error_handler)
+{% endif %}
+{% endfor %}
+      case default
+         call error_handler%report_error(ERROR_INVALID_STATE, &
+            "Unknown {{ config.name }} gas scheme: " // trim(scheme_name), rc)
+         return
+      end select
+
+      ! Load aerosol scheme configuration
+      scheme_name = trim(this%{{ config.name }}_config%aero_scheme)
+      select case (scheme_name)
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' %}
+      case ('{{ scheme.name }}')
+         call this%load_{{ scheme.name }}_config(config_manager, error_handler)
+{% endif %}
+{% endfor %}
+      case default
+         call error_handler%report_error(ERROR_INVALID_STATE, &
+            "Unknown {{ config.name }} aerosol scheme: " // trim(scheme_name), rc)
+         return
+      end select
+{% else %}
       scheme_name = trim(this%{{ config.name }}_config%scheme)
       select case (scheme_name)
 {% for scheme in config.schemes %}
@@ -341,6 +496,7 @@ contains
             "Unknown {{ config.name }} scheme: " // trim(scheme_name), rc)
          return
       end select
+{% endif %}
 
    end subroutine {{ config.name }}_process_load_config
 
@@ -391,11 +547,16 @@ contains
       ! Allocate arrays
       allocate(this%{{ config.name }}_config%species_names(this%{{ config.name }}_config%n_species))
       allocate(this%{{ config.name }}_config%species_indices(this%{{ config.name }}_config%n_species))
+{% if config.gas_aero_differentiation %}
+      allocate(this%{{ config.name }}_config%is_gas(this%{{ config.name }}_config%n_species))
+{% endif %}
 {% if all_required_species_properties %}
       
       ! Allocate species properties arrays
 {% for prop in all_required_species_properties %}
+{% if prop != 'short_name' %}
       allocate(this%{{ config.name }}_config%species_{{ prop }}(this%{{ config.name }}_config%n_species))
+{% endif %}
 {% endfor %}
 {% endif %}
       
@@ -426,8 +587,13 @@ contains
       do i = 1, this%{{ config.name }}_config%n_species
          species_idx = this%{{ config.name }}_config%species_indices(i)
 {% for prop in all_required_species_properties %}
+{% if prop != 'short_name' %}
          this%{{ config.name }}_config%species_{{ prop }}(i) = chem_state%ChemSpecies(species_idx)%{{ prop }}
+{% endif %}
 {% endfor %}
+{% if config.gas_aero_differentiation %}
+         this%{{ config.name }}_config%is_gas(i) = chem_state%ChemSpecies(species_idx)%is_gas
+{% endif %}
       end do
 {% endif %}
       
@@ -560,11 +726,16 @@ contains
       ! Allocate arrays
       allocate(this%{{ config.name }}_config%species_names(this%{{ config.name }}_config%n_species))
       allocate(this%{{ config.name }}_config%species_indices(this%{{ config.name }}_config%n_species))
+{% if config.gas_aero_differentiation %}
+      allocate(this%{{ config.name }}_config%is_gas(this%{{ config.name }}_config%n_species))
+{% endif %}
 {% if all_required_species_properties %}
       
       ! Allocate species properties arrays
 {% for prop in all_required_species_properties %}
+{% if prop != 'short_name' %}
       allocate(this%{{ config.name }}_config%species_{{ prop }}(this%{{ config.name }}_config%n_species))
+{% endif %}
 {% endfor %}
 {% endif %}
       
@@ -624,8 +795,13 @@ contains
       do i = 1, this%{{ config.name }}_config%n_species
          species_idx = this%{{ config.name }}_config%species_indices(i)
 {% for prop in all_required_species_properties %}
+{% if prop != 'short_name' %}
          this%{{ config.name }}_config%species_{{ prop }}(i) = chem_state%ChemSpecies(species_idx)%{{ prop }}
+{% endif %}
 {% endfor %}
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+         this%{{ config.name }}_config%is_gas(i) = chem_state%ChemSpecies(species_idx)%is_gas
+{% endif %}
       end do
 {% endif %}
       
@@ -693,8 +869,15 @@ contains
       
       ! Allocate species properties arrays
 {% for prop in all_required_species_properties %}
+{% if prop != 'short_name' %}
       allocate(this%{{ config.name }}_config%species_{{ prop }}(this%{{ config.name }}_config%n_species))
+{% endif %}
 {% endfor %}
+{% endif %}
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      
+      ! Allocate gas/aerosol flag array
+      allocate(this%{{ config.name }}_config%is_gas(this%{{ config.name }}_config%n_species))
 {% endif %}
       
       ! Load emission field names as species_names (used by schemes)
@@ -736,8 +919,8 @@ contains
 {% endif %}
 {% endif %}
       call config_manager%get_{{ yaml_type }}("processes/{{ config.name }}/{{ scheme.name }}/{{ param_name }}", &
-           this%{{ scheme.name }}_config%{{ param_name }}, rc, {% if yaml_type == 'logical' %}{% if param_info.default %}{% if param_info.default is sameas true %}.true.{% else %}.false.{% endif %}{% else %}.false.{% endif %}{% else %}{{ param_info.default }}_fp{% endif %})
-      if (rc /= CC_SUCCESS) this%{{ scheme.name }}_config%{{ param_name }} = {% if yaml_type == 'logical' %}{% if param_info.default %}{% if param_info.default is sameas true %}.true.{% else %}.false.{% endif %}{% else %}.false.{% endif %}{% else %}{{ param_info.default }}_fp{% endif %}
+           this%{{ scheme.name }}_config%{{ param_name }}, rc, {% if yaml_type == 'logical' %}{% if param_info.default %}{% if param_info.default is sameas true %}.true.{% else %}.false.{% endif %}{% else %}.false.{% endif %}{% else %}{{ param_info.default | default('1.0') }}_fp{% endif %})
+      if (rc /= CC_SUCCESS) this%{{ scheme.name }}_config%{{ param_name }} = {% if yaml_type == 'logical' %}{% if param_info.default %}{% if param_info.default is sameas true %}.true.{% else %}.false.{% endif %}{% else %}.false.{% endif %}{% else %}{{ param_info.default | default('1.0') }}_fp{% endif %}
 
 {% endfor %}
 
@@ -756,12 +939,34 @@ contains
       call this%{{ config.name }}_config%validate(error_handler)
 
       ! Validate scheme-specific config
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! Validate gas scheme config
+      select case (trim(this%{{ config.name }}_config%gas_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' %}
+      case ('{{ scheme.name }}')
+         call this%{{ scheme.name }}_config%validate(error_handler)
+{% endif %}
+{% endfor %}
+      end select
+
+      ! Validate aerosol scheme config  
+      select case (trim(this%{{ config.name }}_config%aero_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' %}
+      case ('{{ scheme.name }}')
+         call this%{{ scheme.name }}_config%validate(error_handler)
+{% endif %}
+{% endfor %}
+      end select
+{% else %}
       select case (trim(this%{{ config.name }}_config%scheme))
 {% for scheme in config.schemes %}
       case ('{{ scheme.name }}')
          call this%{{ scheme.name }}_config%validate(error_handler)
 {% endfor %}
       end select
+{% endif %}
 
    end subroutine {{ config.name }}_process_validate
 
@@ -777,10 +982,45 @@ contains
    end subroutine {{ config.name }}_process_finalize
 
    !> Get active scheme configuration (polymorphic return)
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+   function get_active_scheme_config(this, gas_scheme) result(scheme_config)
+{% else %}
    function get_active_scheme_config(this) result(scheme_config)
+{% endif %}
       class({{ config.class_name }}ProcessConfig), intent(in) :: this
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      logical, optional, intent(in) :: gas_scheme  ! If true, return gas scheme; if false, return aerosol scheme
+{% endif %}
       class(*), allocatable :: scheme_config
 
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! For gas/aero differentiated processes, return requested scheme type
+      if (present(gas_scheme) .and. gas_scheme) then
+         ! Return gas scheme
+         select case (trim(this%{{ config.name }}_config%gas_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' %}
+         case ('{{ scheme.name }}')
+            allocate(scheme_config, source=this%{{ scheme.name }}_config)
+{% endif %}
+{% endfor %}
+         case default
+            ! Return null
+         end select
+      else
+         ! Return aerosol scheme (default or when gas_scheme = false)
+         select case (trim(this%{{ config.name }}_config%aero_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' %}
+         case ('{{ scheme.name }}')
+            allocate(scheme_config, source=this%{{ scheme.name }}_config)
+{% endif %}
+{% endfor %}
+         case default
+            ! Return null
+         end select
+      end if
+{% else %}
       select case (trim(this%{{ config.name }}_config%scheme))
 {% for scheme in config.schemes %}
       case ('{{ scheme.name }}')
@@ -789,7 +1029,69 @@ contains
       case default
          ! Return null
       end select
+{% endif %}
 
    end function get_active_scheme_config
+
+   !> Map diagnostic species names to indices in the species_names array
+   !! This function creates the diagnostic_species_id array that maps each diagnostic species
+   !! to its corresponding index in the full species_names array
+   subroutine map_diagnostic_species_indices(this, error_handler)
+      class({{ config.class_name }}ProcessConfig), intent(inout) :: this
+      type(ErrorManagerType), intent(inout) :: error_handler
+
+      integer :: i, j, rc
+      character(len=256) :: error_msg
+      logical :: found_species
+
+      ! Only proceed if diagnostic species are defined
+      if (this%{{ config.name }}_config%n_diagnostic_species == 0) return
+
+      ! Handle "All" case - map all available species
+      if (this%{{ config.name }}_config%n_diagnostic_species == 1 .and. &
+          trim(this%{{ config.name }}_config%diagnostic_species(1)) == "All") then
+         
+         ! Deallocate and reallocate for all species
+         if (allocated(this%{{ config.name }}_config%diagnostic_species_id)) deallocate(this%{{ config.name }}_config%diagnostic_species_id)
+         allocate(this%{{ config.name }}_config%diagnostic_species_id(this%{{ config.name }}_config%n_species))
+         if (allocated(this%{{ config.name }}_config%diagnostic_species)) deallocate(this%{{ config.name }}_config%diagnostic_species)
+         allocate(this%{{ config.name }}_config%diagnostic_species(this%{{ config.name }}_config%n_species))
+         this%{{ config.name }}_config%n_diagnostic_species = this%{{ config.name }}_config%n_species
+         this%{{ config.name }}_config%diagnostic_species = this%{{ config.name }}_config%species_names
+
+         ! Map all species indices (1:n_species)
+         do i = 1, this%{{ config.name }}_config%n_species
+            this%{{ config.name }}_config%diagnostic_species_id(i) = i
+         end do
+         
+         return
+      end if
+
+      ! Allocate diagnostic species indices array
+      if (allocated(this%{{ config.name }}_config%diagnostic_species_id)) deallocate(this%{{ config.name }}_config%diagnostic_species_id)
+      allocate(this%{{ config.name }}_config%diagnostic_species_id(this%{{ config.name }}_config%n_diagnostic_species))
+
+      ! Map each diagnostic species name to its index in species_names
+      do i = 1, this%{{ config.name }}_config%n_diagnostic_species
+         found_species = .false.
+         
+         do j = 1, this%{{ config.name }}_config%n_species
+            if (trim(this%{{ config.name }}_config%diagnostic_species(i)) == trim(this%{{ config.name }}_config%species_names(j))) then
+               this%{{ config.name }}_config%diagnostic_species_id(i) = j
+               found_species = .true.
+               exit
+            end if
+         end do
+         
+         if (.not. found_species) then
+            write(error_msg, '(A,A,A)') "Diagnostic species '", &
+                  trim(this%{{ config.name }}_config%diagnostic_species(i)), &
+                  "' not found in process species list"
+            call error_handler%report_error(ERROR_NOT_FOUND, error_msg, rc)
+            return
+         end if
+      end do
+
+   end subroutine map_diagnostic_species_indices
 
 end module {{ config.class_name }}Common_Mod

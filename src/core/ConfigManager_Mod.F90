@@ -1020,13 +1020,14 @@ contains
    end subroutine config_manager_get_logical
 
    !> \brief Get array value from configuration
-   subroutine config_manager_get_array(this, key, values, rc)
+   subroutine config_manager_get_array(this, key, values, rc, default_values)
       use yaml_interface_mod, only: yaml_get_string_array
       implicit none
       class(ConfigManagerType), intent(in) :: this
       character(len=*), intent(in) :: key
       character(len=*), allocatable, intent(out) :: values(:)
       integer, intent(out) :: rc
+      character(len=*), optional, intent(in) :: default_values(:)
 
       integer :: actual_size, max_size
       logical :: success
@@ -1036,7 +1037,14 @@ contains
       
       ! Check if configuration is loaded
       if (.not. this%is_loaded) then
-         allocate(values(0))
+         ! Use default values if provided
+         if (present(default_values)) then
+            allocate(values(size(default_values)))
+            values = default_values
+            rc = CC_SUCCESS
+         else
+            allocate(values(0))
+         endif
          return
       endif
 
@@ -1050,9 +1058,16 @@ contains
          values(1:actual_size) = temp_values(1:actual_size)
          rc = CC_SUCCESS
       else
-         ! Return empty array if unsuccessful
-         allocate(values(0))
-         rc = CC_FAILURE
+         ! Use default values if provided
+         if (present(default_values)) then
+            allocate(values(size(default_values)))
+            values = default_values
+            rc = CC_SUCCESS
+         else
+            ! Return empty array if unsuccessful and no default provided
+            allocate(values(0))
+            rc = CC_FAILURE
+         endif
       endif
 
    end subroutine config_manager_get_array
@@ -1692,7 +1707,7 @@ contains
       endif
 
       ! Load molecular weight (optional, but important) - use safe conversion for numeric values
-      write(field_path, '(A,A)') trim(species_path), '/molecular_weight'
+      write(field_path, '(A,A)') trim(species_path), '/mw_g'
       call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
       if (yaml_rc == 0) then
          species%mw_g = temp_real
@@ -1733,6 +1748,54 @@ contains
          species%upper_radius = temp_real
       else
          species%upper_radius = MISSING
+      endif
+
+      write(field_path, '(A,A)') trim(species_path), '/viscosity'
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
+      if (yaml_rc == 0) then
+         species%viscosity = temp_real
+      else
+         species%viscosity = MISSING
+      endif
+
+      write(field_path, '(A,A)') trim(species_path), '/dd_f0'
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
+      if (yaml_rc == 0) then
+         species%dd_f0 = temp_real
+      else
+         species%dd_f0 = MISSING
+      endif
+
+      write(field_path, '(A,A)') trim(species_path), '/dd_hstar'
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
+      if (yaml_rc == 0) then
+         species%dd_hstar = temp_real
+      else
+         species%dd_hstar = MISSING
+      endif
+
+      write(field_path, '(A,A)') trim(species_path), '/dd_DvzAerSnow'
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
+      if (yaml_rc == 0) then
+         species%dd_DvzAerSnow = temp_real
+      else
+         species%dd_DvzAerSnow = MISSING
+      endif
+
+      write(field_path, '(A,A)') trim(species_path), '/dd_DvzMinVal_snow'
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
+      if (yaml_rc == 0) then
+         species%dd_DvzMinVal_snow = temp_real
+      else
+         species%dd_DvzMinVal_snow = MISSING
+      endif
+
+      write(field_path, '(A,A)') trim(species_path), '/dd_DvzMinVal_land'
+      call safe_yaml_get_real(yaml_root, trim(field_path), temp_real, yaml_rc)
+      if (yaml_rc == 0) then
+         species%dd_DvzMinVal_land = temp_real
+      else
+         species%dd_DvzMinVal_land = MISSING
       endif
 
       ! Load type flags (with proper default handling)

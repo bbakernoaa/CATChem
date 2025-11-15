@@ -220,12 +220,11 @@ contains
                endif
             end select
          enddo
-
+         
          ! Apply virtual column changes back to container
          call container%apply_virtual_column(virtual_col, rc)
          if (rc /= CC_SUCCESS) return
       enddo
-
    end subroutine manager_run_column_processes
 
    !> \brief Run a specific process on all columns

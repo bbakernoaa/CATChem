@@ -18,6 +18,7 @@ process_behavior:
     #  - "SEASALT_FINE"      # Fine mode sea salt (< 1 μm)
     #  - "SEASALT_COARSE"    # Coarse mode sea salt (1-10 μm)
     #  - "SEASALT_SUPER"     # Super-coarse mode sea salt (> 10 μm)
+  gas_aero_differentiation: false  # Use different schemes for gas and aerosol species
   tendency_calculation: "rates" #is not doing anything now
   timestep_dependency: "independent" #is not doing anything now
   spatial_scope: "column" #is not doing anything now

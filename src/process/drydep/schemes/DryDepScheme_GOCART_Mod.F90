@@ -1,12 +1,12 @@
-!> \file SeaSaltScheme_GEOS12_Mod.F90
-!! \brief GEOS-Chem 2012 sea salt emission scheme with observational constraints
+!> \file DryDepScheme_GOCART_Mod.F90
+!! \brief GOCART-2G aerosol dry deposition scheme
 !!
-!! Pure science kernel for geos12 scheme in seasalt process.
+!! Pure science kernel for gocart scheme in drydep process.
 !! This module contains ONLY the computational algorithm with NO infrastructure dependencies.
 !! Uses only basic Fortran types for maximum portability and reusability.
 !!
 !! SCIENCE CUSTOMIZATION GUIDE:
-!! 1. Modify the algorithm in compute_geos12 (search for "TODO")
+!! 1. Modify the algorithm in compute_gocart (search for "TODO")
 !! 2. Add scheme-specific helper subroutines as needed
 !! 3. Update physical constants for your scheme
 !! 4. Customize the environmental response functions
@@ -17,20 +17,20 @@
 !! - Memory management and array allocation
 !! - Integration with host model time stepping
 !!
-!! Generated on: 2025-11-14T23:01:21.754177
-!! Author: Barry Baker
-!! Reference: Jaeglé et al. [2011]
-module SeaSaltScheme_GEOS12_Mod
+!! Generated on: 2025-11-14T22:58:26.525574
+!! Author: Wei Li & Lacey Holland
+!! Reference: Allison et al. [2024] Benchmarking GOCART-2G in GEOS
+module DryDepScheme_GOCART_Mod
 
    use precision_mod, only: fp
-   use SeaSaltCommon_Mod, only: SeaSaltSchemeGEOS12Config
+   use DryDepCommon_Mod, only: DryDepSchemeGOCARTConfig
    use Constants, only: PI  !load the constants needed for this scheme
 
    implicit none
    private
 
    ! Public interface - pure science only
-   public :: compute_geos12
+   public :: compute_gocart
 
    ! Additional physical constants (modify as needed for your scheme)
    real(fp), parameter :: T_STANDARD = 303.15_fp    ! Standard reference temperature [K]
@@ -38,68 +38,87 @@ module SeaSaltScheme_GEOS12_Mod
 
 contains
 
-   !> Pure science computation for geos12 scheme
+   !> Pure science computation for gocart scheme
    !!
-   !! This is a pure computational kernel implementing GEOS-Chem 2012 sea salt emission scheme with observational constraints.
+   !! This is a pure computational kernel implementing GOCART-2G aerosol dry deposition scheme.
    !! NO error checking, validation, or infrastructure concerns.
    !! Host model must ensure all inputs are valid before calling.
    !!
    !! @param[in]  num_layers     Number of vertical layers
    !! @param[in]  num_species    Number of chemical species
    !! @param[in]  params         Scheme parameters (pre-validated by host)
-   !! @param[in]  delp    DELP field [appropriate units]
-   !! @param[in]  frocean    FROCEAN field [appropriate units]
-   !! @param[in]  frseaice    FRSEAICE field [appropriate units]
-   !! @param[in]  sst    SST field [appropriate units]
+   !! @param[in]  airden    AIRDEN field [appropriate units]
+   !! @param[in]  frlake    FRLAKE field [appropriate units]
+   !! @param[in]  gwettop    GWETTOP field [appropriate units]
+   !! @param[in]  hflux    HFLUX field [appropriate units]
+   !! @param[in]  lwi    LWI field [appropriate units]
+   !! @param[in]  nlevs    NLEVS field [appropriate units]
+   !! @param[in]  pblh    PBLH field [appropriate units]
+   !! @param[in]  t    T field [appropriate units]
+   !! @param[in]  tstep    Time step [s] - retrieved from process interface
+   !! @param[in]  u10m    U10M field [appropriate units]
    !! @param[in]  ustar    USTAR field [appropriate units]
+   !! @param[in]  v10m    V10M field [appropriate units]
+   !! @param[in]  z0h    Z0H field [appropriate units]
+   !! @param[in]  zmid    ZMID field [appropriate units]
    !! @param[in]  species_conc   Species concentrations [mol/mol] (num_layers, num_species)
    !! @param[inout] species_tendencies  Species tendency terms [mol/mol/s] (num_layers, num_species)
-   !! @param[inout] seasalt_mass_emission_total    Sea salt mass emission flux total [kg/m2/s]
-   !! @param[inout] seasalt_number_emission_total    Sea salt number emission flux total [kg/m2/s]
-   !! @param[inout] seasalt_mass_emission_per_bin    Sea salt mass emission flux per bin [kg/m2/s] (num_species)
-   !! @param[inout] seasalt_number_emission_per_bin    Sea salt number emission flux per bin [kg/m2/s] (num_species)
+   !! @param[inout] drydep_con_per_species    Dry deposition concentration per species [ug/kg or ppm] (num_species)
+   !! @param[inout] drydep_velocity_per_species    Dry deposition velocity [m/s] (num_species)
    !! @param[in] diagnostic_species_id Indices mapping diagnostic species to species array (optional, for per-species diagnostics)
-   pure subroutine compute_geos12( &
+   pure subroutine compute_gocart( &
       num_layers, &
       num_species, &
       params, &
-      delp, &
-      frocean, &
-      frseaice, &
-      sst, &
+      airden, &
+      frlake, &
+      gwettop, &
+      hflux, &
+      lwi, &
+      nlevs, &
+      pblh, &
+      t, &
+      tstep, &
+      u10m, &
       ustar, &
+      v10m, &
+      z0h, &
+      zmid, &
       species_density, &
       species_radius, &
-      species_lower_radius, &
-      species_upper_radius, &
       species_conc, &
       species_tendencies, &
-      seasalt_mass_emission_total, &
-      seasalt_number_emission_total, &
-      seasalt_mass_emission_per_bin, &
-      seasalt_number_emission_per_bin, &
+      is_gas, &
+      drydep_con_per_species, &
+      drydep_velocity_per_species, &
       diagnostic_species_id &
    )
 
       ! Arguments
       integer, intent(in) :: num_layers
       integer, intent(in) :: num_species
-      type(SeaSaltSchemeGEOS12Config), intent(in) :: params
-      real(fp), intent(in) :: delp(num_layers)    ! 3D atmospheric field
-      real(fp), intent(in) :: frocean  ! Surface field - scalar
-      real(fp), intent(in) :: frseaice  ! Surface field - scalar
-      real(fp), intent(in) :: sst  ! Surface field - scalar
+      type(DryDepSchemeGOCARTConfig), intent(in) :: params
+      real(fp), intent(in) :: airden(num_layers)    ! 3D atmospheric field
+      real(fp), intent(in) :: frlake  ! Surface field - scalar
+      real(fp), intent(in) :: gwettop  ! Surface field - scalar
+      real(fp), intent(in) :: hflux  ! Surface field - scalar
+      integer, intent(in) :: lwi  ! Surface field - scalar
+      real(fp), intent(in) :: nlevs  ! Surface field - scalar
+      real(fp), intent(in) :: pblh  ! Surface field - scalar
+      real(fp), intent(in) :: t(num_layers)    ! 3D atmospheric field
+      real(fp), intent(in) :: tstep  ! Time step [s] - from process interface
+      real(fp), intent(in) :: u10m  ! Surface field - scalar
       real(fp), intent(in) :: ustar  ! Surface field - scalar
+      real(fp), intent(in) :: v10m  ! Surface field - scalar
+      real(fp), intent(in) :: z0h  ! Surface field - scalar
+      real(fp), intent(in) :: zmid(num_layers)    ! 3D atmospheric field
       real(fp), intent(in) :: species_density(num_species)  ! Species density property
       real(fp), intent(in) :: species_radius(num_species)  ! Species radius property
-      real(fp), intent(in) :: species_lower_radius(num_species)  ! Species lower_radius property
-      real(fp), intent(in) :: species_upper_radius(num_species)  ! Species upper_radius property
       real(fp), intent(in) :: species_conc(num_layers, num_species)
       real(fp), intent(inout) :: species_tendencies(num_layers, num_species)
-      real(fp), intent(inout), optional :: seasalt_mass_emission_total
-      real(fp), intent(inout), optional :: seasalt_number_emission_total
-      real(fp), intent(inout), optional :: seasalt_mass_emission_per_bin(:)
-      real(fp), intent(inout), optional :: seasalt_number_emission_per_bin(:)
+      logical, intent(in) :: is_gas(num_species)  ! Species type flags (true=gas, false=aerosol)
+      real(fp), intent(inout), optional :: drydep_con_per_species(:)
+      real(fp), intent(inout), optional :: drydep_velocity_per_species(:)
       integer, intent(in), optional :: diagnostic_species_id(:)  ! Indices mapping diagnostic species to species array
 
       ! Local variables
@@ -124,23 +143,52 @@ contains
 
          ! Apply scheme-specific environmental responses based on meteorological fields
          ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how DELP affects your emissions
-         ! environmental_factor = environmental_factor * some_function(delp(k))
+         ! TODO: Consider how AIRDEN affects your emissions
+         ! environmental_factor = environmental_factor * some_function(airden(k))
          ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how FROCEAN affects your emissions
-         ! environmental_factor = environmental_factor * some_function(frocean(k))
+         ! TODO: Consider how FRLAKE affects your emissions
+         ! environmental_factor = environmental_factor * some_function(frlake(k))
          ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how FRSEAICE affects your emissions
-         ! environmental_factor = environmental_factor * some_function(frseaice(k))
+         ! TODO: Consider how GWETTOP affects your emissions
+         ! environmental_factor = environmental_factor * some_function(gwettop(k))
          ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how SST affects your emissions
-         ! environmental_factor = environmental_factor * some_function(sst(k))
+         ! TODO: Consider how HFLUX affects your emissions
+         ! environmental_factor = environmental_factor * some_function(hflux(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how LWI affects your emissions
+         ! environmental_factor = environmental_factor * some_function(lwi(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how NLEVS affects your emissions
+         ! environmental_factor = environmental_factor * some_function(nlevs(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how PBLH affects your emissions
+         ! environmental_factor = environmental_factor * some_function(pblh(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how T affects your emissions
+         ! environmental_factor = environmental_factor * some_function(t(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how TSTEP affects your emissions
+         ! environmental_factor = environmental_factor * some_function(tstep(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how U10M affects your emissions
+         ! environmental_factor = environmental_factor * some_function(u10m(k))
          ! Generic field usage (customize for your scheme)
          ! TODO: Consider how USTAR affects your emissions
          ! environmental_factor = environmental_factor * some_function(ustar(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how V10M affects your emissions
+         ! environmental_factor = environmental_factor * some_function(v10m(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how Z0H affects your emissions
+         ! environmental_factor = environmental_factor * some_function(z0h(k))
+         ! Generic field usage (customize for your scheme)
+         ! TODO: Consider how ZMID affects your emissions
+         ! environmental_factor = environmental_factor * some_function(zmid(k))
 
          ! Apply to each species
          do species_idx = 1, num_species
+            ! Skip species that don't match scheme type (gas vs aerosol)
+            if (is_gas(species_idx)) cycle
             ! Base emission factor (customize this for species-specific emissions)
             base_emission_factor = DEFAULT_SCALING
 
@@ -160,36 +208,24 @@ contains
             ! TODO: Update diagnostic fields here based on your scheme's requirements
             ! Each process should implement custom diagnostic calculations
             ! Example patterns:
-            if (present(seasalt_mass_emission_total)) then
-               ! Add your custom sea salt mass emission flux total calculation
-               seasalt_mass_emission_total = seasalt_mass_emission_total + species_tendencies(k, species_idx) * 1.0_fp  ! TODO: Replace with actual calculation
-            end if
-            if (present(seasalt_number_emission_total)) then
-               ! Add your custom sea salt number emission flux total calculation
-               seasalt_number_emission_total = seasalt_number_emission_total + species_tendencies(k, species_idx) * 1.0_fp  ! TODO: Replace with actual calculation
-            end if
-            
-            ! TODO: Update scheme-specific diagnostic fields here based on your scheme's requirements
-            ! Each scheme should implement custom diagnostic calculations
-            ! Example patterns:
             ! Per-species diagnostic: only update for diagnostic species
-            if (present(seasalt_mass_emission_per_bin) .and. present(diagnostic_species_id)) then
+            if (present(drydep_con_per_species) .and. present(diagnostic_species_id)) then
                ! Find position of this species in diagnostic_species_id array
                do diag_idx = 1, size(diagnostic_species_id)
                   if (diagnostic_species_id(diag_idx) == species_idx) then
-                     ! Add your custom sea salt mass emission flux per bin calculation
-                     seasalt_mass_emission_per_bin(diag_idx) = species_tendencies(k, species_idx) * 1.0_fp  ! TODO: Replace with actual calculation
+                     ! Add your custom dry deposition concentration per species calculation
+                     drydep_con_per_species(diag_idx) = species_tendencies(k, species_idx) * 1.0_fp  ! TODO: Replace with actual calculation
                      exit
                   end if
                end do
             end if
             ! Per-species diagnostic: only update for diagnostic species
-            if (present(seasalt_number_emission_per_bin) .and. present(diagnostic_species_id)) then
+            if (present(drydep_velocity_per_species) .and. present(diagnostic_species_id)) then
                ! Find position of this species in diagnostic_species_id array
                do diag_idx = 1, size(diagnostic_species_id)
                   if (diagnostic_species_id(diag_idx) == species_idx) then
-                     ! Add your custom sea salt number emission flux per bin calculation
-                     seasalt_number_emission_per_bin(diag_idx) = species_tendencies(k, species_idx) * 1.0_fp  ! TODO: Replace with actual calculation
+                     ! Add your custom dry deposition velocity calculation
+                     drydep_velocity_per_species(diag_idx) = species_tendencies(k, species_idx) * 1.0_fp  ! TODO: Replace with actual calculation
                      exit
                   end if
                end do
@@ -198,7 +234,7 @@ contains
 
       end do
 
-   end subroutine compute_geos12
+   end subroutine compute_gocart
 
    ! =======================================================================
    ! SCHEME-SPECIFIC HELPER SUBROUTINES
@@ -207,7 +243,7 @@ contains
    ! Examples: environmental response functions, species-specific calculations, etc.
 
    !> Example helper function for environmental response
-   pure function compute_environmental_response_geos12(met_value, reference_value) result(factor)
+   pure function compute_environmental_response_gocart(met_value, reference_value) result(factor)
       real(fp), intent(in) :: met_value       ! Meteorological value
       real(fp), intent(in) :: reference_value ! Reference value
       real(fp) :: factor
@@ -215,12 +251,12 @@ contains
       ! Simple exponential response - customize for your scheme
       factor = exp((met_value - reference_value) / reference_value)
       factor = max(0.0_fp, min(10.0_fp, factor))  ! Reasonable bounds
-   end function compute_environmental_response_geos12
+   end function compute_environmental_response_gocart
 
    !> Example helper function for species-specific scaling
-   pure function compute_species_scaling_geos12(species_idx, params) result(scaling)
+   pure function compute_species_scaling_gocart(species_idx, params) result(scaling)
       integer, intent(in) :: species_idx
-      type(SeaSaltSchemeGEOS12Config), intent(in) :: params
+      type(DryDepSchemeGOCARTConfig), intent(in) :: params
       real(fp) :: scaling
 
       ! Species-specific scaling - customize for your scheme
@@ -233,6 +269,6 @@ contains
          scaling = 0.1_fp    ! Low emission for other species
       end select
 
-   end function compute_species_scaling_geos12
+   end function compute_species_scaling_gocart
 
-end module SeaSaltScheme_GEOS12_Mod
+end module DryDepScheme_GOCART_Mod

@@ -3,7 +3,7 @@
 !!
 !! This file contains unit tests for the seasalt process implementation
 !! following the same pattern as core tests like test_ConfigManager.F90
-!! Generated on: 2025-10-01T13:11:31.198862
+!! Generated on: 2025-11-14T23:01:21.820796
 
 program test_seasalt_unit
    use testing_mod, only: assert, assert_close
@@ -144,6 +144,7 @@ contains
       config%scheme = 'invalid_scheme'
       call config%validate(error_manager)
       call assert(.true., "Invalid scheme validation completed")
+
 
       ! Cleanup configuration
       call config%finalize()

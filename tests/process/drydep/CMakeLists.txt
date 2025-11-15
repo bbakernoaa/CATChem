@@ -1,12 +1,12 @@
-# CMakeLists.txt for seasalt process tests
-# Generated on: 2025-11-14T23:01:21.936351
+# CMakeLists.txt for drydep process tests
+# Generated on: 2025-11-14T22:58:26.755635
 
 cmake_minimum_required(VERSION 3.12)
 
 # Test executables
 set(TEST_SOURCES
-    unit/test_seasalt_unit.F90
-    integration/test_seasalt_integration.F90
+    unit/test_drydep_unit.F90
+    integration/test_drydep_integration.F90
 )
 
 # Create test executables
@@ -17,7 +17,7 @@ foreach(test_source ${TEST_SOURCES})
 
     # Link against process modules
     target_link_libraries(${test_name}
-        CATChem_process_seasalt
+        CATChem_process_drydep
         CATChem_core
         testing
     )
@@ -46,7 +46,7 @@ endforeach()
 # Test data files
 configure_file(
     "${CMAKE_SOURCE_DIR}/tests/Configs/Default/CATChem_new_config.yml"
-    "${CMAKE_CURRENT_BINARY_DIR}/seasalt_config.yaml"
+    "${CMAKE_CURRENT_BINARY_DIR}/drydep_config.yaml"
     COPYONLY
 )
 
@@ -62,23 +62,23 @@ foreach(test_data_file ${TEST_DATA_FILES})
 endforeach()
 
 # Custom test targets with unique names
-add_custom_target(run_seasalt_unit
-    COMMAND test_seasalt_unit
-    DEPENDS test_seasalt_unit
+add_custom_target(run_drydep_unit
+    COMMAND test_drydep_unit
+    DEPENDS test_drydep_unit
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-    COMMENT "Running unit tests for seasalt process"
+    COMMENT "Running unit tests for drydep process"
 )
 
-add_custom_target(run_seasalt_integration
-    COMMAND test_seasalt_integration
-    DEPENDS test_seasalt_integration
+add_custom_target(run_drydep_integration
+    COMMAND test_drydep_integration
+    DEPENDS test_drydep_integration
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-    COMMENT "Running integration tests for seasalt process"
+    COMMENT "Running integration tests for drydep process"
 )
 
-add_custom_target(run_seasalt_all
-    DEPENDS run_seasalt_unit run_seasalt_integration
-    COMMENT "Running all tests for seasalt process"
+add_custom_target(run_drydep_all
+    DEPENDS run_drydep_unit run_drydep_integration
+    COMMENT "Running all tests for drydep process"
 )
 
 # Test coverage (if available)
@@ -93,33 +93,33 @@ if(CODE_COVERAGE)
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
 
         # Coverage target
-        add_custom_target(coverage_seasalt
-            COMMAND ${LCOV_PATH} --directory . --capture --output-file coverage_seasalt.info
-            COMMAND ${LCOV_PATH} --remove coverage_seasalt.info '/usr/*' --output-file coverage_seasalt.info
-            COMMAND ${GENHTML_PATH} -o coverage_seasalt_html coverage_seasalt.info
-            DEPENDS run_seasalt_all
+        add_custom_target(coverage_drydep
+            COMMAND ${LCOV_PATH} --directory . --capture --output-file coverage_drydep.info
+            COMMAND ${LCOV_PATH} --remove coverage_drydep.info '/usr/*' --output-file coverage_drydep.info
+            COMMAND ${GENHTML_PATH} -o coverage_drydep_html coverage_drydep.info
+            DEPENDS run_drydep_all
             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-            COMMENT "Generating test coverage report for seasalt process"
+            COMMENT "Generating test coverage report for drydep process"
         )
     endif()
 endif()
 
 # Performance benchmarks
-add_custom_target(benchmark_seasalt
-    DEPENDS run_seasalt_integration
+add_custom_target(benchmark_drydep
+    DEPENDS run_drydep_integration
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-    COMMENT "Running performance benchmarks for seasalt process"
+    COMMENT "Running performance benchmarks for drydep process"
 )
 
 # Memory checking with valgrind (if available)
 find_program(VALGRIND_PATH valgrind)
 if(VALGRIND_PATH)
-    add_custom_target(memcheck_seasalt
+    add_custom_target(memcheck_drydep
         COMMAND ${VALGRIND_PATH} --tool=memcheck --leak-check=full --show-leak-kinds=all --track-origins=yes
-                ./test_seasalt_integration
-        DEPENDS test_seasalt_integration
+                ./test_drydep_integration
+        DEPENDS test_drydep_integration
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-        COMMENT "Running memory check for seasalt process"
+        COMMENT "Running memory check for drydep process"
     )
 endif()
 
@@ -130,7 +130,7 @@ if(INSTALL_TESTS)
     )
 
     install(FILES "${CMAKE_SOURCE_DIR}/tests/Configs/Default/CATChem_new_config.yml"
-        DESTINATION share/tests/seasalt
-        RENAME seasalt_config.yaml
+        DESTINATION share/tests/drydep
+        RENAME drydep_config.yaml
     )
 endif()

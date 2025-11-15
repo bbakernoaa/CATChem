@@ -1,22 +1,22 @@
-!> \file seasalt_example.F90
-!! \brief Example usage of seasalt process
+!> \file drydep_example.F90
+!! \brief Example usage of drydep process
 !!
-!! This program demonstrates how to use the seasalt process
+!! This program demonstrates how to use the drydep process
 !! in a standalone application or host model integration.
 !!
-!! Generated on: 2025-11-14T23:01:21.967591
-!! Author: Barry Baker & Wei Li
+!! Generated on: 2025-11-14T22:58:26.798112
+!! Author: Wei Li
 
-program seasalt_example
+program drydep_example
 
    use precision_mod, only: fp
    use iso_fortran_env, only: output_unit, error_unit
    use precision_mod, only: fp
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE
    use ProcessInterface_Mod
-   use ProcessSeaSaltInterface_Mod
-   use SeaSaltCommon_Mod
-   use SeaSaltProcessCreator_Mod
+   use ProcessDryDepInterface_Mod
+   use DryDepCommon_Mod
+   use DryDepProcessCreator_Mod
    use StateManager_Mod
 
    implicit none
@@ -27,7 +27,7 @@ program seasalt_example
    integer :: rc
 
    ! Configuration
-   character(len=256) :: config_file = "seasalt_config.yaml"
+   character(len=256) :: config_file = "drydep_config.yaml"
 
    ! Simulation parameters
    integer, parameter :: n_columns = 10
@@ -39,9 +39,9 @@ program seasalt_example
    integer :: i_time, i_col
    real(fp) :: total_time
 
-   write(output_unit, '(A)') "=== SeaSalt Process Example ==="
-   write(output_unit, '(A)') "Process for computing sea salt aerosol emissions over ocean surfaces"
-   write(output_unit, '(A)') "Author: Barry Baker & Wei Li"
+   write(output_unit, '(A)') "=== DryDep Process Example ==="
+   write(output_unit, '(A)') "Process for computing dry deposition of gas and aerosol species"
+   write(output_unit, '(A)') "Author: Wei Li"
    write(output_unit, '(A)') ""
 
    ! Step 1: Initialize state manager
@@ -95,12 +95,12 @@ program seasalt_example
    write(output_unit, '(A)') "Process finalized successfully"
    write(output_unit, '(A)') "Example completed!"
 
-end program seasalt_example
-      write(error_unit, '(A)') "Error creating seasalt process"
+end program drydep_example
+      write(error_unit, '(A)') "Error creating drydep process"
       call error_handler%print_errors()
       stop 1
    end if
-   write(output_unit, '(A)') "5. SeaSalt process created"
+   write(output_unit, '(A)') "5. DryDep process created"
 
    ! Step 6: Load configuration
    call load_configuration(config_data, error_handler)
@@ -114,11 +114,11 @@ end program seasalt_example
    ! Step 7: Initialize process
    call process%init(state_manager, config_data, error_handler)
    if (error_handler%has_error()) then
-      write(error_unit, '(A)') "Error initializing seasalt process"
+      write(error_unit, '(A)') "Error initializing drydep process"
       call error_handler%print_errors()
       stop 1
    end if
-   write(output_unit, '(A)') "7. SeaSalt process initialized"
+   write(output_unit, '(A)') "7. DryDep process initialized"
 
    ! Step 8: Print process information
    call print_process_info(process)
@@ -195,7 +195,9 @@ contains
       type(ErrorHandler), intent(inout) :: error_handler
 
       ! Add required meteorological fields
-      call state_manager%add_met_field('DELP', error_handler)
+      call state_manager%add_met_field('USTAR', error_handler)
+      if (error_handler%has_error()) return
+      call state_manager%add_met_field('TSTEP', error_handler)
       if (error_handler%has_error()) return
 
       ! Add optional meteorological fields
@@ -221,7 +223,10 @@ contains
             latitude = 45.0_fp + real(i_col - 1, fp) * 1.0_fp  ! Latitude
             longitude = -120.0_fp + real(i_col - 1, fp) * 1.0_fp  ! Longitude
 
-            call state_manager%set_met_field('DELP', i_col, i_lev, &
+            call state_manager%set_met_field('USTAR', i_col, i_lev, &
+               1.0_fp, error_handler)  ! Default value
+            if (error_handler%has_error()) return
+            call state_manager%set_met_field('TSTEP', i_col, i_lev, &
                1.0_fp, error_handler)  ! Default value
             if (error_handler%has_error()) return
 
@@ -239,7 +244,7 @@ contains
       ! In practice, this would be loaded from a file
       config_data = &
          'process:' // new_line('A') // &
-         '  name: "seasalt"' // new_line('A') // &
+         '  name: "drydep"' // new_line('A') // &
          '  version: "1.0.0"' // new_line('A') // &
          '  active_scheme: ""' // new_line('A') // &
          '  is_active: true' // new_line('A') // &
@@ -329,4 +334,4 @@ contains
 
    end subroutine print_diagnostic_summary
 
-end program seasalt_example
+end program drydep_example

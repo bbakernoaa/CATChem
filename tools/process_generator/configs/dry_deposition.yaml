@@ -1,0 +1,184 @@
+name: "drydep"
+description: "Process for computing dry deposition of gas and aerosol species"
+class_name: "DryDep"
+process_type: "deposition"
+author: "Wei Li"
+
+# Explicit process behavior configuration with species filtering
+process_behavior:
+  type: "sink" #is not doing anything now
+  tendency_mode: "additive" #is not doing anything now
+  species_filter:
+    #type: "all_species"
+    type: "by_metadata"
+    metadata_flags:
+      - "is_drydep"  # Filter for species with is_drydep=true property
+    #type: "by_list"
+    #species_list:
+    #  - "SEASALT_FINE"      # Fine mode sea salt (< 1 μm)
+    #  - "SEASALT_COARSE"    # Coarse mode sea salt (1-10 μm)
+    #  - "SEASALT_SUPER"     # Super-coarse mode sea salt (> 10 μm)
+  gas_aero_differentiation: true  # Use different schemes for gas and aerosol species
+  tendency_calculation: "rates" #is not doing anything now
+  timestep_dependency: "independent" #is not doing anything now
+  spatial_scope: "column" #is not doing anything now
+  #only 'column' is supported for now
+  parallelization: "column"  #column: (extends(ColumnProcessInterface); use VirtualColumnType ) or global: (extends(ProcessInterface))  
+  memory_requirements: "low" #is not doing anything now
+
+required_met_fields: #needed for other purposes, such as unit conversion
+  - USTAR
+  - TSTEP     #Note TSTEP is not from met_state but we put it here anyways
+
+schemes:
+  wesely:
+    name: "wesely"
+    class_name: "WESELY"
+    description: "Wesely 1989 gas dry deposition scheme"
+    gas_or_aero: gas     #gas, aero or both; only applies when gas_aero_differentiation is true
+    algorithm_type: "explicit"
+    affects_full_column: false
+    reference: "Wesely, M. L. [1989] Parameterization of surface resistances to gaseous dry deposition..."
+    author: "Wei Li"
+
+    required_met_fields: #needed for scheme calculations
+      - TS
+      - SWGDN
+      - SUNCOSmid 
+      - OBK
+      - CLDFRC
+      - BXHEIGHT
+      - Z0
+      - PS 
+      - FRLAI
+      - ILAND     #need to add to metstate
+      - SALINITY     #need to add to metstate
+      ##- IODIDE     #need to add to metstate
+      - FRLANDUSE
+      - TSKIN
+      - LON 
+      - LAT
+      - LUCNAME
+      - IsSnow
+      - IsIce
+      - IsLand
+
+    required_species_properties:
+      - mw_g         
+      - dd_f0  
+      - short_name            
+      - dd_hstar               
+      - dd_DvzAerSnow       
+      - dd_DvzMinVal_snow
+      - dd_DvzMinVal_land          
+
+    parameters:
+      scale_factor:
+        default: 1.0
+        description: "DryDep velocity scale factor"
+      co2_effect:
+        default: true
+        description: "Apply CO2 effect on stomatal conductance"
+      co2_level:
+        default: 600.0
+        description: "Ambient CO2 level for stomatal conductance adjustment"
+      co2_reference:
+        default: 380.0
+        description: "Reference CO2 level for stomatal conductance adjustment"
+
+    diagnostics: []
+
+
+  gocart:
+    name: "gocart"
+    class_name: "GOCART"
+    description: "GOCART-2G aerosol dry deposition scheme"
+    gas_or_aero: aero     #gas, aero or both
+    algorithm_type: "explicit"
+    affects_full_column: false
+    reference: "Allison et al. [2024] Benchmarking GOCART-2G in GEOS"
+    author: "Wei Li & Lacey Holland"
+
+    required_met_fields:
+      - NLEVS
+      - T 
+      - AIRDEN
+      - ZMID
+      - LWI
+      - PBLH
+      - HFLUX
+      - Z0H
+      - U10M
+      - V10M
+      - FRLAKE
+      - GWETTOP
+    
+    required_species_properties:         
+      - density              
+      - radius               
+
+    parameters:
+      scale_factor:
+        default: 1.0
+        description: "Dry deposition velocity scale factor"
+      resuspension:
+        default: false
+        description: "Apply resuspension for dry deposition"
+
+    diagnostics: []
+
+  zhang:
+    name: "zhang"
+    class_name: "ZHANG"
+    description: "Zhang et al. [2001] scheme with Emerson et al. [2020] updates"
+    gas_or_aero: aero     #gas, aero or both
+    algorithm_type: "explicit"
+    affects_full_column: false
+    reference: "Zhang et al., 2001; Emerson et al., 2020"
+    author: "Wei Li"
+
+    required_met_fields:
+      - TS
+      - OBK 
+      - BXHEIGHT
+      - Z0
+      - RH
+      - PS
+      - U10M
+      - V10M
+      - FRLANDUSE
+      - ILAND    #need to add to metstate
+      - LUCNAME
+      - IsSnow
+      - IsIce
+
+    required_species_properties:         
+      - mw_g 
+      - radius
+      - density
+      - short_name            
+      - dd_hstar               
+      - dd_DvzAerSnow       
+      - dd_DvzMinVal_snow
+      - dd_DvzMinVal_land 
+      - lower_radius
+      - upper_radius
+      - is_dust
+      - is_seasalt
+
+    parameters:
+      scale_factor:
+        default: 1.0
+        description: "Dry deposition velocity scale factor"
+
+    diagnostics: []
+
+diagnostics:
+  - name: "drydep_con_per_species"
+    description: "Dry deposition concentration per species"
+    units: "ug/kg or ppm"
+  - name: "drydep_velocity_per_species"
+    description: "Dry deposition velocity"
+    units: "m/s"
+  
+

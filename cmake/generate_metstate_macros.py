@@ -48,7 +48,7 @@ def parse_metstate_type(filename):
     -------
     fields : list of tuple
         List of (name, type_name, rank, dims, is_edge) for each allocatable field.
-        type_name is 'real', 'integer', or 'logical'
+        type_name is 'real', 'integer', 'logical', or 'character'
         is_edge is True if the field uses nz+1 dimension (edge fields).
     """
     with open(filename, 'r') as f:
@@ -62,7 +62,7 @@ def parse_metstate_type(filename):
         elif in_type and 'end type' in line.lower():
             break
         elif in_type:
-            # Match different field types: real(fp), integer, logical
+            # Match different field types: real(fp), integer, logical, character
             # REAL(fp), ALLOCATABLE :: name(dimensions) or name
             m_real_alloc = re.match(r'\s*REAL\(fp\),\s*ALLOCATABLE\s*::\s*(\w+)(?:\s*\(([^)]*)\))?\s*', line, re.IGNORECASE)
             # REAL(fp) :: name (scalar)
@@ -75,6 +75,10 @@ def parse_metstate_type(filename):
             m_log_alloc = re.match(r'\s*LOGICAL,\s*ALLOCATABLE\s*::\s*(\w+)(?:\s*\(([^)]*)\))?\s*', line, re.IGNORECASE)
             # LOGICAL :: name (scalar)
             m_log_scalar = re.match(r'\s*LOGICAL\s*::\s*(\w+)(?:\s*=.*?)?\s*', line, re.IGNORECASE)
+            # CHARACTER(len=*), ALLOCATABLE :: name(dimensions) or name
+            m_char_alloc = re.match(r'\s*CHARACTER\s*\([^)]*\),\s*ALLOCATABLE\s*::\s*(\w+)(?:\s*\(([^)]*)\))?\s*', line, re.IGNORECASE)
+            # CHARACTER(len=*) :: name (scalar)
+            m_char_scalar = re.match(r'\s*CHARACTER\s*\([^)]*\)\s*::\s*(\w+)(?:\s*=.*?)?\s*', line, re.IGNORECASE)
             
             match = None
             type_name = None
@@ -103,6 +107,14 @@ def parse_metstate_type(filename):
             elif m_log_scalar:
                 match = m_log_scalar
                 type_name = 'logical'
+                dims = None
+            elif m_char_alloc:
+                match = m_char_alloc
+                type_name = 'character'
+                dims = match.group(2) if match.group(2) else None
+            elif m_char_scalar:
+                match = m_char_scalar
+                type_name = 'character'
                 dims = None
                 
             if match:
@@ -496,12 +508,15 @@ def write_virtualmet_populate(fields, output_file):
     real_3d = []
     int_3d = []
     logical_3d = []
+    char_3d = []
     real_2d = []
     int_2d = []
     logical_2d = []
+    char_2d = []
     real_scalar = []
     int_scalar = []
     logical_scalar = []
+    char_scalar = []
     
     for name, type_name, rank, dims, is_edge in fields:
         if rank == 3:
@@ -511,6 +526,8 @@ def write_virtualmet_populate(fields, output_file):
                 int_3d.append(name)
             elif type_name.upper() == 'LOGICAL':
                 logical_3d.append(name)
+            elif type_name.upper() == 'CHARACTER':
+                char_3d.append(name)
         elif rank == 2:
             if type_name.upper() == 'REAL':
                 real_2d.append(name)
@@ -518,6 +535,8 @@ def write_virtualmet_populate(fields, output_file):
                 int_2d.append(name)
             elif type_name.upper() == 'LOGICAL':
                 logical_2d.append(name)
+            elif type_name.upper() == 'CHARACTER':
+                char_2d.append(name)
         elif rank == 0:  # Include scalar fields
             if type_name.upper() == 'REAL':
                 real_scalar.append(name)
@@ -525,6 +544,8 @@ def write_virtualmet_populate(fields, output_file):
                 int_scalar.append(name)
             elif type_name.upper() == 'LOGICAL':
                 logical_scalar.append(name)
+            elif type_name.upper() == 'CHARACTER':
+                char_scalar.append(name)
     
     with open(output_file, 'w') as f:
         f.write("! Generated macro for populating VirtualMetType with MetState field pointers\n")
@@ -561,6 +582,15 @@ def write_virtualmet_populate(fields, output_file):
                 f.write(f"   virtual_col%met%{name} => column_ptr_logical\n")
                 f.write(f"end if\n\n")
         
+        # Populate 3D CHARACTER field pointers
+        if char_3d:
+            f.write("! Populate 3D CHARACTER field pointers\n")
+            for name in sorted(char_3d):
+                f.write(f"! Note: CHARACTER field {name} accessed directly from MetState\n")
+                f.write(f"if (allocated(this%met_state%{name})) then\n")
+                f.write(f"   virtual_col%met%{name} => this%met_state%{name}(:)\n")
+                f.write(f"end if\n\n")
+        
         # Populate 2D REAL scalar fields
         if real_2d:
             f.write("! Populate 2D REAL scalar fields\n")
@@ -590,6 +620,13 @@ def write_virtualmet_populate(fields, output_file):
                 f.write(f"if (field_rc == 0) then\n")
                 f.write(f"   virtual_col%met%{name} = scalar_val_logical\n")
                 f.write(f"end if\n\n")
+        
+        # Populate 2D CHARACTER scalar fields
+        if char_2d:
+            f.write("! Populate 2D CHARACTER scalar fields\n")
+            for name in sorted(char_2d):
+                f.write(f"! Note: CHARACTER field {name} accessed directly from MetState\n")
+                f.write(f"virtual_col%met%{name} = this%met_state%{name}(grid_i, grid_j)\n\n")
         
         # Populate scalar REAL fields
         if real_scalar:
@@ -621,8 +658,15 @@ def write_virtualmet_populate(fields, output_file):
                 f.write(f"   virtual_col%met%{name} = scalar_val_logical\n")
                 f.write(f"end if\n\n")
         
-        f.write("! Note: All field types (REAL, INTEGER, LOGICAL) including scalars are now supported.\n")
-        f.write("! Type-specific accessor functions ensure proper type handling.\n")
+        # Populate scalar CHARACTER fields
+        if char_scalar:
+            f.write("! Populate scalar CHARACTER fields\n")
+            for name in sorted(char_scalar):
+                f.write(f"! Note: CHARACTER field {name} accessed directly from MetState\n")
+                f.write(f"virtual_col%met%{name} = this%met_state%{name}\n\n")
+        
+        f.write("! Note: All field types (REAL, INTEGER, LOGICAL, CHARACTER) including scalars are now supported.\n")
+        f.write("! Type-specific accessor functions used for numeric/logical fields, direct access for CHARACTER fields.\n")
 
 def write_virtualmet_type(fields, output_file):
     """
@@ -644,12 +688,15 @@ def write_virtualmet_type(fields, output_file):
     real_3d = []
     int_3d = []
     logical_3d = []
+    char_3d = []
     real_2d = []
     int_2d = []
     logical_2d = []
+    char_2d = []
     real_scalar = []
     int_scalar = []
     logical_scalar = []
+    char_scalar = []
     
     for name, type_name, rank, dims, is_edge in fields:
         if rank == 3:
@@ -659,6 +706,8 @@ def write_virtualmet_type(fields, output_file):
                 int_3d.append(name)
             elif type_name.upper() == 'LOGICAL':
                 logical_3d.append(name)
+            elif type_name.upper() == 'CHARACTER':
+                char_3d.append(name)
         elif rank == 2:
             if type_name.upper() == 'REAL':
                 real_2d.append(name)
@@ -666,6 +715,8 @@ def write_virtualmet_type(fields, output_file):
                 int_2d.append(name)
             elif type_name.upper() == 'LOGICAL':
                 logical_2d.append(name)
+            elif type_name.upper() == 'CHARACTER':
+                char_2d.append(name)
         elif rank == 0:  # Include scalar fields now
             if type_name.upper() == 'REAL':
                 real_scalar.append(name)
@@ -673,6 +724,8 @@ def write_virtualmet_type(fields, output_file):
                 int_scalar.append(name)
             elif type_name.upper() == 'LOGICAL':
                 logical_scalar.append(name)
+            elif type_name.upper() == 'CHARACTER':
+                char_scalar.append(name)
     
     with open(output_file, 'w') as f:
         f.write("! Generated VirtualMetType definition based on MetState field definitions\n")
@@ -709,6 +762,14 @@ def write_virtualmet_type(fields, output_file):
                 f.write(f"      logical, pointer :: {name}(:) => null()  !< {comment}\n")
             f.write("\n")
         
+        # Write 3D CHARACTER field pointers
+        if char_3d:
+            f.write("      ! 3D CHARACTER fields - pointers to MetState data\n")
+            for name in sorted(char_3d):
+                comment = get_field_description(name)
+                f.write(f"      character(len=255), pointer :: {name}(:) => null()  !< {comment}\n")
+            f.write("\n")
+        
         # Write 2D REAL surface fields (scalars)
         if real_2d:
             f.write("      ! 2D REAL surface fields (scalars) - direct values from MetState\n")
@@ -733,6 +794,14 @@ def write_virtualmet_type(fields, output_file):
                 f.write(f"      logical :: {name}  !< {comment}\n")
             f.write("\n")
         
+        # Write 2D CHARACTER surface fields
+        if char_2d:
+            f.write("      ! 2D CHARACTER surface fields - direct values from MetState\n")
+            for name in sorted(char_2d):
+                comment = get_field_description(name)
+                f.write(f"      character(len=255) :: {name}  !< {comment}\n")
+            f.write("\n")
+        
         # Write scalar REAL fields
         if real_scalar:
             f.write("      ! Scalar REAL fields - direct values from MetState\n")
@@ -755,6 +824,14 @@ def write_virtualmet_type(fields, output_file):
             for name in sorted(logical_scalar):
                 comment = get_field_description(name)
                 f.write(f"      logical :: {name}  !< {comment}\n")
+            f.write("\n")
+        
+        # Write scalar CHARACTER fields
+        if char_scalar:
+            f.write("      ! Scalar CHARACTER fields - direct values from MetState\n")
+            for name in sorted(char_scalar):
+                comment = get_field_description(name)
+                f.write(f"      character(len=255) :: {name}  !< {comment}\n")
             f.write("\n")
         
         f.write("   contains\n")
@@ -1038,6 +1115,12 @@ def get_conditional_allocation_info(field_name):
             'dimension': 'nsoiltype',
             'dimension_var': 'this%nSOILTYPE',
             'type': 'soiltype'
+        },
+        'iland': {
+            'condition': 'nSURFTYPE > 0',
+            'dimension': 'nSURFTYPE',
+            'dimension_var': 'this%NSURFTYPE', 
+            'type': 'surftype'
         }
     }
     
@@ -1339,12 +1422,18 @@ def write_multiple_fields_interface(fields, output_file):
                          if type_name == 'logical' and rank == 2]
     logical_3d_fields = [(name, rank, dims) for name, type_name, rank, dims, is_edge in fields 
                          if type_name == 'logical' and rank == 3]
+    char_2d_fields = [(name, rank, dims) for name, type_name, rank, dims, is_edge in fields 
+                      if type_name == 'character' and rank == 2]
+    char_3d_fields = [(name, rank, dims) for name, type_name, rank, dims, is_edge in fields 
+                      if type_name == 'character' and rank == 3]
     real_scalar_fields = [(name, rank, dims) for name, type_name, rank, dims, is_edge in fields 
                           if type_name == 'real' and rank == 0]
     int_scalar_fields = [(name, rank, dims) for name, type_name, rank, dims, is_edge in fields 
                          if type_name == 'integer' and rank == 0]
     logical_scalar_fields = [(name, rank, dims) for name, type_name, rank, dims, is_edge in fields 
                              if type_name == 'logical' and rank == 0]
+    char_scalar_fields = [(name, rank, dims) for name, type_name, rank, dims, is_edge in fields 
+                          if type_name == 'character' and rank == 0]
     
     with open(output_file, 'w') as f:
         f.write("!> \\brief Set multiple meteorological fields directly from host model data\n")
@@ -1363,9 +1452,9 @@ def write_multiple_fields_interface(fields, output_file):
         f.write("subroutine metstate_set_multiple_fields(this, field_names, error_mgr, rc")
         
         # Count total optional arguments
-        all_field_groups = [real_2d_fields, int_2d_fields, logical_2d_fields, 
-                           real_3d_fields, int_3d_fields, logical_3d_fields,
-                           real_scalar_fields, int_scalar_fields, logical_scalar_fields]
+        all_field_groups = [real_2d_fields, int_2d_fields, logical_2d_fields, char_2d_fields,
+                           real_3d_fields, int_3d_fields, logical_3d_fields, char_3d_fields,
+                           real_scalar_fields, int_scalar_fields, logical_scalar_fields, char_scalar_fields]
         has_fields = any(len(group) > 0 for group in all_field_groups)
         
         if has_fields:

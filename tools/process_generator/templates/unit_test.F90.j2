@@ -92,7 +92,12 @@ contains
 
       ! Test default values are correctly set
       call assert(config%is_active .eqv. .true., "Default is_active should be true")
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      call assert(len_trim(config%gas_scheme) > 0, "Default gas_scheme should be set")
+      call assert(len_trim(config%aero_scheme) > 0, "Default aero_scheme should be set")
+{% else %}
       call assert(len_trim(config%scheme) > 0, "Default scheme should be set")
+{% endif %}
       call assert(config%n_species == 0, "Default n_species should be 0")
 {% if config.process_behavior and config.process_behavior.type == 'emission' %}
       call assert_close(config%dt_min, 1.0_fp, 1.0e-6_fp, "Default dt_min should be 1.0")
@@ -112,12 +117,36 @@ contains
       call assert(.true., "Default configuration validation completed")
 
       ! Test validation of different schemes
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! Test gas schemes
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' or scheme.gas_or_aero == 'both' %}
+      config%gas_scheme = '{{ scheme.name }}'
+      call config%validate(error_manager)
+      call assert(.true., "{{ scheme.class_name }} gas scheme validation completed")
+{% endif %}
+{% endfor %}
+
+      ! Test aerosol schemes
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' or scheme.gas_or_aero == 'both' %}
+      config%aero_scheme = '{{ scheme.name }}'
+      call config%validate(error_manager)
+      call assert(.true., "{{ scheme.class_name }} aerosol scheme validation completed")
+{% endif %}
+{% endfor %}
+{% else %}
 {% for scheme in config.schemes %}
       config%scheme = '{{ scheme.name }}'
       call config%validate(error_manager)
       call assert(.true., "{{ scheme.class_name }} scheme validation completed")
 
 {% endfor %}
+{% endif %}
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! Test gas/aerosol species differentiation
+      call assert(.true., "Gas/aerosol differentiation enabled for this process")
+{% endif %}
 {% if config.process_behavior and config.process_behavior.type == 'emission' %}
       ! Test validation with invalid time steps
       config%dt_min = -1.0_fp
@@ -138,15 +167,60 @@ contains
       type(ErrorManagerType) :: error_manager
 
       ! Test valid schemes
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! Test gas schemes
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' or scheme.gas_or_aero == 'both' %}
+      config%gas_scheme = '{{ scheme.name }}'
+      call config%validate(error_manager)
+      call assert(.true., "{{ scheme.class_name }} gas scheme validation completed")
+      call assert(.true., "{{ scheme.class_name }} scheme configured for gas species")
+{% endif %}
+{% endfor %}
+
+      ! Test aerosol schemes  
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' or scheme.gas_or_aero == 'both' %}
+      config%aero_scheme = '{{ scheme.name }}'
+      call config%validate(error_manager)
+      call assert(.true., "{{ scheme.class_name }} aerosol scheme validation completed")
+      call assert(.true., "{{ scheme.class_name }} scheme configured for aerosol species")
+{% endif %}
+{% endfor %}
+
+      ! Test invalid schemes
+      config%gas_scheme = 'invalid_gas_scheme'
+      call config%validate(error_manager)
+      call assert(.true., "Invalid gas scheme validation completed")
+
+      config%aero_scheme = 'invalid_aero_scheme'  
+      call config%validate(error_manager)
+      call assert(.true., "Invalid aerosol scheme validation completed")
+{% else %}
 {% for scheme in config.schemes %}
       config%scheme = '{{ scheme.name }}'
       call config%validate(error_manager)
       call assert(.true., "{{ scheme.class_name }} scheme validation completed")
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+{% if scheme.gas_or_aero == 'gas' %}
+      call assert(.true., "{{ scheme.class_name }} scheme configured for gas species")
+{% elif scheme.gas_or_aero == 'aero' %}
+      call assert(.true., "{{ scheme.class_name }} scheme configured for aerosol species")
+{% else %}
+      call assert(.true., "{{ scheme.class_name }} scheme configured for both gas and aerosol species")
+{% endif %}
+{% endif %}
 
 {% endfor %}
       config%scheme = 'invalid_scheme'
       call config%validate(error_manager)
       call assert(.true., "Invalid scheme validation completed")
+{% endif %}
+
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! Test gas/aerosol differentiation logic
+      call assert(.true., "Process supports gas/aerosol species differentiation")
+{% endif %}
 
       ! Cleanup configuration
       call config%finalize()

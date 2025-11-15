@@ -53,10 +53,11 @@ contains
    !! @param[in]  ustar    USTAR field [appropriate units]
    !! @param[in]  species_conc   Species concentrations [mol/mol] (num_layers, num_species)
    !! @param[inout] species_tendencies  Species tendency terms [mol/mol/s] (num_layers, num_species)
-   !! @param[inout] diag_mass_emission_total    Total mass emission diagnostic [ug/m2/s]
-   !! @param[inout] diag_number_emission_total  Total number emission diagnostic [#/m2/s]
-   !! @param[inout] diag_mass_emission_per_bin   Mass emission per bin diagnostic [kg/m2/s] (num_species)
-   !! @param[inout] diag_number_emission_per_bin Number emission per bin diagnostic [#/m2/s] (num_species)
+   !! @param[inout] seasalt_mass_emission_total    Total mass emission diagnostic [ug/m2/s]
+   !! @param[inout] seasalt_number_emission_total  Total number emission diagnostic [#/m2/s]
+   !! @param[inout] seasalt_mass_emission_per_bin   Mass emission per bin diagnostic [kg/m2/s] (num_species)
+   !! @param[inout] seasalt_number_emission_per_bin Number emission per bin diagnostic [#/m2/s] (num_species)
+   !! @param[in] diagnostic_species_id Indices mapping diagnostic species to species array (optional, for per-species diagnostics)
    pure subroutine compute_geos12( &
       num_layers, &
       num_species, &
@@ -71,10 +72,11 @@ contains
       species_upper_radius, &
       species_conc, &
       species_tendencies, &
-      diag_mass_emission_total, &
-      diag_number_emission_total, &
-      diag_mass_emission_per_bin, &
-      diag_number_emission_per_bin &
+      seasalt_mass_emission_total, &
+      seasalt_number_emission_total, &
+      seasalt_mass_emission_per_bin, &
+      seasalt_number_emission_per_bin, &
+      diagnostic_species_id  &
    )
 
       ! Arguments
@@ -91,13 +93,15 @@ contains
       real(fp), intent(in) :: species_upper_radius(num_species)  ! Species upper_radius property
       real(fp), intent(in) :: species_conc(num_layers, num_species)
       real(fp), intent(inout) :: species_tendencies(num_layers, num_species)
-      real(fp), intent(inout), optional :: diag_mass_emission_total
-      real(fp), intent(inout), optional :: diag_number_emission_total  
-      real(fp), intent(inout), optional :: diag_mass_emission_per_bin(num_species)
-      real(fp), intent(inout), optional :: diag_number_emission_per_bin(num_species)
+      real(fp), intent(inout), optional :: seasalt_mass_emission_total
+      real(fp), intent(inout), optional :: seasalt_number_emission_total  
+      real(fp), intent(inout), optional :: seasalt_mass_emission_per_bin(:)
+      real(fp), intent(inout), optional :: seasalt_number_emission_per_bin(:)
+      integer, intent(in), optional :: diagnostic_species_id(:)  ! Indices mapping diagnostic species to species array
 
       ! Local variables
       integer :: k, species_idx, RC
+      integer :: diag_idx  ! For diagnostic species indexing
       real(fp) :: base_emission_factor
       real(fp) :: environmental_factor
       real(fp) :: species_factor
@@ -216,17 +220,31 @@ contains
                ! TODO: Update diagnostic fields here based on your scheme's requirements
                ! Each process should implement custom diagnostic calculations
                ! Example patterns:
-               if (present(diag_mass_emission_total)) then
-                  diag_mass_emission_total = diag_mass_emission_total + mass_emission_flux(k, n)
+               if (present(seasalt_mass_emission_total)) then
+                  seasalt_mass_emission_total = seasalt_mass_emission_total + mass_emission_flux(k, n)
                end if
-               if (present(diag_number_emission_total)) then
-                  diag_number_emission_total = diag_number_emission_total + numb_emission_flux(k, n)
+               if (present(seasalt_number_emission_total)) then
+                  seasalt_number_emission_total = seasalt_number_emission_total + numb_emission_flux(k, n)
                end if
-               if (present(diag_mass_emission_per_bin)) then
-                  diag_mass_emission_per_bin(n) = mass_emission_flux(k, n)
+               if (present(seasalt_mass_emission_per_bin) .and. present(diagnostic_species_id)) then
+                  ! Find position of this species in diagnostic_species_id array
+                  do diag_idx = 1, size(diagnostic_species_id)
+                     if (diagnostic_species_id(diag_idx) == n) then
+                        ! Add your custom sea salt mass emission flux per bin calculation
+                        seasalt_mass_emission_per_bin(diag_idx) = mass_emission_flux(k, n) 
+                        exit
+                     end if
+                  end do
                end if
-               if (present(diag_number_emission_per_bin)) then
-                  diag_number_emission_per_bin(n) = numb_emission_flux(k, n)
+               if (present(seasalt_number_emission_per_bin) .and. present(diagnostic_species_id)) then
+                  ! Find position of this species in diagnostic_species_id array
+                  do diag_idx = 1, size(diagnostic_species_id)
+                     if (diagnostic_species_id(diag_idx) == n) then
+                        ! Add your custom sea salt mass emission flux per bin calculation
+                        seasalt_number_emission_per_bin(diag_idx) = numb_emission_flux(k, n) 
+                        exit
+                     end if
+                  end do
                end if
             end do
 

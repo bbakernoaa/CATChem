@@ -4,7 +4,7 @@
 !! This module defines the configuration types used by the
 !! seasalt process and its schemes.
 !!
-!! Generated on: 2025-10-01T13:11:31.107205
+!! Generated on: 2025-11-14T23:01:21.563867
 !! Author: Barry Baker & Wei Li
 !! Version: 1.0.0
 
@@ -37,6 +37,11 @@ module SeaSaltCommon_Mod
       character(len=32) :: scheme = 'gong97'
       logical :: is_active = .true.
       logical :: diagnostics = .false.  ! Diagnostic switch
+      
+      ! Diagnostic species configuration
+      integer :: n_diagnostic_species = 0
+      character(len=32), allocatable :: diagnostic_species(:)  ! User-defined species for diagnostics
+      integer, allocatable :: diagnostic_species_id(:)  ! Indices mapping diagnostic_species to species_names
       real(fp) :: dt_min = 1.0_fp     ! Minimum time step (seconds)
       real(fp) :: dt_max = 3600.0_fp  ! Maximum time step (seconds)
 
@@ -170,6 +175,7 @@ module SeaSaltCommon_Mod
       procedure, public :: load_gong97_config
       procedure, public :: load_gong03_config
       procedure, public :: load_geos12_config
+      procedure, public :: map_diagnostic_species_indices
    end type SeaSaltProcessConfig
 
 contains
@@ -195,7 +201,8 @@ contains
          return
       end if
 
-      ! Validate active scheme
+      ! Validate active scheme(s)
+      ! Validate scheme
       if (trim(this%scheme) /= 'gong97' .and. &
           trim(this%scheme) /= 'gong03' .and. &
           trim(this%scheme) /= 'geos12' .and. &
@@ -247,6 +254,17 @@ contains
       end if
       if (allocated(this%species_upper_radius)) then
          deallocate(this%species_upper_radius)
+      end if
+
+
+      ! Deallocate diagnostic species array
+      if (allocated(this%diagnostic_species)) then
+         deallocate(this%diagnostic_species)
+      end if
+
+      ! Deallocate diagnostic species indices array
+      if (allocated(this%diagnostic_species_id)) then
+         deallocate(this%diagnostic_species_id)
       end if
 
    end subroutine finalize_seasalt_config
@@ -351,6 +369,23 @@ contains
       ! Load diagnostic switch
       call config_manager%get_logical("processes/seasalt/diagnostics", this%seasalt_config%diagnostics, rc, .false.)
       if (rc /= CC_SUCCESS) this%seasalt_config%diagnostics = .false.  ! Default
+
+      ! Load diagnostic species list
+      call config_manager%get_array("processes/seasalt/diag_species", this%seasalt_config%diagnostic_species, &
+                                    rc, default_values=["All"])
+      if (rc /= CC_SUCCESS) then
+         ! Default to all species if not specified
+         allocate(this%seasalt_config%diagnostic_species(1))
+         this%seasalt_config%diagnostic_species(1) = "All"
+         this%seasalt_config%n_diagnostic_species = 1
+      else
+         ! Set the count based on the returned array size
+         if (allocated(this%seasalt_config%diagnostic_species)) then
+            this%seasalt_config%n_diagnostic_species = size(this%seasalt_config%diagnostic_species)
+         else
+            this%seasalt_config%n_diagnostic_species = 0
+         end if
+      end if
 
       ! Species configuration is loaded from ChemState in load_species_from_chem_state
       ! The species come from the master species YAML file (CATChem_species.yml)
@@ -570,5 +605,66 @@ contains
       end select
 
    end function get_active_scheme_config
+
+   !> Map diagnostic species names to indices in the species_names array
+   !! This function creates the diagnostic_species_id array that maps each diagnostic species
+   !! to its corresponding index in the full species_names array
+   subroutine map_diagnostic_species_indices(this, error_handler)
+      class(SeaSaltProcessConfig), intent(inout) :: this
+      type(ErrorManagerType), intent(inout) :: error_handler
+
+      integer :: i, j, rc
+      character(len=256) :: error_msg
+      logical :: found_species
+
+      ! Only proceed if diagnostic species are defined
+      if (this%seasalt_config%n_diagnostic_species == 0) return
+
+      ! Handle "All" case - map all available species
+      if (this%seasalt_config%n_diagnostic_species == 1 .and. &
+          trim(this%seasalt_config%diagnostic_species(1)) == "All") then
+         
+         ! Deallocate and reallocate for all species
+         if (allocated(this%seasalt_config%diagnostic_species_id)) deallocate(this%seasalt_config%diagnostic_species_id)
+         allocate(this%seasalt_config%diagnostic_species_id(this%seasalt_config%n_species))
+         if (allocated(this%seasalt_config%diagnostic_species)) deallocate(this%seasalt_config%diagnostic_species)
+         allocate(this%seasalt_config%diagnostic_species(this%seasalt_config%n_species))
+         this%seasalt_config%n_diagnostic_species = this%seasalt_config%n_species
+         this%seasalt_config%diagnostic_species = this%seasalt_config%species_names
+
+         ! Map all species indices (1:n_species)
+         do i = 1, this%seasalt_config%n_species
+            this%seasalt_config%diagnostic_species_id(i) = i
+         end do
+         
+         return
+      end if
+
+      ! Allocate diagnostic species indices array
+      if (allocated(this%seasalt_config%diagnostic_species_id)) deallocate(this%seasalt_config%diagnostic_species_id)
+      allocate(this%seasalt_config%diagnostic_species_id(this%seasalt_config%n_diagnostic_species))
+
+      ! Map each diagnostic species name to its index in species_names
+      do i = 1, this%seasalt_config%n_diagnostic_species
+         found_species = .false.
+         
+         do j = 1, this%seasalt_config%n_species
+            if (trim(this%seasalt_config%diagnostic_species(i)) == trim(this%seasalt_config%species_names(j))) then
+               this%seasalt_config%diagnostic_species_id(i) = j
+               found_species = .true.
+               exit
+            end if
+         end do
+         
+         if (.not. found_species) then
+            write(error_msg, '(A,A,A)') "Diagnostic species '", &
+                  trim(this%seasalt_config%diagnostic_species(i)), &
+                  "' not found in process species list"
+            call error_handler%report_error(ERROR_NOT_FOUND, error_msg, rc)
+            return
+         end if
+      end do
+
+   end subroutine map_diagnostic_species_indices
 
 end module SeaSaltCommon_Mod

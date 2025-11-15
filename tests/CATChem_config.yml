@@ -33,6 +33,7 @@ processes:
     scheme: "geos12"
     scale_factor: 1.0
     weibull: true
+    diag_species: ["SALA", "SALC"]
   dust:
     activate: true
     scheme: "fengsha"

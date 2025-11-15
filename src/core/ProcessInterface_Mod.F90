@@ -326,9 +326,12 @@ contains
    !! \param[in] field_type Field data type (DIAG_REAL_2D, DIAG_REAL_3D, etc.)
    !! \param[in] process_name Name of the process registering the field
    !! \param[in] dimensions Array dimensions for data storage [nx, ny] or [nx, ny, nz]
+   !! \param[in] diagnostic_species Optional array of species names for diagnostics
+   !! \param[in] diagnostic_species_id Optional array of species indices for diagnostics
    !! \param[out] rc Return code
    subroutine process_register_diagnostic_field(this, registry, field_name, description, &
-                                                units, field_type, process_name, dimensions, rc)
+                                                units, field_type, process_name, dimensions, &
+                                                diagnostic_species, diagnostic_species_id, rc)
       use DiagnosticInterface_Mod, only: DiagnosticFieldType, DiagnosticRegistryType
       
       class(ProcessInterface), intent(in) :: this
@@ -339,14 +342,22 @@ contains
       integer, intent(in) :: field_type
       character(len=*), intent(in) :: process_name
       integer, intent(in) :: dimensions(:)
+      character(len=*), intent(in), optional :: diagnostic_species(:)
+      integer, intent(in), optional :: diagnostic_species_id(:)
       integer, intent(out) :: rc
       
       type(DiagnosticFieldType) :: diag_field
       
       rc = CC_SUCCESS
       
-      ! Create the diagnostic field
-      call diag_field%create(field_name, description, units, field_type, process_name, rc)
+      ! Create the diagnostic field with optional diagnostic species arguments
+      if (present(diagnostic_species) .and. present(diagnostic_species_id)) then
+         call diag_field%create(field_name, description, units, field_type, process_name, &
+                               diagnostic_species, diagnostic_species_id, rc)
+      else
+         call diag_field%create(field_name=field_name, description=description, units=units, &
+                               data_type=field_type, process_name=process_name, rc=rc)
+      end if
       if (rc /= CC_SUCCESS) return
       
       ! Initialize data storage for field

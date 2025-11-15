@@ -80,11 +80,11 @@ module Process{{ config.class_name }}Interface_Mod
       ! These are allocated per-column during processing and can be used to
       ! accumulate data for DiagManager updates
 {% for diagnostic in config.diagnostics %}
-{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
+{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name) %}
       real(fp), allocatable :: column_{{ diagnostic.name }}(:,:)         ! 2D: levels x species - per column
 {% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name %}
       real(fp), allocatable :: column_{{ diagnostic.name }}(:)           ! 1D: levels - per column
-{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name %}
+{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name %}
       real(fp), allocatable :: column_{{ diagnostic.name }}(:)           ! 1D: species - per column
 {% else %}
       real(fp), allocatable :: column_{{ diagnostic.name }}              ! scalar - per column
@@ -98,11 +98,11 @@ module Process{{ config.class_name }}Interface_Mod
 {% for diagnostic in scheme.scheme_diagnostics %}
 {% if diagnostic.name not in added_scheme_diagnostics %}
 {% set _ = added_scheme_diagnostics.append(diagnostic.name) %}
-{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
+{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name) %}
       real(fp), allocatable :: column_{{ diagnostic.name }}(:,:)         ! scheme-specific 2D: levels x species - per column
 {% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name %}
       real(fp), allocatable :: column_{{ diagnostic.name }}(:)           ! scheme-specific 1D: levels - per column
-{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name %}
+{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name %}
       real(fp), allocatable :: column_{{ diagnostic.name }}(:)           ! scheme-specific 1D: species - per column
 {% else %}
       real(fp), allocatable :: column_{{ diagnostic.name }}              ! scheme-specific scalar - per column
@@ -210,6 +210,9 @@ contains
       call this%process_config%load_species_from_chem_state(this%chem_state, error_manager)
       ! Note: Error handling managed by error_manager internally
 {% endif %}
+
+      ! Map diagnostic species names to indices in the species array
+      call this%process_config%map_diagnostic_species_indices(error_manager)
 
       ! Validate the configuration with StateManager
       call this%process_config%validate(container, error_manager)
@@ -417,6 +420,34 @@ contains
 
       rc = CC_SUCCESS
 
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! For gas/aerosol differentiated processing, run schemes based on species type
+      ! Run gas scheme for gas species
+      select case (trim(this%process_config%{{ config.name }}_config%gas_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' %}
+      case ('{{ scheme.name }}')
+         call this%run_{{ scheme.name }}_scheme_column(column, rc)
+         if (rc /= CC_SUCCESS) return
+{% endif %}
+{% endfor %}
+      case default
+         rc = CC_FAILURE
+         return
+      end select
+
+      ! Run aerosol scheme for aerosol species
+      select case (trim(this%process_config%{{ config.name }}_config%aero_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' %}
+      case ('{{ scheme.name }}')
+         call this%run_{{ scheme.name }}_scheme_column(column, rc)
+{% endif %}
+{% endfor %}
+      case default
+         rc = CC_FAILURE
+      end select
+{% else %}
       ! Delegate to appropriate scheme using unified config
       select case (trim(this%process_config%{{ config.name }}_config%scheme))
 {% for scheme in config.schemes %}
@@ -426,6 +457,7 @@ contains
       case default
          rc = CC_FAILURE
       end select
+{% endif %}
 
    end subroutine run_active_scheme_column
 
@@ -437,17 +469,18 @@ contains
       integer, intent(out) :: rc
 
       ! Local variables for scheme calculation
-{% if scheme.required_met_fields %}
+{% set all_met_fields = scheme | all_required_met_fields %}
+{% if all_met_fields %}
       type(VirtualMetType), pointer :: met => null()  ! Pointer to meteorological data
       ! Meteorological fields
-{% for field in scheme.required_met_fields %}
+{% for field in all_met_fields %}
 {% if field is string %}
-      real(fp), allocatable :: {{ field | lower | replace('-', '_') | replace('.', '_') }}(:)
+      {{ field_classifier.get_data_type(field) }}, allocatable :: {{ field | lower | replace('-', '_') | replace('.', '_') }}(:)
 {% else %}
 {% if field.dimensions == "scalar" %}
-      real(fp) :: {{ field.variable_name }}
+      {{ field_classifier.get_data_type(field.name) }} :: {{ field.variable_name }}
 {% else %}
-      real(fp), allocatable :: {{ field.variable_name }}(:{% if field.dimensions == "2d" %},:{% endif %})
+      {{ field_classifier.get_data_type(field.name) }}, allocatable :: {{ field.variable_name }}(:{% if field.dimensions == "2d" %},:{% endif %})
 {% endif %}
 {% endif %}
 {% endfor %}
@@ -455,7 +488,9 @@ contains
 {% if scheme.required_species_properties %}
       ! Species properties
 {% for prop in scheme.required_species_properties %}
-      real(fp), allocatable :: species_{{ prop }}(:)
+{% if prop != 'short_name' %}
+      {{ field_classifier.get_species_property_data_type(prop) }}, allocatable :: species_{{ prop }}(:)
+{% endif %}
 {% endfor %}
 {% endif %}
       real(fp), allocatable :: species_conc(:,:)
@@ -505,6 +540,11 @@ contains
 {% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
       ! For emission mapping: n_species is emission species count
       ! We need to get chemical species count and mapping information
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! Note: Gas/aerosol differentiation with emission mapping is complex and may require
+      ! filtering at the chemical species level. For now, emission mapping processes
+      ! typically handle gas species only.
+{% endif %}
       allocate(species_indices(n_species))  ! Emission species indices
       species_indices(1:n_species) = this%process_config%{{ config.name }}_config%species_indices(1:n_species)
       
@@ -539,7 +579,11 @@ contains
 {% else %}
       ! Get species indices directly from configuration (pre-computed)
       allocate(species_indices(n_species))
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
       species_indices(1:n_species) = this%process_config%{{ config.name }}_config%species_indices(1:n_species)
+{% else %}
+      species_indices(1:n_species) = this%process_config%{{ config.name }}_config%species_indices(1:n_species)
+{% endif %}
 
       ! Allocate arrays
       {% if scheme.affects_full_column %}
@@ -550,9 +594,9 @@ contains
       allocate(species_tendencies(1, n_species))
       {% endif %}
 {% endif %}
-{% if scheme.required_met_fields %}
+{% if all_met_fields %}
       ! Allocate meteorological field arrays based on field type and process configuration
-{% for field in scheme.required_met_fields %}
+{% for field in all_met_fields %}
 {% if field is string %}
 {% set field_name = field %}
 {% set var_name = field | lower | replace('-', '_') | replace('.', '_') %}
@@ -560,7 +604,9 @@ contains
 {% set field_name = field.name %}
 {% set var_name = field.variable_name %}
 {% endif %}
-{% if field_classifier.get_field_type(field_name) == '2d_surface' %}
+{% if field_classifier.get_field_type(field_name) == 'special_timestep' %}
+      allocate({{ var_name }}(1))  ! Special timestep field - scalar
+{% elif field_classifier.get_field_type(field_name) == '2d_surface' %}
       allocate({{ var_name }}(1))  ! Surface field - always scalar
 {% elif field_classifier.get_field_type(field_name) == '3d_atmospheric' %}
 {% if scheme.affects_full_column %}
@@ -582,16 +628,20 @@ contains
 {% endfor %}
 {% endif %}
 {% if scheme.required_species_properties %}
-      allocate({% for prop in scheme.required_species_properties %}species_{{ prop }}(n_species){% if not loop.last %}, {% endif %}{% endfor %})
+{% for prop in scheme.required_species_properties %}
+{% if prop != 'short_name' %}
+      allocate(species_{{ prop }}(n_species))
+{% endif %}
+{% endfor %}
 {% endif %}
       species_tendencies = 0.0_fp
 
-{% if scheme.required_met_fields %}
+{% if all_met_fields %}
       ! Get meteorological data pointer from virtual column (VirtualMet pattern)
       met => column%get_met()
 
       ! Now allocate categorical fields using the met pointer dimensions
-{% for field in scheme.required_met_fields %}
+{% for field in all_met_fields %}
 {% if field is string %}
 {% set field_name = field %}
 {% set var_name = field | lower | replace('-', '_') | replace('.', '_') %}
@@ -605,7 +655,7 @@ contains
 {% endfor %}
 
       ! Extract required fields from met pointer based on field type and processing mode
-{% for field in scheme.required_met_fields %}
+{% for field in all_met_fields %}
 {% if field is string %}
 {% set field_name = field %}
 {% set var_name = field | lower | replace('-', '_') | replace('.', '_') %}
@@ -613,7 +663,9 @@ contains
 {% set field_name = field.name %}
 {% set var_name = field.variable_name %}
 {% endif %}
-{% if field_classifier.get_field_type(field_name) == '2d_surface' %}
+{% if field_classifier.get_field_type(field_name) == 'special_timestep' %}
+      {{ var_name }}(1) = this%get_timestep()  ! Special timestep field - retrieved from ProcessInterface
+{% elif field_classifier.get_field_type(field_name) == '2d_surface' %}
       {{ var_name }}(1) = met%{{ field_name }}  ! Surface field - scalar access
 {% elif field_classifier.get_field_type(field_name) == '3d_atmospheric' %}
 {% if scheme.affects_full_column %}
@@ -670,8 +722,10 @@ contains
 {% if scheme.required_species_properties %}
       ! Get species properties from configuration (pre-loaded during initialization)
 {% for prop in scheme.required_species_properties %}
+{% if prop != 'short_name' %}
       ! Use species properties from process configuration
       species_{{ prop }}(1:n_species) = this%process_config%{{ config.name }}_config%species_{{ prop }}(1:n_species)
+{% endif %}
 {% endfor %}
 {% endif %}
 
@@ -688,38 +742,58 @@ contains
 {% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
             n_species_mapping, &
 {% endif %}
-            this%process_config%{{ scheme.name }}_config{% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}, &
-{% for field in scheme.required_met_fields %}
+            this%process_config%{{ scheme.name }}_config{% if all_met_fields and all_met_fields|length > 0 %}, &
+{% for field in all_met_fields %}
 {% if field is string %}
 {% set field_name = field %}
 {% set var_name = field | lower | replace('-', '_') | replace('.', '_') %}
-{% if field_classifier.get_field_type(field_name) == '2d_surface' %}
-            {{ var_name }}(1), &
+{% if field_classifier.get_field_type(field_name) == 'special_timestep' %}
+            {{ var_name }}(1){% if not loop.last %}, &
+{% endif %}
+{% elif field_classifier.get_field_type(field_name) == '2d_surface' %}
+            {{ var_name }}(1){% if not loop.last %}, &
+{% endif %}
 {% else %}
-            {{ var_name }}, &
+            {{ var_name }}{% if not loop.last %}, &
+{% endif %}
 {% endif %}
 {% else %}
 {% set field_name = field.name %}
 {% set var_name = field.variable_name %}
-{% if field_classifier.get_field_type(field_name) == '2d_surface' %}
-            {{ var_name }}(1), &
+{% if field_classifier.get_field_type(field_name) == 'special_timestep' %}
+            {{ var_name }}(1){% if not loop.last %}, &
+{% endif %}
+{% elif field_classifier.get_field_type(field_name) == '2d_surface' %}
+            {{ var_name }}(1){% if not loop.last %}, &
+{% endif %}
 {% else %}
-            {{ var_name }}, &
+            {{ var_name }}{% if not loop.last %}, &
 {% endif %}
 {% endif %}
-{% endfor %}{% endif %}{% if scheme.required_species_properties and scheme.required_species_properties|length > 0 %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if scheme.required_species_properties and scheme.required_species_properties|length > 0 %}
+            , &
 {% for prop in scheme.required_species_properties %}
+{% if prop == 'short_name' %}
+            this%process_config%{{ config.name }}_config%species_names, &
+{% else %}
             species_{{ prop }}, &
-{% endfor %}{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
             species_conc, &
-            species_tendencies{% if config.diagnostics or scheme.scheme_diagnostics %}, &
+            species_tendencies{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}, &
+            this%process_config%{{ config.name }}_config%is_gas{% endif %}{% if config.diagnostics or scheme.scheme_diagnostics %}, &
 {% for diagnostic in config.diagnostics %}
-            this%column_{{ diagnostic.name }}, &
+            this%column_{{ diagnostic.name }}{% if not loop.last or scheme.scheme_diagnostics %}, &
+{% endif %}
 {% endfor %}{% for diagnostic in scheme.scheme_diagnostics %}
             this%column_{{ diagnostic.name }}{% if not loop.last %}, &
-{% else %} &
 {% endif %}
-{% endfor %}{% endif %}
+{% endfor %}, &
+            this%process_config%{{ config.name }}_config%diagnostic_species_id{% endif %}
          )
       else
          ! Call without diagnostic outputs (optional parameters not passed)
@@ -729,31 +803,50 @@ contains
 {% if config.process_behavior and config.process_behavior.species_filter and config.process_behavior.species_filter.type == "emission_mapping" %}
             n_species_mapping, &
 {% endif %}
-            this%process_config%{{ scheme.name }}_config{% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}, &
-{% for field in scheme.required_met_fields %}
+            this%process_config%{{ scheme.name }}_config{% if all_met_fields and all_met_fields|length > 0 %}, &
+{% for field in all_met_fields %}
 {% if field is string %}
 {% set field_name = field %}
 {% set var_name = field | lower | replace('-', '_') | replace('.', '_') %}
-{% if field_classifier.get_field_type(field_name) == '2d_surface' %}
-            {{ var_name }}(1), &
+{% if field_classifier.get_field_type(field_name) == 'special_timestep' %}
+            {{ var_name }}(1){% if not loop.last %}, &
+{% endif %}
+{% elif field_classifier.get_field_type(field_name) == '2d_surface' %}
+            {{ var_name }}(1){% if not loop.last %}, &
+{% endif %}
 {% else %}
-            {{ var_name }}, &
+            {{ var_name }}{% if not loop.last %}, &
+{% endif %}
 {% endif %}
 {% else %}
 {% set field_name = field.name %}
 {% set var_name = field.variable_name %}
-{% if field_classifier.get_field_type(field_name) == '2d_surface' %}
-            {{ var_name }}(1), &
+{% if field_classifier.get_field_type(field_name) == 'special_timestep' %}
+            {{ var_name }}(1){% if not loop.last %}, &
+{% endif %}
+{% elif field_classifier.get_field_type(field_name) == '2d_surface' %}
+            {{ var_name }}(1){% if not loop.last %}, &
+{% endif %}
 {% else %}
-            {{ var_name }}, &
+            {{ var_name }}{% if not loop.last %}, &
 {% endif %}
 {% endif %}
-{% endfor %}{% endif %}{% if scheme.required_species_properties and scheme.required_species_properties|length > 0 %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if scheme.required_species_properties and scheme.required_species_properties|length > 0 %}
+            , &
 {% for prop in scheme.required_species_properties %}
+{% if prop == 'short_name' %}
+            this%process_config%{{ config.name }}_config%species_names, &
+{% else %}
             species_{{ prop }}, &
-{% endfor %}{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
             species_conc, &
-            species_tendencies &
+            species_tendencies{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}, &
+            this%process_config%{{ config.name }}_config%is_gas{% endif %} &
          )
       end if
 
@@ -779,9 +872,13 @@ contains
                                          species_tendencies(k, i))
 {% else %}
                ! Additive tendency (default): new_conc = conc + dqa
+{% if config.process_behavior and config.process_behavior.type == "sink" %}
+               ! Dry deposition specific calculation: dqa = MAX(0.0, conc * (1 - exp(-tendency * dt)))
+               dqa = MAX(0.0_fp, species_conc(k, chem_idx) * (1.0_fp - exp(-1.0_fp * species_tendencies(k, i) * this%get_timestep())))
+{% else %}
                ! where dqa = tendency * dt * g0 / DELP(k)
                dqa = species_tendencies(k, i) * this%get_timestep() * g0 / met%DELP(k)
-{% if config.process_type == "emission" %}
+{% if config.process_behavior and config.process_behavior.type == "source" %}
                ! Apply unit conversion for emission processes
                ! For gas species: convert kg/kg to ppmv (converter = AIRMW / mw_g * 1.0e6)
                ! For aerosol species: convert kg/kg to ug/kg (converter = 1.0e9)
@@ -794,8 +891,14 @@ contains
                converter = converter * this%process_config%{{ config.name }}_config%emission_mapping%species_mappings(i)%scale(j)
                dqa = dqa * converter
 {% endif %}
+{% endif %}
+{% if config.process_behavior and config.process_behavior.type == "sink" %}
+               call column%set_chem_field(k, chem_species_indices(chem_idx), &
+                                         species_conc(k, chem_idx) - dqa)
+{% else %}
                call column%set_chem_field(k, chem_species_indices(chem_idx), &
                                          species_conc(k, chem_idx) + dqa)
+{% endif %}
 {% endif %}
                chem_idx = chem_idx + 1
             end do
@@ -819,9 +922,13 @@ contains
                                       species_tendencies(1, i))
 {% else %}
             ! Additive tendency (default): new_conc = conc + dqa
+{% if config.process_behavior and config.process_behavior.type == "sink" %}
+            ! Dry deposition specific calculation: dqa = MAX(0.0, conc * (1 - exp(-tendency * dt)))
+            dqa = MAX(0.0_fp, species_conc(1, chem_idx) * (1.0_fp - exp(-1.0_fp * species_tendencies(1, i) * this%get_timestep())))
+{% else %}
             ! where dqa = tendency * dt * g0 / DELP(1) for surface
             dqa = species_tendencies(1, i) * this%get_timestep() * g0 / met%DELP(1)
-{% if config.process_type == "emission" %}
+{% if config.process_behavior and config.process_behavior.type == "source" %}
             ! Apply unit conversion for emission processes
             ! For gas species: convert kg/kg to ppmv (converter = AIRMW / mw_g * 1.0e6)
             ! For aerosol species: convert kg/kg to ug/kg (converter = 1.0e9)
@@ -834,8 +941,14 @@ contains
             converter = converter * this%process_config%{{ config.name }}_config%emission_mapping%species_mappings(i)%scale(j)
             dqa = dqa * converter
 {% endif %}
+{% endif %}
+{% if config.process_behavior and config.process_behavior.type == "sink" %}
+            call column%set_chem_field(1, chem_species_indices(chem_idx), &
+                                      species_conc(1, chem_idx) - dqa)
+{% else %}
             call column%set_chem_field(1, chem_species_indices(chem_idx), &
                                       species_conc(1, chem_idx) + dqa)
+{% endif %}
 {% endif %}
             chem_idx = chem_idx + 1
          end do
@@ -846,6 +959,14 @@ contains
       ! Full column processing - apply tendencies to all levels
       do k = 1, n_levels
          do i = 1, n_species
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+            ! Skip species that don't match scheme type (gas vs aerosol)
+{% if scheme.gas_or_aero == 'gas' %}
+            if (.not. this%process_config%{{ config.name }}_config%is_gas(i)) cycle
+{% else %}
+            if (this%process_config%{{ config.name }}_config%is_gas(i)) cycle
+{% endif %}
+{% endif %}
 {% if config.process_behavior and config.process_behavior.tendency_mode == "multiplicative" %}
             ! Multiplicative tendency: new_conc = conc * (1 - loss_fraction)
             ! where loss_fraction = 1 - exp(-tendency * dt)
@@ -858,9 +979,13 @@ contains
                                       species_tendencies(k, i))
 {% else %}
             ! Additive tendency (default): new_conc = conc + dqa
+{% if config.process_behavior and config.process_behavior.type == "sink" %}
+            ! Dry deposition specific calculation: dqa = MAX(0.0, conc * (1 - exp(-tendency * dt)))
+            dqa = MAX(0.0_fp, species_conc(k, i) * (1.0_fp - exp(-1.0_fp * species_tendencies(k, i) * this%get_timestep())))
+{% else %}
             ! where dqa = tendency * dt * g0 / DELP(k)
             dqa = species_tendencies(k, i) * this%get_timestep() * g0 / met%DELP(k)
-{% if config.process_type == "emission" %}
+{% if config.process_behavior and config.process_behavior.type == "source" %}
             ! Apply unit conversion for emission processes
             ! For gas species: convert kg/kg to ppmv (converter = AIRMW / mw_g * 1.0e6)
             ! For aerosol species: convert kg/kg to ug/kg (converter = 1.0e9)
@@ -871,14 +996,28 @@ contains
             end if
             dqa = dqa * converter
 {% endif %}
+{% endif %}
+{% if config.process_behavior and config.process_behavior.type == "sink" %}
+            call column%set_chem_field(k, species_indices(i), &
+                                      species_conc(k, i) - dqa)
+{% else %}
             call column%set_chem_field(k, species_indices(i), &
                                       species_conc(k, i) + dqa)
+{% endif %}
 {% endif %}
          end do
       end do
       {% else %}
       ! Surface-only processing - apply tendencies to surface level only
       do i = 1, n_species
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+         ! Skip species that don't match scheme type (gas vs aerosol)
+{% if scheme.gas_or_aero == 'gas' %}
+         if (.not. this%process_config%{{ config.name }}_config%is_gas(i)) cycle
+{% else %}
+         if (this%process_config%{{ config.name }}_config%is_gas(i)) cycle
+{% endif %}
+{% endif %}
 {% if config.process_behavior and config.process_behavior.tendency_mode == "multiplicative" %}
          ! Multiplicative tendency: new_conc = conc * (1 - loss_fraction)
          ! where loss_fraction = 1 - exp(-tendency * dt)
@@ -891,9 +1030,13 @@ contains
                                    species_tendencies(1, i))
 {% else %}
          ! Additive tendency (default): new_conc = conc + dqa
+{% if config.process_behavior and config.process_behavior.type == "sink" %}
+         ! Dry deposition specific calculation: dqa = MAX(0.0, conc * (1 - exp(-tendency * dt)))
+         dqa = MAX(0.0_fp, species_conc(1, i) * (1.0_fp - exp(-1.0_fp * species_tendencies(1, i) * this%get_timestep())))
+{% else %}
          ! where dqa = tendency * dt * g0 / DELP(1) for surface
          dqa = species_tendencies(1, i) * this%get_timestep() * g0 / met%DELP(1)
-{% if config.process_type == "emission" %}
+{% if config.process_behavior and config.process_behavior.type == "source" %}
          ! Apply unit conversion for emission processes
          ! For gas species: convert kg/kg to ppmv (converter = AIRMW / mw_g * 1.0e6)
          ! For aerosol species: convert kg/kg to ug/kg (converter = 1.0e9)
@@ -904,8 +1047,14 @@ contains
          end if
          dqa = dqa * converter
 {% endif %}
+{% endif %}
+{% if config.process_behavior and config.process_behavior.type == "sink" %}
+         call column%set_chem_field(1, species_indices(i), &
+                                   species_conc(1, i) - dqa)
+{% else %}
          call column%set_chem_field(1, species_indices(i), &
                                    species_conc(1, i) + dqa)
+{% endif %}
 {% endif %}
       end do
       {% endif %}
@@ -927,6 +1076,35 @@ contains
       if (.not. this%process_config%is_active) return
 
       ! Delegate to appropriate scheme using unified config
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! For gas/aerosol differentiated processing, run schemes based on species type
+      ! Run gas scheme for gas species  
+      select case (trim(this%process_config%{{ config.name }}_config%gas_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' %}
+      case ('{{ scheme.name }}')
+         call this%run_{{ scheme.name }}_scheme(state_manager, i_col, error_manager)
+{% endif %}
+{% endfor %}
+      case default
+         call error_manager%set_error(CC_FAILURE, &
+            "Unknown {{ config.name }} gas scheme: " // trim(this%process_config%{{ config.name }}_config%gas_scheme))
+         return
+      end select
+
+      ! Run aerosol scheme for aerosol species
+      select case (trim(this%process_config%{{ config.name }}_config%aero_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' %}
+      case ('{{ scheme.name }}')
+         call this%run_{{ scheme.name }}_scheme(state_manager, i_col, error_manager)
+{% endif %}
+{% endfor %}
+      case default
+         call error_manager%set_error(CC_FAILURE, &
+            "Unknown {{ config.name }} aerosol scheme: " // trim(this%process_config%{{ config.name }}_config%aero_scheme))
+      end select
+{% else %}
       select case (trim(this%process_config%{{ config.name }}_config%scheme))
 {% for scheme in config.schemes %}
       case ('{{ scheme.name }}')
@@ -936,6 +1114,7 @@ contains
          call error_manager%set_error(CC_FAILURE, &
             "Unknown {{ config.name }} scheme: " // trim(this%process_config%{{ config.name }}_config%scheme))
       end select
+{% endif %}
 
    end subroutine run_active_scheme
 
@@ -961,7 +1140,13 @@ contains
       character(len=32), allocatable :: field_names(:)
       character(len=32), allocatable :: scheme_fields(:)
       character(len=32), allocatable :: process_fields(:)
-      integer :: total_fields, scheme_count, process_count, i
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      character(len=32), allocatable :: gas_scheme_fields(:), aero_scheme_fields(:)
+      integer :: gas_scheme_count, aero_scheme_count
+{% endif %}
+      character(len=32), allocatable :: unique_fields(:)
+      integer :: total_fields, scheme_count, process_count, i, j, unique_count
+      logical :: is_duplicate
 
 {% if config.required_met_fields %}
       ! Process-level required fields
@@ -980,6 +1165,112 @@ contains
       allocate(process_fields(0))
 {% endif %}
 
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! For gas/aero differentiated processes, get fields from both schemes
+      ! Get gas scheme fields
+      select case (trim(this%process_config%{{ config.name }}_config%gas_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' %}
+      case ('{{ scheme.name }}')
+{% if scheme.required_met_fields %}
+         gas_scheme_count = {{ scheme.required_met_fields | length }}
+         allocate(gas_scheme_fields(gas_scheme_count))
+{% for field in scheme.required_met_fields %}
+{% if field is string %}
+         gas_scheme_fields({{ loop.index }}) = '{{ field }}'
+{% else %}
+         gas_scheme_fields({{ loop.index }}) = '{{ field.name }}'
+{% endif %}
+{% endfor %}
+{% else %}
+         gas_scheme_count = 0
+         allocate(gas_scheme_fields(0))
+{% endif %}
+{% endif %}
+{% endfor %}
+      case default
+         gas_scheme_count = 0
+         allocate(gas_scheme_fields(0))
+      end select
+
+      ! Get aerosol scheme fields
+      select case (trim(this%process_config%{{ config.name }}_config%aero_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' %}
+      case ('{{ scheme.name }}')
+{% if scheme.required_met_fields %}
+         aero_scheme_count = {{ scheme.required_met_fields | length }}
+         allocate(aero_scheme_fields(aero_scheme_count))
+{% for field in scheme.required_met_fields %}
+{% if field is string %}
+         aero_scheme_fields({{ loop.index }}) = '{{ field }}'
+{% else %}
+         aero_scheme_fields({{ loop.index }}) = '{{ field.name }}'
+{% endif %}
+{% endfor %}
+{% else %}
+         aero_scheme_count = 0
+         allocate(aero_scheme_fields(0))
+{% endif %}
+{% endif %}
+{% endfor %}
+      case default
+         aero_scheme_count = 0
+         allocate(aero_scheme_fields(0))
+      end select
+
+      ! Combine all fields (process + gas_scheme + aero_scheme) and remove duplicates
+      ! First estimate maximum possible size (without duplicates)
+      total_fields = process_count + gas_scheme_count + aero_scheme_count
+      allocate(unique_fields(total_fields))
+      unique_count = 0
+      
+      ! Add process-level fields first
+      do i = 1, process_count
+         unique_count = unique_count + 1
+         unique_fields(unique_count) = process_fields(i)
+      end do
+
+      ! Add gas scheme fields (check for duplicates)
+      do i = 1, gas_scheme_count
+         is_duplicate = .false.
+         do j = 1, unique_count
+            if (trim(gas_scheme_fields(i)) == trim(unique_fields(j))) then
+               is_duplicate = .true.
+               exit
+            end if
+         end do
+         if (.not. is_duplicate) then
+            unique_count = unique_count + 1
+            unique_fields(unique_count) = gas_scheme_fields(i)
+         end if
+      end do
+
+      ! Add aerosol scheme fields (check for duplicates)
+      do i = 1, aero_scheme_count
+         is_duplicate = .false.
+         do j = 1, unique_count
+            if (trim(aero_scheme_fields(i)) == trim(unique_fields(j))) then
+               is_duplicate = .true.
+               exit
+            end if
+         end do
+         if (.not. is_duplicate) then
+            unique_count = unique_count + 1
+            unique_fields(unique_count) = aero_scheme_fields(i)
+         end if
+      end do
+
+      ! Allocate final result array with exact size
+      allocate(field_names(unique_count))
+      field_names(1:unique_count) = unique_fields(1:unique_count)
+
+      ! Clean up temporary arrays
+      if (allocated(unique_fields)) deallocate(unique_fields)
+      if (allocated(process_fields)) deallocate(process_fields)
+      if (allocated(gas_scheme_fields)) deallocate(gas_scheme_fields)
+      if (allocated(aero_scheme_fields)) deallocate(aero_scheme_fields)
+{% else %}
       ! Get scheme-specific fields based on selected scheme
       select case (trim(this%process_config%{{ config.name }}_config%scheme))
 {% for scheme in config.schemes %}
@@ -1004,23 +1295,42 @@ contains
          allocate(scheme_fields(0))
       end select
 
-      ! Combine process-level and scheme-specific fields
+      ! Combine process-level and scheme-specific fields and remove duplicates
+      ! First estimate maximum possible size (without duplicates)
       total_fields = process_count + scheme_count
-      allocate(field_names(total_fields))
-
-      ! Copy process-level fields first
+      allocate(unique_fields(total_fields))
+      unique_count = 0
+      
+      ! Add process-level fields first
       do i = 1, process_count
-         field_names(i) = process_fields(i)
+         unique_count = unique_count + 1
+         unique_fields(unique_count) = process_fields(i)
       end do
 
-      ! Copy scheme-specific fields
+      ! Add scheme-specific fields (check for duplicates)
       do i = 1, scheme_count
-         field_names(process_count + i) = scheme_fields(i)
+         is_duplicate = .false.
+         do j = 1, unique_count
+            if (trim(scheme_fields(i)) == trim(unique_fields(j))) then
+               is_duplicate = .true.
+               exit
+            end if
+         end do
+         if (.not. is_duplicate) then
+            unique_count = unique_count + 1
+            unique_fields(unique_count) = scheme_fields(i)
+         end if
       end do
+
+      ! Allocate final result array with exact size
+      allocate(field_names(unique_count))
+      field_names(1:unique_count) = unique_fields(1:unique_count)
 
       ! Clean up temporary arrays
+      if (allocated(unique_fields)) deallocate(unique_fields)
       if (allocated(process_fields)) deallocate(process_fields)
       if (allocated(scheme_fields)) deallocate(scheme_fields)
+{% endif %}
 
    end function get_required_met_fields
 
@@ -1054,6 +1364,8 @@ contains
       type(DiagnosticRegistryType), pointer :: registry
       type(GridManagerType), pointer :: grid_mgr
       character(len=32) :: selected_scheme
+      character(len=256) :: field_name  ! For constructing species-specific field names
+      integer :: i  ! Loop variable for diagnostic species
 {% set required_dims = config | analyze_required_dimensions %}
       integer :: nx, ny, nz
 {% if required_dims.dims_3d_species %}
@@ -1106,14 +1418,102 @@ contains
 {% for diagnostic in config.diagnostics %}
       ! Register {{ diagnostic.name }}
 {% set diag_props = diagnostic | infer_diagnostic_properties(config) %}
+{% if 'per_bin' in diagnostic.name or 'per_species' in diagnostic.name %}
+{% set clean_name = diagnostic.name.replace('_per_bin', '').replace('_per_species', '') %}
+      ! Register individual 2D fields for each diagnostic species
+      if (this%process_config%{{ config.name }}_config%n_diagnostic_species > 0) then
+         do i = 1, this%process_config%{{ config.name }}_config%n_diagnostic_species
+            write(field_name, '(A,A,A)') '{{ clean_name }}_', &
+                  trim(this%process_config%{{ config.name }}_config%diagnostic_species(i))
+            call this%register_diagnostic_field(registry, trim(field_name), &
+                                                '{{ diagnostic.description }}', &
+                                                '{{ diagnostic.units }}', DIAG_REAL_2D, &
+                                                '{{ config.name }}', dims_2d, rc=rc)
+            if (rc /= CC_SUCCESS) return
+         end do
+      end if
+{% else %}
       call this%register_diagnostic_field(registry, '{{ diagnostic.name }}', &
                                           '{{ diagnostic.description }}', &
                                           '{{ diagnostic.units }}', {{ diag_props.data_type }}, &
-                                          '{{ config.name }}', {{ diag_props.fortran_dims }}, rc)
+                                          '{{ config.name }}', {{ diag_props.fortran_dims }}, rc=rc)
+{% endif %}
       if (rc /= CC_SUCCESS) return
       
 {% endfor %}
-      ! Get selected scheme
+      ! Get selected scheme(s)
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! For gas/aero differentiated processes, register diagnostics from both schemes
+      ! Track registered diagnostics to avoid duplicates
+{% set registered_diagnostics = [] %}
+      ! Register gas scheme diagnostics
+      selected_scheme = trim(this%process_config%{{ config.name }}_config%gas_scheme)
+      select case (selected_scheme)
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' %}
+      case ('{{ scheme.name }}')
+         ! Register {{ scheme.name }}-specific diagnostics (gas)
+{% for diagnostic in scheme.scheme_diagnostics %}
+{% if diagnostic.name not in registered_diagnostics %}
+{% set _ = registered_diagnostics.append(diagnostic.name) %}
+{% set diag_props = diagnostic | infer_diagnostic_properties(config, scheme) %}
+{% if 'per_bin' in diagnostic.name or 'per_species' in diagnostic.name %}
+         call this%register_diagnostic_field(registry, '{{ diagnostic.name }}', &
+                                             '{{ diagnostic.description }}', &
+                                             '{{ diagnostic.units }}', {{ diag_props.data_type }}, &
+                                             '{{ config.name }}', {{ diag_props.fortran_dims }}, &
+                                             diagnostic_species=this%process_config%{{ config.name }}_config%diagnostic_species, &
+                                             diagnostic_species_id=this%process_config%{{ config.name }}_config%diagnostic_species_id, rc=rc)
+{% else %}
+         call this%register_diagnostic_field(registry, '{{ diagnostic.name }}', &
+                                             '{{ diagnostic.description }}', &
+                                             '{{ diagnostic.units }}', {{ diag_props.data_type }}, &
+                                             '{{ config.name }}', {{ diag_props.fortran_dims }}, rc)
+{% endif %}
+         if (rc /= CC_SUCCESS) return
+{% endif %}
+         
+{% endfor %}
+{% endif %}
+{% endfor %}
+      case default
+         ! Unknown gas scheme
+      end select
+
+      ! Register aerosol scheme diagnostics (only if not already registered)
+      selected_scheme = trim(this%process_config%{{ config.name }}_config%aero_scheme)
+      select case (selected_scheme)
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' %}
+      case ('{{ scheme.name }}')
+         ! Register {{ scheme.name }}-specific diagnostics (aerosol)
+{% for diagnostic in scheme.scheme_diagnostics %}
+{% if diagnostic.name not in registered_diagnostics %}
+{% set _ = registered_diagnostics.append(diagnostic.name) %}
+{% set diag_props = diagnostic | infer_diagnostic_properties(config, scheme) %}
+{% if 'per_bin' in diagnostic.name or 'per_species' in diagnostic.name %}
+         call this%register_diagnostic_field(registry, '{{ diagnostic.name }}', &
+                                             '{{ diagnostic.description }}', &
+                                             '{{ diagnostic.units }}', {{ diag_props.data_type }}, &
+                                             '{{ config.name }}', {{ diag_props.fortran_dims }}, &
+                                             diagnostic_species=this%process_config%{{ config.name }}_config%diagnostic_species, &
+                                             diagnostic_species_id=this%process_config%{{ config.name }}_config%diagnostic_species_id, rc=rc)
+{% else %}
+         call this%register_diagnostic_field(registry, '{{ diagnostic.name }}', &
+                                             '{{ diagnostic.description }}', &
+                                             '{{ diagnostic.units }}', {{ diag_props.data_type }}, &
+                                             '{{ config.name }}', {{ diag_props.fortran_dims }}, rc)
+{% endif %}
+         if (rc /= CC_SUCCESS) return
+{% endif %}
+         
+{% endfor %}
+{% endif %}
+{% endfor %}
+      case default
+         ! Unknown aerosol scheme
+      end select
+{% else %}
       selected_scheme = trim(this%process_config%{{ config.name }}_config%scheme)
       
       ! Register scheme-specific diagnostics based on selected scheme
@@ -1124,10 +1524,26 @@ contains
          ! Register {{ scheme.name }}-specific diagnostics
 {% for diagnostic in scheme.scheme_diagnostics %}
 {% set diag_props = diagnostic | infer_diagnostic_properties(config, scheme) %}
+{% if 'per_bin' in diagnostic.name or 'per_species' in diagnostic.name %}
+{% set clean_name = diagnostic.name.replace('_per_bin', '').replace('_per_species', '') %}
+         ! Register individual 2D fields for each diagnostic species
+         if (this%process_config%{{ config.name }}_config%n_diagnostic_species > 0) then
+            do i = 1, this%process_config%{{ config.name }}_config%n_diagnostic_species
+               write(field_name, '(A,A,A)') '{{ clean_name }}_', &
+                     trim(this%process_config%{{ config.name }}_config%diagnostic_species(i))
+               call this%register_diagnostic_field(registry, trim(field_name), &
+                                                   '{{ diagnostic.description }}', &
+                                                   '{{ diagnostic.units }}', DIAG_REAL_2D, &
+                                                   '{{ config.name }}', dims_2d, rc=rc)
+               if (rc /= CC_SUCCESS) return
+            end do
+         end if
+{% else %}
          call this%register_diagnostic_field(registry, '{{ diagnostic.name }}', &
                                              '{{ diagnostic.description }}', &
                                              '{{ diagnostic.units }}', {{ diag_props.data_type }}, &
                                              '{{ config.name }}', {{ diag_props.fortran_dims }}, rc)
+{% endif %}
          if (rc /= CC_SUCCESS) return
          
 {% endfor %}
@@ -1137,6 +1553,7 @@ contains
          ! (already done above)
          
       end select
+{% endif %}
 
       ! Now allocate diagnostic class members after successful registration
       ! First, deallocate if already allocated (for scheme switching)
@@ -1155,9 +1572,16 @@ contains
 {% endfor %}
 {% endif %}
       
+      ! Allocate and initialize scheme-specific diagnostic fields based on selected scheme
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! For gas/aero differentiated process, allocate diagnostics from both gas and aero schemes
+      ! Track allocated diagnostics to avoid duplicates
+{% set allocated_diagnostics = [] %}
+      
       ! Allocate common diagnostic fields (used by all schemes)
 {% for diagnostic in config.diagnostics %}
-{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
+{% set _ = allocated_diagnostics.append(diagnostic.name) %}
+{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name) %}
       ! 2D diagnostic: levels x species
       if (nz > 0 .and. this%process_config%{{ config.name }}_config%n_species > 0) then
          allocate(this%column_{{ diagnostic.name }}(nz, this%process_config%{{ config.name }}_config%n_species))
@@ -1169,7 +1593,120 @@ contains
          allocate(this%column_{{ diagnostic.name }}(nz))
       end if
       if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
-{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name %}
+{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name %}
+      ! 1D diagnostic: diagnostic species only - allocated based on n_diagnostic_species
+      if (this%process_config%{{ config.name }}_config%n_diagnostic_species > 0) then
+         allocate(this%column_{{ diagnostic.name }}(this%process_config%{{ config.name }}_config%n_diagnostic_species))
+      end if
+      if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% else %}
+      ! Scalar diagnostic
+      allocate(this%column_{{ diagnostic.name }})
+      this%column_{{ diagnostic.name }} = 0.0_fp
+{% endif %}
+{% endfor %}
+      
+      ! Gas scheme diagnostics
+      select case (trim(this%process_config%{{ config.name }}_config%gas_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'gas' %}
+      case ("{{ scheme.name }}")
+         ! Gas scheme-specific diagnostics for {{ scheme.name }}
+{% if scheme.scheme_diagnostics %}
+{% for diagnostic in scheme.scheme_diagnostics %}
+{% if diagnostic.name not in allocated_diagnostics %}
+{% set _ = allocated_diagnostics.append(diagnostic.name) %}
+{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
+         ! 2D diagnostic: levels x species
+         if (nz > 0 .and. this%process_config%{{ config.name }}_config%n_species > 0) then
+            allocate(this%column_{{ diagnostic.name }}(nz, this%process_config%{{ config.name }}_config%n_species))
+         end if
+         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name %}
+         ! 1D diagnostic: levels only
+         if (nz > 0) then
+            allocate(this%column_{{ diagnostic.name }}(nz))
+         end if
+         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name %}
+         ! 1D diagnostic: species only
+         if (this%process_config%{{ config.name }}_config%n_species > 0) then
+            allocate(this%column_{{ diagnostic.name }}(this%process_config%{{ config.name }}_config%n_species))
+         end if
+         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% else %}
+         ! Scalar diagnostic
+         allocate(this%column_{{ diagnostic.name }})
+         this%column_{{ diagnostic.name }} = 0.0_fp
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
+      case default
+         ! No gas scheme-specific diagnostics for unknown schemes
+      end select
+      
+      ! Aerosol scheme diagnostics (only allocate if not already allocated by gas scheme)
+      select case (trim(this%process_config%{{ config.name }}_config%aero_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' %}
+      case ("{{ scheme.name }}")
+         ! Aerosol scheme-specific diagnostics for {{ scheme.name }}
+{% if scheme.scheme_diagnostics %}
+{% for diagnostic in scheme.scheme_diagnostics %}
+{% if diagnostic.name not in allocated_diagnostics %}
+{% set _ = allocated_diagnostics.append(diagnostic.name) %}
+{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
+         ! 2D diagnostic: levels x species
+         if (nz > 0 .and. this%process_config%{{ config.name }}_config%n_species > 0) then
+            allocate(this%column_{{ diagnostic.name }}(nz, this%process_config%{{ config.name }}_config%n_species))
+         end if
+         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name %}
+         ! 1D diagnostic: levels only
+         if (nz > 0) then
+            allocate(this%column_{{ diagnostic.name }}(nz))
+         end if
+         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name %}
+         ! 1D diagnostic: species only
+         if (this%process_config%{{ config.name }}_config%n_species > 0) then
+            allocate(this%column_{{ diagnostic.name }}(this%process_config%{{ config.name }}_config%n_species))
+         end if
+         if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% else %}
+         ! Scalar diagnostic
+         allocate(this%column_{{ diagnostic.name }})
+         this%column_{{ diagnostic.name }} = 0.0_fp
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
+      case default
+         ! No aerosol scheme-specific diagnostics for unknown schemes
+      end select
+{% else %}
+      ! For non-gas/aero differentiated process, allocate diagnostics normally
+      
+      ! Allocate common diagnostic fields (used by all schemes)
+{% for diagnostic in config.diagnostics %}
+{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name) %}
+      ! 2D diagnostic: levels x species
+      if (nz > 0 .and. this%process_config%{{ config.name }}_config%n_species > 0) then
+         allocate(this%column_{{ diagnostic.name }}(nz, this%process_config%{{ config.name }}_config%n_species))
+      end if
+      if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name %}
+      ! 1D diagnostic: levels only
+      if (nz > 0) then
+         allocate(this%column_{{ diagnostic.name }}(nz))
+      end if
+      if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
+{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name %}
       ! 1D diagnostic: species only
       if (this%process_config%{{ config.name }}_config%n_species > 0) then
          allocate(this%column_{{ diagnostic.name }}(this%process_config%{{ config.name }}_config%n_species))
@@ -1182,10 +1719,11 @@ contains
 {% endif %}
 {% endfor %}
       
-      ! Allocate and initialize scheme-specific diagnostic fields based on selected scheme
+      ! Allocate scheme-specific diagnostics
+      selected_scheme = trim(this%process_config%{{ config.name }}_config%scheme)
       select case (selected_scheme)
 {% for scheme in config.schemes %}
-      case ("{{ scheme.name }}")
+      case ('{{ scheme.name }}')
          ! Scheme-specific diagnostics for {{ scheme.name }}
 {% if scheme.scheme_diagnostics %}
 {% for diagnostic in scheme.scheme_diagnostics %}
@@ -1201,10 +1739,10 @@ contains
             allocate(this%column_{{ diagnostic.name }}(nz))
          end if
          if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
-{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name %}
-         ! 1D diagnostic: species only
-         if (this%process_config%{{ config.name }}_config%n_species > 0) then
-            allocate(this%column_{{ diagnostic.name }}(this%process_config%{{ config.name }}_config%n_species))
+{% elif 'per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name %}
+         ! 1D diagnostic: diagnostic species only - allocated based on n_diagnostic_species
+         if (this%process_config%{{ config.name }}_config%n_diagnostic_species > 0) then
+            allocate(this%column_{{ diagnostic.name }}(this%process_config%{{ config.name }}_config%n_diagnostic_species))
          end if
          if (allocated(this%column_{{ diagnostic.name }})) this%column_{{ diagnostic.name }} = 0.0_fp
 {% else %}
@@ -1218,6 +1756,7 @@ contains
       case default
          ! No scheme-specific diagnostics for unknown schemes
       end select
+{% endif %}
 
    end subroutine register_and_allocate_diagnostics
 
@@ -1233,6 +1772,8 @@ contains
       integer, intent(out) :: rc
       
       integer :: i_col, j_col  ! Column grid position
+      integer :: i  ! Loop variable for diagnostic species
+      character(len=256) :: field_name  ! For constructing species-specific field names
 {% if config.schemes and config.schemes[0].scheme_diagnostics %}
       character(len=64) :: selected_scheme
 {% endif %}
@@ -1246,9 +1787,24 @@ contains
       call column%get_position(i_col, j_col)
       
 {% if config.diagnostics %}
-      ! Update common diagnostic fields (used by all schemes)
+      ! Update common diagnostic fields (used by all schemes) 
+{% set updated_diagnostics = [] %}
 {% for diagnostic in config.diagnostics %}
-{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
+{% set _ = updated_diagnostics.append(diagnostic.name) %}
+{% if 'per_bin' in diagnostic.name or 'per_species' in diagnostic.name %}
+{% set clean_name = diagnostic.name.replace('_per_bin', '').replace('_per_species', '') %}
+      ! Update individual species diagnostic fields
+      if (this%process_config%{{ config.name }}_config%n_diagnostic_species > 0) then
+         do i = 1, this%process_config%{{ config.name }}_config%n_diagnostic_species
+            write(field_name, '(A,A,A)') '{{ clean_name }}_', &
+                  trim(this%process_config%{{ config.name }}_config%diagnostic_species(i))
+            call this%update_scalar_diagnostic_column(trim(field_name), &
+                                                    this%column_{{ diagnostic.name }}(i), &
+                                                    i_col, j_col, container, rc)
+            if (rc /= CC_SUCCESS) return
+         end do
+      end if
+{% elif ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name) %}
       ! 2D diagnostic field
       call this%update_2d_diagnostic_column('{{ diagnostic.name }}', &
                                           this%column_{{ diagnostic.name }}, &
@@ -1267,17 +1823,25 @@ contains
                                               i_col, j_col, container, rc)
       if (rc /= CC_SUCCESS) return
 {% endif %}{% endfor %}
+{% else %}
+{% set updated_diagnostics = [] %}
 {% endif %}
-{% if config.schemes and config.schemes[0].scheme_diagnostics %}
       ! Update scheme-specific diagnostic fields based on active scheme
-      selected_scheme = trim(this%process_config%{{ config.name }}_config%scheme)
-      
-      select case (selected_scheme)
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+      ! For gas/aero differentiated process, update diagnostics from both gas and aero schemes
+      ! Track updated diagnostics to avoid duplicates
+{% set updated_diagnostics = [] %}
+      ! Update gas scheme diagnostics
+      select case (trim(this%process_config%{{ config.name }}_config%gas_scheme))
 {% for scheme in config.schemes %}
-{% if scheme.scheme_diagnostics %}
+{% if scheme.gas_or_aero == 'gas' %}
       case ("{{ scheme.name }}")
+         ! Gas scheme-specific diagnostics for {{ scheme.name }}
+{% if scheme.scheme_diagnostics %}
 {% for diagnostic in scheme.scheme_diagnostics %}
-{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name) %}
+{% if diagnostic.name not in updated_diagnostics %}
+{% set _ = updated_diagnostics.append(diagnostic.name) %}
+{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name) %}
          ! Update 2D level-species diagnostics (map to 4D global fields)
          if (allocated(this%column_{{ diagnostic.name }})) then
             call this%update_2d_diagnostic_column('{{ diagnostic.name }}', &
@@ -1285,7 +1849,7 @@ contains
                                                 i_col, j_col, container, rc)
             if (rc /= CC_SUCCESS) return
          end if
-{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name or 'per_bin' in diagnostic.name or 'bin' in diagnostic.name %}
+{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name or 'per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name %}
          ! Update 1D diagnostics (map to 3D global fields)
          if (allocated(this%column_{{ diagnostic.name }})) then
             call this%update_1d_diagnostic_column('{{ diagnostic.name }}', &
@@ -1302,7 +1866,97 @@ contains
             if (rc /= CC_SUCCESS) return
          end if
 {% endif %}
-         
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
+      case default
+         ! No gas scheme diagnostics for unknown schemes
+      end select
+      
+      ! Update aerosol scheme diagnostics (only if not already updated)
+      select case (trim(this%process_config%{{ config.name }}_config%aero_scheme))
+{% for scheme in config.schemes %}
+{% if scheme.gas_or_aero == 'aero' %}
+      case ("{{ scheme.name }}")
+         ! Aerosol scheme-specific diagnostics for {{ scheme.name }}
+{% if scheme.scheme_diagnostics %}
+{% for diagnostic in scheme.scheme_diagnostics %}
+{% if diagnostic.name not in updated_diagnostics %}
+{% set _ = updated_diagnostics.append(diagnostic.name) %}
+{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name) %}
+         ! Update 2D level-species diagnostics (map to 4D global fields)
+         if (allocated(this%column_{{ diagnostic.name }})) then
+            call this%update_2d_diagnostic_column('{{ diagnostic.name }}', &
+                                                this%column_{{ diagnostic.name }}, &
+                                                i_col, j_col, container, rc)
+            if (rc /= CC_SUCCESS) return
+         end if
+{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name or 'per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name %}
+         ! Update 1D diagnostics (map to 3D global fields)
+         if (allocated(this%column_{{ diagnostic.name }})) then
+            call this%update_1d_diagnostic_column('{{ diagnostic.name }}', &
+                                                this%column_{{ diagnostic.name }}, &
+                                                i_col, j_col, container, rc)
+            if (rc /= CC_SUCCESS) return
+         end if
+{% else %}
+         ! Update scalar diagnostics (map to 2D global fields)
+         if (allocated(this%column_{{ diagnostic.name }})) then
+            call this%update_scalar_diagnostic_column('{{ diagnostic.name }}', &
+                                                this%column_{{ diagnostic.name }}, &
+                                                i_col, j_col, container, rc)
+            if (rc /= CC_SUCCESS) return
+         end if
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
+      case default
+         ! No aerosol scheme diagnostics for unknown schemes
+      end select
+{% else %}
+      selected_scheme = trim(this%process_config%{{ config.name }}_config%scheme)
+      
+      select case (selected_scheme)
+{% for scheme in config.schemes %}
+      case ("{{ scheme.name }}")
+         ! Scheme-specific diagnostics for {{ scheme.name }}
+{% if scheme.scheme_diagnostics %}
+{% for diagnostic in scheme.scheme_diagnostics %}
+{% if ('per_level' in diagnostic.name or 'level' in diagnostic.name) and ('per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name) %}
+         ! Update 2D level-species diagnostics (map to 4D global fields)
+         if (allocated(this%column_{{ diagnostic.name }})) then
+            call this%update_2d_diagnostic_column('{{ diagnostic.name }}', &
+                                                this%column_{{ diagnostic.name }}, &
+                                                i_col, j_col, container, rc)
+            if (rc /= CC_SUCCESS) return
+         end if
+{% elif 'per_level' in diagnostic.name or 'level' in diagnostic.name or 'per_bin' in diagnostic.name or 'bin' in diagnostic.name or 'per_species' in diagnostic.name %}
+{% set clean_name = diagnostic.name.replace('_per_bin', '').replace('_per_species', '') %}
+         ! Update individual fields for each diagnostic species
+         if (this%process_config%{{ config.name }}_config%n_diagnostic_species > 0) then
+            do i = 1, this%process_config%{{ config.name }}_config%n_diagnostic_species
+               write(field_name, '(A,A,A)') '{{ clean_name }}_', &
+                     trim(this%process_config%{{ config.name }}_config%diagnostic_species(i))
+               call this%update_scalar_diagnostic_column(trim(field_name), &
+                                                       this%column_{{ diagnostic.name }}(i), &
+                                                       i_col, j_col, container, rc)
+               if (rc /= CC_SUCCESS) return
+            end do
+         end if
+{% else %}
+         ! Update scalar diagnostics (map to 2D global fields)
+         if (allocated(this%column_{{ diagnostic.name }})) then
+            call this%update_scalar_diagnostic_column('{{ diagnostic.name }}', &
+                                                this%column_{{ diagnostic.name }}, &
+                                                i_col, j_col, container, rc)
+            if (rc /= CC_SUCCESS) return
+         end if
+{% endif %}
 {% endfor %}
 {% endif %}
 {% endfor %}
@@ -1320,11 +1974,31 @@ contains
    !!
    !! @param[inout] this The Process{{ config.class_name }}Interface instance
    !! @param[in] scheme_name The scheme name to set
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+   !! @param[in] gas_scheme Optional: if true, set gas_scheme; if false, set aero_scheme
+   subroutine set_{{ config.name }}_scheme(this, scheme_name, gas_scheme)
+      class(Process{{ config.class_name }}Interface), intent(inout) :: this
+      character(len=*), intent(in) :: scheme_name
+      logical, intent(in), optional :: gas_scheme
+      
+      logical :: is_gas
+      
+      ! Default to setting the single scheme for backward compatibility
+      is_gas = .true.
+      if (present(gas_scheme)) is_gas = gas_scheme
+      
+      if (is_gas) then
+         this%process_config%{{ config.name }}_config%gas_scheme = trim(scheme_name)
+      else
+         this%process_config%{{ config.name }}_config%aero_scheme = trim(scheme_name)
+      end if
+{% else %}
    subroutine set_{{ config.name }}_scheme(this, scheme_name)
       class(Process{{ config.class_name }}Interface), intent(inout) :: this
       character(len=*), intent(in) :: scheme_name
       
       this%process_config%{{ config.name }}_config%scheme = trim(scheme_name)
+{% endif %}
       
    end subroutine set_{{ config.name }}_scheme
 
@@ -1334,12 +2008,33 @@ contains
    !! and verification purposes.
    !!
    !! @param[in] this The Process{{ config.class_name }}Interface instance
+{% if config.process_behavior and config.process_behavior.gas_aero_differentiation %}
+   !! @param[in] gas_scheme Optional: if true, get gas_scheme; if false, get aero_scheme
+   !! @returns The current scheme name
+   function get_{{ config.name }}_scheme(this, gas_scheme) result(scheme_name)
+      class(Process{{ config.class_name }}Interface), intent(in) :: this
+      logical, intent(in), optional :: gas_scheme
+      character(len=64) :: scheme_name
+      
+      logical :: is_gas
+      
+      ! Default to getting the gas scheme for backward compatibility
+      is_gas = .true.
+      if (present(gas_scheme)) is_gas = gas_scheme
+      
+      if (is_gas) then
+         scheme_name = trim(this%process_config%{{ config.name }}_config%gas_scheme)
+      else
+         scheme_name = trim(this%process_config%{{ config.name }}_config%aero_scheme)
+      end if
+{% else %}
    !! @returns The current scheme name
    function get_{{ config.name }}_scheme(this) result(scheme_name)
       class(Process{{ config.class_name }}Interface), intent(in) :: this
       character(len=64) :: scheme_name
       
       scheme_name = trim(this%process_config%{{ config.name }}_config%scheme)
+{% endif %}
       
    end function get_{{ config.name }}_scheme
 

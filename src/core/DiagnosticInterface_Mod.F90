@@ -125,6 +125,10 @@ module DiagnosticInterface_Mod
       logical :: is_enabled = .true.               !< Whether diagnostic is enabled
       logical :: is_initialized = .false.          !< Initialization status
       type(DiagnosticDataType) :: data             !< Actual data storage
+      
+      ! Diagnostic species filtering support
+      character(len=32), allocatable :: diagnostic_species(:)  !< User-defined species for diagnostics
+      integer, allocatable :: diagnostic_species_id(:)         !< Indices mapping diagnostic_species to species names
 
    contains
       procedure :: create => diag_field_create
@@ -143,6 +147,8 @@ module DiagnosticInterface_Mod
       procedure :: update_data => diag_field_update_data
       procedure :: reset_data => diag_field_reset_data
       procedure :: validate_field => diag_field_validate_field
+      procedure :: get_diagnostic_species => diag_field_get_diagnostic_species
+      procedure :: get_diagnostic_species_id => diag_field_get_diagnostic_species_id
       final :: diag_field_finalize
    end type DiagnosticFieldType
 
@@ -487,14 +493,19 @@ contains
    !! \param[in] units Physical units
    !! \param[in] data_type Type of data (scalar, 1D, 2D, 3D)
    !! \param[in] process_name Name of the process owning this diagnostic
+   !! \param[in] diagnostic_species Optional array of species names for diagnostics
+   !! \param[in] diagnostic_species_id Optional array of species indices for diagnostics
    !! \param[out] rc Return code
-   subroutine diag_field_create(this, field_name, description, units, data_type, process_name, rc)
+   subroutine diag_field_create(this, field_name, description, units, data_type, process_name, &
+                                diagnostic_species, diagnostic_species_id, rc)
       class(DiagnosticFieldType), intent(inout) :: this
       character(len=*), intent(in) :: field_name
       character(len=*), intent(in) :: description
       character(len=*), intent(in) :: units
       integer, intent(in) :: data_type
       character(len=*), intent(in), optional :: process_name
+      character(len=*), intent(in), optional :: diagnostic_species(:)
+      integer, intent(in), optional :: diagnostic_species_id(:)
       integer, intent(out) :: rc
       
       ! No local variables needed
@@ -514,6 +525,17 @@ contains
       this%data_type = data_type
       if (present(process_name)) then
          this%process_name = trim(process_name)
+      end if
+
+      ! Store diagnostic species arrays if provided
+      if (present(diagnostic_species)) then
+         allocate(this%diagnostic_species(size(diagnostic_species)))
+         this%diagnostic_species = diagnostic_species
+      end if
+      
+      if (present(diagnostic_species_id)) then
+         allocate(this%diagnostic_species_id(size(diagnostic_species_id)))
+         this%diagnostic_species_id = diagnostic_species_id
       end if
 
       ! Set defaults
@@ -596,6 +618,8 @@ contains
    subroutine diag_field_cleanup(this)
       class(DiagnosticFieldType), intent(inout) :: this
       call this%data%deallocate_data()
+      if (allocated(this%diagnostic_species)) deallocate(this%diagnostic_species)
+      if (allocated(this%diagnostic_species_id)) deallocate(this%diagnostic_species_id)
       this%is_initialized = .false.
    end subroutine diag_field_cleanup
 
@@ -647,6 +671,30 @@ contains
       type(DiagnosticDataType), pointer :: data_ptr
       data_ptr => this%data
    end function diag_field_get_data_ptr
+
+   !> \brief Get diagnostic species array
+   function diag_field_get_diagnostic_species(this) result(diagnostic_species)
+      class(DiagnosticFieldType), intent(in) :: this
+      character(len=32), allocatable :: diagnostic_species(:)
+      if (allocated(this%diagnostic_species)) then
+         allocate(diagnostic_species(size(this%diagnostic_species)))
+         diagnostic_species = this%diagnostic_species
+      else
+         allocate(diagnostic_species(0))
+      end if
+   end function diag_field_get_diagnostic_species
+
+   !> \brief Get diagnostic species ID array
+   function diag_field_get_diagnostic_species_id(this) result(diagnostic_species_id)
+      class(DiagnosticFieldType), intent(in) :: this
+      integer, allocatable :: diagnostic_species_id(:)
+      if (allocated(this%diagnostic_species_id)) then
+         allocate(diagnostic_species_id(size(this%diagnostic_species_id)))
+         diagnostic_species_id = this%diagnostic_species_id
+      else
+         allocate(diagnostic_species_id(0))
+      end if
+   end function diag_field_get_diagnostic_species_id
 
    !> \brief Enable/disable diagnostic field
    subroutine diag_field_set_enabled(this, enabled)

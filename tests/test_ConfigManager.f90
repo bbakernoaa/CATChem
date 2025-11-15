@@ -190,14 +190,23 @@ program test_ConfigManager
    write(*,*) 'Test 16: Get array value'
    block
       character(len=64), allocatable :: values(:)
+      character(len=64) :: default_values(2) = ['dust1', 'dust2']
       integer :: count
       
-      call config_mgr%get_array('processes/dust/species_list', values, rc)
+      call config_mgr%get_array('processes/dust/species_list', values, rc, default_values)
       call assert(rc == CC_SUCCESS, "Getting array value should succeed")
-      ! Values might be empty or populated depending on config state
+      ! Values will be the default values if the key doesn't exist
       if (allocated(values)) then
          count = size(values)
          call assert(count >= 0, "Array size should be non-negative")
+         write(*,'(A,I0,A)') '    Found ', count, ' elements in array'
+         ! Print the values for verification
+         if (count > 0) then
+            write(*,*) '    Array values:'
+            do count = 1, size(values)
+               write(*,'(A,I0,A,A)') '      [', count, ']: ', trim(values(count))
+            end do
+         endif
          deallocate(values)
       endif
    end block

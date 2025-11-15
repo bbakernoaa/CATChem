@@ -1,1 +1,229 @@
-Configs/Default/CATChem_species.yml
+### CATChem_species.yml: CATChem Runtime Species Configuration
+###
+### NOTE: Add quotes around nitrogen oxide ('NO'), because YAML
+### parsers will confuse this with a negative "no" value.
+
+# species (gas dey dep set to false to test GOCART only for now):
+so2:
+  name: so2
+  description: Sulfur dioxide
+  is_drydep: false
+so4:
+  name: so4
+  description: sulfate
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 8.7e-2
+  density: 1500.
+  is_aerosol: true
+  is_drydep: true
+dms:
+  name: dms
+  description: DMS
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 8.7e-2
+  density: 1500.
+  is_dust: false
+  is_aerosol: true
+  is_drydep: true
+msa:
+  name: msa
+  description: MSA
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 8.7e-2
+  density: 1500.
+  is_dust: false
+  is_aerosol: true
+  is_drydep: true
+bc1:
+  name: bc1
+  description: BC1
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 8.7e-2
+  density: 1500.
+  is_dust: false
+  is_aerosol: true
+  is_drydep: true
+bc2:
+  name: bc2
+  description: BC2
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 8.7e-2
+  density: 1500.
+  is_dust: false
+  is_aerosol: true
+  is_drydep: true
+oc1:
+  name: oc1
+  description: OC1
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 8.7e-2
+  density: 1500.
+  is_dust: false
+  is_aerosol: true
+  is_drydep: true
+oc2:
+  name: oc2
+  description: OC2
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 8.7e-2
+  density: 1500.
+  is_dust: false
+  is_aerosol: true
+  is_drydep: true
+dust1:
+  name: dust1
+  long_name: dust1
+  description: dust1
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 0.73
+  density: 2500.
+  is_dust: true
+  is_aerosol: true
+  is_drydep: true
+dust2:
+  name: dust2
+  long_name: dust2
+  description: dust2
+  lower_radius: 1.0
+  upper_radius: 1.8
+  radius: 1.4
+  density: 2650.
+  is_dust: true
+  is_aerosol: true
+  is_drydep: true
+dust3:
+  name: dust3
+  long_name: dust3
+  description: dust3
+  lower_radius: 1.8
+  upper_radius: 3.0
+  radius: 2.4
+  density: 2650.
+  is_dust: true
+  is_aerosol: true
+  is_drydep: true
+dust4:
+  name: dust4
+  long_name: dust4
+  description: dust4
+  lower_radius: 3.0
+  upper_radius: 6.0
+  radius: 4.5
+  density: 2650.
+  is_dust: true
+  is_aerosol: true
+  is_drydep: true
+dust5:
+  name: dust5
+  long_name: dust5
+  description: dust5
+  lower_radius: 6.0
+  upper_radius: 10.0
+  radius: 8.0
+  density: 2650.
+  is_dust: true
+  is_aerosol: true
+  is_drydep: true
+seas1:
+  name: seas1
+  long_name: seas1
+  description: seas1
+  lower_radius: 0.03
+  upper_radius: 0.1
+  radius: 0.079
+  density: 2200.
+  is_seasalt: true
+  is_aerosol: true
+  is_drydep: true
+seas2:
+  name: seas2
+  long_name: seas2
+  description: seas2
+  lower_radius: 0.1
+  upper_radius: 0.5
+  radius: 0.316
+  density: 2200.
+  is_seasalt: true
+  is_aerosol: true
+  is_drydep: true
+seas3:
+  name: seas3
+  long_name: seas3
+  description: seas3
+  lower_radius: 0.5
+  upper_radius: 1.5
+  radius: 1.119
+  density: 2200.
+  is_seasalt: true
+  is_aerosol: true
+  is_drydep: true
+seas4:
+  name: seas4
+  long_name: seas4
+  description: seas4
+  lower_radius: 1.5
+  upper_radius: 5.0
+  radius: 2.818
+  density: 2200.
+  is_seasalt: true
+  is_aerosol: true
+  is_drydep: true
+seas5:
+  name: seas5
+  long_name: seas5
+  description: seas5
+  lower_radius: 5.0
+  upper_radius: 10.0
+  radius: 7.772
+  density: 2200.
+  is_seasalt: true
+  is_aerosol: true
+  is_drydep: true
+nh3:
+  name: nh3
+  description: Ammonia
+  is_drydep: false
+nh4a:
+  name: nh4a
+  description: primary NH4a
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 8.7e-2
+  density: 1500.
+  is_aerosol: true
+  is_drydep: true
+no3an1:
+  name: no3an1
+  description: primary NO3an1
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 8.7e-2
+  density: 1500.
+  is_aerosol: true
+  is_drydep: true
+no3an2:
+  name: no3an2
+  description: primary NO3an2
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 8.7e-2
+  density: 1500.
+  is_aerosol: true
+  is_drydep: true
+no3an3:
+  name: no3an3
+  description: primary NO3an3
+  lower_radius: 0.1
+  upper_radius: 1.0
+  radius: 8.7e-2
+  density: 1500.
+  is_aerosol: true
+  is_drydep: true

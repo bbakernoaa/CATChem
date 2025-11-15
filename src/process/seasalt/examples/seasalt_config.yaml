@@ -1,5 +1,5 @@
 # Example configuration for seasalt process
-# Generated on: 2025-10-01T13:11:31.328894
+# Generated on: 2025-11-14T23:01:21.984771
 # Author: Barry Baker & Wei Li
 
 process:
@@ -89,11 +89,11 @@ diagnostics:
   # Individual diagnostic controls
   seasalt_mass_emission_total:
     description: "Sea salt mass emission flux total"
-    units: "ug/m2/s"
+    units: "kg/m2/s"
     output: true
   seasalt_number_emission_total:
     description: "Sea salt number emission flux total"
-    units: "#/m2/s"
+    units: "kg/m2/s"
     output: true
 
   # Emission tendency diagnostics

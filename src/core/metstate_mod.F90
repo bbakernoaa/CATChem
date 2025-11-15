@@ -95,10 +95,11 @@ MODULE MetState_Mod
       REAL(fp), ALLOCATABLE        :: FRLANDUSE(:,:,:)  !< Fractional Land Use (nx,ny,nlanduse)
       REAL(fp), ALLOCATABLE        :: FRSOIL(:,:,:)     !< Fractional Soil (nx,ny,nsoil)
       REAL(fp), ALLOCATABLE        :: FRLAI(:,:,:)      !< LAI in each Fractional Land use type [m2/m2] (nx,ny,nlanduse)
+      INTEGER, ALLOCATABLE         :: ILAND(:,:,:)      !< Land type ID in current grid box (nx,ny,nlanduse)
       ! Location arrays (1D for single point, 2D for grid)
       real(fp), ALLOCATABLE        :: LAT(:,:)         !< Latitude
       real(fp), ALLOCATABLE        :: LON(:,:)         !< Longitude
-      character(len=20), ALLOCATABLE :: LUCNAME(:,:)   !< name of land use category
+      character(len=20)            :: LUCNAME          !< name of land use category
       ! Surface meteorological properties (2D: nx, ny)
       REAL(fp), ALLOCATABLE        :: ALBD_VIS(:,:)     !< Visible surface albedo [1]
       REAL(fp), ALLOCATABLE        :: ALBD_NIR(:,:)     !< Near-IR surface albedo [1]
@@ -119,6 +120,7 @@ MODULE MetState_Mod
       REAL(fp), ALLOCATABLE        :: Z0H(:,:)          !< Surface roughness height, for heat (thermal roughness) [m]
       REAL(fp), ALLOCATABLE        :: FRZ0(:,:,:)       !< Aerodynamic Roughness Length per FRLANDUSE (nx,ny,nlanduse)
       REAL(fp), ALLOCATABLE        :: PBLH(:,:)         !< PBL height [m]
+      REAL(fp), ALLOCATABLE        :: SALINITY(:,:)     !< Salinity of the ocean [part per thousand]
       ! 3D volumetric fields (3D: nx, ny, nz)
       REAL(fp), ALLOCATABLE        :: F_OF_PBL(:,:,:)       !< Fraction of box within PBL [1]
       REAL(fp), ALLOCATABLE        :: F_UNDER_PBLTOP(:,:,:) !< Fraction of box under PBL top
@@ -147,17 +149,17 @@ MODULE MetState_Mod
       REAL(fp), ALLOCATABLE        :: TAUCLW(:,:,:)     !< Opt depth of H2O clouds [1]
       ! Surface scalars (now 2D: nx, ny)
       REAL(fp), ALLOCATABLE        :: PHIS(:,:)         !< Surface geopotential height [m2/s2]
-      REAL(fp), ALLOCATABLE        :: PS_WET(:,:)       !< Wet surface pressure at start of timestep [hPa]
-      REAL(fp), ALLOCATABLE        :: PS_DRY(:,:)       !< Dry surface pressure at start of timestep [hPa]
+      REAL(fp), ALLOCATABLE        :: PS_WET(:,:)       !< Wet surface pressure at start of timestep [Pa]
+      REAL(fp), ALLOCATABLE        :: PS_DRY(:,:)       !< Dry surface pressure at start of timestep [Pa]
       REAL(fp), ALLOCATABLE        :: QV2M(:,:)         !< Specific Humidity at 2m [kg/kg]
       REAL(fp), ALLOCATABLE        :: T2M(:,:)          !< Temperature 2m [K]
       REAL(fp), ALLOCATABLE        :: TS(:,:)           !< Surface temperature [K]
       REAL(fp), ALLOCATABLE        :: TSKIN(:,:)        !< Surface skin temperature [K]
       REAL(fp), ALLOCATABLE        :: SST(:,:)          !< Sea surface temperature [K]
-      REAL(fp), ALLOCATABLE        :: SLP(:,:)          !< Sea level pressure [hPa]
-      REAL(fp), ALLOCATABLE        :: PS(:,:)           !< Surface Pressure [hPa]
+      REAL(fp), ALLOCATABLE        :: SLP(:,:)          !< Sea level pressure [Pa]
+      REAL(fp), ALLOCATABLE        :: PS(:,:)           !< Surface Pressure [Pa]
       REAL(fp), ALLOCATABLE        :: TO3(:,:)          !< Total overhead O3 column [DU]
-      REAL(fp), ALLOCATABLE        :: TROPP(:,:)        !< Tropopause pressure [hPa]
+      REAL(fp), ALLOCATABLE        :: TROPP(:,:)        !< Tropopause pressure [Pa]
       INTEGER,  ALLOCATABLE        :: TropLev(:,:)      !< Tropopause level [1]
       REAL(fp), ALLOCATABLE        :: TropHt(:,:)       !< Tropopause height [km]
       ! 3D atmospheric variables (3D: nx, ny, nz)
@@ -171,7 +173,7 @@ MODULE MetState_Mod
       REAL(fp), ALLOCATABLE        :: V(:,:,:)          !< N/S component of wind [m s-1]
       REAL(fp), ALLOCATABLE        :: U(:,:,:)          !< E/W component of wind [m s-1]
       REAL(fp), ALLOCATABLE        :: OMEGA(:,:,:)      !< Updraft velocity [Pa/s]
-      REAL(fp), ALLOCATABLE        :: RH(:,:,:)         !< Relative humidity [%]
+      REAL(fp), ALLOCATABLE        :: RH(:,:,:)         !< Relative humidity [fraction, not %]
       REAL(fp), ALLOCATABLE        :: SPHU(:,:,:)       !< Specific humidity [g H2O/kg tot air]
       REAL(fp), ALLOCATABLE        :: AIRDEN(:,:,:)     !< Dry air density [kg/m3]
       REAL(fp), ALLOCATABLE        :: AIRNUMDEN(:,:,:)  !< Dry air density [molec/cm3]
@@ -181,10 +183,10 @@ MODULE MetState_Mod
       REAL(fp), ALLOCATABLE        :: DELP_DRY(:,:,:)   !< Delta-P (dry) across box [hPa]
       REAL(fp), ALLOCATABLE        :: DAIRMASS(:,:,:)   !< Dry air mass [kg] in grid box
       REAL(fp), ALLOCATABLE        :: AIRVOL(:,:,:)     !< Grid box volume [m3] (dry air)
-      REAL(fp), ALLOCATABLE        :: PEDGE_DRY(:,:,:)  !< Dry air partial pressure @ level edges [hPa] (nx,ny,nz+1)
-      REAL(fp), ALLOCATABLE        :: PEDGE(:,:,:)      !< Air partial pressure @ level edges [hPa] (nx,ny,nz+1)
-      REAL(fp), ALLOCATABLE        :: PMID(:,:,:)       !< Average wet air pressure [hPa] defined as arithmetic average of edge pressures
-      REAL(fp), ALLOCATABLE        :: PMID_DRY(:,:,:)   !< Dry air partial pressure [hPa] defined as arithmetic avg of edge pressures
+      REAL(fp), ALLOCATABLE        :: PEDGE_DRY(:,:,:)  !< Dry air partial pressure @ level edges [Pa] (nx,ny,nz+1)
+      REAL(fp), ALLOCATABLE        :: PEDGE(:,:,:)      !< Air partial pressure @ level edges [Pa] (nx,ny,nz+1)
+      REAL(fp), ALLOCATABLE        :: PMID(:,:,:)       !< Average wet air pressure [Pa] defined as arithmetic average of edge pressures
+      REAL(fp), ALLOCATABLE        :: PMID_DRY(:,:,:)   !< Dry air partial pressure [Pa] defined as arithmetic avg of edge pressures
       contains
       procedure :: init => metstate_init
       procedure :: cleanup => metstate_cleanup
@@ -335,11 +337,11 @@ CONTAINS
       this%U = 0.0_fp
       this%V = 0.0_fp
       this%QV = 0.001_fp
-      this%RH = 50.0_fp
+      this%RH = 0.50_fp
       this%AIRDEN = 1.2_fp
       this%BXHEIGHT = 100.0_fp
-      this%PS = 1013.25_fp
-      this%SLP = 1013.25_fp
+      this%PS = 101300.25_fp
+      this%SLP = 101300.25_fp
       this%T2M = 288.15_fp
       this%TS = 288.15_fp
 
@@ -427,7 +429,7 @@ CONTAINS
 
       ! Validate pressures (use maxval/minval for array validation)
       if (allocated(this%PS)) then
-         if (maxval(this%PS) > 1200.0_fp .or. minval(this%PS) < 10.0_fp) then
+         if (maxval(this%PS) > 120000.0_fp .or. minval(this%PS) < 1000.0_fp) then
             call error_mgr%report_error(ERROR_INVALID_INPUT, &
                                         'Surface pressure out of physical range', rc, &
                                         thisLoc, 'Check pressure units and values')
@@ -437,7 +439,7 @@ CONTAINS
       endif
 
       if (allocated(this%SLP)) then
-         if (maxval(this%SLP) > 1200.0_fp .or. minval(this%SLP) < 500.0_fp) then
+         if (maxval(this%SLP) > 120000.0_fp .or. minval(this%SLP) < 50000.0_fp) then
             call error_mgr%report_error(ERROR_INVALID_INPUT, &
                                         'Sea level pressure out of physical range', rc, &
                                         thisLoc, 'Check pressure units and values')
@@ -475,8 +477,8 @@ CONTAINS
       if (allocated(this%T2M)) this%T2M = 288.15_fp
       if (allocated(this%TS)) this%TS = 288.15_fp
       if (allocated(this%TSKIN)) this%TSKIN = 288.15_fp
-      if (allocated(this%PS)) this%PS = 1013.25_fp
-      if (allocated(this%SLP)) this%SLP = 1013.25_fp
+      if (allocated(this%PS)) this%PS = 101300.25_fp
+      if (allocated(this%SLP)) this%SLP = 101300.25_fp
       if (allocated(this%SST)) this%SST = 288.15_fp
 
       ! Reset arrays if allocated
@@ -484,7 +486,7 @@ CONTAINS
       if (allocated(this%U)) this%U = 0.0_fp
       if (allocated(this%V)) this%V = 0.0_fp
       if (allocated(this%QV)) this%QV = 0.01_fp
-      if (allocated(this%RH)) this%RH = 50.0_fp
+      if (allocated(this%RH)) this%RH = 0.5_fp
 
    end subroutine metstate_reset
 
@@ -545,10 +547,10 @@ CONTAINS
          write(*,'(A,F8.2,A)') 'Surface temperature: ', this%TS(1,1), ' K'
       endif
       if (allocated(this%PS)) then
-         write(*,'(A,F8.2,A)') 'Surface pressure: ', this%PS(1,1), ' hPa'
+         write(*,'(A,F8.2,A)') 'Surface pressure: ', this%PS(1,1), ' Pa'
       endif
       if (allocated(this%SLP)) then
-         write(*,'(A,F8.2,A)') 'Sea level pressure: ', this%SLP(1,1), ' hPa'
+         write(*,'(A,F8.2,A)') 'Sea level pressure: ', this%SLP(1,1), ' Pa'
       endif
       write(*,'(A,L1)') 'Arrays allocated: ', this%is_allocated()
       write(*,'(A,I0,A)') 'Memory usage: ', this%get_memory_usage(), ' bytes'
