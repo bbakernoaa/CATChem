@@ -81,7 +81,7 @@ contains
       seasalt_mass_emission_per_bin, &
       seasalt_number_emission_per_bin, &
       diagnostic_species_id &
-   )
+      )
 
       ! Arguments
       integer, intent(in) :: num_layers
@@ -156,13 +156,13 @@ contains
             ! Compute emission flux using your scheme's formula
             ! This is a simple example - replace with your actual algorithm
             species_tendencies(k, species_idx) = base_emission_factor * &
-                                          environmental_factor * &
-                                          species_factor * &
-                                          (1.0_fp + species_conc(k, species_idx))
+               environmental_factor * &
+               species_factor * &
+               (1.0_fp + species_conc(k, species_idx))
 
             ! Ensure non-negative emissions
             species_tendencies(k, species_idx) = max(0.0_fp, species_tendencies(k, species_idx))
-            
+
             ! TODO: Update diagnostic fields here based on your scheme's requirements
             ! Each process should implement custom diagnostic calculations
             ! Example patterns:
@@ -174,7 +174,7 @@ contains
                ! Add your custom sea salt number emission flux total calculation
                seasalt_number_emission_total = seasalt_number_emission_total + species_tendencies(k, species_idx) * 1.0_fp  ! TODO: Replace with actual calculation
             end if
-            
+
             ! TODO: Update scheme-specific diagnostic fields here based on your scheme's requirements
             ! Each scheme should implement custom diagnostic calculations
             ! Example patterns:
@@ -231,11 +231,11 @@ contains
 
       ! Species-specific scaling - customize for your scheme
       select case (species_idx)
-      case (1)
+       case (1)
          scaling = 1.0_fp    ! First species baseline
-      case (2:3)
+       case (2:3)
          scaling = 0.5_fp    ! Reduced emission for species 2-3
-      case default
+       case default
          scaling = 0.1_fp    ! Low emission for other species
       end select
 

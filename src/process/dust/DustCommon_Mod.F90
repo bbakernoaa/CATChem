@@ -13,7 +13,7 @@ module DustCommon_Mod
    use precision_mod, only: fp
    ! use precision_mod, only: fp
    use error_mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType, &
-                        ERROR_INVALID_CONFIG, ERROR_INVALID_STATE, ERROR_NOT_FOUND
+      ERROR_INVALID_CONFIG, ERROR_INVALID_STATE, ERROR_NOT_FOUND
    use ConfigManager_Mod, only: ConfigManagerType  ! ConfigManager integration
    use StateManager_Mod, only: StateManagerType  ! Add StateManager integration
 
@@ -101,7 +101,7 @@ module DustCommon_Mod
       logical :: affects_full_column = .false.  ! Surface-only processing
 
       ! Scheme parameters
-      real(fp) :: Ch_DU = [0.1, 0.1, 0.1, 0.1, 0.1]  ! Dust tuning coefficient per species 
+      real(fp) :: Ch_DU = [0.1, 0.1, 0.1, 0.1, 0.1]  ! Dust tuning coefficient per species
 
       ! Required meteorological fields
       integer :: n_required_met_fields = 5
@@ -118,19 +118,19 @@ module DustCommon_Mod
    !> Unified process configuration type that bridges ConfigManager and process-specific configs
    !! This is the main configuration type that ProcessInterface should use
    type :: DustProcessConfig
-      
+
       ! Process metadata
       character(len=64) :: process_name = 'dust'
       character(len=16) :: process_version = '1.0.0'
       logical :: is_active = .true.
-      
+
       ! Process-specific configuration (delegate to DustConfig)
       type(DustConfig) :: dust_config
-      
+
       ! Scheme configurations
       type(DustSchemeFENGSHAConfig) :: fengsha_config
       type(DustSchemeGINOUXConfig) :: ginoux_config
-      
+
    contains
       procedure, public :: load_from_config => dust_process_load_config
       procedure, public :: load_species_from_chem_state => load_species_from_chem_state
@@ -166,8 +166,8 @@ contains
 
       ! Validate active scheme
       if (trim(this%scheme) /= 'fengsha' .and. &
-          trim(this%scheme) /= 'ginoux' .and. &
-          .true.) then
+         trim(this%scheme) /= 'ginoux' .and. &
+         .true.) then
          write(error_msg, '(A)') "Invalid scheme: " // trim(this%scheme)
          call error_handler%report_error(ERROR_INVALID_CONFIG, error_msg, rc)
          return
@@ -189,7 +189,7 @@ contains
 
    end subroutine print_dust_config_summary
 
-      !> Finalize dust configuration
+   !> Finalize dust configuration
    subroutine finalize_dust_config(this)
       class(DustConfig), intent(inout) :: this
 
@@ -266,7 +266,7 @@ contains
 
       ! Process reads directly from master YAML structure: processes.dust
       ! ConfigManager provides generic YAML access, process handles its own configuration
-      
+
       ! Load process metadata
       call config_manager%get_string("processes/dust/name", this%process_name, rc, "dust")
       if (rc /= CC_SUCCESS) this%process_name = "dust"  ! default
@@ -297,11 +297,11 @@ contains
       ! Load scheme-specific configuration from master YAML
       scheme_name = trim(this%dust_config%scheme)
       select case (scheme_name)
-      case ('fengsha')
+       case ('fengsha')
          call this%load_fengsha_config(config_manager, error_handler)
-      case ('ginoux')
+       case ('ginoux')
          call this%load_ginoux_config(config_manager, error_handler)
-      case default
+       case default
          call error_handler%report_error(ERROR_INVALID_STATE, &
             "Unknown dust scheme: " // trim(scheme_name), rc)
          return
@@ -310,48 +310,48 @@ contains
    end subroutine dust_process_load_config
 
 
-   !> Load species from ChemState 
+   !> Load species from ChemState
    !! This function is used for dynamic species discovery (by_metadata or all_species)
    !! For 'all_species' mode: loads all species using nSpecies and SpeciesIndex
    !! For 'by_metadata' mode: loads species by type using nSpeciesDust and DustIndex
    subroutine load_species_from_chem_state(this, chem_state, error_handler)
       use ChemState_Mod, only: ChemStateType
-      
+
       class(DustProcessConfig), intent(inout) :: this
       type(ChemStateType), pointer, intent(in) :: chem_state
       type(ErrorManagerType), intent(inout) :: error_handler
-      
+
       integer :: i, rc
-      
+
       if (.not. associated(chem_state)) then
          call error_handler%report_error(ERROR_INVALID_STATE, &
             "ChemState not associated in load_species_from_chem_state", rc)
          return
       end if
-      
+
       ! by_metadata mode: Load species by type from ChemState using dynamic metadata flag mapping
       ! No metadata flags specified, use class-based indexing
       this%dust_config%n_species = chem_state%nSpeciesDust
-      
+
       if (this%dust_config%n_species <= 0) then
          call error_handler%report_error(ERROR_INVALID_STATE, &
             "No dust species found in ChemState", rc)
          return
       end if
-      
+
       ! Check if DustIndex is allocated and has correct size
       if (.not. allocated(chem_state%DustIndex)) then
          call error_handler%report_error(ERROR_INVALID_STATE, &
             "DustIndex not allocated in ChemState", rc)
          return
       end if
-      
+
       if (size(chem_state%DustIndex) < this%dust_config%n_species) then
          call error_handler%report_error(ERROR_INVALID_STATE, &
             "DustIndex size inconsistent with nSpeciesDust", rc)
          return
       end if
-      
+
       ! Deallocate existing arrays if allocated
       if (allocated(this%dust_config%species_names)) then
          deallocate(this%dust_config%species_names)
@@ -359,20 +359,20 @@ contains
       if (allocated(this%dust_config%species_indices)) then
          deallocate(this%dust_config%species_indices)
       end if
-      
+
       ! Allocate arrays
       allocate(this%dust_config%species_names(this%dust_config%n_species))
       allocate(this%dust_config%species_indices(this%dust_config%n_species))
-      
+
       ! by_metadata mode: Copy indices from metadata-specific index array using dynamic mapping
       ! No metadata flags specified, use class-based indexing
       this%dust_config%species_indices(1:this%dust_config%n_species) = &
          chem_state%DustIndex(1:this%dust_config%n_species)
-      
+
       ! Get species names using the indices
       do i = 1, this%dust_config%n_species
          if (this%dust_config%species_indices(i) > 0 .and. &
-             this%dust_config%species_indices(i) <= size(chem_state%SpeciesNames)) then
+            this%dust_config%species_indices(i) <= size(chem_state%SpeciesNames)) then
             this%dust_config%species_names(i) = &
                trim(chem_state%SpeciesNames(this%dust_config%species_indices(i)))
          else
@@ -381,8 +381,8 @@ contains
             return
          end if
       end do
-      
-      
+
+
    end subroutine load_species_from_chem_state
 
    !> Load fengsha scheme configuration from master YAML
@@ -395,22 +395,22 @@ contains
 
       ! Load scheme parameters directly from processes/dust/fengsha/ in master YAML
       call config_manager%get_real("processes/dust/fengsha/alpha", &
-           this%fengsha_config%alpha, rc, 0.16_fp)
+         this%fengsha_config%alpha, rc, 0.16_fp)
       if (rc /= CC_SUCCESS) this%fengsha_config%alpha = 0.16_fp
       call config_manager%get_real("processes/dust/fengsha/beta", &
-           this%fengsha_config%beta, rc, 1.0_fp)
+         this%fengsha_config%beta, rc, 1.0_fp)
       if (rc /= CC_SUCCESS) this%fengsha_config%beta = 1.0_fp
       call config_manager%get_real("processes/dust/fengsha/drylimit_factor", &
-           this%fengsha_config%drylimit_factor, rc, 1.0_fp)
+         this%fengsha_config%drylimit_factor, rc, 1.0_fp)
       if (rc /= CC_SUCCESS) this%fengsha_config%drylimit_factor = 1.0_fp
       call config_manager%get_real("processes/dust/fengsha/drag_option", &
-           this%fengsha_config%drag_option, rc, 1_fp)
+         this%fengsha_config%drag_option, rc, 1_fp)
       if (rc /= CC_SUCCESS) this%fengsha_config%drag_option = 1_fp
       call config_manager%get_real("processes/dust/fengsha/moist_option", &
-           this%fengsha_config%moist_option, rc, 1 - fecan_fp)
+         this%fengsha_config%moist_option, rc, 1 - fecan_fp)
       if (rc /= CC_SUCCESS) this%fengsha_config%moist_option = 1 - fecan_fp
       call config_manager%get_real("processes/dust/fengsha/distribution_option", &
-           this%fengsha_config%distribution_option, rc, 1_fp)
+         this%fengsha_config%distribution_option, rc, 1_fp)
       if (rc /= CC_SUCCESS) this%fengsha_config%distribution_option = 1_fp
 
 
@@ -426,7 +426,7 @@ contains
 
       ! Load scheme parameters directly from processes/dust/ginoux/ in master YAML
       call config_manager%get_real("processes/dust/ginoux/Ch_DU", &
-           this%ginoux_config%Ch_DU, rc, [0.1, 0.1, 0.1, 0.1, 0.1]_fp)
+         this%ginoux_config%Ch_DU, rc, [0.1, 0.1, 0.1, 0.1, 0.1]_fp)
       if (rc /= CC_SUCCESS) this%ginoux_config%Ch_DU = [0.1, 0.1, 0.1, 0.1, 0.1]_fp
 
 
@@ -444,9 +444,9 @@ contains
 
       ! Validate scheme-specific config
       select case (trim(this%dust_config%scheme))
-      case ('fengsha')
+       case ('fengsha')
          call this%fengsha_config%validate(error_handler)
-      case ('ginoux')
+       case ('ginoux')
          call this%ginoux_config%validate(error_handler)
       end select
 
@@ -468,11 +468,11 @@ contains
       class(*), allocatable :: scheme_config
 
       select case (trim(this%dust_config%scheme))
-      case ('fengsha')
+       case ('fengsha')
          allocate(scheme_config, source=this%fengsha_config)
-      case ('ginoux')
+       case ('ginoux')
          allocate(scheme_config, source=this%ginoux_config)
-      case default
+       case default
          ! Return null
       end select
 

@@ -192,7 +192,7 @@ processes:
 
 input:
   meteorology:
-    file_template: "met_nam_%Y%m%d_%H.nc"
+    file_template: "met_name_%Y%m%d_%H.nc"
     directory: "/data/meteorology/nam/"
 
   emissions:

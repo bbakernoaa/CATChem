@@ -212,4 +212,3 @@ call container%optimize_memory_layout(rc)
 **Auto-Generated Documentation:** [Complete State Management Reference](../CATChem/namespacestatemanager__mod.md)
 
 **Auto-Generated Documentation:** [Complete State Interface Reference](../CATChem/namespacestate__interface__mod.md)
-

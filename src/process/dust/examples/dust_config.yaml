@@ -57,7 +57,7 @@ schemes:
 
     # Scheme-specific parameters
     parameters:
-      Ch_DU: [0.1, 0.1, 0.1, 0.1, 0.1]  # Dust tuning coefficient per species 
+      Ch_DU: [0.1, 0.1, 0.1, 0.1, 0.1]  # Dust tuning coefficient per species
 
     # Required meteorological fields for this scheme
     required_met_fields:

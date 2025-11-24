@@ -38,7 +38,7 @@ program test_TimeState
    call time_state%get_current_date(year, month, day)
    jd = time_state%get_julian_date()
    doy = time_state%get_doy()
-   
+
    call assert(year == 2000, "Default year should be 2000")
    call assert(month == 1, "Default month should be 1")
    call assert(day == 1, "Default day should be 1")
@@ -73,11 +73,11 @@ program test_TimeState
       character(len=25) :: iso_time
       character(len=25) :: human_time
       character(len=16) :: compact_time
-      
+
       iso_time = time_state%get_time_iso8601()
       human_time = time_state%get_time_human()
       compact_time = time_state%get_time_compact()
-      
+
       ! Just check that they return non-empty strings
       call assert(len_trim(iso_time) > 0, "ISO time should not be empty")
       call assert(len_trim(human_time) > 0, "Human time should not be empty")
@@ -96,5 +96,5 @@ program test_TimeState
    write(*,*) ''
 
    write(*,*) 'All TimeState tests passed!'
-   
+
 end program test_TimeState

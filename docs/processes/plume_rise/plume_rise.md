@@ -210,11 +210,11 @@ processes:
     enabled: true
     scheme: "briggs_fires"
     parameters:
-      fire_frp_threshold: 
-      buoyancy_efficiency: 
-      entrainment_constant: 
-      wind_speed_min: 
-      atmospheric_stability_method: 
+      fire_frp_threshold:
+      buoyancy_efficiency:
+      entrainment_constant:
+      wind_speed_min:
+      atmospheric_stability_method:
     diagnostics:
       enabled: true
       output_frequency: "daily"

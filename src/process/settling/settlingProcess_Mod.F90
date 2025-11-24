@@ -69,7 +69,7 @@ contains
       this%is_active = .true.
 
       write(message, '(A,A,A)') 'settling process initialized with scheme: ', &
-                                trim(this%selected_scheme)
+         trim(this%selected_scheme)
       call error_mgr%report_info(message)
 
    end subroutine settling_process_init
@@ -98,11 +98,11 @@ contains
 
       ! Execute scheme-specific calculations
       select case (trim(this%selected_scheme))
-      case ('Stokesscheme')
+       case ('Stokesscheme')
          call this%run_stokesscheme_scheme(container, rc)
-      case ('Intermediatereynoldsscheme')
+       case ('Intermediatereynoldsscheme')
          call this%run_intermediatereynoldsscheme_scheme(container, rc)
-      case default
+       case default
          call error_mgr%report_error("Unknown scheme: " // trim(this%selected_scheme))
          rc = -1
          return

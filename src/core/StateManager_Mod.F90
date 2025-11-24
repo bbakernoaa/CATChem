@@ -151,9 +151,9 @@ contains
 
       ! Allocate and initialize state objects
       ! Note: config will be set by external call if needed
-      
+
       if (.not. allocated(this%met_state)) allocate(this%met_state)
-      
+
       if (.not. allocated(this%chem_state)) allocate(this%chem_state)
 
       this%is_initialized = .true.
@@ -176,7 +176,7 @@ contains
          if (met_rc /= CC_SUCCESS) rc = met_rc  ! Don't stop cleanup on error
          deallocate(this%met_state)
       end if
-      
+
       if (allocated(this%chem_state)) then
          call this%chem_state%cleanup(chem_rc)
          if (chem_rc /= CC_SUCCESS) rc = chem_rc  ! Don't stop cleanup on error
@@ -202,9 +202,9 @@ contains
       logical :: ready
 
       ready = this%is_initialized .and. this%is_configured .and. &
-              associated(this%config) .and. &
-              allocated(this%met_state) .and. &
-              allocated(this%chem_state)
+         associated(this%config) .and. &
+         allocated(this%met_state) .and. &
+         allocated(this%chem_state)
    end function manager_is_ready
 
    !> \brief Mark the state manager as configured
@@ -289,7 +289,7 @@ contains
       integer, intent(out) :: rc
 
       rc = CC_SUCCESS
-      
+
       if (associated(grid_mgr_ptr)) then
          this%grid_mgr => grid_mgr_ptr
       else
@@ -638,20 +638,20 @@ contains
       character(len=32) :: name
 
       select case (state_type)
-         case (STATE_TYPE_MET)
-            name = 'Meteorology'
-         case (STATE_TYPE_CHEM)
-            name = 'Chemistry'
-         case (STATE_TYPE_EMIS)
-            name = 'Emissions'
-         case (STATE_TYPE_DIAG)
-            name = 'Diagnostics'
-         case (STATE_TYPE_CONFIG)
-            name = 'Configuration'
-         case (STATE_TYPE_GRID)
-            name = 'Grid'
-         case default
-            name = 'Unknown'
+       case (STATE_TYPE_MET)
+         name = 'Meteorology'
+       case (STATE_TYPE_CHEM)
+         name = 'Chemistry'
+       case (STATE_TYPE_EMIS)
+         name = 'Emissions'
+       case (STATE_TYPE_DIAG)
+         name = 'Diagnostics'
+       case (STATE_TYPE_CONFIG)
+         name = 'Configuration'
+       case (STATE_TYPE_GRID)
+         name = 'Grid'
+       case default
+         name = 'Unknown'
       end select
 
    end function get_state_type_name

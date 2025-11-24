@@ -25,7 +25,7 @@ python process_generator.py generate --config configs/seasalt_emission.yaml
 This command generates:
 
 - Process module: `src/process/seasalt/ProcessSeaSaltInterface_Mod.F90`
-- Common module: `src/process/seasalt/SeaSaltCommon_Mod.F90` 
+- Common module: `src/process/seasalt/SeaSaltCommon_Mod.F90`
 - Scheme modules: `src/process/seasalt/schemes/`
 - Test files: `tests/process/seasalt/`
 - CMake files: Updated automatically
@@ -533,7 +533,7 @@ process:
   name: "seasalt"
   description: "Process for computing sea salt aerosol emissions over ocean surfaces"
   author: "Barry Baker & Wei Li"
-  
+
 schemes:
   - name: gong97
     description: "Gong 1997 sea salt emission scheme"

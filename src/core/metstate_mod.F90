@@ -187,7 +187,7 @@ MODULE MetState_Mod
       REAL(fp), ALLOCATABLE        :: PEDGE(:,:,:)      !< Air partial pressure @ level edges [Pa] (nx,ny,nz+1)
       REAL(fp), ALLOCATABLE        :: PMID(:,:,:)       !< Average wet air pressure [Pa] defined as arithmetic average of edge pressures
       REAL(fp), ALLOCATABLE        :: PMID_DRY(:,:,:)   !< Dry air partial pressure [Pa] defined as arithmetic avg of edge pressures
-      contains
+   contains
       procedure :: init => metstate_init
       procedure :: cleanup => metstate_cleanup
       procedure :: validate => metstate_validate
@@ -211,14 +211,14 @@ MODULE MetState_Mod
       procedure, public :: get_scalar_value_logical => metstate_get_scalar_value_logical
       ! Generic interface for setting fields with proper dimensions
       generic, public :: set_field => metstate_set_field_scalar_real, &
-                                      metstate_set_field_scalar_int, &
-                                      metstate_set_field_scalar_logical, &
-                                      metstate_set_field_2d_real, &
-                                      metstate_set_field_2d_int, &
-                                      metstate_set_field_2d_logical, &
-                                      metstate_set_field_3d_real, &
-                                      metstate_set_field_3d_int, &
-                                      metstate_set_field_3d_logical
+         metstate_set_field_scalar_int, &
+         metstate_set_field_scalar_logical, &
+         metstate_set_field_2d_real, &
+         metstate_set_field_2d_int, &
+         metstate_set_field_2d_logical, &
+         metstate_set_field_3d_real, &
+         metstate_set_field_3d_int, &
+         metstate_set_field_3d_logical
       procedure, public :: metstate_set_field_scalar_real
       procedure, public :: metstate_set_field_scalar_int
       procedure, public :: metstate_set_field_scalar_logical
@@ -269,7 +269,7 @@ CONTAINS
       this%NLEVS = nlevs
 
       call this%geometry%set(nx, ny, nlevs) ! Add a set() method to GridGeometryType
-      
+
       this%State = 'MET'
 
       ! Set soil and surface parameters if provided
@@ -278,14 +278,14 @@ CONTAINS
       else
          this%NSURFTYPE = 0  ! Will prevent allocation of surface arrays
       end if
-      
+
       ! Set soil parameters if provided
       if (present(nsoil)) then
          this%nSOIL = nsoil
       else
          this%nSOIL = 0  ! Will prevent allocation of soil arrays
       end if
-      
+
       if (present(nsoiltype)) then
          this%nSOILTYPE = nsoiltype
       else
@@ -321,7 +321,7 @@ CONTAINS
       rc = CC_SUCCESS
 
       call this%geometry%get_dimensions(nx, ny, nz)
-      
+
       ! Use the properly initialized values (no more defaults needed)
       nsoil = this%nSOIL
       nsoiltype = this%nSOILTYPE
@@ -400,8 +400,8 @@ CONTAINS
       ! Check basic state
       if (this%NLEVS <= 0) then
          call error_mgr%report_error(ERROR_INVALID_INPUT, &
-                                     'Number of levels must be positive', rc, &
-                                     thisLoc, 'Set NLEVS to a positive integer')
+            'Number of levels must be positive', rc, &
+            thisLoc, 'Set NLEVS to a positive integer')
          call error_mgr%pop_context()
          return
       endif
@@ -410,8 +410,8 @@ CONTAINS
       if (allocated(this%T2M)) then
          if (maxval(this%T2M) > 400.0_fp .or. minval(this%T2M) < 100.0_fp) then
             call error_mgr%report_error(ERROR_INVALID_INPUT, &
-                                        '2m temperature out of physical range', rc, &
-                                        thisLoc, 'Check temperature units and values')
+               '2m temperature out of physical range', rc, &
+               thisLoc, 'Check temperature units and values')
             call error_mgr%pop_context()
             return
          endif
@@ -420,8 +420,8 @@ CONTAINS
       if (allocated(this%TS)) then
          if (maxval(this%TS) > 400.0_fp .or. minval(this%TS) < 100.0_fp) then
             call error_mgr%report_error(ERROR_INVALID_INPUT, &
-                                        'Surface temperature out of physical range', rc, &
-                                        thisLoc, 'Check temperature units and values')
+               'Surface temperature out of physical range', rc, &
+               thisLoc, 'Check temperature units and values')
             call error_mgr%pop_context()
             return
          endif
@@ -431,8 +431,8 @@ CONTAINS
       if (allocated(this%PS)) then
          if (maxval(this%PS) > 120000.0_fp .or. minval(this%PS) < 1000.0_fp) then
             call error_mgr%report_error(ERROR_INVALID_INPUT, &
-                                        'Surface pressure out of physical range', rc, &
-                                        thisLoc, 'Check pressure units and values')
+               'Surface pressure out of physical range', rc, &
+               thisLoc, 'Check pressure units and values')
             call error_mgr%pop_context()
             return
          endif
@@ -441,8 +441,8 @@ CONTAINS
       if (allocated(this%SLP)) then
          if (maxval(this%SLP) > 120000.0_fp .or. minval(this%SLP) < 50000.0_fp) then
             call error_mgr%report_error(ERROR_INVALID_INPUT, &
-                                        'Sea level pressure out of physical range', rc, &
-                                        thisLoc, 'Check pressure units and values')
+               'Sea level pressure out of physical range', rc, &
+               thisLoc, 'Check pressure units and values')
             call error_mgr%pop_context()
             return
          endif
@@ -451,8 +451,8 @@ CONTAINS
       ! Check array allocation
       if (.not. this%is_allocated()) then
          call error_mgr%report_error(ERROR_INVALID_INPUT, &
-                                     'Required arrays not allocated', rc, &
-                                     thisLoc, 'Call init() before using MetState')
+            'Required arrays not allocated', rc, &
+            thisLoc, 'Call init() before using MetState')
          call error_mgr%pop_context()
          return
       endif
@@ -502,7 +502,7 @@ CONTAINS
       logical :: is_alloc
 
       is_alloc = allocated(this%T) .and. allocated(this%U) .and. allocated(this%V) .and. &
-                 allocated(this%QV) .and. allocated(this%PMID) .and. allocated(this%DELP)
+         allocated(this%QV) .and. allocated(this%PMID) .and. allocated(this%DELP)
    end function metstate_is_allocated
 
    !> \brief Get approximate memory usage of MetStateType in bytes
@@ -607,7 +607,7 @@ CONTAINS
       integer :: nx, ny, nz, nsoil, nsoiltype, nSURFTYPE
       rc = CC_SUCCESS
       call this%geometry%get_dimensions(nx, ny, nz)
-      ! Use the properly initialized values (no more defaults needed) 
+      ! Use the properly initialized values (no more defaults needed)
       nsoil = this%nSOIL
       nsoiltype = this%nSOILTYPE
       nSURFTYPE = this%NSURFTYPE
@@ -802,8 +802,8 @@ CONTAINS
       if (present(col_ptr) .and. present(i) .and. present(j)) then
          col_ptr => this%get_column_ptr_func(field_name, i, j)
          if (associated(col_ptr)) then
-               rc = 0
-               return
+            rc = 0
+            return
          end if
       end if
       ! Try 2D scalar
@@ -833,8 +833,8 @@ CONTAINS
       if (present(col_ptr) .and. present(i) .and. present(j)) then
          col_ptr => this%get_column_ptr_func_int(field_name, i, j)
          if (associated(col_ptr)) then
-               rc = 0
-               return
+            rc = 0
+            return
          end if
       end if
       ! Try 2D scalar
@@ -864,8 +864,8 @@ CONTAINS
       if (present(col_ptr) .and. present(i) .and. present(j)) then
          col_ptr => this%get_column_ptr_func_logical(field_name, i, j)
          if (associated(col_ptr)) then
-               rc = 0
-               return
+            rc = 0
+            return
          end if
       end if
       ! Try 2D scalar
@@ -926,15 +926,15 @@ CONTAINS
       ! If not found as 3D field, try as 2D field and create a single-element array
       ! For 2D fields, we return a pointer to a single-element array containing the scalar value
       select case (trim(field_name))
-      case ('PS', 'SLP', 'TS', 'T2M', 'TSKIN', 'SST', 'PHIS', 'PS_WET', 'PS_DRY', &
-            'QV2M', 'AREA_M2', 'ALBD_VIS', 'ALBD_NIR', 'ALBD_UV', 'PARDR', 'PARDF', &
-            'SUNCOS', 'SUNCOSmid', 'SWGDN', 'EFLUX', 'HFLUX', 'U10M', 'V10M', &
-            'USTAR', 'Z0', 'Z0H', 'PBLH', 'OBK', 'CLDFRC', 'CONV_DEPTH', &
-            'FLASH_DENS', 'CNV_FRC', 'PRECANV', 'PRECCON', 'PRECLSC', &
-            'LAI', 'GVF', 'RDRAG', 'CLAYFRAC', 'SANDFRAC', 'FRVEG', 'FRLAKE', &
-            'FRLAND', 'FRLANDIC', 'FROCEAN', 'FRSEAICE', 'FRSNO', 'SNODP', &
-            'SNOMAS', 'SSM', 'USTAR_THRESHOLD', 'GWETTOP', 'GWETROOT', 'WILT', &
-            'TO3', 'TROPP', 'TropHt', 'LAT', 'LON')
+       case ('PS', 'SLP', 'TS', 'T2M', 'TSKIN', 'SST', 'PHIS', 'PS_WET', 'PS_DRY', &
+          'QV2M', 'AREA_M2', 'ALBD_VIS', 'ALBD_NIR', 'ALBD_UV', 'PARDR', 'PARDF', &
+          'SUNCOS', 'SUNCOSmid', 'SWGDN', 'EFLUX', 'HFLUX', 'U10M', 'V10M', &
+          'USTAR', 'Z0', 'Z0H', 'PBLH', 'OBK', 'CLDFRC', 'CONV_DEPTH', &
+          'FLASH_DENS', 'CNV_FRC', 'PRECANV', 'PRECCON', 'PRECLSC', &
+          'LAI', 'GVF', 'RDRAG', 'CLAYFRAC', 'SANDFRAC', 'FRVEG', 'FRLAKE', &
+          'FRLAND', 'FRLANDIC', 'FROCEAN', 'FRSEAICE', 'FRSNO', 'SNODP', &
+          'SNOMAS', 'SSM', 'USTAR_THRESHOLD', 'GWETTOP', 'GWETROOT', 'WILT', &
+          'TO3', 'TROPP', 'TropHt', 'LAT', 'LON')
 
          scalar_val = this%get_2Dto0D_value(field_name, i, j)
 
@@ -944,7 +944,7 @@ CONTAINS
          rc = CC_FAILURE
          return
 
-      case default
+       case default
          ! Try as scalar field - similar limitation
          scalar_val = this%get_scalar_value(field_name)
          rc = CC_FAILURE
@@ -957,7 +957,7 @@ CONTAINS
    !---------------------------------------------------------------------------
    !                 Dimensional MetState Set Field Subroutines
    !---------------------------------------------------------------------------
-   
+
    !> @brief Set a scalar REAL field
    subroutine metstate_set_field_scalar_real(this, field_name, field_data, error_mgr, rc)
       use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE
@@ -967,21 +967,21 @@ CONTAINS
       real(fp), intent(in) :: field_data
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
-      
+
       rc = CC_SUCCESS
-      
+
       ! Handle scalar REAL fields directly
       select case (trim(adjustl(field_name)))
 #include "metstate_set_field_scalar_real.inc"
-      case default
+       case default
          ! If not a scalar field, try broadcasting to 2D REAL arrays
          select case (trim(adjustl(field_name)))
 #include "metstate_set_field_2d_real.inc"
-         case default
+          case default
             ! Try broadcasting to 3D REAL arrays
             select case (trim(adjustl(field_name)))
 #include "metstate_set_field_3d_real.inc"
-            case default
+             case default
                call error_mgr%report_error(ERROR_NOT_FOUND, &
                   'Unknown REAL field name: ' // trim(field_name), rc)
                rc = CC_FAILURE
@@ -999,21 +999,21 @@ CONTAINS
       integer, intent(in) :: field_data
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
-      
+
       rc = CC_SUCCESS
-      
+
       ! Handle scalar INTEGER fields directly
       select case (trim(adjustl(field_name)))
 #include "metstate_set_field_scalar_int.inc"
-      case default
+       case default
          ! If not a scalar field, try broadcasting to 2D INTEGER arrays
          select case (trim(adjustl(field_name)))
 #include "metstate_set_field_2d_int.inc"
-         case default
+          case default
             ! Try broadcasting to 3D INTEGER arrays
             select case (trim(adjustl(field_name)))
 #include "metstate_set_field_3d_int.inc"
-            case default
+             case default
                call error_mgr%report_error(ERROR_NOT_FOUND, &
                   'Unknown INTEGER field name: ' // trim(field_name), rc)
                rc = CC_FAILURE
@@ -1031,21 +1031,21 @@ CONTAINS
       logical, intent(in) :: field_data
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
-      
+
       rc = CC_SUCCESS
-      
+
       ! Handle scalar LOGICAL fields directly
       select case (trim(adjustl(field_name)))
 #include "metstate_set_field_scalar_logical.inc"
-      case default
+       case default
          ! If not a scalar field, try broadcasting to 2D LOGICAL arrays
          select case (trim(adjustl(field_name)))
 #include "metstate_set_field_2d_logical.inc"
-         case default
+          case default
             ! Try broadcasting to 3D LOGICAL arrays
             select case (trim(adjustl(field_name)))
 #include "metstate_set_field_3d_logical.inc"
-            case default
+             case default
                call error_mgr%report_error(ERROR_NOT_FOUND, &
                   'Unknown LOGICAL field name: ' // trim(field_name), rc)
                rc = CC_FAILURE
@@ -1063,12 +1063,12 @@ CONTAINS
       real(fp), intent(in) :: field_data(:,:)
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
-      
+
       ! Generated include file for 2D REAL field assignment
       rc = CC_SUCCESS
       select case (trim(adjustl(field_name)))
 #include "metstate_set_field_2d_real.inc"
-      case default
+       case default
          call error_mgr%report_error(ERROR_NOT_FOUND, &
             "Unknown field name: " // trim(field_name), rc)
          rc = CC_FAILURE
@@ -1084,12 +1084,12 @@ CONTAINS
       integer, intent(in) :: field_data(:,:)
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
-      
+
       ! Generated include file for 2D INTEGER field assignment
       rc = CC_SUCCESS
       select case (trim(adjustl(field_name)))
 #include "metstate_set_field_2d_int.inc"
-      case default
+       case default
          call error_mgr%report_error(ERROR_NOT_FOUND, &
             "Unknown field name: " // trim(field_name), rc)
          rc = CC_FAILURE
@@ -1105,12 +1105,12 @@ CONTAINS
       logical, intent(in) :: field_data(:,:)
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
-      
+
       ! Generated include file for 2D LOGICAL field assignment
       rc = CC_SUCCESS
       select case (trim(adjustl(field_name)))
 #include "metstate_set_field_2d_logical.inc"
-      case default
+       case default
          call error_mgr%report_error(ERROR_NOT_FOUND, &
             "Unknown field name: " // trim(field_name), rc)
          rc = CC_FAILURE
@@ -1126,12 +1126,12 @@ CONTAINS
       real(fp), intent(in) :: field_data(:,:,:)
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
-      
+
       ! Generated include file for 3D REAL field assignment
       rc = CC_SUCCESS
       select case (trim(adjustl(field_name)))
 #include "metstate_set_field_3d_real.inc"
-      case default
+       case default
          call error_mgr%report_error(ERROR_NOT_FOUND, &
             "Unknown field name: " // trim(field_name), rc)
          rc = CC_FAILURE
@@ -1147,12 +1147,12 @@ CONTAINS
       integer, intent(in) :: field_data(:,:,:)
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
-      
+
       ! Generated include file for 3D INTEGER field assignment
       rc = CC_SUCCESS
       select case (trim(adjustl(field_name)))
 #include "metstate_set_field_3d_int.inc"
-      case default
+       case default
          call error_mgr%report_error(ERROR_NOT_FOUND, &
             "Unknown field name: " // trim(field_name), rc)
          rc = CC_FAILURE
@@ -1168,12 +1168,12 @@ CONTAINS
       logical, intent(in) :: field_data(:,:,:)
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
-      
+
       ! Generated include file for 3D LOGICAL field assignment
       rc = CC_SUCCESS
       select case (trim(adjustl(field_name)))
 #include "metstate_set_field_3d_logical.inc"
-      case default
+       case default
          call error_mgr%report_error(ERROR_NOT_FOUND, &
             "Unknown field name: " // trim(field_name), rc)
          rc = CC_FAILURE

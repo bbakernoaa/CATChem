@@ -32,7 +32,7 @@ As part of this effort we will evaluate UFS-Chem against NOAA collected field ca
 And the following field campaigns to better understand emissions, processing, and dynamics of fires:
 
 - [**FIREX-AQ**](https://csl.noaa.gov/projects/firex-aq/) - Fire Influence on Regional to Global Environments and Air Quality
-- [**CALFIDE**](https://csl.noaa.gov/groups/csl7/measurements/2022calfide/) - California Fire Dynamics Experiment 
+- [**CALFIDE**](https://csl.noaa.gov/groups/csl7/measurements/2022calfide/) - California Fire Dynamics Experiment
 
 ## Evaluation Schedule
 

@@ -158,7 +158,7 @@ flowchart TB
 
   ---
 
-  CATChem is incorporated into the UFS to create UFS-Chem or the Unified Forecast System with Chemistry 
+  CATChem is incorporated into the UFS to create UFS-Chem or the Unified Forecast System with Chemistry
 
 - [:material-handshake-outline: **Community Engagement**](community/index.md)
 

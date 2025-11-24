@@ -163,10 +163,10 @@ contains
          ! Scalar diagnostic
          allocate(this%column_total_dust_emission)
          this%column_total_dust_emission = 0.0_fp
-         
+
          ! Allocate and initialize scheme-specific diagnostic fields based on selected scheme
          select case (this%process_config%dust_config%scheme)
-         case ("fengsha")
+          case ("fengsha")
             ! Scheme-specific diagnostics for fengsha
             ! Scalar diagnostic
             allocate(this%column_dust_horizontal_flux)
@@ -177,7 +177,7 @@ contains
             ! Scalar diagnostic
             allocate(this%column_dust_effective_threshold)
             this%column_dust_effective_threshold = 0.0_fp
-         case ("ginoux")
+          case ("ginoux")
             ! Scheme-specific diagnostics for ginoux
             ! Scalar diagnostic
             allocate(this%column_dust_horizontal_flux)
@@ -188,7 +188,7 @@ contains
             ! Scalar diagnostic
             allocate(this%column_dust_effective_threshold)
             this%column_dust_effective_threshold = 0.0_fp
-         case default
+          case default
             ! No scheme-specific diagnostics for unknown schemes
          end select
       end if
@@ -216,7 +216,7 @@ contains
       ! For ColumnProcessInterface processes, the ProcessManager handles column iteration
       ! and calls run_column() for each virtual column. This method is mainly a placeholder
       ! for any global 3D operations that need to happen before/after column processing.
-      
+
       ! Currently no global 3D operations needed for dust process
       ! All processing happens in run_column() method
 
@@ -266,7 +266,7 @@ contains
       ! This handles the complexity of parsing hierarchical YAML into process-specific types
       call this%process_config%load_from_config(config_manager, error_manager)
       ! Note: Error handling managed by error_manager internally
-      
+
       ! Process is now configured - the unified config contains all scheme-specific settings
 
    end subroutine parse_dust_config
@@ -350,11 +350,11 @@ contains
 
       ! Delegate to appropriate scheme using unified config
       select case (trim(this%process_config%dust_config%scheme))
-      case ('fengsha')
+       case ('fengsha')
          call this%run_fengsha_scheme_column(column, rc)
-      case ('ginoux')
+       case ('ginoux')
          call this%run_ginoux_scheme_column(column, rc)
-      case default
+       case default
          rc = CC_FAILURE
       end select
 
@@ -390,13 +390,13 @@ contains
 
       ! Get dimensions from virtual column
       n_levels = 1  ! Surface-only processing
-      
+
       ! Get dust species information from process configuration
       n_species = this%process_config%dust_config%n_species
       if (n_species <= 0) then
          return
       end if
-      
+
       ! Get species indices directly from configuration (pre-computed)
       allocate(species_indices(n_species))
       species_indices(1:n_species) = this%process_config%dust_config%species_indices(1:n_species)
@@ -470,7 +470,7 @@ contains
             this%column_dust_horizontal_flux, &
             this%column_dust_moisture_correction, &
             this%column_dust_effective_threshold &
-         )
+            )
       else
          ! Call without diagnostic outputs (optional parameters not passed)
          call compute_fengsha( &
@@ -491,14 +491,14 @@ contains
             ustar_threshold, &
             species_conc, &
             species_tendencies &
-         )
+            )
       end if
 
       ! Apply tendencies back to virtual column
       ! Surface-only processing - apply tendencies to surface level only
       do i = 1, n_species
          call column%set_chem_field(1, species_indices(i), &
-                                   species_conc(1, i) + species_tendencies(1, i))
+            species_conc(1, i) + species_tendencies(1, i))
       end do
 
    end subroutine run_fengsha_scheme_column
@@ -526,13 +526,13 @@ contains
 
       ! Get dimensions from virtual column
       n_levels = 1  ! Surface-only processing
-      
+
       ! Get dust species information from process configuration
       n_species = this%process_config%dust_config%n_species
       if (n_species <= 0) then
          return
       end if
-      
+
       ! Get species indices directly from configuration (pre-computed)
       allocate(species_indices(n_species))
       species_indices(1:n_species) = this%process_config%dust_config%species_indices(1:n_species)
@@ -585,7 +585,7 @@ contains
             this%column_dust_horizontal_flux, &
             this%column_dust_moisture_correction, &
             this%column_dust_effective_threshold &
-         )
+            )
       else
          ! Call without diagnostic outputs (optional parameters not passed)
          call compute_ginoux( &
@@ -599,14 +599,14 @@ contains
             ssm, &
             species_conc, &
             species_tendencies &
-         )
+            )
       end if
 
       ! Apply tendencies back to virtual column
       ! Surface-only processing - apply tendencies to surface level only
       do i = 1, n_species
          call column%set_chem_field(1, species_indices(i), &
-                                   species_conc(1, i) + species_tendencies(1, i))
+            species_conc(1, i) + species_tendencies(1, i))
       end do
 
    end subroutine run_ginoux_scheme_column
@@ -620,7 +620,7 @@ contains
 
       ! Get scheme-specific fields based on selected scheme
       select case (trim(this%process_config%dust_config%scheme))
-      case ('fengsha')
+       case ('fengsha')
          allocate(field_names(12))
          field_names(1) = 'IsLand'
          field_names(2) = 'USTAR'
@@ -634,14 +634,14 @@ contains
          field_names(10) = 'RDRAG'
          field_names(11) = 'SSM'
          field_names(12) = 'USTAR_THRESHOLD'
-      case ('ginoux')
+       case ('ginoux')
          allocate(field_names(5))
          field_names(1) = 'FRLAKE'
          field_names(2) = 'GWETTOP'
          field_names(3) = 'U10M'
          field_names(4) = 'V10M'
          field_names(5) = 'SSM'
-      case default
+       case default
          allocate(field_names(0))
       end select
 
@@ -661,106 +661,106 @@ contains
 
    subroutine register_process_diagnostics(this, container, rc)
       use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DIAG_REAL_2D, DIAG_REAL_3D
-      
+
       class(ProcessDustInterface), intent(inout) :: this
       type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
-      
+
       type(DiagnosticManagerType), pointer :: diag_mgr
       type(DiagnosticRegistryType), pointer :: registry
       type(GridManagerType), pointer :: grid_mgr
       character(len=32) :: selected_scheme
       integer :: nx, ny, nz
       integer :: dims_2d(2)
-      
+
       rc = CC_SUCCESS
-      
+
       ! Only register diagnostics if enabled in config
       if (.not. this%process_config%dust_config%diagnostics) then
          return
       endif
-      
+
       ! Get managers
       diag_mgr => container%get_diagnostic_manager()
       grid_mgr => container%get_grid_manager()
-      
+
       ! Register this process with diagnostic manager (only once per process)
       call diag_mgr%register_process('dust', rc)
       if (rc /= CC_SUCCESS) return
-      
+
       ! Get the process registry for registering individual diagnostics
       call diag_mgr%get_process_registry('dust', registry, rc)
       if (rc /= CC_SUCCESS) return
-      
+
       ! Get grid dimensions
       call grid_mgr%get_shape(nx, ny, nz)
       dims_2d = [nx, ny]
-      
-      
+
+
       ! Register total_dust_emission
       call this%register_diagnostic_field(registry, 'total_dust_emission', &
-                                          'Total dust emissions for all species', &
-                                          'kg/m2/s', DIAG_REAL_2D, &
-                                          'dust', dims_2d, rc)
+         'Total dust emissions for all species', &
+         'kg/m2/s', DIAG_REAL_2D, &
+         'dust', dims_2d, rc)
       if (rc /= CC_SUCCESS) return
-      
+
       ! Get selected scheme
       selected_scheme = trim(this%process_config%dust_config%scheme)
-      
+
       ! Register scheme-specific diagnostics based on selected scheme
       select case (selected_scheme)
-      
-      case ('fengsha')
+
+       case ('fengsha')
          ! Register fengsha-specific diagnostics
          call this%register_diagnostic_field(registry, 'dust_horizontal_flux', &
-                                             'Total horizontal flux - Q', &
-                                             'kg/m2/s', DIAG_REAL_2D, &
-                                             'dust', dims_2d, rc)
+            'Total horizontal flux - Q', &
+            'kg/m2/s', DIAG_REAL_2D, &
+            'dust', dims_2d, rc)
          if (rc /= CC_SUCCESS) return
-         
+
          call this%register_diagnostic_field(registry, 'dust_moisture_correction', &
-                                             'Moisture Correction - H', &
-                                             'dimensionless', DIAG_INTEGER_2D, &
-                                             'dust', dims_2d, rc)
+            'Moisture Correction - H', &
+            'dimensionless', DIAG_INTEGER_2D, &
+            'dust', dims_2d, rc)
          if (rc /= CC_SUCCESS) return
-         
+
          call this%register_diagnostic_field(registry, 'dust_effective_threshold', &
-                                             'Effective Dust threshold friction velocity: u_thres * H / R', &
-                                             'm/s', DIAG_REAL_2D, &
-                                             'dust', dims_2d, rc)
+            'Effective Dust threshold friction velocity: u_thres * H / R', &
+            'm/s', DIAG_REAL_2D, &
+            'dust', dims_2d, rc)
          if (rc /= CC_SUCCESS) return
-         
-      case ('ginoux')
+
+       case ('ginoux')
          ! Register ginoux-specific diagnostics
          call this%register_diagnostic_field(registry, 'dust_horizontal_flux', &
-                                             'Total horizontal flux - Q', &
-                                             'kg/m2/s', DIAG_REAL_2D, &
-                                             'dust', dims_2d, rc)
+            'Total horizontal flux - Q', &
+            'kg/m2/s', DIAG_REAL_2D, &
+            'dust', dims_2d, rc)
          if (rc /= CC_SUCCESS) return
-         
+
          call this%register_diagnostic_field(registry, 'dust_moisture_correction', &
-                                             'Moisture Correction - H', &
-                                             'dimensionless', DIAG_INTEGER_2D, &
-                                             'dust', dims_2d, rc)
+            'Moisture Correction - H', &
+            'dimensionless', DIAG_INTEGER_2D, &
+            'dust', dims_2d, rc)
          if (rc /= CC_SUCCESS) return
-         
+
          call this%register_diagnostic_field(registry, 'dust_effective_threshold', &
-                                             'Effective Dust threshold friction velocity: u_thres * H / R', &
-                                             'm/s', DIAG_REAL_2D, &
-                                             'dust', dims_2d, rc)
+            'Effective Dust threshold friction velocity: u_thres * H / R', &
+            'm/s', DIAG_REAL_2D, &
+            'dust', dims_2d, rc)
          if (rc /= CC_SUCCESS) return
-         
-      case default
+
+       case default
          ! Unknown scheme - only register common diagnostics
          ! (already done above)
-         
+
       end select
 
    end subroutine register_process_diagnostics
 
    !> Calculate and update all diagnostic fields for this process
-   !! 
-   !! With the new flexible column-level design, diagnostics are calculated directly by the 
+   !!
+   !! With the new flexible column-level design, diagnostics are calculated directly by the
    !! science schemes for each column and passed to this method for aggregation or output.
    !! This approach uses dimension inference to reduce 2D->scalar and 3D->1D for column processing.
    subroutine calculate_and_update_diagnostics(this, column, container, rc)
@@ -768,80 +768,80 @@ contains
       type(VirtualColumnType), intent(in) :: column
       type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
-      
+
       integer :: i_col, j_col  ! Column grid position
       character(len=64) :: selected_scheme
-      
+
       rc = CC_SUCCESS
-      
+
       ! Skip if diagnostics not enabled
       if (.not. this%process_config%dust_config%diagnostics) return
-      
+
       ! Get column grid position (x, y indices)
       call column%get_position(i_col, j_col)
-      
+
       ! Update common diagnostic fields (used by all schemes)
       ! Scalar diagnostic field
       call this%update_scalar_diagnostic_column('total_dust_emission', &
-                                              this%column_total_dust_emission, &
-                                              i_col, j_col, container, rc)
+         this%column_total_dust_emission, &
+         i_col, j_col, container, rc)
       if (rc /= CC_SUCCESS) return
       ! Update scheme-specific diagnostic fields based on active scheme
       selected_scheme = trim(this%process_config%dust_config%scheme)
-      
+
       select case (selected_scheme)
-      case ("fengsha")
+       case ("fengsha")
          ! Update scalar diagnostics (map to 2D global fields)
          if (allocated(this%column_dust_horizontal_flux)) then
             call this%update_scalar_diagnostic_column('dust_horizontal_flux', &
-                                                this%column_dust_horizontal_flux, &
-                                                i_col, j_col, container, rc)
+               this%column_dust_horizontal_flux, &
+               i_col, j_col, container, rc)
             if (rc /= CC_SUCCESS) return
          end if
-         
+
          ! Update scalar diagnostics (map to 2D global fields)
          if (allocated(this%column_dust_moisture_correction)) then
             call this%update_scalar_diagnostic_column('dust_moisture_correction', &
-                                                this%column_dust_moisture_correction, &
-                                                i_col, j_col, container, rc)
+               this%column_dust_moisture_correction, &
+               i_col, j_col, container, rc)
             if (rc /= CC_SUCCESS) return
          end if
-         
+
          ! Update scalar diagnostics (map to 2D global fields)
          if (allocated(this%column_dust_effective_threshold)) then
             call this%update_scalar_diagnostic_column('dust_effective_threshold', &
-                                                this%column_dust_effective_threshold, &
-                                                i_col, j_col, container, rc)
+               this%column_dust_effective_threshold, &
+               i_col, j_col, container, rc)
             if (rc /= CC_SUCCESS) return
          end if
-         
-      case ("ginoux")
+
+       case ("ginoux")
          ! Update scalar diagnostics (map to 2D global fields)
          if (allocated(this%column_dust_horizontal_flux)) then
             call this%update_scalar_diagnostic_column('dust_horizontal_flux', &
-                                                this%column_dust_horizontal_flux, &
-                                                i_col, j_col, container, rc)
+               this%column_dust_horizontal_flux, &
+               i_col, j_col, container, rc)
             if (rc /= CC_SUCCESS) return
          end if
-         
+
          ! Update scalar diagnostics (map to 2D global fields)
          if (allocated(this%column_dust_moisture_correction)) then
             call this%update_scalar_diagnostic_column('dust_moisture_correction', &
-                                                this%column_dust_moisture_correction, &
-                                                i_col, j_col, container, rc)
+               this%column_dust_moisture_correction, &
+               i_col, j_col, container, rc)
             if (rc /= CC_SUCCESS) return
          end if
-         
+
          ! Update scalar diagnostics (map to 2D global fields)
          if (allocated(this%column_dust_effective_threshold)) then
             call this%update_scalar_diagnostic_column('dust_effective_threshold', &
-                                                this%column_dust_effective_threshold, &
-                                                i_col, j_col, container, rc)
+               this%column_dust_effective_threshold, &
+               i_col, j_col, container, rc)
             if (rc /= CC_SUCCESS) return
          end if
-         
+
       end select
-      
+
    end subroutine calculate_and_update_diagnostics
 
 

@@ -117,9 +117,11 @@ add_subdirectory(drivers/nuopc)
 # This avoids export dependency issues by not linking to other CMake targets
 
 # Create aqm library directly from source files to avoid dependency exports
-add_library(aqm STATIC
+add_library(
+  aqm
+  STATIC
   drivers/nuopc/aqmio.F90
-  drivers/nuopc/catchem_nuopc_cap.F90 
+  drivers/nuopc/catchem_nuopc_cap.F90
   drivers/nuopc/catchem_nuopc_interface.F90
 )
 
@@ -131,25 +133,30 @@ target_link_libraries(aqm PUBLIC esmf NetCDF::NetCDF_Fortran)
 add_dependencies(aqm CATChem)
 
 # Link to library files in dependency order (most dependent first)
-target_link_libraries(aqm PRIVATE 
-  $<TARGET_FILE:CATChem>
-  $<TARGET_FILE:CATChem_process_seasalt>
-  $<TARGET_FILE:CATChem_core>
-  $<TARGET_FILE:yaml_interface>
-  $<TARGET_FILE:catchem_utilities>
+target_link_libraries(
+  aqm
+  PRIVATE
+    $<TARGET_FILE:CATChem>
+    $<TARGET_FILE:CATChem_process_seasalt>
+    $<TARGET_FILE:CATChem_core>
+    $<TARGET_FILE:yaml_interface>
+    $<TARGET_FILE:catchem_utilities>
 )
 
 # Include directories for compilation
-target_include_directories(aqm PRIVATE
-  ${CMAKE_BINARY_DIR}/include
+target_include_directories(
+  aqm
+  PRIVATE ${CMAKE_BINARY_DIR}/include
   #$<TARGET_PROPERTY:CATChem,INTERFACE_INCLUDE_DIRECTORIES>
   #$<TARGET_PROPERTY:esmf,INTERFACE_INCLUDE_DIRECTORIES>
   #$<TARGET_PROPERTY:NetCDF::NetCDF_Fortran,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
-set_target_properties(aqm PROPERTIES 
-  Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/../mod
-  EXPORT_NAME aqm
+set_target_properties(
+  aqm
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/../mod
+    EXPORT_NAME aqm
 )
 
 target_compile_options(aqm PRIVATE ${_catchem_compiler_options})
@@ -159,10 +166,12 @@ target_compile_options(aqm PRIVATE ${_catchem_compiler_options})
 ###############################################################################
 
 # Install only the self-contained aqm library - all dependencies are linked directly
-install(TARGETS aqm
-        EXPORT ufs-config
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+install(
+  TARGETS aqm
+  EXPORT ufs-config
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+)
 
 # Install module files to both locations for compatibility
 # Keep include/ for standalone CATChem, add mod/ for UFS integration

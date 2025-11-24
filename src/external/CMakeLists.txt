@@ -1,12 +1,11 @@
 # External dependencies
 
 # Create a basic utilities library that other modules can depend on
-add_library(catchem_utilities
-    ../core/Precision_Mod.F90
-)
+add_library(catchem_utilities ../core/Precision_Mod.F90)
 
-set_target_properties(catchem_utilities
-    PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+set_target_properties(
+  catchem_utilities
+  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
 )
 
 # TODO: GOCART-2G Process Library - currently disabled as source files are missing
@@ -33,7 +32,6 @@ endif()
 if(TARGET NetCDF::NetCDF_Fortran)
   target_link_libraries(${_lib} NetCDF::NetCDF_Fortran)
 endif()
-
 
 set_target_properties(
   ${_lib}
@@ -65,7 +63,7 @@ include(FetchContent)
 FetchContent_Declare(
   yaml-cpp
   GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
-  GIT_TAG        yaml-cpp-0.7.0
+  GIT_TAG yaml-cpp-0.7.0
 )
 
 # Configure yaml-cpp build options

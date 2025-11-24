@@ -14,7 +14,7 @@ module ysuverticaldispersionProcess_Mod
    use error_mod
    use ProcessInterface_Mod
    use DiagnosticInterface_Mod, only: DiagnosticFieldType, DiagnosticRegistryType, &
-                                      DIAG_REAL_2D, DIAG_REAL_3D, DIAG_REAL_SCALAR
+      DIAG_REAL_2D, DIAG_REAL_3D, DIAG_REAL_SCALAR
    use ColumnInterface_Mod, only: VirtualColumnType, ColumnProcessorType
    use scaleAwareYSUScheme_Mod
 
@@ -88,7 +88,7 @@ contains
 
       error_mgr => container%get_error_manager()
       call error_mgr%push_context('ysuverticaldispersion_process_init', &
-                                  'Initializing ysuverticaldispersion process')
+         'Initializing ysuverticaldispersion process')
 
       ! Set process metadata
       this%name = 'ysuverticaldispersion'
@@ -99,9 +99,9 @@ contains
       config => container%get_config_ptr()
       if (.not. associated(config)) then
          call error_mgr%report_error(ERROR_NOT_INITIALIZED, &
-                                    'Configuration not available', rc, &
-                                    'ysuverticaldispersion_process_init', &
-                                    'Ensure StateContainer is properly initialized')
+            'Configuration not available', rc, &
+            'ysuverticaldispersion_process_init', &
+            'Ensure StateContainer is properly initialized')
          call error_mgr%pop_context()
          return
       endif
@@ -125,7 +125,7 @@ contains
       ! Basic validation
       if (.not. container%is_ready()) then
          call error_mgr%report_error(ERROR_NOT_INITIALIZED, &
-                                    'StateContainer not ready', rc)
+            'StateContainer not ready', rc)
          call error_mgr%pop_context()
          return
       end if
@@ -134,7 +134,7 @@ contains
       call this%register_diagnostics(container, rc)
       if (rc /= CC_SUCCESS) then
          call error_mgr%report_error(ERROR_DIAGNOSTIC_REGISTRATION, &
-                                    'Failed to register ysuverticaldispersion diagnostics', rc)
+            'Failed to register ysuverticaldispersion diagnostics', rc)
          call error_mgr%pop_context()
          return
       endif
@@ -146,7 +146,7 @@ contains
       call this%register_diagnostics(container, rc)
       if (rc /= CC_SUCCESS) then
          call error_mgr%report_error(ERROR_DIAGNOSTIC_REGISTRATION, &
-                                    'Failed to register diagnostics', rc)
+            'Failed to register diagnostics', rc)
          call error_mgr%pop_context()
          return
       endif
@@ -154,7 +154,7 @@ contains
       call error_mgr%pop_context()
 
       write(message, '(A,A,A)') 'ysuverticaldispersion process initialized with scheme: ', &
-                                trim(this%selected_scheme)
+         trim(this%selected_scheme)
       call error_mgr%report_info(message)
 
       call error_mgr%pop_context()
@@ -179,7 +179,7 @@ contains
 
       error_mgr => container%get_error_manager()
       call error_mgr%push_context('ysuverticaldispersion_process_run', &
-                                  'ysuverticaldispersion process execution')
+         'ysuverticaldispersion process execution')
 
       ! Use column virtualization if supported and enabled
       if (this%supports_column_processing() .and. this%column_processing_enabled) then
@@ -195,7 +195,7 @@ contains
 
       if (rc /= CC_SUCCESS) then
          call error_mgr%report_error(ERROR_PROCESS_EXECUTION, &
-                                    'ysuverticaldispersion process execution failed', rc)
+            'ysuverticaldispersion process execution failed', rc)
          call error_mgr%pop_context()
          return
       endif
@@ -204,7 +204,7 @@ contains
       call this%update_diagnostics(container, rc)
       if (rc /= CC_SUCCESS) then
          call error_mgr%report_error(ERROR_DIAGNOSTIC_UPDATE, &
-                                    'Failed to update diagnostics', rc)
+            'Failed to update diagnostics', rc)
          call error_mgr%pop_context()
          return
       endif
@@ -252,7 +252,7 @@ contains
          if (local_rc /= CC_SUCCESS) then
             rc = local_rc
             call error_mgr%report_error(ERROR_PROCESS_EXECUTION, &
-                                       'Column processing failed', rc)
+               'Column processing failed', rc)
             return
          endif
       end do
@@ -278,11 +278,11 @@ contains
 
       ! Execute scheme-specific calculations on 3D data
       select case (trim(this%selected_scheme))
-      case ('scaleAwareYSU')
+       case ('scaleAwareYSU')
          call this%run_scaleawareysu_scheme_3d(met_state, chem_state, rc)
-      case default
+       case default
          call error_mgr%report_error(ERROR_INVALID_CONFIG, &
-                                    'Unknown scheme: ' // trim(this%selected_scheme), rc)
+            'Unknown scheme: ' // trim(this%selected_scheme), rc)
          return
       end select
 
@@ -309,9 +309,9 @@ contains
 
       ! For now, use scheme-specific processing
       select case (trim(this%selected_scheme))
-      case ('scaleAwareYSU')
+       case ('scaleAwareYSU')
          call this%run_scaleawareysu_column_scheme(column, container, rc)
-      case default
+       case default
          rc = CC_FAILURE
          return
       end select
@@ -340,7 +340,7 @@ contains
       rc = CC_SUCCESS
       error_mgr => container%get_error_manager()
       call error_mgr%push_context('ysuverticaldispersion_register_diagnostics', &
-                                  'Registering ysuverticaldispersion diagnostics')
+         'Registering ysuverticaldispersion diagnostics')
 
       ! Call parent to register process
       call this%ProcessInterface%register_diagnostics(container, rc)
@@ -439,7 +439,7 @@ contains
 
       ! Placeholder implementation
       write(*,*) 'Running standardYSU scheme on column data at (', &
-                column%global_i, ',', column%global_j, ') - implement me!'
+         column%global_i, ',', column%global_j, ') - implement me!'
 
    end subroutine run_standardysu_column_scheme
 
@@ -484,7 +484,7 @@ contains
 
       ! Placeholder implementation
       write(*,*) 'Running enhancedYSU scheme on column data at (', &
-                column%global_i, ',', column%global_j, ') - implement me!'
+         column%global_i, ',', column%global_j, ') - implement me!'
 
    end subroutine run_enhancedysu_column_scheme
 
@@ -529,7 +529,7 @@ contains
 
       ! Placeholder implementation
       write(*,*) 'Running scaleAwareYSU scheme on column data at (', &
-                column%global_i, ',', column%global_j, ') - implement me!'
+         column%global_i, ',', column%global_j, ') - implement me!'
 
    end subroutine run_scaleawareysu_column_scheme
 

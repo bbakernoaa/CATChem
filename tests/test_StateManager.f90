@@ -33,7 +33,7 @@ program test_StateManager
    write(*,*) 'Test 1: Initialize state manager'
    call state_mgr%init('TestStateManager', rc)
    call assert(rc == CC_SUCCESS, "StateManager initialization should succeed")
-   
+
    ! Check if state manager is initialized
    is_ready = state_mgr%is_ready()
    call assert(.not. is_ready, "StateManager should not be ready before configuration")
@@ -80,7 +80,7 @@ program test_StateManager
    grid_mgr_ptr => state_mgr%get_grid_manager()
    ! Grid manager might not be associated initially
    call assert(.not. associated(grid_mgr_ptr) .or. associated(grid_mgr_ptr), &
-              "Grid manager pointer should be valid (null or associated)")
+      "Grid manager pointer should be valid (null or associated)")
 
    write(*,*) 'Test 6 passed!'
    write(*,*) ''
@@ -90,7 +90,7 @@ program test_StateManager
    diag_mgr_ptr => state_mgr%get_diagnostic_manager()
    ! Diagnostic manager might not be associated initially
    call assert(.not. associated(diag_mgr_ptr) .or. associated(diag_mgr_ptr), &
-              "Diagnostic manager pointer should be valid (null or associated)")
+      "Diagnostic manager pointer should be valid (null or associated)")
 
    write(*,*) 'Test 7 passed!'
    write(*,*) ''
@@ -127,7 +127,7 @@ program test_StateManager
    write(*,*) 'Test 11: Cleanup'
    call state_mgr%cleanup(rc)
    call assert(rc == CC_SUCCESS, "StateManager cleanup should succeed")
-   
+
    ! Check if state manager is no longer ready
    is_ready = state_mgr%is_ready()
    call assert(.not. is_ready, "StateManager should not be ready after cleanup")
@@ -136,5 +136,5 @@ program test_StateManager
    write(*,*) ''
 
    write(*,*) 'All StateManager tests passed!'
-   
+
 end program test_StateManager
