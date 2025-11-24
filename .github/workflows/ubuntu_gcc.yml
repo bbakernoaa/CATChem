@@ -87,7 +87,7 @@ jobs:
           export FC=mpif90
           cd catchem
           mkdir -p build && cd build
-          cmake -DCMAKE_INSTALL_PREFIX=../install -DBUILD_NUOPC=ON..
+          cmake -DCMAKE_INSTALL_PREFIX=../install -DBUILD_NUOPC=ON ..
           make -j2 VERBOSE=1
           make install
 
