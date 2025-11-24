@@ -120,10 +120,10 @@ if(BUILD_NUOPC)
   #   COMMENT "Copying module files from include/ to mod/ for UFS integration"
   # )
 
-  # Create a self-contained aqm library by combining all necessary object files
+  # Create a self-contained catchem library by combining all necessary object files
   # This avoids export dependency issues by not linking to other CMake targets
 
-  # Create aqm library directly from source files to avoid dependency exports
+  # Create catchem library directly from source files to avoid dependency exports
   add_library(
     cc_nuopc
     STATIC
@@ -163,16 +163,16 @@ if(BUILD_NUOPC)
     cc_nuopc
     PROPERTIES
       Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/../mod
-      EXPORT_NAME aqm
+      EXPORT_NAME cc_nuopc
   )
 
-  target_compile_options(aqm PRIVATE ${_catchem_compiler_options})
+  target_compile_options(cc_nuopc PRIVATE ${_catchem_compiler_options})
 
   ###############################################################################
   ### Installation and Export for UFS integration
   ###############################################################################
 
-  # Install only the self-contained aqm library - all dependencies are linked directly
+  # Install only the self-contained catchem library - all dependencies are linked directly
   install(
     TARGETS cc_nuopc
     EXPORT ufs-config
