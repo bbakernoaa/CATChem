@@ -87,7 +87,7 @@ jobs:
           export FC=mpif90
           cd catchem
           mkdir -p build && cd build
-          cmake -DCMAKE_INSTALL_PREFIX=../install ..
+          cmake -DCMAKE_INSTALL_PREFIX=../install -DBUILD_NUOPC=ON..
           make -j2 VERBOSE=1
           make install
 
@@ -95,6 +95,5 @@ jobs:
         run: |
           source spack/share/spack/setup-env.sh
           spack env activate catchem-env
-          cd catchem
-          set -x
-          bin="$PWD/build/bin/catchem"
+          cd catchem/build
+          ctest --output-on-failure
