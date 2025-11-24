@@ -9,27 +9,29 @@
 #
 #   set(ESMF_MKGLOBALS "LIBSDIR" "APPSDIR")
 
-
 # Add the ESMFMKFILE path to the cache if defined as system env variable
-if (DEFINED ENV{ESMFMKFILE} AND NOT DEFINED ESMFMKFILE)
+if(DEFINED ENV{ESMFMKFILE} AND NOT DEFINED ESMFMKFILE)
   set(ESMFMKFILE $ENV{ESMFMKFILE} CACHE FILEPATH "Path to ESMF mk file")
-endif ()
+endif()
 
 # Found the mk file and ESMF exists on the system
-if (EXISTS ${ESMFMKFILE})
+if(EXISTS ${ESMFMKFILE})
   set(ESMF_FOUND TRUE CACHE BOOL "ESMF mk file found" FORCE)
   # Did not find the ESMF mk file
 else()
   set(ESMF_FOUND FALSE CACHE BOOL "ESMF mk file NOT found" FORCE)
   # Best to warn users that without the mk file there is no way to find ESMF
-  if (NOT DEFINED ESMFMKFILE)
-    message(FATAL_ERROR "ESMFMKFILE not defined. This is the path to esmf.mk file. \
-Without this filepath, ESMF_FOUND will always be FALSE.")
-  endif ()
+  if(NOT DEFINED ESMFMKFILE)
+    message(
+      FATAL_ERROR
+      "ESMFMKFILE not defined. This is the path to esmf.mk file. \
+Without this filepath, ESMF_FOUND will always be FALSE."
+    )
+  endif()
 endif()
 
 # Only parse the mk file if it is found
-if (ESMF_FOUND)
+if(ESMF_FOUND)
   # Read the mk file
   file(STRINGS "${ESMFMKFILE}" esmfmkfile_contents)
   # Parse each line in the mk file
@@ -37,13 +39,13 @@ if (ESMF_FOUND)
     # Only consider uncommented lines
     string(REGEX MATCH "^[^#]" def ${str})
     # Line is not commented
-    if (def)
+    if(def)
       # Extract the variable name
       string(REGEX MATCH "^[^=]+" esmf_varname ${str})
       # Extract the variable's value
       string(REGEX MATCH "=.+$" esmf_vardef ${str})
       # Only for variables with a defined value
-      if (esmf_vardef)
+      if(esmf_vardef)
         # Get rid of the assignment string
         string(SUBSTRING ${esmf_vardef} 1 -1 esmf_vardef)
         # Remove whitespace
@@ -62,7 +64,7 @@ if (ESMF_FOUND)
               # Promote to global scope
               set(${esmf_varname} ${esmf_vardef})
               # Don't display by default in the GUI
-              mark_as_advanced (esmf_varname)
+              mark_as_advanced(esmf_varname)
               # No need to search for the current string filter
               break()
             endif()
@@ -80,15 +82,28 @@ if (ESMF_FOUND)
     set(ESMF_BETA_RELEASE FALSE)
     if(ESMF_VERSION_BETASNAPSHOT MATCHES "^('T')$")
       set(ESMF_BETA_RELEASE TRUE)
-      string(REGEX REPLACE ".*beta_snapshot_*\([0-9]*\).*" "\\1" ESMF_BETA_SNAPSHOT "${ESMF_VERSION_STRING_GIT}")
+      string(
+        REGEX REPLACE
+        ".*beta_snapshot_*\([0-9]*\).*"
+        "\\1"
+        ESMF_BETA_SNAPSHOT
+        "${ESMF_VERSION_STRING_GIT}"
+      )
     endif()
-    set(ESMF_VERSION "${ESMF_VERSION_MAJOR}.${ESMF_VERSION_MINOR}.${ESMF_VERSION_PATCH}")
+    set(
+      ESMF_VERSION
+      "${ESMF_VERSION_MAJOR}.${ESMF_VERSION_MINOR}.${ESMF_VERSION_PATCH}"
+    )
   endif()
 
-  separate_arguments(ESMF_F90COMPILEPATHS NATIVE_COMMAND ${ESMF_F90COMPILEPATHS})
-  foreach (ITEM ${ESMF_F90COMPILEPATHS})
-     string(REGEX REPLACE "^-I" "" ITEM "${ITEM}")
-     list(APPEND tmp ${ITEM})
+  separate_arguments(
+    ESMF_F90COMPILEPATHS
+    NATIVE_COMMAND
+    ${ESMF_F90COMPILEPATHS}
+  )
+  foreach(ITEM ${ESMF_F90COMPILEPATHS})
+    string(REGEX REPLACE "^-I" "" ITEM "${ITEM}")
+    list(APPEND tmp ${ITEM})
   endforeach()
   set(ESMF_F90COMPILEPATHS ${tmp})
 
@@ -96,15 +111,25 @@ if (ESMF_FOUND)
   # Look for static library, if not found try dynamic library
   find_library(esmf_lib NAMES libesmf.a PATHS ${ESMF_LIBSDIR})
   if(esmf_lib MATCHES "esmf_lib-NOTFOUND")
-    message(STATUS "Static ESMF library not found, searching for dynamic library instead")
+    message(
+      STATUS
+      "Static ESMF library not found, searching for dynamic library instead"
+    )
     find_library(esmf_lib NAMES esmf_fullylinked PATHS ${ESMF_LIBSDIR})
     if(esmf_lib MATCHES "esmf_lib-NOTFOUND")
-      message(FATAL_ERROR "Neither the dynamic nor the static ESMF library was found")
+      message(
+        FATAL_ERROR
+        "Neither the dynamic nor the static ESMF library was found"
+      )
     endif()
     set(ESMF_INTERFACE_LINK_LIBRARIES "")
   else()
     # When linking the static library, also need the ESMF linker flags; strip any leading/trailing whitespaces
-    string(STRIP "${ESMF_F90ESMFLINKRPATHS} ${ESMF_F90ESMFLINKPATHS} ${ESMF_F90LINKPATHS} ${ESMF_F90LINKLIBS} ${ESMF_F90LINKOPTS}" ESMF_INTERFACE_LINK_LIBRARIES)
+    string(
+      STRIP
+      "${ESMF_F90ESMFLINKRPATHS} ${ESMF_F90ESMFLINKPATHS} ${ESMF_F90LINKPATHS} ${ESMF_F90LINKLIBS} ${ESMF_F90LINKOPTS}"
+      ESMF_INTERFACE_LINK_LIBRARIES
+    )
   endif()
 
   message(STATUS "Found ESMF library: ${esmf_lib}")
@@ -112,19 +137,21 @@ if (ESMF_FOUND)
     message(STATUS "Detected ESMF Beta snapshot ${ESMF_BETA_SNAPSHOT}")
   endif()
 
-  set_target_properties(esmf PROPERTIES
-    IMPORTED_LOCATION ${esmf_lib}
-    INTERFACE_INCLUDE_DIRECTORIES "${ESMF_F90COMPILEPATHS}"
-    INTERFACE_LINK_LIBRARIES "${ESMF_INTERFACE_LINK_LIBRARIES}")
-
+  set_target_properties(
+    esmf
+    PROPERTIES
+      IMPORTED_LOCATION ${esmf_lib}
+      INTERFACE_INCLUDE_DIRECTORIES "${ESMF_F90COMPILEPATHS}"
+      INTERFACE_LINK_LIBRARIES "${ESMF_INTERFACE_LINK_LIBRARIES}"
+  )
 endif()
 
 ## Finalize find_package
 include(FindPackageHandleStandardArgs)
 
-find_package_handle_standard_args( ${CMAKE_FIND_PACKAGE_NAME}
-    REQUIRED_VARS ESMF_LIBSDIR
-                  ESMF_INTERFACE_LINK_LIBRARIES
-                  ESMF_F90COMPILEPATHS
-    VERSION_VAR ESMF_VERSION
-    HANDLE_COMPONENTS )
+find_package_handle_standard_args(
+  ${CMAKE_FIND_PACKAGE_NAME}
+  REQUIRED_VARS ESMF_LIBSDIR ESMF_INTERFACE_LINK_LIBRARIES ESMF_F90COMPILEPATHS
+  VERSION_VAR ESMF_VERSION
+  HANDLE_COMPONENTS
+)
