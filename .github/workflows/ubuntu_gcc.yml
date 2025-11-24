@@ -39,7 +39,7 @@ jobs:
           path: |
             spack
             ~/.spack
-          key: spack-${{ runner.os }}-${{ env.cache_key }}-${{ hashFiles('nexus/ci/spack.yaml') }}
+          key: spack-${{ runner.os }}-${{ env.cache_key }}-${{ hashFiles('catchem/ci/spack.yaml') }}
 
       # Install dependencies using Spack
       - name: install-dependencies-with-spack
@@ -47,7 +47,7 @@ jobs:
         run: |
           git clone -c feature.manyFiles=true https://github.com/JCSDA/spack.git
           source spack/share/spack/setup-env.sh
-          sed "s/\[oneapi, gcc@13:13, apple-clang@14\]/\[gcc@13:13\]/g" nexus/ci/spack.yaml > spack_ci.yaml
+          sed "s/\[oneapi, gcc@13:13, apple-clang@14\]/\[gcc@13:13\]/g" catchem/ci/spack.yaml > spack_ci.yaml
           spack env create catchem-env spack_ci.yaml
           spack env activate catchem-env
           sudo apt update
@@ -82,7 +82,7 @@ jobs:
       - name: build
         run: |
           source spack/share/spack/setup-env.sh
-          spack env activate nexus-env
+          spack env activate catchem-env
           export CC=mpicc
           export FC=mpif90
           cd nexus
