@@ -16,9 +16,9 @@ env:
 
 # The jobs are split into:
 # 1. a dependency build step (setup), and
-# 2. a nexus build and test step (nexus)
+# 2. a catchem build and test step (catchem)
 # The setup is run once and the environment is cached,
-# so each subsequent build and test of nexus can reuse the cached
+# so each subsequent build and test of catchem can reuse the cached
 # dependencies to save time (and compute).
 
 jobs:
@@ -59,7 +59,7 @@ jobs:
           spack install -v --fail-fast --dirty
           spack clean --all
 
-  nexus:
+  catchem:
     needs: setup
     runs-on: ubuntu-24.04
 
@@ -67,7 +67,7 @@ jobs:
       - name: checkout
         uses: actions/checkout@v3
         with:
-            path: nexus
+            path: catchem
             submodules: recursive
 
       - name: cache-env
@@ -85,7 +85,7 @@ jobs:
           spack env activate catchem-env
           export CC=mpicc
           export FC=mpif90
-          cd nexus
+          cd catchem
           mkdir -p build && cd build
           cmake -DCMAKE_INSTALL_PREFIX=../install ..
           make -j2 VERBOSE=1
@@ -95,6 +95,6 @@ jobs:
         run: |
           source spack/share/spack/setup-env.sh
           spack env activate catchem-env
-          cd nexus
+          cd catchem
           set -x
-          bin="$PWD/build/bin/nexus"
+          bin="$PWD/build/bin/catchem"
