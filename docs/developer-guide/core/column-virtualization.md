@@ -36,15 +36,13 @@ The column processor manages the transformation and iteration:
 module ColumnProcessor_Mod
   implicit none
 
-  type :: ColumnProcessorType
-    private
-    integer :: nx, ny, nz, nspecies
-    type(ColumnDataType) :: working_column
-  contains
-    procedure :: process_domain => process_3d_domain
-    procedure :: extract_column => extract_1d_column
-    procedure :: insert_column => insert_1d_column
-  end type ColumnProcessorType
+  private
+  integer :: nx, ny, nz, nspecies
+  type(ColumnDataType) :: working_column
+
+  procedure :: process_domain => process_3d_domain
+  procedure :: extract_column => extract_1d_column
+  procedure :: insert_column => insert_1d_column
 
 contains
 
@@ -121,7 +119,6 @@ subroutine process_domain_parallel(this, domain_data, processes)
       call insert_column(domain_data, i, j, thread_columns(thread_id))
     end do
   end do
-  !$OMP END PARALLEL DO
 end subroutine process_domain_parallel
 ```
 
@@ -153,7 +150,6 @@ type :: ColumnDataType
   ! Diagnostic data
   real(fp), allocatable :: process_rates(:,:,:) ! (nz, nspecies, nprocesses)
 
-contains
   procedure :: initialize => column_initialize
   procedure :: cleanup => column_cleanup
   procedure :: copy_from_domain => extract_from_3d
@@ -206,7 +202,6 @@ Processes implement column-specific methods:
 
 ```fortran
 type, extends(ProcessInterface) :: MyProcessType
-contains
   procedure :: run_column => my_process_column
 end type MyProcessType
 

@@ -766,10 +766,10 @@ end function catchem_initialize
 
 ## Related Documentation
 
-- [Build System](core/build-system.md)
+- [Build System](../user-guide/build-system.md)
 - [Process Architecture](processes/architecture.md)
 - [State Management](core/state-management.md)
-- [Column Virtualization](../user-guide/advanced_topics/column-virtualization.md)
+
 - [Performance Guide](performance.md)
 
 ---

@@ -289,5 +289,5 @@ debug:
 
 ## See Also
 
-- [Process Architecture](../developer-guide/processes/index.md)
-- [StateContainer Guide](statecontainer.md)
+- [Process Architecture](../../developer-guide/processes/index.md)
+- [StateContainer Guide](../../developer-guide/state-container.md)

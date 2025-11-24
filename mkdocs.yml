@@ -225,8 +225,8 @@ nav:
 
   - User Guide:
     - user-guide/index.md
-    - Build System: developer-guide/core/build-system.md
-    - HPC Installation: developer-guide/core/hpc-installation.md
+    - Build System: user-guide/build-system.md
+    - HPC Installation: user-guide/hpc-installation.md
     - Overview: user-guide/overview.md
     - Configuration System: user-guide/configuration.md
     - Input Files: user-guide/input-files.md
@@ -239,13 +239,13 @@ nav:
       - Sea Salt Emissions: processes/seasalt/index.md
       - External Emissions: processes/external_emission_data/external_emission_data.md
     - Advanced Topics:
-      - Process Infrastructure: guides/process-infrastructure.md
-      - Column Virtualization: guides/column-virtualization.md
-      - StateContainer: guides/statecontainer.md
-      - Diagnostic System: guides/diagnostic-system.md
-      - Configuration Management: guides/configuration-management.md
-      - Performance Optimization: guides/performance.md
-      - Integration Patterns: guides/integration-patterns.md
+      - Process Infrastructure: user-guide/advanced_topics/process-infrastructure.md
+      - Column Virtualization: user-guide/advanced_topics/column-virtualization.md
+      - StateContainer: user-guide/advanced_topics/statecontainer.md
+      - Diagnostic System: user-guide/advanced_topics/diagnostic-system.md
+      - Configuration Management: user-guide/advanced_topics/configuration-management.md
+      - Performance Optimization: user-guide/advanced_topics/performance.md
+      - Integration Patterns: user-guide/advanced_topics/integration-patterns.md
 
   - Developer Guide:
     - developer-guide/index.md

@@ -152,7 +152,7 @@ module ProcessInterface_Mod
 end module ProcessInterface_Mod
 ```
 
-Learn more about contributing to CATChem documentation in the [**Developer Documentation Guide**](documentation.md)
+Learn more about contributing to CATChem documentation in the [**Developer Documentation Guide**](documentation.md).
 
 ### 3. Testing Requirements
 
@@ -539,7 +539,7 @@ Active contributors may be invited to become maintainers:
 ### Development Resources
 
 - [**Developer Guide**](index.md)
-- [**Build System Documentation**](core/build-system.md)
+- [**Build System Documentation**](../user-guide/build-system.md)
 - [**Testing Guide**](testing.md)
 - [**Performance Guide**](performance.md)
 - [**Process Generator Tutorial**](processes/generator-tutorial.md)

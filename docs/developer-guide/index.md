@@ -218,7 +218,7 @@ contains
 end type
 ```
 
-Refer to the [**Developer Column Virtualization Guide**] (core/column-virtualization.md) to learn more.
+
 
 ### Error Handling
 
@@ -275,7 +275,7 @@ Refer to the [**Developer Core Systems Guide**](core/index.md) to learn about mo
    - Validate against analytical solutions where possible
    - Test error conditions and edge cases
 
-Learn more in the [**Developer Coding Standards Guide**](coding_standards.md).
+Learn more in the [**Developer Coding Standards Guide**](coding-standards.md).
 
 ### Review Process
 
@@ -308,7 +308,7 @@ Learn more in the [**Contributor Guide Under Review Process**](contributing.md#r
 
 ### Development Tools
 
-- **CMake**: [**Modern build system**](core/build-system.md) with testing integration
+- **CMake**: [**Modern build system**](../user-guide/build-system.md) with testing integration
 - **CTest**: Automated testing framework
 - **Doxygen**: API documentation generation
 - **lcov**: Code coverage analysis
@@ -346,7 +346,7 @@ gdb ./catchem_test
 
 ### Performance Optimization
 
-- [**Column Virtualization Guide**](core/column-virtualization.md)
+
 - [**Memory Management Best Practices**](performance.md)
 - [**Profiling and Benchmarking**](performance.md#profiling)
 
@@ -354,7 +354,7 @@ gdb ./catchem_test
 
 - [**CCPP Integration**](integration/ccpp.md)
 - [**NUOPC Coupling**](integration/nuopc.md)
-- [**FV3 Integration**](integration/fv3.md)
+- [**FV3 Integration**](integration/nuopc.md)
 
 ### Extending the Framework
 
