@@ -130,7 +130,7 @@ flowchart TB
 
 <div class="grid cards" markdown>
 
-- [:material-rocket-launch-outline: **Quick Start**](quick-start/index.md)
+- [:material-rocket-launch-outline: **Quick Start**](old_guides/quick-start/index.md)
 
   ---
 
@@ -177,7 +177,7 @@ flowchart TB
 
 ## 📄 License
 
-CATChem is released under the **[Apache 2.0 License](../license.md)**.
+CATChem is released under the **[Apache 2.0 License](license.md)**.
 
 ---
 

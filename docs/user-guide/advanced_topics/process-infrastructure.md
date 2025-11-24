@@ -503,9 +503,9 @@ call process_registry%register_process("my_custom_process", &
 
 ## Related Documentation
 
-- [Process Architecture](../developer-guide/processes/architecture.md)
-- [State Management](../developer-guide/core/state-management.md)
-- [Column Virtualization](column-virtualization.md)
+- [Process Architecture](../../developer-guide/processes/architecture.md)
+- [State Management](../../developer-guide/core/state-management.md)
+
 - [Diagnostic System](diagnostic-system.md)
 
 ---

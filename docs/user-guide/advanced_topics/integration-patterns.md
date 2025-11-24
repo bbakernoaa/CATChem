@@ -702,10 +702,10 @@ end subroutine ode_exchange_data
 
 ## Related Documentation
 
-- [NUOPC Integration Guide](../developer-guide/integration/nuopc.md)
-- [CCPP Integration Guide](../developer-guide/integration/ccpp.md)
-- [FV3 Integration Guide](../developer-guide/integration/fv3.md)
-- [API Reference](../api/index.md)
+- [NUOPC Integration Guide](../../developer-guide/integration/nuopc.md)
+- [CCPP Integration Guide](../../developer-guide/integration/ccpp.md)
+- [FV3 Integration Guide](../../developer-guide/integration/fv3.md)
+- [API Reference](../../api/index.md)
 - [Configuration Management](configuration-management.md)
 
 ---

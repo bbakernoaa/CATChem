@@ -44,7 +44,7 @@ This collection provides in-depth explanations of key concepts, architecture pat
 
 #### Core Architecture
 - **[Process Infrastructure](advanced_topics/process-infrastructure.md)** - Understanding the process framework and lifecycle
-- **[Column Virtualization](advanced_topics/column-virtualization.md)** - How CATChem handles column-based data access
+
 - **[StateContainer](advanced_topics/statecontainer.md)** - Central state management and data flow
 - **[Diagnostic System](advanced_topics/diagnostic-system.md)** - Process monitoring and output management
 
@@ -71,7 +71,7 @@ Technical reference material for advanced users and developers.
 If you're new to CATChem:
 
 1. Start with **[Process Infrastructure](advanced_topics/process-infrastructure.md)** to understand the core architecture
-2. Read **[Column Virtualization](advanced_topics/column-virtualization.md)** to learn about data management
+
 3. Explore **[StateContainer](advanced_topics/statecontainer.md)** for state management concepts
 
 For developers:

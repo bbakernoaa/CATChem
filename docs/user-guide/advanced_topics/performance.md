@@ -659,9 +659,9 @@ export PAPI_EVENTS="PAPI_L3_TCM,PAPI_TOT_CYC,PAPI_TOT_INS"
 
 ## Related Documentation
 
-- [Column Virtualization Guide](column-virtualization.md)
-- [Build System](../developer-guide/build-system.md)
-- [HPC Installation](../developer-guide/hpc-installation.md)
+
+- [Build System](../../developer-guide/build-system.md)
+- [HPC Installation](../../developer-guide/hpc-installation.md)
 - [Configuration Guide](configuration-management.md)
 
 ---

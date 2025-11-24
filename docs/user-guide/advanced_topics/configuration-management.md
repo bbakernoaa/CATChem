@@ -604,8 +604,8 @@ catchem_config_migrate --from 1.1.0 --to 1.2.0 --config old_config.yaml
 
 - [Process Infrastructure](process-infrastructure.md)
 - [Performance Guide](performance.md)
-- [User Configuration Guide](../user-guide/configuration.md)
-- [Developer Guide](../developer-guide/index.md)
+- [User Configuration Guide](../configuration.md)
+- [Developer Guide](../../developer-guide/index.md)
 
 ---
 
