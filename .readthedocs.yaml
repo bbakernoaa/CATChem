@@ -7,7 +7,6 @@ build:
   jobs:
     pre_build:
       - cd docs && doxygen Doxyfile
-      - cd docs && doxysphinx build . $READTHEDOCS_OUTPUT/html/ Doxyfile
 
 mkdocs:
   configuration: mkdocs.yml
