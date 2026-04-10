@@ -43,17 +43,17 @@ set_target_properties(
 #
 
 # Set MUSICA build options before adding the subdirectory
-# set(MICM_ENABLE_TESTS OFF)
-# set(MICM_ENABLE_EXAMPLES OFF)
-# set(MUSICA_BUILD_C_CXX_INTERFACE ON)
-# set(MUSICA_BUILD_FORTRAN_INTERFACE ON)
-# set(MUSICA_ENABLE_INSTALL OFF)
-# set(MUSICA_ENABLE_TESTS OFF)
-# set(MUSICA_ENABLE_MICM ON)
-# set(MUSICA_ENABLE_TUVX ON)
+set(MICM_ENABLE_TESTS OFF)
+set(MICM_ENABLE_EXAMPLES OFF)
+set(MUSICA_BUILD_C_CXX_INTERFACE ON)
+set(MUSICA_BUILD_FORTRAN_INTERFACE ON)
+set(MUSICA_ENABLE_INSTALL OFF)
+set(MUSICA_ENABLE_TESTS OFF)
+set(MUSICA_ENABLE_MICM ON)
+set(MUSICA_ENABLE_TUVX OFF)
 
 # # Add MUSICA as a subdirectory (from submodule v0.11.1.4)
-# add_subdirectory(musica)
+add_subdirectory(musica)
 
 #
 # YAML-CPP standalone build (since we're not using MUSICA)
