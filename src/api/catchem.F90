@@ -58,19 +58,17 @@ module CATChem
    ! CATChem States
    !---------------
    use ChemState_Mod,  only: ChemStateType    ! Chemical State
-   ! use GridState_Mod,  only: GridStateType    ! Grid State (DEPRECATED - removed)
-   use DiagState_Mod,  only: DiagStateType    ! Diagnostic State
-   use EmisState_Mod,  only: EmisStateType    ! Emission State
    use MetState_Mod,   only: MetStateType     ! Meteorology State
    use species_mod,    only: SpeciesType      ! Species State
-   use Config_Opt_Mod, only: ConfigType
-   use state_mod,      only: StateContainerType, StateBuilderType  ! Modern state management
+
+   use StateManager_Mod, only: StateManagerType  ! Modern state management
 
    !------------------
    ! Grid Management
    !------------------
    use GridManager_Mod, only: GridManagerType, GridGeometryType, ColumnIteratorType
-   use ColumnInterface_Mod, only: VirtualColumnType, ColumnProcessorType
+   use ColumnInterface_Mod, only: ColumnProcessorType
+   use VirtualColumn_Mod, only: VirtualColumnType
 
    !--------------------
    ! Process Management
@@ -117,9 +115,8 @@ module CATChem
    use Error_Mod, only: CC_SUCCESS                      ! CATChem Successful return code
    use Error_Mod, only: cc_emit_warning => CC_Warning   ! Method for emitting warnings
    !
-   use init_mod, only: cc_init_diag => Init_Diag        ! Method for initializing the diag state
-   use init_mod, only: cc_init_met => Init_Met          ! Method for initializing the met state
-   use init_mod, only: cc_init_emis => Init_Emis        ! Method for initializing the emission state
+   ! Legacy init_mod removed — use CATChemCore_Mod for initialization
+   !
    use run_mod, only: cc_init_process => Init_Process  ! Method for initializing the process state
    use run_mod,  only: cc_run_process => Run_Process    ! Method for running the processes
    use run_mod,  only: cc_finalize_process => Finalize_Process    ! Method for finalizing the processes
@@ -176,7 +173,7 @@ contains
    !! \param[in] nz Number of grid points in z direction
    !! \param[out] rc Return code
    subroutine cc_init_grid_manager(container, nx, ny, nz, rc)
-      type(StateContainerType), intent(inout) :: container
+      type(StateManagerType), intent(inout) :: container
       integer, intent(in) :: nx, ny, nz
       integer, intent(out) :: rc
 
@@ -207,7 +204,7 @@ contains
    !! \param[out] virtual_col Virtual column object
    !! \param[out] rc Return code
    subroutine cc_create_virtual_column(container, col_idx, virtual_col, rc)
-      type(StateContainerType), intent(inout) :: container
+      type(StateManagerType), intent(inout) :: container
       integer, intent(in) :: col_idx
       type(VirtualColumnType), intent(out) :: virtual_col
       integer, intent(out) :: rc
@@ -235,7 +232,7 @@ contains
    !! \param[out] rc Return code
    subroutine cc_run_column_processes(proc_mgr, container, rc)
       type(ProcessManagerType), intent(inout) :: proc_mgr
-      type(StateContainerType), intent(inout) :: container
+      type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
       call proc_mgr%run_column_processes(container, rc)
@@ -249,7 +246,7 @@ contains
    subroutine cc_process_all_columns(proc_mgr, process_name, container, rc)
       type(ProcessManagerType), intent(inout) :: proc_mgr
       character(len=*), intent(in) :: process_name
-      type(StateContainerType), intent(inout) :: container
+      type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
       call proc_mgr%run_process(process_name, container, rc)

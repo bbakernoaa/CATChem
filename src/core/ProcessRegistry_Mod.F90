@@ -271,7 +271,11 @@ contains
       integer :: idx
 
       call this%find_process_index(name, idx)
-      available = (idx > 0 .and. this%entries(idx)%is_available)
+      if (idx > 0) then
+         available = this%entries(idx)%is_available
+      else
+         available = .false.
+      endif
    end function registry_is_process_available
 
    !> \brief Get description for a registered process

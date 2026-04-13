@@ -125,19 +125,23 @@ contains
 
    end subroutine register_builtin_processes
 
-   !> \brief Module-level convenience function
+   !> \brief Module-level convenience function using global registry
+   !!
+   !! Note: This creates a temporary factory per call. For repeated use,
+   !! prefer creating a ProcessFactoryType instance and reusing it.
    function create_process(process_name, container, rc) result(process)
+      use ProcessRegistry_Mod, only: get_global_registry, ProcessRegistryType
       character(len=*), intent(in) :: process_name
       type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
       class(ProcessInterface), allocatable :: process
 
-      type(ProcessFactoryType) :: factory
+      type(ProcessRegistryType), pointer :: registry
 
-      call factory%init(rc)
-      if (rc /= CC_SUCCESS) return
+      ! Use the global registry directly instead of creating a throwaway factory
+      registry => get_global_registry()
+      call registry%create_process(process_name, process, rc)
 
-      call factory%create_process(process_name, container, process, rc)
    end function create_process
 
 end module ProcessFactory_Mod

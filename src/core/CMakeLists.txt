@@ -1,9 +1,10 @@
 set(
   _base_srcs
   constants.F90
+  error_mod.F90
+  UnitConversion_Mod.F90
   utilities_mod.F90
   met_utilities_mod.F90
-  error_mod.F90
 )
 
 set(

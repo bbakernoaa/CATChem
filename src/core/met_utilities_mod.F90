@@ -115,10 +115,10 @@ contains
    function relative_humidity(T, qv, p) result(rh)
       real(fp), intent(in) :: T, qv, p
       real(fp) :: rh
-      real(fp) :: e, es
-      e = qv * p / (0.622_fp + 0.378_fp * qv)
+      real(fp) :: e_vap, es
+      e_vap = qv * p / (0.622_fp + 0.378_fp * qv)
       es = saturation_vapor_pressure(T)
-      rh = e / es
+      rh = e_vap / es
       ! Clip to physical limits
       rh = max(0.0_fp, min(1.0_fp, rh))
    end function relative_humidity
@@ -311,8 +311,7 @@ contains
    function arrhenius_rate(A, Ea, T) result(k)
       real(fp), intent(in) :: A, Ea, T
       real(fp) :: k
-      real(fp), parameter :: R = 8.314462618_fp  ! Gas constant [J/mol/K]
-      k = A * exp(-Ea / (R * T))
+      k = A * exp(-Ea / (RSTARG * T))
    end function arrhenius_rate
 
    !> \brief Calculate Henry's Law constant (temperature dependent)
@@ -325,8 +324,7 @@ contains
    function henrys_law_constant(H0, dH, T, T0) result(H)
       real(fp), intent(in) :: H0, dH, T, T0
       real(fp) :: H
-      real(fp), parameter :: R = 8.314462618_fp
-      H = H0 * exp(-dH/R * (1.0_fp/T - 1.0_fp/T0))
+      H = H0 * exp(-dH/RSTARG * (1.0_fp/T - 1.0_fp/T0))
    end function henrys_law_constant
 
    !> \brief Scale photolysis rate for solar zenith angle
@@ -336,7 +334,7 @@ contains
    function photolysis_rate_scaling(J0, sza) result(J)
       real(fp), intent(in) :: J0, sza
       real(fp) :: J
-      J = J0 * max(0.0_fp, cos(sza * 3.141592653589793_fp / 180.0_fp))
+      J = J0 * max(0.0_fp, cos(sza * PI_180))
    end function photolysis_rate_scaling
 
    !> \brief Convert ppm to ug/m3
@@ -428,7 +426,7 @@ contains
       real(fp), intent(in) :: T, p
       real(fp) :: lambda
       real(fp), parameter :: d_air = 3.7e-10_fp  ! Effective air molecule diameter [m]
-      lambda = BOLTZ * T / (sqrt(2.0_fp) * 3.141592653589793_fp * d_air**2 * p)
+      lambda = BOLTZ * T / (sqrt(2.0_fp) * PI * d_air**2 * p)
    end function mean_free_path_air
 
 end module met_utilities_mod

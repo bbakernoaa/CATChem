@@ -32,6 +32,8 @@ module utilities_mod
    use constants
    use error_mod, only: CC_SUCCESS, CC_FAILURE, ERROR_NUMERICAL_INSTABILITY, ERROR_INVALID_INPUT, &
       ErrorManagerType
+   use UnitConversion_Mod, only: convert_pressure, convert_temperature, &
+      uc_calculate_air_density => calculate_air_density
 
    implicit none
    private
@@ -108,7 +110,7 @@ contains
 
    !> \brief Convert pressure between different units
    !!
-   !! This function converts pressure values between common atmospheric units.
+   !! Delegates to UnitConversion_Mod for the actual conversion.
    !!
    !! \param[in] pressure_in Input pressure value
    !! \param[in] unit_in Input unit ('Pa', 'hPa', 'mbar', 'atm', 'mmHg', 'torr')
@@ -121,46 +123,13 @@ contains
       integer, intent(out) :: rc
       real(fp) :: pressure_out
 
-      real(fp) :: pressure_pa  ! Intermediate value in Pascals
-
-      rc = CC_SUCCESS
-      pressure_out = 0.0_fp
-
-      ! Convert input to Pascals
-      select case (trim(unit_in))
-       case ('Pa')
-         pressure_pa = pressure_in
-       case ('hPa', 'mbar')
-         pressure_pa = pressure_in * 100.0_fp
-       case ('atm')
-         pressure_pa = pressure_in * ATM
-       case ('mmHg', 'torr')
-         pressure_pa = pressure_in * 133.322_fp
-       case default
-         rc = ERROR_INVALID_INPUT
-         return
-      end select
-
-      ! Convert from Pascals to output unit
-      select case (trim(unit_out))
-       case ('Pa')
-         pressure_out = pressure_pa
-       case ('hPa', 'mbar')
-         pressure_out = pressure_pa / 100.0_fp
-       case ('atm')
-         pressure_out = pressure_pa / ATM
-       case ('mmHg', 'torr')
-         pressure_out = pressure_pa / 133.322_fp
-       case default
-         rc = ERROR_INVALID_INPUT
-         return
-      end select
+      pressure_out = convert_pressure(pressure_in, unit_in, unit_out, rc)
 
    end function convert_pressure_units
 
    !> \brief Convert temperature between different units
    !!
-   !! This function converts temperature values between Kelvin, Celsius, and Fahrenheit.
+   !! Delegates to UnitConversion_Mod for the actual conversion.
    !!
    !! \param[in] temp_in Input temperature value
    !! \param[in] unit_in Input unit ('K', 'C', 'F')
@@ -173,40 +142,13 @@ contains
       integer, intent(out) :: rc
       real(fp) :: temp_out
 
-      real(fp) :: temp_k  ! Intermediate value in Kelvin
-
-      rc = CC_SUCCESS
-      temp_out = 0.0_fp
-
-      ! Convert input to Kelvin
-      select case (trim(unit_in))
-       case ('K')
-         temp_k = temp_in
-       case ('C')
-         temp_k = temp_in + 273.15_fp
-       case ('F')
-         temp_k = (temp_in - 32.0_fp) * 5.0_fp/9.0_fp + 273.15_fp
-       case default
-         rc = ERROR_INVALID_INPUT
-         return
-      end select
-
-      ! Convert from Kelvin to output unit
-      select case (trim(unit_out))
-       case ('K')
-         temp_out = temp_k
-       case ('C')
-         temp_out = temp_k - 273.15_fp
-       case ('F')
-         temp_out = (temp_k - 273.15_fp) * 9.0_fp/5.0_fp + 32.0_fp
-       case default
-         rc = ERROR_INVALID_INPUT
-         return
-      end select
+      temp_out = convert_temperature(temp_in, unit_in, unit_out, rc)
 
    end function convert_temperature_units
 
    !> \brief Calculate air density using ideal gas law
+   !!
+   !! Delegates to UnitConversion_Mod for the actual calculation.
    !!
    !! \param[in] pressure Pressure [Pa]
    !! \param[in] temperature Temperature [K]
@@ -231,7 +173,7 @@ contains
          return
       endif
 
-      density = pressure / (Rd * temperature)
+      density = uc_calculate_air_density(temperature, pressure)
 
    end function calculate_air_density
 
@@ -240,20 +182,20 @@ contains
    !! \param[in] temperature Temperature [K]
    !! \param[out] rc Return code
    !! \param[in] z (optional) Geometric height above surface [m]
-   function calculate_scale_height(temperature, rc, z) result(scale_height)
+   function calculate_scale_height(temperature, rc, z) result(h_scale)
       use constants, only: g0, Rd, Re
       implicit none
       real(fp), intent(in) :: temperature
       integer, intent(out) :: rc
       real(fp), intent(in), optional :: z
-      real(fp) :: scale_height
+      real(fp) :: h_scale
       real(fp) :: g_local
 
       rc = CC_SUCCESS
 
       if (temperature <= 0.0_fp) then
          rc = ERROR_INVALID_INPUT
-         scale_height = 0.0_fp
+         h_scale = 0.0_fp
          return
       endif
 
@@ -263,7 +205,7 @@ contains
          g_local = g0
       endif
 
-      scale_height = Rd * temperature / g_local
+      h_scale = Rd * temperature / g_local
 
    end function calculate_scale_height
 

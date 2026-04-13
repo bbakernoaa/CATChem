@@ -69,19 +69,12 @@ module UnitConversion_Mod
    real(fp), parameter :: BTU_TO_J = 1055.056_fp     !< BTU to Joule
    real(fp), parameter :: CALORIE_TO_J = 4.184_fp    !< calorie to Joule
 
-   ! Imperial to metric conversion factors
-   real(fp), parameter :: FT_TO_M = 0.3048_fp        !< feet to meters
-   real(fp), parameter :: INCH_TO_M = 0.0254_fp      !< inches to meters
-   real(fp), parameter :: MILE_TO_M = 1609.344_fp    !< miles to meters
-   real(fp), parameter :: YD_TO_M = 0.9144_fp        !< yards to meters
-   real(fp), parameter :: FT2_TO_M2 = 0.092903_fp    !< square feet to square meters
-   real(fp), parameter :: ACRE_TO_M2 = 4046.86_fp    !< acres to square meters
-   real(fp), parameter :: FT3_TO_M3 = 0.028317_fp    !< cubic feet to cubic meters
-   real(fp), parameter :: GAL_TO_M3 = 0.003785_fp    !< US gallons to cubic meters
-   real(fp), parameter :: MPH_TO_MS = 0.44704_fp     !< miles per hour to m/s
-   real(fp), parameter :: KNOT_TO_MS = 0.514444_fp   !< knots to m/s
-   real(fp), parameter :: LB_TO_KG = 0.453592_fp     !< pounds to kg
-   real(fp), parameter :: OZ_TO_KG = 0.0283495_fp    !< ounces to kg
+   ! Aliases for alternative naming conventions
+   real(fp), parameter :: FT_TO_M = FOOT_TO_M        !< feet to meters (alias)
+   real(fp), parameter :: YD_TO_M = YARD_TO_M        !< yards to meters (alias)
+   real(fp), parameter :: FT2_TO_M2 = SQFT_TO_M2     !< square feet to square meters (alias)
+   real(fp), parameter :: FT3_TO_M3 = CUFT_TO_M3     !< cubic feet to cubic meters (alias)
+   real(fp), parameter :: GAL_TO_M3 = GALLON_TO_M3   !< US gallons to cubic meters (alias)
 
    !> \brief Unit converter type for managing conversions
    type :: UnitConverterType
@@ -410,7 +403,6 @@ contains
       real(fp) :: air_density !< [kg/m³]
 
       real(fp) :: rh, p_sat, p_dry
-      real(fp), parameter :: MW_H2O = 18.015_fp  !< Molecular weight of water [g/mol]
 
       if (present(humidity)) then
          rh = humidity
@@ -556,7 +548,7 @@ contains
 
       real(fp) :: number_density
 
-      number_density = pressure / (BOLTZMANN * temperature) * 1.0e-6_fp
+      number_density = pressure / (BOLTZ * temperature) * 1.0e-6_fp
       ppbv = molcm3 / number_density * 1.0e9_fp
 
    end function converter_molcm3_to_ppbv
@@ -571,7 +563,7 @@ contains
 
       real(fp) :: number_density
 
-      number_density = pressure / (BOLTZMANN * temperature) * 1.0e-6_fp
+      number_density = pressure / (BOLTZ * temperature) * 1.0e-6_fp
       molcm3 = ppbv * number_density * 1.0e-9_fp
 
    end function converter_ppbv_to_molcm3
@@ -583,7 +575,7 @@ contains
       real(fp), intent(in) :: molecular_weight !< [g/mol]
       real(fp) :: mgm3
 
-      mgm3 = ppmv * molecular_weight * this%pressure / (R_GAS * this%temperature)
+      mgm3 = ppmv * molecular_weight * this%pressure / (RSTARG * this%temperature)
 
    end function converter_ppmv_to_mgm3
 
@@ -594,7 +586,7 @@ contains
       real(fp), intent(in) :: molecular_weight !< [g/mol]
       real(fp) :: ppmv
 
-      ppmv = mgm3 * R_GAS * this%temperature / (molecular_weight * this%pressure)
+      ppmv = mgm3 * RSTARG * this%temperature / (molecular_weight * this%pressure)
 
    end function converter_mgm3_to_ppmv
 
@@ -614,7 +606,7 @@ contains
       do k = 1, size(concentrations)
          ! Convert ppbv to kg/m³
          mass_density = concentrations(k) * molecular_weight * this%pressure / &
-            (R_GAS * this%temperature) * 1.0e-12_fp
+            (RSTARG * this%temperature) * 1.0e-12_fp
          column_mass = column_mass + mass_density * layer_heights(k)
       end do
 
@@ -632,7 +624,7 @@ contains
 
       column_density = 0.0_fp
       do k = 1, size(concentrations)
-         number_density = this%pressure / (BOLTZMANN * this%temperature) * 1.0e-6_fp
+         number_density = this%pressure / (BOLTZ * this%temperature) * 1.0e-6_fp
          column_density = column_density + concentrations(k) * number_density * &
             layer_heights(k) * 1.0e-9_fp * 1.0e2_fp
       end do
