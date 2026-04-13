@@ -209,7 +209,7 @@ contains
             end if
             call Chem_SettlingSimple (num_layers, klid, mie_data(species_mie_map(species_idx)), bin, tstep, g0, &
                qa, GOCART_tmpu, GOCART_rhoa, GOCART_RH, GOCART_HGHTE, GOCART_DELP, fluxout_temp, &
-               vsettleOut=SD, correctionMaring=params%correction_maring, rc=RC)
+               vsettleOut=SD, correctionMaring=params%correction_maring, settling_scheme=2, rc=RC) !hardcode settling_scheme=2 for GOCART scheme
             if (RC /= CC_SUCCESS) then
                ErrMsg = 'Error in running GOCART Chem_SettlingSimple scheme.'
                call CC_Error(trim(ErrMsg), RC, thisLoc)
@@ -219,7 +219,7 @@ contains
          else  !call gocart simple settling function with internal mie calculation
             call Chem_Settling (num_layers, klid, bin, params%swelling_method, tstep, g0, species_radius(species_idx)*1.0e-6_fp,  &  !um to m
                species_density(species_idx), qa, GOCART_tmpu, GOCART_RHOA, GOCART_RH, GOCART_HGHTE, GOCART_DELP, fluxout, &
-               vsettleOut=SD, correctionMaring=params%correction_maring, rc=RC)
+               vsettleOut=SD, correctionMaring=params%correction_maring, settling_scheme=2, rc=RC) !hardcode settling_scheme=2 for GOCART scheme
             if (RC /= CC_SUCCESS) then
                ErrMsg = 'Error in running GOCART Chem_Settling scheme.'
                call CC_Error(trim(ErrMsg), RC, thisLoc)
