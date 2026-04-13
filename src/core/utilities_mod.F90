@@ -111,9 +111,11 @@ contains
    !> \brief Convert pressure between different units
    !!
    !! Delegates to UnitConversion_Mod for the actual conversion.
+   !! Accepted units: 'Pa', 'pa', 'hPa', 'hpa', 'mb', 'mbar', 'atm',
+   !!                 'Torr', 'torr', 'mmHg', 'mmhg', 'psi'
    !!
    !! \param[in] pressure_in Input pressure value
-   !! \param[in] unit_in Input unit ('Pa', 'hPa', 'mbar', 'atm', 'mmHg', 'torr')
+   !! \param[in] unit_in Input unit
    !! \param[in] unit_out Output unit
    !! \param[out] rc Return code
    function convert_pressure_units(pressure_in, unit_in, unit_out, rc) result(pressure_out)
@@ -130,9 +132,11 @@ contains
    !> \brief Convert temperature between different units
    !!
    !! Delegates to UnitConversion_Mod for the actual conversion.
+   !! Accepted units: 'K', 'Kelvin', 'kelvin', 'C', 'Celsius', 'celsius',
+   !!                 'F', 'Fahrenheit', 'fahrenheit'
    !!
    !! \param[in] temp_in Input temperature value
-   !! \param[in] unit_in Input unit ('K', 'C', 'F')
+   !! \param[in] unit_in Input unit
    !! \param[in] unit_out Output unit
    !! \param[out] rc Return code
    function convert_temperature_units(temp_in, unit_in, unit_out, rc) result(temp_out)

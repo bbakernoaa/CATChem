@@ -155,6 +155,16 @@ contains
    end subroutine convert_concentration
 
    !> \brief Convert pressure units
+   !!
+   !! Converts pressure values between common atmospheric and imperial units.
+   !! Case-insensitive for common variants.
+   !!
+   !! \param[in] pressure_in Input pressure value
+   !! \param[in] input_units Input unit ('Pa'/'pa', 'hPa'/'hpa', 'mb', 'mbar',
+   !!            'atm', 'Torr'/'torr', 'mmHg'/'mmhg', 'psi')
+   !! \param[in] output_units Output unit (same set as input_units)
+   !! \param[out] rc Return code (CC_SUCCESS or CC_FAILURE for unknown units)
+   !! \return Converted pressure value
    function convert_pressure(pressure_in, input_units, output_units, rc) result(pressure_out)
       real(fp), intent(in) :: pressure_in
       character(len=*), intent(in) :: input_units, output_units
@@ -167,13 +177,13 @@ contains
 
       ! First convert to Pa
       select case (trim(input_units))
-       case ('Pa')
+       case ('Pa', 'pa')
          pressure_pa = pressure_in
-       case ('hPa', 'mb', 'mbar')
+       case ('hPa', 'hpa', 'mb', 'mbar')
          pressure_pa = pressure_in / PA_TO_HPA
        case ('atm')
          pressure_pa = pressure_in / PA_TO_ATM
-       case ('Torr', 'mmHg')
+       case ('Torr', 'torr', 'mmHg', 'mmhg')
          pressure_pa = pressure_in / PA_TO_TORR
        case ('psi')
          pressure_pa = pressure_in * 6894.76_fp
@@ -185,13 +195,13 @@ contains
 
       ! Then convert from Pa to output units
       select case (trim(output_units))
-       case ('Pa')
+       case ('Pa', 'pa')
          pressure_out = pressure_pa
-       case ('hPa', 'mb', 'mbar')
+       case ('hPa', 'hpa', 'mb', 'mbar')
          pressure_out = pressure_pa * PA_TO_HPA
        case ('atm')
          pressure_out = pressure_pa * PA_TO_ATM
-       case ('Torr', 'mmHg')
+       case ('Torr', 'torr', 'mmHg', 'mmhg')
          pressure_out = pressure_pa * PA_TO_TORR
        case ('psi')
          pressure_out = pressure_pa / 6894.76_fp
@@ -203,6 +213,16 @@ contains
    end function convert_pressure
 
    !> \brief Convert temperature units
+   !!
+   !! Converts temperature values between Kelvin, Celsius, and Fahrenheit.
+   !! Case-insensitive for common variants.
+   !!
+   !! \param[in] temp_in Input temperature value
+   !! \param[in] input_units Input unit ('K'/'Kelvin'/'kelvin', 'C'/'Celsius'/'celsius',
+   !!            'F'/'Fahrenheit'/'fahrenheit')
+   !! \param[in] output_units Output unit (same set as input_units)
+   !! \param[out] rc Return code (CC_SUCCESS or CC_FAILURE for unknown units)
+   !! \return Converted temperature value
    function convert_temperature(temp_in, input_units, output_units, rc) result(temp_out)
       real(fp), intent(in) :: temp_in
       character(len=*), intent(in) :: input_units, output_units
@@ -215,11 +235,11 @@ contains
 
       ! First convert to Kelvin
       select case (trim(input_units))
-       case ('K', 'Kelvin')
+       case ('K', 'Kelvin', 'kelvin')
          temp_k = temp_in
-       case ('C', 'Celsius')
+       case ('C', 'Celsius', 'celsius')
          temp_k = temp_in + 273.15_fp
-       case ('F', 'Fahrenheit')
+       case ('F', 'Fahrenheit', 'fahrenheit')
          temp_k = (temp_in - 32.0_fp) * 5.0_fp/9.0_fp + 273.15_fp
        case default
          rc = CC_FAILURE
@@ -229,11 +249,11 @@ contains
 
       ! Then convert from Kelvin to output units
       select case (trim(output_units))
-       case ('K', 'Kelvin')
+       case ('K', 'Kelvin', 'kelvin')
          temp_out = temp_k
-       case ('C', 'Celsius')
+       case ('C', 'Celsius', 'celsius')
          temp_out = temp_k - 273.15_fp
-       case ('F', 'Fahrenheit')
+       case ('F', 'Fahrenheit', 'fahrenheit')
          temp_out = (temp_k - 273.15_fp) * 9.0_fp/5.0_fp + 32.0_fp
        case default
          rc = CC_FAILURE

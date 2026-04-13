@@ -127,8 +127,9 @@ contains
 
    !> \brief Module-level convenience function using global registry
    !!
-   !! Note: This creates a temporary factory per call. For repeated use,
-   !! prefer creating a ProcessFactoryType instance and reusing it.
+   !! Creates a process by name, allocates its required met fields in the
+   !! container, and reports errors through the container's error manager.
+   !! For repeated use, prefer creating a ProcessFactoryType instance.
    function create_process(process_name, container, rc) result(process)
       use ProcessRegistry_Mod, only: get_global_registry, ProcessRegistryType
       character(len=*), intent(in) :: process_name
@@ -137,10 +138,37 @@ contains
       class(ProcessInterface), allocatable :: process
 
       type(ProcessRegistryType), pointer :: registry
+      type(ErrorManagerType), pointer :: error_mgr
+      character(len=32), allocatable :: met_fields(:)
+      integer :: i, alloc_rc
+      type(MetStateType), pointer :: met_state
+
+      error_mgr => container%get_error_manager()
+      call error_mgr%push_context('create_process', &
+         'creating process: ' // trim(process_name))
 
       ! Use the global registry directly instead of creating a throwaway factory
       registry => get_global_registry()
       call registry%create_process(process_name, process, rc)
+      if (rc /= CC_SUCCESS) then
+         call error_mgr%report_error(ERROR_INVALID_CONFIG, &
+            'Unknown process: ' // trim(process_name), rc, &
+            'create_process', &
+            'Check available processes with list_available()')
+         call error_mgr%pop_context()
+         return
+      endif
+
+      ! Allocate only required met fields for this process
+      met_fields = process%get_required_met_fields()
+      met_state => container%get_met_state_ptr()
+      if (associated(met_state) .and. allocated(met_fields)) then
+         do i = 1, size(met_fields)
+            call met_state%allocate_field(met_fields(i), alloc_rc)
+         end do
+      endif
+
+      call error_mgr%pop_context()
 
    end function create_process
 
