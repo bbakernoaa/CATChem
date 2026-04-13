@@ -1,69 +1,10 @@
 # CATChem NUOPC Interface: Earth System Model Integration
 
-*A comprehensive overview of CATChem's NUOPC capabilities for operational weather prediction and climate modeling*
+This presentation content has been consolidated to avoid duplicate documentation.
 
----
+Please see the canonical document:
 
-## 🌍 What is NUOPC?
-
-**National Unified Operational Prediction Capability (NUOPC)**
-
-- **Earth System Modeling Framework**: Standard for coupling atmospheric, oceanic, land, and sea ice models
-- **ESMF-Based**: Built on Earth System Modeling Framework for high-performance computing
-- **Operational Focus**: Designed for 24/7 operational weather and climate prediction
-- **Multi-Agency Standard**: Used by NOAA, NASA, Navy, Air Force, and international partners
-
-![NUOPC Architecture](diagrams/nuopc-architecture.png)
-
----
-
-## 🎯 CATChem NUOPC Integration Goals
-
-### **Seamless Earth System Coupling**
-- **Plug-and-Play**: Drop-in atmospheric chemistry component
-- **Standard Interfaces**: NUOPC-compliant field exchange
-- **Scalable Performance**: From development to operational scales
-- **Flexible Configuration**: Adaptable to diverse modeling needs
-
-### **Operational Readiness**
-- **24/7 Production**: Robust error handling and monitoring
-- **Real-time Constraints**: Optimized for operational time windows
-- **Restart Capability**: Seamless restart and recovery
-- **Quality Control**: Built-in field validation and diagnostics
-
----
-
-## 🏗️ Architecture Overview
-
-### Component Structure
-
-```mermaid
-flowchart TB
-    A[NUOPC Driver/Mediator] --> B[CATChem NUOPC Cap]
-    B --> C[CATChem Core]
-    C --> D[Process Manager]
-    D --> E[Chemistry Processes]
-    D --> F[Transport Processes]
-    D --> G[Emission Processes]
-    D --> H[Deposition Processes]
-
-    B --> I[Field Exchange]
-    I --> J[Import Fields]
-    I --> K[Export Fields]
-
-    B --> L[Grid Management]
-    L --> M[ESMF Grid]
-    L --> N[Regridding]
-    L --> O[Halo Exchange]
-```
-
-### Key Components
-
-| Component | Purpose | Status |
-|-----------|---------|--------|
-| **catchem_nuopc_cap.F90** | Main NUOPC interface | ✅ Production |
-| **catchem_nuopc_interface.F90** | Field exchange management | ✅ Production |
-| **catchem_nuopc_utils.F90** | Utilities and helpers | ✅ Production |
+- [`docs/nuopc-interface-presentation.md`](../nuopc-interface-presentation.md)
 | **catchem_nuopc_driver.F90** | Standalone driver | ✅ Production |
 | **catchem_nuopc_cf_input.F90** | NetCDF input handling | ✅ Production |
 | **catchem_nuopc_netcdf_out.F90** | NetCDF output handling | ✅ Production |
