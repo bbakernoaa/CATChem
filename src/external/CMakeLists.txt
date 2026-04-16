@@ -51,10 +51,7 @@ set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build yaml-cpp contrib")
 
 # Declare yaml-cpp as already available via FetchContent
 # This prevents MUSICA/TUV-x from fetching their own copy
-FetchContent_Declare(
-  yaml-cpp
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/yaml-cpp
-)
+FetchContent_Declare(yaml-cpp SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/yaml-cpp)
 FetchContent_MakeAvailable(yaml-cpp)
 
 #
