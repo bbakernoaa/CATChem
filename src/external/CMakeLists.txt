@@ -39,6 +39,18 @@ set_target_properties(
 )
 
 #
+# YAML-CPP — build first so MUSICA/TUV-x can reuse it instead of fetching their own
+#
+
+# Configure yaml-cpp build options
+set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Build yaml-cpp tests")
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build yaml-cpp tools")
+set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build yaml-cpp contrib")
+
+# Use the local submodule
+add_subdirectory(yaml-cpp)
+
+#
 # MUSICA Fortran API (optional, controlled by BUILD_MUSICA)
 #
 
@@ -58,17 +70,5 @@ if(BUILD_MUSICA)
   add_subdirectory(musica)
 endif()
 
-#
-# YAML-CPP standalone build
-#
-
-# Configure yaml-cpp build options
-set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Build yaml-cpp tests")
-set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build yaml-cpp tools")
-set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build yaml-cpp contrib")
-
-# Use the local submodule
-add_subdirectory(yaml-cpp)
-
-# Add our yaml interface (now that yaml-cpp is available independently)
+# Add our yaml interface (yaml-cpp is already available from above)
 add_subdirectory(yaml_interface)
