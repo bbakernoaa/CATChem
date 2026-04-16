@@ -39,24 +39,27 @@ set_target_properties(
 )
 
 #
-# MUSICA Fortran API
+# MUSICA Fortran API (optional, controlled by BUILD_MUSICA)
 #
 
-# Set MUSICA build options before adding the subdirectory
-# set(MICM_ENABLE_TESTS OFF)
-# set(MICM_ENABLE_EXAMPLES OFF)
-# set(MUSICA_BUILD_C_CXX_INTERFACE ON)
-# set(MUSICA_BUILD_FORTRAN_INTERFACE ON)
-# set(MUSICA_ENABLE_INSTALL OFF)
-# set(MUSICA_ENABLE_TESTS OFF)
-# set(MUSICA_ENABLE_MICM ON)
-# set(MUSICA_ENABLE_TUVX ON)
+if(BUILD_MUSICA)
+  # Set MUSICA build options before adding the subdirectory
+  set(MICM_ENABLE_TESTS OFF)
+  set(MICM_ENABLE_EXAMPLES OFF)
+  set(MUSICA_BUILD_C_CXX_INTERFACE ON)
+  set(MUSICA_BUILD_FORTRAN_INTERFACE ON)
+  set(MUSICA_ENABLE_INSTALL OFF)
+  set(MUSICA_ENABLE_TESTS OFF)
+  set(MUSICA_ENABLE_MICM ON)
+  set(MUSICA_ENABLE_TUVX ON)
+  set(MUSICA_ENABLE_CARMA OFF)
 
-# # Add MUSICA as a subdirectory
-# add_subdirectory(musica)
+  # Add MUSICA as a subdirectory
+  add_subdirectory(musica)
+endif()
 
 #
-# YAML-CPP standalone build (since we're not using MUSICA)
+# YAML-CPP standalone build
 #
 
 # Configure yaml-cpp build options
