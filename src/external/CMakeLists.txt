@@ -39,16 +39,23 @@ set_target_properties(
 )
 
 #
-# YAML-CPP — build first so MUSICA/TUV-x can reuse it instead of fetching their own
+# YAML-CPP — declare via FetchContent so MUSICA/TUV-x reuse it instead of fetching their own
 #
+
+include(FetchContent)
 
 # Configure yaml-cpp build options
 set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Build yaml-cpp tests")
 set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build yaml-cpp tools")
 set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build yaml-cpp contrib")
 
-# Use the local submodule
-add_subdirectory(yaml-cpp)
+# Declare yaml-cpp as already available via FetchContent
+# This prevents MUSICA/TUV-x from fetching their own copy
+FetchContent_Declare(
+  yaml-cpp
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/yaml-cpp
+)
+FetchContent_MakeAvailable(yaml-cpp)
 
 #
 # MUSICA Fortran API (optional, controlled by BUILD_MUSICA)
