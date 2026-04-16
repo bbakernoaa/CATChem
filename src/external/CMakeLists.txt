@@ -45,7 +45,6 @@ set_target_properties(
 if(BUILD_MUSICA)
   # Set MUSICA build options before adding the subdirectory
   set(MICM_ENABLE_TESTS OFF)
-  set(MICM_ENABLE_EXAMPLES OFF)
   set(MUSICA_BUILD_C_CXX_INTERFACE ON)
   set(MUSICA_BUILD_FORTRAN_INTERFACE ON)
   set(MUSICA_ENABLE_INSTALL OFF)
