@@ -8,8 +8,6 @@ set_target_properties(
   PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
 )
 
-# TODO: GOCART-2G Process Library - currently disabled as source files are missing
-# Uncomment when GOCART source files are available
 #
 # GOCART-2G Process Library
 #
@@ -39,7 +37,7 @@ set_target_properties(
 )
 
 #
-# YAML-CPP — declare via FetchContent so MUSICA/TUV-x reuse it instead of fetching their own
+# yaml-cpp — declare via FetchContent so MUSICA and its dependencies reuse it
 #
 
 include(FetchContent)
@@ -50,7 +48,7 @@ set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Build yaml-cpp tools")
 set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Build yaml-cpp contrib")
 
 # Declare yaml-cpp as already available via FetchContent
-# This prevents MUSICA/TUV-x from fetching their own copy
+# This prevents MUSICA from fetching their own copy
 FetchContent_Declare(yaml-cpp SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/yaml-cpp)
 FetchContent_MakeAvailable(yaml-cpp)
 
