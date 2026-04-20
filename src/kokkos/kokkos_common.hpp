@@ -64,7 +64,7 @@ namespace constants {
    constexpr double V_UPWARD_MARING = 0.33e-2;      // Maring correction [m/s]
    constexpr double KB              = 1.3807e-23;    // Boltzmann constant
    constexpr double M_AIR           = 4.8096e-26;    // Mass of avg air molecule [kg]
-   constexpr double PI              = 3.141529265;
+   constexpr double PI              = 3.14159265;
    constexpr double F_VT            = 8.0 * KB / PI / M_AIR;
    constexpr double TWO_OVER_NINE   = 2.0 / 9.0;
 
