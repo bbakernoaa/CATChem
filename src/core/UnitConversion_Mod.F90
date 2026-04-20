@@ -36,6 +36,8 @@ module UnitConversion_Mod
    public :: convert_imperial_energy
    public :: calculate_air_density
    public :: calculate_molecular_weight
+   public :: convert_process_concentration_units
+   public :: convert_process_flux_units
 
    ! Standard conditions using constants from Constants module
    real(fp), parameter :: STANDARD_TEMP = 273.15_fp  !< Standard temperature [K]
@@ -186,7 +188,7 @@ contains
        case ('Torr', 'torr', 'mmHg', 'mmhg')
          pressure_pa = pressure_in / PA_TO_TORR
        case ('psi')
-         pressure_pa = pressure_in * 6894.76_fp
+         pressure_pa = pressure_in * PSI_TO_PA
        case default
          rc = CC_FAILURE
          pressure_out = pressure_in
@@ -204,7 +206,7 @@ contains
        case ('Torr', 'torr', 'mmHg', 'mmhg')
          pressure_out = pressure_pa * PA_TO_TORR
        case ('psi')
-         pressure_out = pressure_pa / 6894.76_fp
+         pressure_out = pressure_pa / PSI_TO_PA
        case default
          rc = CC_FAILURE
          pressure_out = pressure_in
@@ -215,11 +217,12 @@ contains
    !> \brief Convert temperature units
    !!
    !! Converts temperature values between Kelvin, Celsius, and Fahrenheit.
-   !! Case-insensitive for common variants.
+   !! Case-insensitive for common variants. Also accepts CF convention names.
    !!
    !! \param[in] temp_in Input temperature value
-   !! \param[in] input_units Input unit ('K'/'Kelvin'/'kelvin', 'C'/'Celsius'/'celsius',
-   !!            'F'/'Fahrenheit'/'fahrenheit')
+   !! \param[in] input_units Input unit ('K'/'Kelvin'/'kelvin',
+   !!            'C'/'Celsius'/'celsius'/'degC'/'degree_Celsius'/'degree_C',
+   !!            'F'/'Fahrenheit'/'fahrenheit'/'degF'/'degree_Fahrenheit'/'degree_F')
    !! \param[in] output_units Output unit (same set as input_units)
    !! \param[out] rc Return code (CC_SUCCESS or CC_FAILURE for unknown units)
    !! \return Converted temperature value
@@ -237,9 +240,9 @@ contains
       select case (trim(input_units))
        case ('K', 'Kelvin', 'kelvin')
          temp_k = temp_in
-       case ('C', 'Celsius', 'celsius')
+       case ('C', 'Celsius', 'celsius', 'degC', 'degree_Celsius', 'degree_C')
          temp_k = temp_in + 273.15_fp
-       case ('F', 'Fahrenheit', 'fahrenheit')
+       case ('F', 'Fahrenheit', 'fahrenheit', 'degF', 'degree_Fahrenheit', 'degree_F')
          temp_k = (temp_in - 32.0_fp) * 5.0_fp/9.0_fp + 273.15_fp
        case default
          rc = CC_FAILURE
@@ -251,9 +254,9 @@ contains
       select case (trim(output_units))
        case ('K', 'Kelvin', 'kelvin')
          temp_out = temp_k
-       case ('C', 'Celsius', 'celsius')
+       case ('C', 'Celsius', 'celsius', 'degC', 'degree_Celsius', 'degree_C')
          temp_out = temp_k - 273.15_fp
-       case ('F', 'Fahrenheit', 'fahrenheit')
+       case ('F', 'Fahrenheit', 'fahrenheit', 'degF', 'degree_Fahrenheit', 'degree_F')
          temp_out = (temp_k - 273.15_fp) * 9.0_fp/5.0_fp + 32.0_fp
        case default
          rc = CC_FAILURE
@@ -1247,5 +1250,143 @@ contains
       end select
 
    end function convert_imperial_energy
+
+   !========================================================================
+   ! Process Unit Conversion Utilities (relocated from ProcessInterface)
+   !========================================================================
+
+   !> \brief Convert concentration units between different unit systems
+   !!
+   !! This utility converts concentration values between common atmospheric chemistry units
+   !! such as molec/cm³, ppbv, ppmv, µg/m³, etc.
+   !! Relocated from ProcessInterface as a standalone procedure.
+   !!
+   !! \param[inout] values Array of concentration values to convert
+   !! \param[in] from_units Source units (e.g., 'ppbv', 'molec/cm3', 'ug/m3')
+   !! \param[in] to_units Target units
+   !! \param[in] molecular_weight Molecular weight [g/mol] (needed for mass/volume conversions)
+   !! \param[in] temperature Temperature [K] (needed for some conversions)
+   !! \param[in] pressure Pressure [Pa] (needed for some conversions)
+   !! \param[out] rc Return code
+   subroutine convert_process_concentration_units(values, from_units, to_units, &
+      molecular_weight, temperature, pressure, rc)
+      real(fp), intent(inout) :: values(:)
+      character(len=*), intent(in) :: from_units, to_units
+      real(fp), intent(in), optional :: molecular_weight, temperature, pressure
+      integer, intent(out) :: rc
+
+      real(fp) :: mw, temp, pres
+      real(fp) :: conversion_factor
+      integer :: i
+
+      rc = CC_SUCCESS
+
+      ! Set default values if not provided
+      mw = 29.0_fp    ! Default molecular weight of air [g/mol]
+      temp = 273.15_fp ! Default temperature [K]
+      pres = 101325.0_fp ! Default pressure [Pa]
+
+      if (present(molecular_weight)) mw = molecular_weight
+      if (present(temperature)) temp = temperature
+      if (present(pressure)) pres = pressure
+
+      ! Calculate conversion factor based on unit types
+      if (trim(from_units) == trim(to_units)) then
+         ! No conversion needed
+         return
+      endif
+
+      ! Convert from ppbv to other units
+      if (trim(from_units) == 'ppbv') then
+         select case (trim(to_units))
+          case ('ppmv')
+            conversion_factor = 1.0e-3_fp
+          case ('molec/cm3')
+            ! ppbv to molec/cm³: ppbv * (P/RT) * (1e-9) * NA * (1e-6)
+            conversion_factor = (pres / (8.314_fp * temp)) * 1.0e-9_fp * 6.022e23_fp * 1.0e-6_fp
+          case ('ug/m3')
+            ! ppbv to µg/m³: ppbv * (P/RT) * MW * (1e-9) * (1e6)
+            conversion_factor = (pres / (8.314_fp * temp)) * mw * 1.0e-3_fp
+          case default
+            rc = CC_FAILURE
+            return
+         end select
+
+         ! Convert from molec/cm3 to other units
+      else if (trim(from_units) == 'molec/cm3') then
+         select case (trim(to_units))
+          case ('ppbv')
+            ! molec/cm³ to ppbv: (molec/cm³) * (RT/P) * (1e9) / NA * (1e6)
+            conversion_factor = (8.314_fp * temp / pres) * 1.0e9_fp / 6.022e23_fp * 1.0e6_fp
+          case ('ug/m3')
+            ! molec/cm³ to µg/m³: (molec/cm³) * MW / NA * (1e12)
+            conversion_factor = mw / 6.022e23_fp * 1.0e12_fp
+          case default
+            rc = CC_FAILURE
+            return
+         end select
+
+      else
+         ! Unsupported conversion
+         rc = CC_FAILURE
+         return
+      endif
+
+      ! Apply conversion
+      do i = 1, size(values)
+         values(i) = values(i) * conversion_factor
+      end do
+
+   end subroutine convert_process_concentration_units
+
+   !> \brief Convert flux units between different unit systems
+   !!
+   !! This utility converts emission flux values between common units
+   !! such as kg/m²/s, molec/cm²/s, molecules/m²/s, etc.
+   !! Relocated from ProcessInterface as a standalone procedure.
+   !!
+   !! \param[inout] flux_values Array of flux values to convert
+   !! \param[in] from_units Source flux units
+   !! \param[in] to_units Target flux units
+   !! \param[in] molecular_weight Molecular weight [g/mol]
+   !! \param[out] rc Return code
+   subroutine convert_process_flux_units(flux_values, from_units, to_units, molecular_weight, rc)
+      real(fp), intent(inout) :: flux_values(:)
+      character(len=*), intent(in) :: from_units, to_units
+      real(fp), intent(in) :: molecular_weight
+      integer, intent(out) :: rc
+
+      real(fp) :: conversion_factor
+      integer :: i
+
+      rc = CC_SUCCESS
+
+      ! No conversion needed
+      if (trim(from_units) == trim(to_units)) then
+         return
+      endif
+
+      ! Convert kg/m²/s to molec/cm²/s
+      if (trim(from_units) == 'kg/m2/s' .and. trim(to_units) == 'molec/cm2/s') then
+         ! kg/m²/s * (1000 g/kg) * (1 mol/MW g) * (NA molec/mol) * (1 m²/10⁴ cm²)
+         conversion_factor = 1000.0_fp * (1.0_fp / molecular_weight) * 6.022e23_fp * 1.0e-4_fp
+
+         ! Convert molec/cm²/s to kg/m²/s
+      else if (trim(from_units) == 'molec/cm2/s' .and. trim(to_units) == 'kg/m2/s') then
+         ! molec/cm²/s * (1 mol/NA molec) * (MW g/mol) * (1 kg/1000 g) * (10⁴ cm²/m²)
+         conversion_factor = (1.0_fp / 6.022e23_fp) * molecular_weight * 1.0e-3_fp * 1.0e4_fp
+
+      else
+         ! Unsupported conversion
+         rc = CC_FAILURE
+         return
+      endif
+
+      ! Apply conversion
+      do i = 1, size(flux_values)
+         flux_values(i) = flux_values(i) * conversion_factor
+      end do
+
+   end subroutine convert_process_flux_units
 
 end module UnitConversion_Mod

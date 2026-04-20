@@ -115,10 +115,10 @@ contains
    function relative_humidity(T, qv, p) result(rh)
       real(fp), intent(in) :: T, qv, p
       real(fp) :: rh
-      real(fp) :: e_vap, es
-      e_vap = qv * p / (0.622_fp + 0.378_fp * qv)
+      real(fp) :: e, es
+      e = qv * p / (0.622_fp + 0.378_fp * qv)
       es = saturation_vapor_pressure(T)
-      rh = e_vap / es
+      rh = e / es
       ! Clip to physical limits
       rh = max(0.0_fp, min(1.0_fp, rh))
    end function relative_humidity
@@ -311,7 +311,8 @@ contains
    function arrhenius_rate(A, Ea, T) result(k)
       real(fp), intent(in) :: A, Ea, T
       real(fp) :: k
-      k = A * exp(-Ea / (RSTARG * T))
+      real(fp), parameter :: R = RSTARG  !< Universal gas constant [J/K/mol]
+      k = A * exp(-Ea / (R * T))
    end function arrhenius_rate
 
    !> \brief Calculate Henry's Law constant (temperature dependent)

@@ -13,7 +13,6 @@ module ProcessInterface_Mod
    use precision_mod
    use StateManager_Mod, only : StateManagerType
    use error_mod
-   use ColumnInterface_Mod, only : ColumnProcessorType
    use VirtualColumn_Mod, only : VirtualColumnType
    use ExtEmisData_Mod, only : ExtEmisDataType
    use DiagnosticManager_Mod, only: DiagnosticManagerType
@@ -23,7 +22,6 @@ module ProcessInterface_Mod
    private
 
    public :: ProcessInterface
-   public :: ColumnProcessInterface
 
    !> \brief Abstract base class for all atmospheric processes
    !!
@@ -39,11 +37,20 @@ module ProcessInterface_Mod
       logical :: is_active = .false.         !< Active status
       real(fp) :: dt = 0.0_fp                !< Process timestep
 
+      ! Column processing members (absorbed from ColumnProcessInterface)
+      logical :: column_processing_enabled = .true.  !< Enable column processing mode
+      integer :: column_batch_size = 100            !< Number of columns to process in batch
+
    contains
       ! Required interface methods
       procedure(init_interface), deferred :: init
       procedure(run_interface), deferred :: run
       procedure(finalize_interface), deferred :: finalize
+
+      ! Required column processing methods (absorbed from ColumnProcessInterface)
+      procedure(column_init_interface), deferred :: init_column_processing
+      procedure(column_run_interface), deferred :: run_column
+      procedure(column_finalize_interface), deferred :: finalize_column_processing
 
       ! Process capabilities registration
       procedure :: get_required_met_fields => process_get_required_met_fields
@@ -66,56 +73,32 @@ module ProcessInterface_Mod
       procedure :: register_diagnostic_field => process_register_diagnostic_field
 
       ! Common atmospheric process utilities
-      procedure :: apply_emission_scaling => process_apply_emission_scaling
-      procedure :: accumulate_emissions => process_accumulate_emissions
       procedure :: apply_tendency => process_apply_tendency
       procedure :: check_mass_conservation => process_check_mass_conservation
       procedure :: validate_species_availability => process_validate_species_availability
-      procedure :: validate_physical_ranges => process_validate_physical_ranges
 
-      ! Unit conversion utilities
-      procedure :: convert_concentration_units => process_convert_concentration_units
-      procedure :: convert_flux_units => process_convert_flux_units
-      procedure :: calculate_column_integrals => process_calculate_column_integrals
+      ! Unit conversion utilities (relocated to UnitConversion_Mod)
       ! procedure :: interpolate_to_pressure_levels => process_interpolate_to_pressure_levels  ! Not yet implemented
 
       ! Column virtualization support
       procedure :: supports_column_processing => process_supports_column_processing
       procedure :: process_column => process_process_column
-   end type ProcessInterface
 
-   !> \brief Enhanced process interface specifically for column-based processing
-   !!
-   !! This interface extends ProcessInterface to provide column virtualization
-   !! capabilities, allowing processes to work with virtual columns while
-   !! maintaining awareness of 3D spatial relationships.
-   type, abstract, extends(ProcessInterface) :: ColumnProcessInterface
-      private
-
-      logical :: column_processing_enabled = .true.  !< Enable column processing mode
-      integer :: column_batch_size = 100            !< Number of columns to process in batch
-
-   contains
-      ! Required column processing methods
-      procedure(column_init_interface), deferred :: init_column_processing
-      procedure(column_run_interface), deferred :: run_column
-      procedure(column_finalize_interface), deferred :: finalize_column_processing
-
-      ! Optional column processing methods with default implementations
+      ! Column processing methods (absorbed from ColumnProcessInterface)
       procedure :: set_column_batch_size => column_process_set_batch_size
       procedure :: get_column_batch_size => column_process_get_batch_size
       procedure :: enable_column_processing => column_process_enable
       procedure :: disable_column_processing => column_process_disable
       procedure :: is_column_processing_enabled => column_process_is_enabled
 
-      ! Generic column diagnostic update interface - automatically dispatches based on argument types
+      ! Generic column diagnostic update interface
       generic :: update_column_diagnostics => update_scalar_diagnostic_column, &
          update_1d_diagnostic_column, &
          update_2d_diagnostic_column
       procedure :: update_scalar_diagnostic_column => column_update_scalar_diagnostic
       procedure :: update_1d_diagnostic_column => column_update_1d_diagnostic
       procedure :: update_2d_diagnostic_column => column_update_2d_diagnostic
-   end type ColumnProcessInterface
+   end type ProcessInterface
 
    ! Abstract interfaces that must be implemented by concrete processes
    abstract interface
@@ -147,16 +130,16 @@ module ProcessInterface_Mod
    abstract interface
       !> \brief Initialize column processing for the process
       subroutine column_init_interface(this, container, rc)
-         import :: ColumnProcessInterface, StateManagerType
-         class(ColumnProcessInterface), intent(inout) :: this
+         import :: ProcessInterface, StateManagerType
+         class(ProcessInterface), intent(inout) :: this
          type(StateManagerType), intent(inout) :: container
          integer, intent(out) :: rc
       end subroutine
 
       !> \brief Process a single virtual column
       subroutine column_run_interface(this, column, container, rc)
-         import :: ColumnProcessInterface, VirtualColumnType, StateManagerType
-         class(ColumnProcessInterface), intent(inout) :: this
+         import :: ProcessInterface, VirtualColumnType, StateManagerType
+         class(ProcessInterface), intent(inout) :: this
          type(VirtualColumnType), intent(inout) :: column
          type(StateManagerType), intent(inout) :: container
          integer, intent(out) :: rc
@@ -164,8 +147,8 @@ module ProcessInterface_Mod
 
       !> \brief Finalize column processing
       subroutine column_finalize_interface(this, rc)
-         import :: ColumnProcessInterface
-         class(ColumnProcessInterface), intent(inout) :: this
+         import :: ProcessInterface
+         class(ProcessInterface), intent(inout) :: this
          integer, intent(out) :: rc
       end subroutine
    end interface
@@ -374,79 +357,7 @@ contains
    ! Common Atmospheric Process Utilities
    !========================================================================
 
-   !> \brief Apply emission scaling factors to emission arrays
-   !!
-   !! This utility method applies scaling factors to emission fluxes for
-   !! sensitivity studies or emission inventory adjustments.
-   !!
-   !! \param[in] this ProcessInterface instance
-   !> \brief Apply emission scaling factors (deprecated - placeholder implementation)
-   !!
-   !! This method is deprecated as EmisState_Mod has been removed in favor of
-   !! the new DiagnosticManager system. Processes should handle emissions
-   !! through their own state management or direct chemical state modification.
-   !!
-   !! \param[in] this ProcessInterface instance
-   !! \param[inout] container StateManager for accessing state data
-   !! \param[in] scaling_factors Scaling factors per species [dimensionless]
-   !! \param[in] species_indices Indices of species to scale
-   !! \param[out] rc Return code
-   subroutine process_apply_emission_scaling(this, container, scaling_factors, species_indices, rc)
-      class(ProcessInterface), intent(in) :: this
-      type(StateManagerType), intent(inout) :: container
-      real(fp), intent(in) :: scaling_factors(:)
-      integer, intent(in) :: species_indices(:)
-      integer, intent(out) :: rc
 
-      integer :: i, species_idx
-
-      rc = CC_SUCCESS
-
-      ! Deprecated functionality - EmisState_Mod has been removed
-      ! Processes should handle emissions through direct chemical state modification
-      ! or their own internal emission arrays
-
-      ! Placeholder implementation for backward compatibility
-      do i = 1, size(species_indices)
-         species_idx = species_indices(i)
-         if (species_idx > 0 .and. species_idx <= size(scaling_factors)) then
-            ! Would apply scaling if emission system was available
-            ! For now, this is a no-op
-         end if
-      end do
-
-   end subroutine process_apply_emission_scaling
-
-   !> \brief Accumulate emissions from process calculations (deprecated - placeholder implementation)
-   !!
-   !! This method is deprecated as EmisState_Mod has been removed in favor of
-   !! the new DiagnosticManager system. Processes should handle emissions
-   !! through direct chemical state modification.
-   !!
-   !! \param[in] this ProcessInterface instance
-   !! \param[inout] container StateManager for accessing state data
-   !! \param[in] process_emissions Process emission fluxes [kg/m²/s or molecules/cm²/s]
-   !! \param[in] species_mapping Mapping from process species to global species indices
-   !! \param[out] rc Return code
-   subroutine process_accumulate_emissions(this, container, process_emissions, species_mapping, rc)
-      class(ProcessInterface), intent(in) :: this
-      type(StateManagerType), intent(inout) :: container
-      real(fp), intent(in) :: process_emissions(:,:,:) !< Process emission fluxes
-      integer, intent(in) :: species_mapping(:)        !< Species index mapping
-      integer, intent(out) :: rc
-
-      integer :: i, j, species_idx
-
-      rc = CC_SUCCESS
-
-      ! Deprecated functionality - EmisState_Mod has been removed
-      ! Processes should handle emissions through direct chemical state modification
-
-      ! Placeholder implementation for backward compatibility
-      ! Actual emission accumulation should be done in the process itself
-      ! by directly modifying the chemical state concentrations
-
-   end subroutine process_accumulate_emissions
 
    !> \brief Apply tendencies to chemical species concentrations
    !!
@@ -598,43 +509,7 @@ contains
 
    end function process_validate_species_availability
 
-   !> \brief Validate physical ranges of variables
-   !!
-   !! This method validates that physical variables are within reasonable ranges
-   !! to catch numerical errors, unphysical values, or model instabilities.
-   !! Uses StateManager's internal validation capabilities.
-   !!
-   !! \param[in] this ProcessInterface instance
-   !! \param[in] container StateManager for accessing state data
-   !! \param[out] rc Return code (CC_SUCCESS if all values valid, CC_FAILURE if errors found)
-   function process_validate_physical_ranges(this, container, rc) result(all_valid)
-      class(ProcessInterface), intent(in) :: this
-      type(StateManagerType), intent(inout) :: container
-      integer, intent(out) :: rc
-      logical :: all_valid
 
-      character(len=256) :: message
-
-      rc = CC_SUCCESS
-      all_valid = .true.
-
-      ! Check if container is ready
-      if (.not. container%is_ready()) then
-         write(*, '(A)') 'ERROR: StateManager not ready for validation'
-         rc = CC_FAILURE
-         all_valid = .false.
-         return
-      endif
-
-      ! Validate using StateManager's internal capabilities
-      ! For now, this is a basic validation - could be enhanced with
-      ! specific physical range checks when StateManager validation
-      ! utilities are more developed
-
-      write(message, '(A,A)') 'Physical validation completed for process: ', trim(this%name)
-      write(*, '(A)') trim(message)
-
-   end function process_validate_physical_ranges
 
    !========================================================================
    ! Column virtualization support methods
@@ -658,12 +533,12 @@ contains
    end subroutine process_process_column
 
    !========================================================================
-   ! ColumnProcessInterface Implementation
+   ! Column Processing Implementation (absorbed from ColumnProcessInterface)
    !========================================================================
 
    !> \brief Set column batch size
    subroutine column_process_set_batch_size(this, batch_size)
-      class(ColumnProcessInterface), intent(inout) :: this
+      class(ProcessInterface), intent(inout) :: this
       integer, intent(in) :: batch_size
 
       this%column_batch_size = max(1, batch_size)
@@ -671,7 +546,7 @@ contains
 
    !> \brief Get column batch size
    function column_process_get_batch_size(this) result(batch_size)
-      class(ColumnProcessInterface), intent(in) :: this
+      class(ProcessInterface), intent(in) :: this
       integer :: batch_size
 
       batch_size = this%column_batch_size
@@ -679,211 +554,28 @@ contains
 
    !> \brief Enable column processing
    subroutine column_process_enable(this)
-      class(ColumnProcessInterface), intent(inout) :: this
+      class(ProcessInterface), intent(inout) :: this
 
       this%column_processing_enabled = .true.
    end subroutine column_process_enable
 
    !> \brief Disable column processing
    subroutine column_process_disable(this)
-      class(ColumnProcessInterface), intent(inout) :: this
+      class(ProcessInterface), intent(inout) :: this
 
       this%column_processing_enabled = .false.
    end subroutine column_process_disable
 
    !> \brief Check if column processing is enabled
    function column_process_is_enabled(this) result(is_enabled)
-      class(ColumnProcessInterface), intent(in) :: this
+      class(ProcessInterface), intent(in) :: this
       logical :: is_enabled
 
       is_enabled = this%column_processing_enabled
    end function column_process_is_enabled
 
    !========================================================================
-   ! Unit Conversion Utilities
-   !========================================================================
-
-   !> \brief Convert concentration units between different unit systems
-   !!
-   !! This utility converts concentration values between common atmospheric chemistry units
-   !! such as molec/cm³, ppbv, ppmv, µg/m³, etc.
-   !!
-   !! \param[in] this ProcessInterface instance
-   !! \param[inout] values Array of concentration values to convert
-   !! \param[in] from_units Source units (e.g., 'ppbv', 'molec/cm3', 'ug/m3')
-   !! \param[in] to_units Target units
-   !! \param[in] molecular_weight Molecular weight [g/mol] (needed for mass/volume conversions)
-   !! \param[in] temperature Temperature [K] (needed for some conversions)
-   !! \param[in] pressure Pressure [Pa] (needed for some conversions)
-   !! \param[out] rc Return code
-   subroutine process_convert_concentration_units(this, values, from_units, to_units, &
-      molecular_weight, temperature, pressure, rc)
-      class(ProcessInterface), intent(in) :: this
-      real(fp), intent(inout) :: values(:)
-      character(len=*), intent(in) :: from_units, to_units
-      real(fp), intent(in), optional :: molecular_weight, temperature, pressure
-      integer, intent(out) :: rc
-
-      real(fp) :: mw, temp, pres
-      real(fp) :: conversion_factor
-      integer :: i
-
-      rc = CC_SUCCESS
-
-      ! Set default values if not provided
-      mw = 29.0_fp    ! Default molecular weight of air [g/mol]
-      temp = 273.15_fp ! Default temperature [K]
-      pres = 101325.0_fp ! Default pressure [Pa]
-
-      if (present(molecular_weight)) mw = molecular_weight
-      if (present(temperature)) temp = temperature
-      if (present(pressure)) pres = pressure
-
-      ! Calculate conversion factor based on unit types
-      if (trim(from_units) == trim(to_units)) then
-         ! No conversion needed
-         return
-      endif
-
-      ! Convert from ppbv to other units
-      if (trim(from_units) == 'ppbv') then
-         select case (trim(to_units))
-          case ('ppmv')
-            conversion_factor = 1.0e-3_fp
-          case ('molec/cm3')
-            ! ppbv to molec/cm³: ppbv * (P/RT) * (1e-9) * NA * (1e-6)
-            conversion_factor = (pres / (8.314_fp * temp)) * 1.0e-9_fp * 6.022e23_fp * 1.0e-6_fp
-          case ('ug/m3')
-            ! ppbv to µg/m³: ppbv * (P/RT) * MW * (1e-9) * (1e6)
-            conversion_factor = (pres / (8.314_fp * temp)) * mw * 1.0e-3_fp
-          case default
-            rc = CC_FAILURE
-            return
-         end select
-
-         ! Convert from molec/cm3 to other units
-      else if (trim(from_units) == 'molec/cm3') then
-         select case (trim(to_units))
-          case ('ppbv')
-            ! molec/cm³ to ppbv: (molec/cm³) * (RT/P) * (1e9) / NA * (1e6)
-            conversion_factor = (8.314_fp * temp / pres) * 1.0e9_fp / 6.022e23_fp * 1.0e6_fp
-          case ('ug/m3')
-            ! molec/cm³ to µg/m³: (molec/cm³) * MW / NA * (1e12)
-            conversion_factor = mw / 6.022e23_fp * 1.0e12_fp
-          case default
-            rc = CC_FAILURE
-            return
-         end select
-
-      else
-         ! Unsupported conversion
-         rc = CC_FAILURE
-         return
-      endif
-
-      ! Apply conversion
-      do i = 1, size(values)
-         values(i) = values(i) * conversion_factor
-      end do
-
-   end subroutine process_convert_concentration_units
-
-   !> \brief Convert flux units between different unit systems
-   !!
-   !! This utility converts emission flux values between common units
-   !! such as kg/m²/s, molec/cm²/s, molecules/m²/s, etc.
-   !!
-   !! \param[in] this ProcessInterface instance
-   !! \param[inout] flux_values Array of flux values to convert
-   !! \param[in] from_units Source flux units
-   !! \param[in] to_units Target flux units
-   !! \param[in] molecular_weight Molecular weight [g/mol]
-   !! \param[out] rc Return code
-   subroutine process_convert_flux_units(this, flux_values, from_units, to_units, molecular_weight, rc)
-      class(ProcessInterface), intent(in) :: this
-      real(fp), intent(inout) :: flux_values(:)
-      character(len=*), intent(in) :: from_units, to_units
-      real(fp), intent(in) :: molecular_weight
-      integer, intent(out) :: rc
-
-      real(fp) :: conversion_factor
-      integer :: i
-
-      rc = CC_SUCCESS
-
-      ! No conversion needed
-      if (trim(from_units) == trim(to_units)) then
-         return
-      endif
-
-      ! Convert kg/m²/s to molec/cm²/s
-      if (trim(from_units) == 'kg/m2/s' .and. trim(to_units) == 'molec/cm2/s') then
-         ! kg/m²/s * (1000 g/kg) * (1 mol/MW g) * (NA molec/mol) * (1 m²/10⁴ cm²)
-         conversion_factor = 1000.0_fp * (1.0_fp / molecular_weight) * 6.022e23_fp * 1.0e-4_fp
-
-         ! Convert molec/cm²/s to kg/m²/s
-      else if (trim(from_units) == 'molec/cm2/s' .and. trim(to_units) == 'kg/m2/s') then
-         ! molec/cm²/s * (1 mol/NA molec) * (MW g/mol) * (1 kg/1000 g) * (10⁴ cm²/m²)
-         conversion_factor = (1.0_fp / 6.022e23_fp) * molecular_weight * 1.0e-3_fp * 1.0e4_fp
-
-      else
-         ! Unsupported conversion
-         rc = CC_FAILURE
-         return
-      endif
-
-      ! Apply conversion
-      do i = 1, size(flux_values)
-         flux_values(i) = flux_values(i) * conversion_factor
-      end do
-
-   end subroutine process_convert_flux_units
-
-   !> \brief Calculate column integrals of species concentrations
-   !!
-   !! This utility calculates vertical column integrals (e.g., column density)
-   !! from 3D concentration fields.
-   !!
-   !! \param[in] this ProcessInterface instance
-   !! \param[in] container StateManager for accessing state data
-   !! \param[in] species_name Name of species to integrate
-   !! \param[out] column_integrals 2D array of column integrals [molecules/cm²]
-   !! \param[out] rc Return code
-   subroutine process_calculate_column_integrals(this, container, species_name, column_integrals, rc)
-      class(ProcessInterface), intent(in) :: this
-      type(StateManagerType), intent(inout) :: container
-      character(len=*), intent(in) :: species_name
-      real(fp), allocatable, intent(out) :: column_integrals(:,:)
-      integer, intent(out) :: rc
-
-      character(len=256) :: message
-
-      rc = CC_SUCCESS
-
-      ! Check if container is ready
-      if (.not. container%is_ready()) then
-         write(*, '(A)') 'ERROR: StateManager not ready for column integration'
-         rc = CC_FAILURE
-         return
-      endif
-
-      ! For now, this is a placeholder that would require access to:
-      ! - 3D concentration arrays from ChemState
-      ! - Air density and layer thickness from MetState
-      ! - Proper integration over vertical levels
-
-      ! Allocate output array (would get dimensions from MetState)
-      allocate(column_integrals(50, 50))  ! Placeholder dimensions
-      column_integrals = 0.0_fp
-
-      write(message, '(A,A,A)') 'Column integration completed for species: ', trim(species_name), &
-         ' (placeholder implementation)'
-      write(*, '(A)') trim(message)
-
-   end subroutine process_calculate_column_integrals
-
-   !========================================================================
-   ! ColumnProcessInterface Diagnostic Implementation
+   ! Column Processing Diagnostic Implementation
    !========================================================================
 
    !> Update a scalar diagnostic field for column processing
@@ -891,7 +583,7 @@ contains
    !! This method handles updating scalar diagnostic values from column processing
    !! to the global diagnostic storage managed by DiagnosticManager.
    !!
-   !! \param[inout] this ColumnProcessInterface instance
+   !! \param[inout] this ProcessInterface instance
    !! \param[in] field_name Name of the diagnostic field to update
    !! \param[in] scalar_value The scalar value to store
    !! \param[in] i_col Column i-index (x-direction)
@@ -899,7 +591,7 @@ contains
    !! \param[in] container StateManager for accessing diagnostic manager
    !! \param[out] rc Return code
    subroutine column_update_scalar_diagnostic(this, field_name, scalar_value, i_col, j_col, container, rc)
-      class(ColumnProcessInterface), intent(inout) :: this
+      class(ProcessInterface), intent(inout) :: this
       character(len=*), intent(in) :: field_name
       real(fp), intent(in) :: scalar_value
       integer, intent(in) :: i_col, j_col
@@ -967,7 +659,7 @@ contains
    !! This method handles updating 1D diagnostic arrays (e.g., vertical profiles)
    !! from column processing to the global diagnostic storage.
    !!
-   !! \param[inout] this ColumnProcessInterface instance
+   !! \param[inout] this ProcessInterface instance
    !! \param[in] field_name Name of the diagnostic field to update
    !! \param[in] array_1d The 1D array data to store
    !! \param[in] i_col Column i-index (x-direction)
@@ -975,7 +667,7 @@ contains
    !! \param[in] container StateManager for accessing diagnostic manager
    !! \param[out] rc Return code
    subroutine column_update_1d_diagnostic(this, field_name, array_1d, i_col, j_col, container, rc)
-      class(ColumnProcessInterface), intent(inout) :: this
+      class(ProcessInterface), intent(inout) :: this
       character(len=*), intent(in) :: field_name
       real(fp), intent(in) :: array_1d(:)
       integer, intent(in) :: i_col, j_col
@@ -1056,7 +748,7 @@ contains
    !! from column processing to the global diagnostic storage. Since DiagnosticInterface
    !! currently supports up to 3D arrays, 2D column data is stored using flattened indexing.
    !!
-   !! \param[inout] this ColumnProcessInterface instance
+   !! \param[inout] this ProcessInterface instance
    !! \param[in] field_name Name of the diagnostic field to update
    !! \param[in] array_2d The 2D array data to store
    !! \param[in] i_col Column i-index (x-direction)
@@ -1064,7 +756,7 @@ contains
    !! \param[in] container StateManager for accessing diagnostic manager
    !! \param[out] rc Return code
    subroutine column_update_2d_diagnostic(this, field_name, array_2d, i_col, j_col, container, rc)
-      class(ColumnProcessInterface), intent(inout) :: this
+      class(ProcessInterface), intent(inout) :: this
       character(len=*), intent(in) :: field_name
       real(fp), intent(in) :: array_2d(:,:)
       integer, intent(in) :: i_col, j_col

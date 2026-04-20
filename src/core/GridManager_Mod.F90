@@ -24,7 +24,6 @@
 module GridManager_Mod
    use Precision_Mod, only: fp
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType, ERROR_PROCESS_INITIALIZATION
-   use ColumnInterface_Mod, only: ColumnViewType
    use VirtualColumn_Mod, only: VirtualColumnType
 
    implicit none
@@ -34,6 +33,15 @@ module GridManager_Mod
    public :: GridGeometryType
    public :: ColumnIteratorType
    public :: GridDecompositionType
+
+   !> \brief Minimal column view type (placeholder, replaces removed ColumnInterface_Mod::ColumnViewType)
+   !!
+   !! This is a local placeholder type retained for interface compatibility.
+   !! The actual column data abstraction is VirtualColumnType.
+   type, public :: ColumnViewType
+      integer :: col_i = 0
+      integer :: col_j = 0
+   end type ColumnViewType
 
    ! Grid type constants
    integer, parameter, public :: GRID_TYPE_COLUMN = 1  !< Pure column model

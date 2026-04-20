@@ -21,7 +21,7 @@ module ProcessWetDepInterface_Mod
 
    ! Core CATChem infrastructure
    use precision_mod, only: fp
-   use ProcessInterface_Mod, only: ProcessInterface, ColumnProcessInterface
+   use ProcessInterface_Mod, only: ProcessInterface
    use StateManager_Mod, only: StateManagerType
    use GridManager_Mod, only: GridManagerType
    use error_mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType
@@ -46,11 +46,12 @@ module ProcessWetDepInterface_Mod
 
    public :: ProcessWetDepInterface
 
-   !> Main wetdep process interface type - extends core ColumnProcessInterface   !!
-   !! This type leverages CATChem's core ColumnProcessInterface infrastructure for column
+   !> Main wetdep process interface type - extends core ProcessInterface
+   !!
+   !! This type leverages CATChem's core ProcessInterface infrastructure for column
    !! virtualization, focusing only on process-specific configuration and scheme management.
    !! All boilerplate infrastructure and column processing is handled by the base class.
-   type, extends(ColumnProcessInterface) :: ProcessWetDepInterface
+   type, extends(ProcessInterface) :: ProcessWetDepInterface
       private
 
       ! Unified process configuration (bridges ConfigManager to process-specific config)
@@ -80,7 +81,7 @@ module ProcessWetDepInterface_Mod
       procedure :: finalize => process_finalize
       procedure :: parse_process_config => parse_wetdep_config
 
-      ! Required ColumnProcessInterface implementations
+      ! Required column processing implementations
       procedure :: init_column_processing => init_column_processing
       procedure :: run_column => run_column
       procedure :: finalize_column_processing => finalize_column_processing
@@ -166,7 +167,7 @@ contains
    !> Run the wetdep process
    !!
    !! This method implements the main ProcessInterface run method.
-   !! For ColumnProcessInterface processes, the actual column iteration is handled
+   !! For column-processing processes, the actual column iteration is handled
    !! by ProcessManager, so this method serves as a placeholder for any 3D operations
    !! that might be needed before or after column processing.
    subroutine process_run(this, container, rc)
@@ -181,7 +182,7 @@ contains
          return
       end if
 
-      ! For ColumnProcessInterface processes, the ProcessManager handles column iteration
+      ! For column-processing processes, the ProcessManager handles column iteration
       ! and calls run_column() for each virtual column. This method is mainly a placeholder
       ! for any global 3D operations that need to happen before/after column processing.
 
@@ -247,7 +248,7 @@ contains
    !> Initialize column processing for wetdep
    !!
    !! This method sets up the column processing infrastructure for the process.
-   !! The base class ColumnProcessInterface handles the actual column virtualization.
+   !! The base class ProcessInterface handles the actual column virtualization.
    subroutine init_column_processing(this, container, rc)
       class(ProcessWetDepInterface), intent(inout) :: this
       type(StateManagerType), intent(inout) :: container
@@ -335,15 +336,6 @@ contains
 
       ! Local variables for scheme calculation
       type(VirtualMetType), pointer :: met => null()  ! Pointer to meteorological data
-      ! Meteorological fields
-      real(fp), allocatable :: airden_dry(:)
-      real(fp), allocatable :: mairden(:)
-      real(fp), allocatable :: pedge(:)
-      real(fp), allocatable :: pfilsan(:)
-      real(fp), allocatable :: pfllsan(:)
-      real(fp), allocatable :: reevapls(:)
-      real(fp), allocatable :: t(:)
-      real(fp), allocatable :: tstep(:)
       ! Species properties
       logical, allocatable :: species_is_aerosol(:)
       real(fp), allocatable :: species_henry_cr(:)
@@ -378,15 +370,6 @@ contains
       ! Allocate arrays
       allocate(species_conc(n_levels, n_species))
       allocate(species_tendencies(n_levels, n_species))
-      ! Allocate meteorological field arrays based on field type and process configuration
-      allocate(airden_dry(n_levels))  ! Atmospheric field - always n_levels
-      allocate(mairden(n_levels))  ! Atmospheric field - always n_levels
-      allocate(pedge(n_levels+1))  ! Edge field - always n_levels+1
-      allocate(pfilsan(n_levels+1))  ! Edge field - always n_levels+1
-      allocate(pfllsan(n_levels+1))  ! Edge field - always n_levels+1
-      allocate(reevapls(n_levels))  ! Atmospheric field - always n_levels
-      allocate(t(n_levels))  ! Atmospheric field - always n_levels
-      allocate(tstep(1))  ! Special timestep field - scalar
       allocate(species_is_aerosol(n_species))
       allocate(species_henry_cr(n_species))
       allocate(species_henry_k0(n_species))
@@ -400,19 +383,8 @@ contains
       species_tendencies = 0.0_fp
 
       ! Get meteorological data pointer from virtual column (VirtualMet pattern)
+      ! Met pointers are passed directly to compute_jacob — no local copy needed
       met => column%get_met()
-
-      ! Now allocate categorical fields using the met pointer dimensions
-
-      ! Extract required fields from met pointer based on field type and processing mode
-      airden_dry(1:n_levels) = met%AIRDEN_DRY(1:n_levels)  ! Atmospheric field - always n_levels
-      mairden(1:n_levels) = met%MAIRDEN(1:n_levels)  ! Atmospheric field - always n_levels
-      pedge(1:n_levels+1) = met%PEDGE(1:n_levels+1)  ! Edge field - always n_levels+1
-      pfilsan(1:n_levels+1) = met%PFILSAN(1:n_levels+1)  ! Edge field - always n_levels+1
-      pfllsan(1:n_levels+1) = met%PFLLSAN(1:n_levels+1)  ! Edge field - always n_levels+1
-      reevapls(1:n_levels) = met%REEVAPLS(1:n_levels)  ! Atmospheric field - always n_levels
-      t(1:n_levels) = met%T(1:n_levels)  ! Atmospheric field - always n_levels
-      tstep(1) = this%get_timestep()  ! Special timestep field - retrieved from ProcessInterface
 
       ! Get species concentrations from virtual column
       ! Full column processing - get concentrations for all levels
@@ -454,14 +426,14 @@ contains
             n_levels, &
             n_species, &
             this%process_config%jacob_config, &
-            airden_dry, &
-            mairden, &
-            pedge, &
-            pfilsan, &
-            pfllsan, &
-            reevapls, &
-            t, &
-            tstep(1)            , &
+            met%AIRDEN_DRY(1:n_levels), &
+            met%MAIRDEN(1:n_levels), &
+            met%PEDGE(1:n_levels+1), &
+            met%PFILSAN(1:n_levels+1), &
+            met%PFLLSAN(1:n_levels+1), &
+            met%REEVAPLS(1:n_levels), &
+            met%T(1:n_levels), &
+            this%get_timestep(), &
             species_is_aerosol, &
             this%process_config%wetdep_config%species_names, &
             species_henry_cr, &
@@ -484,14 +456,14 @@ contains
             n_levels, &
             n_species, &
             this%process_config%jacob_config, &
-            airden_dry, &
-            mairden, &
-            pedge, &
-            pfilsan, &
-            pfllsan, &
-            reevapls, &
-            t, &
-            tstep(1)            , &
+            met%AIRDEN_DRY(1:n_levels), &
+            met%MAIRDEN(1:n_levels), &
+            met%PEDGE(1:n_levels+1), &
+            met%PFILSAN(1:n_levels+1), &
+            met%PFLLSAN(1:n_levels+1), &
+            met%REEVAPLS(1:n_levels), &
+            met%T(1:n_levels), &
+            this%get_timestep(), &
             species_is_aerosol, &
             this%process_config%wetdep_config%species_names, &
             species_henry_cr, &

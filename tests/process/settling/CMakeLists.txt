@@ -8,7 +8,20 @@ set(
   TEST_SOURCES
   unit/test_settling_unit.F90
   integration/test_settling_integration.F90
+  integration/test_NumericalEquivalence.F90
+  test_SettlingPhysics.F90
+  test_DataMarshalingEquivalence.F90
 )
+
+# Kokkos-specific tests (only compiled when ENABLE_KOKKOS=ON)
+if(ENABLE_KOKKOS)
+  list(
+    APPEND
+    TEST_SOURCES
+    test_KokkosCpuDispatch.F90
+    test_KokkosGpuTolerance.F90
+  )
+endif()
 
 # Create test executables
 foreach(test_source ${TEST_SOURCES})
@@ -23,6 +36,21 @@ foreach(test_source ${TEST_SOURCES})
     CATChem_core
     testing
   )
+
+  # The SettlingPhysics equivalence test also needs GOCART2G for comparison
+  if(${test_name} STREQUAL "test_SettlingPhysics")
+    if(TARGET GOCART2G)
+      target_link_libraries(${test_name} GOCART2G)
+    endif()
+  endif()
+
+  # Kokkos tests need CATChem_kokkos library
+  if(ENABLE_KOKKOS)
+    if(${test_name} STREQUAL "test_KokkosCpuDispatch"
+       OR ${test_name} STREQUAL "test_KokkosGpuTolerance")
+      target_link_libraries(${test_name} CATChem_kokkos)
+    endif()
+  endif()
 
   # Set Fortran module directory
   set_target_properties(

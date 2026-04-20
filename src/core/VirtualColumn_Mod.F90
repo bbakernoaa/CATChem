@@ -16,6 +16,7 @@
 module VirtualColumn_Mod
    use Precision_Mod, only: fp
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE
+   use species_mod, only: SpeciesType
 
    implicit none
    private
@@ -32,8 +33,11 @@ module VirtualColumn_Mod
       ! Meteorological data (pointers managed by VirtualMetType)
       type(VirtualMetType) :: met                            !< Meteorological fields
 
-      ! Chemical and emission data (still use arrays for modification)
-      real(fp), allocatable :: chem_data(:,:)                !< Chemical species [nlev, nspec]
+      ! Pointer-based chemical data access (replaces allocatable chem_data)
+      ! Stores a pointer to the ChemSpecies array for direct 3D indexing
+      type(SpeciesType), pointer :: chem_species_ptr(:) => null()  !< Pointer to ChemSpecies array
+
+      ! Emission data (retained as allocatable per Requirement 4.6)
       real(fp), allocatable :: emis_data(:,:)                !< Emission fluxes [nlev, nspec]
 
       ! Grid position and metadata
@@ -95,12 +99,17 @@ contains
    !=========================================================================
 
    !> \brief Initialize virtual column
-   subroutine virtual_column_init(this, nlev, nspec_chem, nspec_emis, grid_i, grid_j, lat, lon, area, rc)
+   !! \details Accepts an optional pointer to the ChemSpecies array for
+   !! pointer-based chemical data access (zero-copy). If chem_species is
+   !! provided, get_chem_field/set_chem_field will index directly into
+   !! the 3D concentration arrays at (grid_i, grid_j, k).
+   subroutine virtual_column_init(this, nlev, nspec_chem, nspec_emis, grid_i, grid_j, lat, lon, area, rc, chem_species)
       class(VirtualColumnType), intent(inout) :: this
       integer, intent(in) :: nlev, nspec_chem, nspec_emis
       integer, intent(in) :: grid_i, grid_j
       real(fp), intent(in) :: lat, lon, area
       integer, intent(out) :: rc
+      type(SpeciesType), target, optional, intent(in) :: chem_species(:)
 
       rc = CC_SUCCESS
 
@@ -124,14 +133,11 @@ contains
          endif
       endif
 
-      ! Allocate chemical and emission data arrays
-      if (nlev > 0 .and. nspec_chem > 0) then
-         allocate(this%chem_data(nlev, nspec_chem), stat=rc)
-         if (rc /= 0) then
-            rc = CC_FAILURE
-            return
-         endif
-         this%chem_data = 0.0_fp
+      ! Set up pointer-based chemical data access
+      if (present(chem_species)) then
+         this%chem_species_ptr => chem_species
+      else
+         nullify(this%chem_species_ptr)
       endif
 
       if (nlev > 0 .and. nspec_emis > 0) then
@@ -156,15 +162,21 @@ contains
    end function virtual_column_get_met
 
    !> \brief Get chemical species concentration at level k
+   !! \details Returns ChemSpecies(ispec)%conc(grid_i, grid_j, k) via pointer
+   !! dereference — zero-copy access into the 3D concentration arrays.
    function virtual_column_get_chem_field(this, ispec, k) result(value)
       class(VirtualColumnType), intent(in) :: this
       integer, intent(in) :: ispec, k
       real(fp) :: value
 
-      if (allocated(this%chem_data) .and. &
+      if (associated(this%chem_species_ptr) .and. &
          k >= 1 .and. k <= this%nlev .and. &
          ispec >= 1 .and. ispec <= this%nspec_chem) then
-         value = this%chem_data(k, ispec)
+         if (associated(this%chem_species_ptr(ispec)%conc)) then
+            value = this%chem_species_ptr(ispec)%conc(this%grid_i, this%grid_j, k)
+         else
+            value = 0.0_fp
+         endif
       else
          value = 0.0_fp
       endif
@@ -186,15 +198,19 @@ contains
    end function virtual_column_get_emis_field
 
    !> \brief Set chemical species concentration at level k
+   !! \details Writes directly to ChemSpecies(ispec)%conc(grid_i, grid_j, k)
+   !! via pointer dereference — modifications go straight to the 3D arrays.
    subroutine virtual_column_set_chem_field(this, k, ispec, value)
       class(VirtualColumnType), intent(inout) :: this
       integer, intent(in) :: k, ispec
       real(fp), intent(in) :: value
 
-      if (allocated(this%chem_data) .and. &
+      if (associated(this%chem_species_ptr) .and. &
          k >= 1 .and. k <= this%nlev .and. &
          ispec >= 1 .and. ispec <= this%nspec_chem) then
-         this%chem_data(k, ispec) = value
+         if (associated(this%chem_species_ptr(ispec)%conc)) then
+            this%chem_species_ptr(ispec)%conc(this%grid_i, this%grid_j, k) = value
+         endif
       endif
    end subroutine virtual_column_set_chem_field
 
@@ -257,11 +273,12 @@ contains
       ! Clean up meteorological pointers
       call this%met%cleanup()
 
-      ! Deallocate chemical and emission data
-      if (allocated(this%chem_data)) then
-         !print *, '[DEBUG] Deallocating chem_data'
-         deallocate(this%chem_data)
+      ! Nullify chemical species pointer (does not deallocate — data owned by ChemState)
+      if (associated(this%chem_species_ptr)) then
+         nullify(this%chem_species_ptr)
       endif
+
+      ! Deallocate emission data (retained as allocatable per Req 4.6)
       if (allocated(this%emis_data)) then
          !print *, '[DEBUG] Deallocating emis_data'
          deallocate(this%emis_data)

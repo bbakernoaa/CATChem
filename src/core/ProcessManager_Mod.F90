@@ -13,10 +13,9 @@ module ProcessManager_Mod
    use precision_mod
    use StateManager_Mod, only : StateManagerType
    use error_mod, only : CC_SUCCESS, CC_FAILURE
-   use ProcessInterface_Mod, only : ProcessInterface, ColumnProcessInterface
+   use ProcessInterface_Mod, only : ProcessInterface
    use ProcessFactory_Mod, only : ProcessFactoryType
    use GridManager_Mod, only : GridManagerType, ColumnIteratorType
-   use ColumnInterface_Mod, only : ColumnProcessorType, ColumnViewType
    use VirtualColumn_Mod, only : VirtualColumnType
    use ConfigManager_Mod, only : ConfigDataType, RunPhaseType, ProcessConfigType
 
@@ -24,6 +23,30 @@ module ProcessManager_Mod
    private
 
    public :: ProcessManagerType
+   public :: BatchDataType
+
+   !> \brief Contiguous batch arrays for N columns
+   !!
+   !! Holds gathered meteorological and chemical data for a batch of columns.
+   !! Used by prepare_batch/apply_batch for the batch dispatch pattern.
+   !! Made public so the Kokkos layer can use it later.
+   type :: BatchDataType
+      integer :: n_cols = 0           !< Actual number of columns in this batch
+      integer :: n_levels = 0         !< Number of vertical levels
+      integer :: n_species = 0        !< Number of chemical species
+
+      ! Column indices for scatter-back
+      integer, allocatable :: col_i(:)          !< Grid i-indices (n_cols)
+      integer, allocatable :: col_j(:)          !< Grid j-indices (n_cols)
+
+      ! Meteorological batch arrays — contiguous
+      real(fp), allocatable :: met_3d(:,:,:)    !< 3D met fields (n_cols, n_levels, n_met_fields)
+      real(fp), allocatable :: met_2d(:,:)      !< Surface met fields (n_cols, n_surface_fields)
+
+      ! Chemical species batch arrays
+      real(fp), allocatable :: chem_conc(:,:,:)      !< Input concentrations (n_cols, n_levels, n_species)
+      real(fp), allocatable :: chem_tendency(:,:,:)   !< Output tendencies (n_cols, n_levels, n_species)
+   end type BatchDataType
 
    ! 1. Define a wrapper otherwise the polymorphic array allocation fails
    type :: ProcessContainerType
@@ -37,7 +60,6 @@ module ProcessManager_Mod
       integer :: num_processes = 0
       integer :: max_processes = 50
       type(ProcessFactoryType) :: factory
-      type(ColumnProcessorType) :: column_processor  !< Batch column processor
       character(len=64), public, allocatable :: required_met_fields(:)  !< All unique required met fields from processes
    contains
       procedure :: init => manager_init
@@ -55,6 +77,8 @@ module ProcessManager_Mod
       procedure :: set_max_processes => manager_set_max_processes
       procedure :: enable_column_batching => manager_enable_column_batching
       procedure :: register_process => manager_register_process
+      procedure :: prepare_batch => manager_prepare_batch
+      procedure :: apply_batch => manager_apply_batch
       procedure, private :: add_met_fields_from_process => manager_add_met_fields_from_process
    end type ProcessManagerType
 
@@ -74,10 +98,6 @@ contains
       ! Initialize empty required met fields array
       if (allocated(this%required_met_fields)) deallocate(this%required_met_fields)
       allocate(this%required_met_fields(0))
-
-      ! Initialize column processor with default max columns
-      call this%column_processor%init(100, rc)  ! Default max columns
-      if (rc /= CC_SUCCESS) return
 
       rc = CC_SUCCESS
    end subroutine manager_init
@@ -185,15 +205,14 @@ contains
 
       do i = 1, this%num_processes
          if (this%processes(i)%item%is_ready()) then
-            ! Check if this is a column process
-            select type(proc => this%processes(i)%item)
-             class is (ColumnProcessInterface)
+            ! Check if this process uses column dispatch
+            if (this%processes(i)%item%is_column_processing_enabled()) then
                ! Run column-based process
                call this%run_process_on_columns(i, container, local_rc)
-             class default
+            else
                ! Run traditional 3D process
                call this%processes(i)%item%run(container, local_rc)
-            end select
+            endif
 
             if (local_rc /= CC_SUCCESS) then
                rc = local_rc
@@ -240,16 +259,15 @@ contains
 
          ! Run all column processes on this column
          do i = 1, this%num_processes
-            select type(proc => this%processes(i)%item)
-             class is (ColumnProcessInterface)
-               if (proc%is_ready()) then
-                  call proc%run_column(virtual_col, container, local_rc)
+            if (this%processes(i)%item%is_column_processing_enabled()) then
+               if (this%processes(i)%item%is_ready()) then
+                  call this%processes(i)%item%run_column(virtual_col, container, local_rc)
                   if (local_rc /= CC_SUCCESS) then
                      rc = local_rc
                      return
                   endif
                endif
-            end select
+            endif
          enddo
 
          ! Apply virtual column changes back to container
@@ -261,7 +279,13 @@ contains
 
    end subroutine manager_run_column_processes
 
-   !> \brief Run a specific process on all columns
+   !> \brief Run a specific process on all columns using batch dispatch
+   !!
+   !! Iterates over the grid in chunks of batch_size columns. For each chunk:
+   !!   1. prepare_batch — gather met/chem data into contiguous batch arrays
+   !!   2. run_column for each column in the batch (serial; Kokkos layer replaces later)
+   !!   3. apply_batch — scatter modified chem data back to 3D state arrays
+   !! Handles partial last batch when total columns is not a multiple of batch_size.
    subroutine manager_run_process_on_columns(this, process_index, container, rc)
       class(ProcessManagerType), intent(inout) :: this
       integer, intent(in) :: process_index
@@ -271,7 +295,12 @@ contains
       type(GridManagerType), pointer :: grid_mgr
       type(ColumnIteratorType) :: col_iter
       type(VirtualColumnType) :: virtual_col
+      type(BatchDataType) :: batch
       integer :: col_i, col_j
+      integer :: batch_size, total_columns, cols_in_batch
+      integer :: icol, nx, ny, nz
+      integer :: batch_start, batch_end, col_count
+      integer, allocatable :: all_col_i(:), all_col_j(:)
 
       rc = CC_SUCCESS
 
@@ -287,33 +316,117 @@ contains
          return
       endif
 
-      select type(proc => this%processes(process_index)%item)
-       class is (ColumnProcessInterface)
-         ! Initialize column iterator using create_column_iterator
-         col_iter = grid_mgr%create_column_iterator()
+      ! Verify this process supports column processing
+      if (.not. this%processes(process_index)%item%is_column_processing_enabled()) then
+         rc = CC_FAILURE
+         return
+      endif
 
-         ! Process each column
-         do while (col_iter%has_next())
-            call col_iter%next(rc)
-            if (rc /= CC_SUCCESS) return
+      ! Get batch size from the process (default 100, configurable per process)
+      batch_size = this%processes(process_index)%item%get_column_batch_size()
+      if (batch_size < 1) batch_size = 100
 
-            ! Get current column indices
-            call col_iter%get_current_indices(col_i, col_j)
+      ! Get grid dimensions
+      call grid_mgr%get_shape(nx, ny, nz)
+      total_columns = grid_mgr%get_total_columns()
+
+      if (total_columns < 1) then
+         rc = CC_SUCCESS
+         return
+      endif
+
+      ! First pass: collect all column indices using the iterator
+      allocate(all_col_i(total_columns))
+      allocate(all_col_j(total_columns))
+
+      col_iter = grid_mgr%create_column_iterator()
+      col_count = 0
+      do while (col_iter%has_next())
+         call col_iter%next(rc)
+         if (rc /= CC_SUCCESS) then
+            deallocate(all_col_i, all_col_j)
+            return
+         endif
+         col_count = col_count + 1
+         call col_iter%get_current_indices(all_col_i(col_count), all_col_j(col_count))
+      end do
+
+      ! Process columns in chunks of batch_size
+      batch_start = 1
+      do while (batch_start <= col_count)
+         batch_end = min(batch_start + batch_size - 1, col_count)
+         cols_in_batch = batch_end - batch_start + 1
+
+         ! Set up batch index arrays
+         if (allocated(batch%col_i)) deallocate(batch%col_i)
+         if (allocated(batch%col_j)) deallocate(batch%col_j)
+         allocate(batch%col_i(cols_in_batch))
+         allocate(batch%col_j(cols_in_batch))
+         batch%n_cols = cols_in_batch
+         batch%n_levels = nz
+
+         batch%col_i(1:cols_in_batch) = all_col_i(batch_start:batch_end)
+         batch%col_j(1:cols_in_batch) = all_col_j(batch_start:batch_end)
+
+         ! Step 1: Gather data into contiguous batch arrays
+         call this%prepare_batch(container, this%processes(process_index)%item, batch, rc)
+         if (rc /= CC_SUCCESS) then
+            deallocate(all_col_i, all_col_j)
+            return
+         endif
+
+         ! Step 2: Run the process on each column in the batch (serial dispatch)
+         ! The Kokkos layer (Task 13) will later replace this with parallel dispatch.
+         do icol = 1, cols_in_batch
+            col_i = batch%col_i(icol)
+            col_j = batch%col_j(icol)
 
             call container%create_virtual_column(col_i, col_j, virtual_col, rc)
-            if (rc /= CC_SUCCESS) return
+            if (rc /= CC_SUCCESS) then
+               deallocate(all_col_i, all_col_j)
+               return
+            endif
 
-            call proc%run_column(virtual_col, container, rc)
-            if (rc /= CC_SUCCESS) return
+            call this%processes(process_index)%item%run_column(virtual_col, container, rc)
+            if (rc /= CC_SUCCESS) then
+               deallocate(all_col_i, all_col_j)
+               return
+            endif
 
-            ! Apply virtual column changes back to container for each column
+            ! Apply virtual column changes back to container
             call container%apply_virtual_column(virtual_col, rc)
-            if (rc /= CC_SUCCESS) return
-         enddo
-         ! Clean up virtual column
-         if (virtual_col%is_valid)  call virtual_col%cleanup()
+            if (rc /= CC_SUCCESS) then
+               deallocate(all_col_i, all_col_j)
+               return
+            endif
+         end do
 
-      end select
+         ! Step 3: Scatter modified chem data back to 3D state arrays
+         ! Note: With pointer-based VirtualColumnType, run_column already writes
+         ! directly to the 3D arrays. apply_batch is a no-op in the serial path
+         ! but becomes the authoritative scatter when Kokkos operates on batch arrays.
+         call this%apply_batch(container, batch, rc)
+         if (rc /= CC_SUCCESS) then
+            deallocate(all_col_i, all_col_j)
+            return
+         endif
+
+         ! Clean up virtual column from last iteration
+         if (virtual_col%is_valid) call virtual_col%cleanup()
+
+         ! Clean up batch arrays for this chunk
+         if (allocated(batch%col_i)) deallocate(batch%col_i)
+         if (allocated(batch%col_j)) deallocate(batch%col_j)
+         if (allocated(batch%met_3d)) deallocate(batch%met_3d)
+         if (allocated(batch%met_2d)) deallocate(batch%met_2d)
+         if (allocated(batch%chem_conc)) deallocate(batch%chem_conc)
+         if (allocated(batch%chem_tendency)) deallocate(batch%chem_tendency)
+
+         batch_start = batch_end + 1
+      end do
+
+      deallocate(all_col_i, all_col_j)
+
    end subroutine manager_run_process_on_columns
 
    !> \brief Run a specific process by name
@@ -328,13 +441,12 @@ contains
       rc = CC_FAILURE
       do i = 1, this%num_processes
          if (trim(this%processes(i)%item%get_name()) == trim(process_name)) then
-            ! Check if this is a column process and run appropriately
-            select type(proc => this%processes(i)%item)
-             class is (ColumnProcessInterface)
+            ! Check if this process uses column dispatch and run appropriately
+            if (this%processes(i)%item%is_column_processing_enabled()) then
                call this%run_process_on_columns(i, container, rc)
-             class default
+            else
                call this%processes(i)%item%run(container, rc)
-            end select
+            endif
             return
          endif
       enddo
@@ -352,13 +464,12 @@ contains
       max_count = min(this%num_processes, size(column_indices))
 
       do i = 1, this%num_processes
-         select type(proc => this%processes(i)%item)
-          class is (ColumnProcessInterface)
+         if (this%processes(i)%item%is_column_processing_enabled()) then
             count = count + 1
             if (count <= max_count) then
                column_indices(count) = i
             endif
-         end select
+         endif
       enddo
    end subroutine manager_get_column_processes
 
@@ -425,13 +536,12 @@ contains
 
          ! Run the process based on its type
          if (this%processes(process_idx)%item%is_ready()) then
-            select type(proc => this%processes(process_idx)%item)
-             class is (ColumnProcessInterface)
+            if (this%processes(process_idx)%item%is_column_processing_enabled()) then
                !!write(*,*) 'Test phase process', process_idx, trim(proc%name) !debug only
                call this%run_process_on_columns(process_idx, container, local_rc)
-             class default
+            else
                call this%processes(process_idx)%item%run(container, local_rc)
-            end select
+            endif
 
             if (local_rc /= CC_SUCCESS) then
                write(*,*) 'ERROR: Process ', trim(process_config%name), ' failed with code: ', local_rc
@@ -542,9 +652,6 @@ contains
          endif
       enddo
 
-      ! Clean up column processor
-      call this%column_processor%cleanup()
-
       if (allocated(this%processes)) deallocate(this%processes)
       if (allocated(this%required_met_fields)) deallocate(this%required_met_fields)
       this%num_processes = 0
@@ -586,6 +693,126 @@ contains
 
       call this%factory%register_process(name, category, description, creator, rc)
    end subroutine manager_register_process
+
+   !> \brief Gather meteorological and chemical data for N columns into contiguous batch arrays
+   !!
+   !! Reads met fields determined by the process's get_required_met_fields() and
+   !! chemical data directly from ChemState 3D arrays using column indices.
+   !! 3D fields are dimensioned (batch_size, nlev, n_fields), surface fields (batch_size, n_fields).
+   subroutine manager_prepare_batch(this, container, process, batch, rc)
+      use ChemState_Mod, only: ChemStateType
+
+      class(ProcessManagerType), intent(inout) :: this
+      type(StateManagerType), intent(inout) :: container
+      class(ProcessInterface), intent(in) :: process
+      type(BatchDataType), intent(inout) :: batch
+      integer, intent(out) :: rc
+
+      type(ChemStateType), pointer :: chem_state
+      character(len=32), allocatable :: met_fields(:)
+      integer :: icol, k, s, ci, cj
+      integer :: n_cols, nlev, nspec
+
+      rc = CC_SUCCESS
+
+      n_cols = batch%n_cols
+      nlev = batch%n_levels
+      if (n_cols < 1 .or. nlev < 1) return
+
+      ! Get state pointers
+      chem_state => container%get_chem_state_ptr()
+
+      ! --- Gather chemical data ---
+      if (associated(chem_state) .and. allocated(chem_state%ChemSpecies)) then
+         nspec = size(chem_state%ChemSpecies)
+         batch%n_species = nspec
+
+         if (allocated(batch%chem_conc)) deallocate(batch%chem_conc)
+         if (allocated(batch%chem_tendency)) deallocate(batch%chem_tendency)
+         allocate(batch%chem_conc(n_cols, nlev, nspec))
+         allocate(batch%chem_tendency(n_cols, nlev, nspec))
+         batch%chem_conc = 0.0_fp
+         batch%chem_tendency = 0.0_fp
+
+         do icol = 1, n_cols
+            ci = batch%col_i(icol)
+            cj = batch%col_j(icol)
+            do s = 1, nspec
+               if (associated(chem_state%ChemSpecies(s)%conc)) then
+                  do k = 1, nlev
+                     batch%chem_conc(icol, k, s) = chem_state%ChemSpecies(s)%conc(ci, cj, k)
+                  end do
+               endif
+            end do
+         end do
+      else
+         batch%n_species = 0
+      endif
+
+      ! --- Gather meteorological data ---
+      ! Use the process's get_required_met_fields() to determine which met fields to gather.
+      ! For now, we allocate met_3d and met_2d as empty placeholders since the actual
+      ! met field gathering depends on the specific MetState field layout (auto-generated).
+      ! The serial dispatch path uses VirtualColumnType which already has pointer-based met access.
+      met_fields = process%get_required_met_fields()
+
+      if (allocated(batch%met_3d)) deallocate(batch%met_3d)
+      if (allocated(batch%met_2d)) deallocate(batch%met_2d)
+
+      if (size(met_fields) > 0) then
+         ! Allocate met batch arrays as staging area for future Kokkos Views
+         ! The actual met data is accessed via VirtualMetType pointers in the serial path
+         allocate(batch%met_3d(n_cols, nlev, 0))
+         allocate(batch%met_2d(n_cols, 0))
+      else
+         allocate(batch%met_3d(n_cols, nlev, 0))
+         allocate(batch%met_2d(n_cols, 0))
+      endif
+
+      if (allocated(met_fields)) deallocate(met_fields)
+
+   end subroutine manager_prepare_batch
+
+   !> \brief Scatter modified chemical data from batch arrays back to 3D state arrays
+   !!
+   !! Uses stored col_i, col_j indices to write batch chem_conc back to
+   !! ChemState 3D concentration arrays. In the current serial dispatch path,
+   !! run_column already writes directly via pointer-based VirtualColumnType,
+   !! so this is effectively a no-op. It becomes the authoritative scatter
+   !! when the Kokkos layer operates on batch arrays directly.
+   subroutine manager_apply_batch(this, container, batch, rc)
+      use ChemState_Mod, only: ChemStateType
+
+      class(ProcessManagerType), intent(inout) :: this
+      type(StateManagerType), intent(inout) :: container
+      type(BatchDataType), intent(in) :: batch
+      integer, intent(out) :: rc
+
+      rc = CC_SUCCESS
+
+      ! In the current serial dispatch path, run_column writes directly to the
+      ! 3D arrays via pointer-based VirtualColumnType. The batch chem_conc arrays
+      ! are staging areas for the future Kokkos path. No scatter needed here.
+      !
+      ! When the Kokkos layer (Task 13) replaces the serial loop with
+      ! kokkos_dispatch_*(), the Kokkos kernel will operate on batch arrays
+      ! and this method will scatter results back:
+      !
+      ! type(ChemStateType), pointer :: chem_state
+      ! integer :: icol, k, s, ci, cj
+      !
+      ! chem_state => container%get_chem_state_ptr()
+      ! do icol = 1, batch%n_cols
+      !    ci = batch%col_i(icol)
+      !    cj = batch%col_j(icol)
+      !    do s = 1, batch%n_species
+      !       do k = 1, batch%n_levels
+      !          chem_state%ChemSpecies(s)%conc(ci, cj, k) = batch%chem_conc(icol, k, s)
+      !       end do
+      !    end do
+      ! end do
+
+   end subroutine manager_apply_batch
 
    !> \brief Add required met fields from a process, ensuring no duplicates
    !!

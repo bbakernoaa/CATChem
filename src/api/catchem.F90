@@ -67,13 +67,12 @@ module CATChem
    ! Grid Management
    !------------------
    use GridManager_Mod, only: GridManagerType, GridGeometryType, ColumnIteratorType
-   use ColumnInterface_Mod, only: ColumnProcessorType
    use VirtualColumn_Mod, only: VirtualColumnType
 
    !--------------------
    ! Process Management
    !--------------------
-   use ProcessInterface_Mod, only: ProcessInterface, ColumnProcessInterface
+   use ProcessInterface_Mod, only: ProcessInterface
    use ProcessManager_Mod, only: ProcessManagerType
    use ProcessFactory_Mod, only: ProcessFactoryType
 

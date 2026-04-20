@@ -18,3 +18,8 @@ option(BUILD_API "Build API (requires process modules)" ON)
 if(BUILD_API AND BUILD_PROCESSES)
   add_subdirectory(api)
 endif()
+
+# Kokkos interop layer (only when ENABLE_KOKKOS=ON)
+if(ENABLE_KOKKOS)
+  add_subdirectory(kokkos)
+endif()

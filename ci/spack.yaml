@@ -17,6 +17,7 @@ spack:
   - nccmp@1.9.0.1
   - parallelio@2.5.10+fortran~pnetcdf
   - esmf@8.8.0
+  - kokkos@4.3.0+serial+openmp~cuda
   view: true
   concretizer:
     unify: when_possible

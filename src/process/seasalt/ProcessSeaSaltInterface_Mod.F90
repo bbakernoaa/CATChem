@@ -21,7 +21,7 @@ module ProcessSeaSaltInterface_Mod
 
    ! Core CATChem infrastructure
    use precision_mod, only: fp
-   use ProcessInterface_Mod, only: ProcessInterface, ColumnProcessInterface
+   use ProcessInterface_Mod, only: ProcessInterface
    use StateManager_Mod, only: StateManagerType
    use GridManager_Mod, only: GridManagerType
    use error_mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType
@@ -48,11 +48,12 @@ module ProcessSeaSaltInterface_Mod
 
    public :: ProcessSeaSaltInterface
 
-   !> Main seasalt process interface type - extends core ColumnProcessInterface   !!
-   !! This type leverages CATChem's core ColumnProcessInterface infrastructure for column
+   !> Main seasalt process interface type - extends core ProcessInterface
+   !!
+   !! This type leverages CATChem's core ProcessInterface infrastructure for column
    !! virtualization, focusing only on process-specific configuration and scheme management.
    !! All boilerplate infrastructure and column processing is handled by the base class.
-   type, extends(ColumnProcessInterface) :: ProcessSeaSaltInterface
+   type, extends(ProcessInterface) :: ProcessSeaSaltInterface
       private
 
       ! Unified process configuration (bridges ConfigManager to process-specific config)
@@ -84,7 +85,7 @@ module ProcessSeaSaltInterface_Mod
       procedure :: finalize => process_finalize
       procedure :: parse_process_config => parse_seasalt_config
 
-      ! Required ColumnProcessInterface implementations
+      ! Required column processing implementations
       procedure :: init_column_processing => init_column_processing
       procedure :: run_column => run_column
       procedure :: finalize_column_processing => finalize_column_processing
@@ -172,7 +173,7 @@ contains
    !> Run the seasalt process
    !!
    !! This method implements the main ProcessInterface run method.
-   !! For ColumnProcessInterface processes, the actual column iteration is handled
+   !! For column-processing processes, the actual column iteration is handled
    !! by ProcessManager, so this method serves as a placeholder for any 3D operations
    !! that might be needed before or after column processing.
    subroutine process_run(this, container, rc)
@@ -187,7 +188,7 @@ contains
          return
       end if
 
-      ! For ColumnProcessInterface processes, the ProcessManager handles column iteration
+      ! For column-processing processes, the ProcessManager handles column iteration
       ! and calls run_column() for each virtual column. This method is mainly a placeholder
       ! for any global 3D operations that need to happen before/after column processing.
 
@@ -255,7 +256,7 @@ contains
    !> Initialize column processing for seasalt
    !!
    !! This method sets up the column processing infrastructure for the process.
-   !! The base class ColumnProcessInterface handles the actual column virtualization.
+   !! The base class ProcessInterface handles the actual column virtualization.
    subroutine init_column_processing(this, container, rc)
       class(ProcessSeaSaltInterface), intent(inout) :: this
       type(StateManagerType), intent(inout) :: container
@@ -347,12 +348,6 @@ contains
 
       ! Local variables for scheme calculation
       type(VirtualMetType), pointer :: met => null()  ! Pointer to meteorological data
-      ! Meteorological fields
-      real(fp), allocatable :: frocean(:)
-      real(fp), allocatable :: frseaice(:)
-      real(fp), allocatable :: sst(:)
-      real(fp), allocatable :: u10m(:)
-      real(fp), allocatable :: v10m(:)
       ! Species properties
       real(fp), allocatable :: species_density(:)
       real(fp), allocatable :: species_radius(:)
@@ -380,15 +375,9 @@ contains
       allocate(species_indices(n_species))
       species_indices(1:n_species) = this%process_config%seasalt_config%species_indices(1:n_species)
 
-      ! Allocate arrays
+      ! Allocate arrays for species data
       allocate(species_conc(1, n_species))
       allocate(species_tendencies(1, n_species))
-      ! Allocate meteorological field arrays based on field type and process configuration
-      allocate(frocean(1))  ! Surface field - always scalar
-      allocate(frseaice(1))  ! Surface field - always scalar
-      allocate(sst(1))  ! Surface field - always scalar
-      allocate(u10m(1))  ! Surface field - always scalar
-      allocate(v10m(1))  ! Surface field - always scalar
       allocate(species_density(n_species))
       allocate(species_radius(n_species))
       allocate(species_lower_radius(n_species))
@@ -396,16 +385,8 @@ contains
       species_tendencies = 0.0_fp
 
       ! Get meteorological data pointer from virtual column (VirtualMet pattern)
+      ! Met fields are passed directly to compute_gong97 — no local copy needed
       met => column%get_met()
-
-      ! Now allocate categorical fields using the met pointer dimensions
-
-      ! Extract required fields from met pointer based on field type and processing mode
-      frocean(1) = met%FROCEAN  ! Surface field - scalar access
-      frseaice(1) = met%FRSEAICE  ! Surface field - scalar access
-      sst(1) = met%SST  ! Surface field - scalar access
-      u10m(1) = met%U10M  ! Surface field - scalar access
-      v10m(1) = met%V10M  ! Surface field - scalar access
 
       ! Get species concentrations from virtual column
       ! Surface-only processing - get surface level concentrations
@@ -414,30 +395,24 @@ contains
       end do
 
       ! Get species properties from configuration (pre-loaded during initialization)
-      ! Use species properties from process configuration
       species_density(1:n_species) = this%process_config%seasalt_config%species_density(1:n_species)
-      ! Use species properties from process configuration
       species_radius(1:n_species) = this%process_config%seasalt_config%species_radius(1:n_species)
-      ! Use species properties from process configuration
       species_lower_radius(1:n_species) = this%process_config%seasalt_config%species_lower_radius(1:n_species)
-      ! Use species properties from process configuration
       species_upper_radius(1:n_species) = this%process_config%seasalt_config%species_upper_radius(1:n_species)
 
       ! Call the science scheme with optional diagnostic parameters
-      ! Note: gong97 uses the following diagnostic fields (if diagnostics enabled):
-      ! - seasalt_mass_emission_total (Sea salt mass emission flux total)
-      ! - seasalt_number_emission_total (Sea salt number emission flux total)
+      ! Met fields passed directly from VirtualMetType — no local copy
       if (this%process_config%seasalt_config%diagnostics) then
          ! Call with diagnostic outputs enabled
          call compute_gong97( &
             n_levels, &
             n_species, &
             this%process_config%gong97_config, &
-            frocean(1), &
-            frseaice(1), &
-            sst(1), &
-            u10m(1), &
-            v10m(1)            , &
+            met%FROCEAN, &
+            met%FRSEAICE, &
+            met%SST, &
+            met%U10M, &
+            met%V10M, &
             species_density, &
             species_radius, &
             species_lower_radius, &
@@ -448,25 +423,24 @@ contains
             this%column_seasalt_number_emission_total, &
             this%column_seasalt_mass_emission_per_bin, &
             this%column_seasalt_number_emission_per_bin, &
-            this%process_config%seasalt_config%diagnostic_species_id         )
+            this%process_config%seasalt_config%diagnostic_species_id)
       else
          ! Call without diagnostic outputs (optional parameters not passed)
          call compute_gong97( &
             n_levels, &
             n_species, &
             this%process_config%gong97_config, &
-            frocean(1), &
-            frseaice(1), &
-            sst(1), &
-            u10m(1), &
-            v10m(1)            , &
+            met%FROCEAN, &
+            met%FRSEAICE, &
+            met%SST, &
+            met%U10M, &
+            met%V10M, &
             species_density, &
             species_radius, &
             species_lower_radius, &
             species_upper_radius, &
             species_conc, &
-            species_tendencies &
-            )
+            species_tendencies)
       end if
 
       ! Apply tendencies back to virtual column based on tendency_mode
@@ -501,12 +475,6 @@ contains
 
       ! Local variables for scheme calculation
       type(VirtualMetType), pointer :: met => null()  ! Pointer to meteorological data
-      ! Meteorological fields
-      real(fp), allocatable :: frocean(:)
-      real(fp), allocatable :: frseaice(:)
-      real(fp), allocatable :: sst(:)
-      real(fp), allocatable :: u10m(:)
-      real(fp), allocatable :: v10m(:)
       ! Species properties
       real(fp), allocatable :: species_density(:)
       real(fp), allocatable :: species_radius(:)
@@ -534,15 +502,9 @@ contains
       allocate(species_indices(n_species))
       species_indices(1:n_species) = this%process_config%seasalt_config%species_indices(1:n_species)
 
-      ! Allocate arrays
+      ! Allocate arrays for species data
       allocate(species_conc(1, n_species))
       allocate(species_tendencies(1, n_species))
-      ! Allocate meteorological field arrays based on field type and process configuration
-      allocate(frocean(1))  ! Surface field - always scalar
-      allocate(frseaice(1))  ! Surface field - always scalar
-      allocate(sst(1))  ! Surface field - always scalar
-      allocate(u10m(1))  ! Surface field - always scalar
-      allocate(v10m(1))  ! Surface field - always scalar
       allocate(species_density(n_species))
       allocate(species_radius(n_species))
       allocate(species_lower_radius(n_species))
@@ -550,16 +512,8 @@ contains
       species_tendencies = 0.0_fp
 
       ! Get meteorological data pointer from virtual column (VirtualMet pattern)
+      ! Met fields are passed directly to compute_gong03 — no local copy needed
       met => column%get_met()
-
-      ! Now allocate categorical fields using the met pointer dimensions
-
-      ! Extract required fields from met pointer based on field type and processing mode
-      frocean(1) = met%FROCEAN  ! Surface field - scalar access
-      frseaice(1) = met%FRSEAICE  ! Surface field - scalar access
-      sst(1) = met%SST  ! Surface field - scalar access
-      u10m(1) = met%U10M  ! Surface field - scalar access
-      v10m(1) = met%V10M  ! Surface field - scalar access
 
       ! Get species concentrations from virtual column
       ! Surface-only processing - get surface level concentrations
@@ -568,30 +522,24 @@ contains
       end do
 
       ! Get species properties from configuration (pre-loaded during initialization)
-      ! Use species properties from process configuration
       species_density(1:n_species) = this%process_config%seasalt_config%species_density(1:n_species)
-      ! Use species properties from process configuration
       species_radius(1:n_species) = this%process_config%seasalt_config%species_radius(1:n_species)
-      ! Use species properties from process configuration
       species_lower_radius(1:n_species) = this%process_config%seasalt_config%species_lower_radius(1:n_species)
-      ! Use species properties from process configuration
       species_upper_radius(1:n_species) = this%process_config%seasalt_config%species_upper_radius(1:n_species)
 
       ! Call the science scheme with optional diagnostic parameters
-      ! Note: gong03 uses the following diagnostic fields (if diagnostics enabled):
-      ! - seasalt_mass_emission_total (Sea salt mass emission flux total)
-      ! - seasalt_number_emission_total (Sea salt number emission flux total)
+      ! Met fields passed directly from VirtualMetType — no local copy
       if (this%process_config%seasalt_config%diagnostics) then
          ! Call with diagnostic outputs enabled
          call compute_gong03( &
             n_levels, &
             n_species, &
             this%process_config%gong03_config, &
-            frocean(1), &
-            frseaice(1), &
-            sst(1), &
-            u10m(1), &
-            v10m(1)            , &
+            met%FROCEAN, &
+            met%FRSEAICE, &
+            met%SST, &
+            met%U10M, &
+            met%V10M, &
             species_density, &
             species_radius, &
             species_lower_radius, &
@@ -602,25 +550,24 @@ contains
             this%column_seasalt_number_emission_total, &
             this%column_seasalt_mass_emission_per_bin, &
             this%column_seasalt_number_emission_per_bin, &
-            this%process_config%seasalt_config%diagnostic_species_id         )
+            this%process_config%seasalt_config%diagnostic_species_id)
       else
          ! Call without diagnostic outputs (optional parameters not passed)
          call compute_gong03( &
             n_levels, &
             n_species, &
             this%process_config%gong03_config, &
-            frocean(1), &
-            frseaice(1), &
-            sst(1), &
-            u10m(1), &
-            v10m(1)            , &
+            met%FROCEAN, &
+            met%FRSEAICE, &
+            met%SST, &
+            met%U10M, &
+            met%V10M, &
             species_density, &
             species_radius, &
             species_lower_radius, &
             species_upper_radius, &
             species_conc, &
-            species_tendencies &
-            )
+            species_tendencies)
       end if
 
       ! Apply tendencies back to virtual column based on tendency_mode
@@ -655,11 +602,6 @@ contains
 
       ! Local variables for scheme calculation
       type(VirtualMetType), pointer :: met => null()  ! Pointer to meteorological data
-      ! Meteorological fields
-      real(fp), allocatable :: frocean(:)
-      real(fp), allocatable :: frseaice(:)
-      real(fp), allocatable :: sst(:)
-      real(fp), allocatable :: ustar(:)
       ! Species properties
       real(fp), allocatable :: species_density(:)
       real(fp), allocatable :: species_radius(:)
@@ -687,14 +629,9 @@ contains
       allocate(species_indices(n_species))
       species_indices(1:n_species) = this%process_config%seasalt_config%species_indices(1:n_species)
 
-      ! Allocate arrays
+      ! Allocate arrays for species data
       allocate(species_conc(1, n_species))
       allocate(species_tendencies(1, n_species))
-      ! Allocate meteorological field arrays based on field type and process configuration
-      allocate(frocean(1))  ! Surface field - always scalar
-      allocate(frseaice(1))  ! Surface field - always scalar
-      allocate(sst(1))  ! Surface field - always scalar
-      allocate(ustar(1))  ! Surface field - always scalar
       allocate(species_density(n_species))
       allocate(species_radius(n_species))
       allocate(species_lower_radius(n_species))
@@ -702,15 +639,8 @@ contains
       species_tendencies = 0.0_fp
 
       ! Get meteorological data pointer from virtual column (VirtualMet pattern)
+      ! Met fields are passed directly to compute_geos12 — no local copy needed
       met => column%get_met()
-
-      ! Now allocate categorical fields using the met pointer dimensions
-
-      ! Extract required fields from met pointer based on field type and processing mode
-      frocean(1) = met%FROCEAN  ! Surface field - scalar access
-      frseaice(1) = met%FRSEAICE  ! Surface field - scalar access
-      sst(1) = met%SST  ! Surface field - scalar access
-      ustar(1) = met%USTAR  ! Surface field - scalar access
 
       ! Get species concentrations from virtual column
       ! Surface-only processing - get surface level concentrations
@@ -719,29 +649,23 @@ contains
       end do
 
       ! Get species properties from configuration (pre-loaded during initialization)
-      ! Use species properties from process configuration
       species_density(1:n_species) = this%process_config%seasalt_config%species_density(1:n_species)
-      ! Use species properties from process configuration
       species_radius(1:n_species) = this%process_config%seasalt_config%species_radius(1:n_species)
-      ! Use species properties from process configuration
       species_lower_radius(1:n_species) = this%process_config%seasalt_config%species_lower_radius(1:n_species)
-      ! Use species properties from process configuration
       species_upper_radius(1:n_species) = this%process_config%seasalt_config%species_upper_radius(1:n_species)
 
       ! Call the science scheme with optional diagnostic parameters
-      ! Note: geos12 uses the following diagnostic fields (if diagnostics enabled):
-      ! - seasalt_mass_emission_total (Sea salt mass emission flux total)
-      ! - seasalt_number_emission_total (Sea salt number emission flux total)
+      ! Met fields passed directly from VirtualMetType — no local copy
       if (this%process_config%seasalt_config%diagnostics) then
          ! Call with diagnostic outputs enabled
          call compute_geos12( &
             n_levels, &
             n_species, &
             this%process_config%geos12_config, &
-            frocean(1), &
-            frseaice(1), &
-            sst(1), &
-            ustar(1)            , &
+            met%FROCEAN, &
+            met%FRSEAICE, &
+            met%SST, &
+            met%USTAR, &
             species_density, &
             species_radius, &
             species_lower_radius, &
@@ -752,24 +676,23 @@ contains
             this%column_seasalt_number_emission_total, &
             this%column_seasalt_mass_emission_per_bin, &
             this%column_seasalt_number_emission_per_bin, &
-            this%process_config%seasalt_config%diagnostic_species_id         )
+            this%process_config%seasalt_config%diagnostic_species_id)
       else
          ! Call without diagnostic outputs (optional parameters not passed)
          call compute_geos12( &
             n_levels, &
             n_species, &
             this%process_config%geos12_config, &
-            frocean(1), &
-            frseaice(1), &
-            sst(1), &
-            ustar(1)            , &
+            met%FROCEAN, &
+            met%FRSEAICE, &
+            met%SST, &
+            met%USTAR, &
             species_density, &
             species_radius, &
             species_lower_radius, &
             species_upper_radius, &
             species_conc, &
-            species_tendencies &
-            )
+            species_tendencies)
       end if
 
       ! Apply tendencies back to virtual column based on tendency_mode

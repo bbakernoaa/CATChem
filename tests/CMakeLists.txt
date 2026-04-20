@@ -254,21 +254,6 @@ add_test(
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-add_executable(test_ColumnInterface test_ColumnInterface.f90)
-target_link_libraries(test_ColumnInterface PRIVATE CATChem_core)
-target_link_libraries(test_ColumnInterface PRIVATE testing)
-set_target_properties(
-  test_ColumnInterface
-  PROPERTIES
-    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
-    LINKER_LANGUAGE Fortran
-)
-add_test(
-  NAME test_ColumnInterface
-  COMMAND test_ColumnInterface
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
 # add_executable(test_StateInterface test_StateInterface.f90)
 # target_link_libraries(test_StateInterface PRIVATE CATChem_core)
 # target_link_libraries(test_StateInterface PRIVATE testing)
@@ -299,6 +284,26 @@ add_test(
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+add_executable(test_UnitConversion test_UnitConversion.f90)
+target_link_libraries(test_UnitConversion PRIVATE CATChem_core)
+target_link_libraries(test_UnitConversion PRIVATE testing)
+set_target_properties(
+  test_UnitConversion
+  PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
+)
+target_include_directories(
+  test_UnitConversion
+  PRIVATE ${CMAKE_BINARY_DIR}/include
+)
+add_dependencies(test_UnitConversion CATChem_core)
+add_test(
+  NAME test_UnitConversion
+  COMMAND test_UnitConversion
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 add_executable(test_ProcessRegistry test_ProcessRegistry.f90)
 target_link_libraries(test_ProcessRegistry PRIVATE CATChem_core)
 target_link_libraries(test_ProcessRegistry PRIVATE testing)
@@ -326,6 +331,14 @@ set_target_properties(
 add_test(
   NAME test_ProcessFactory
   COMMAND test_ProcessFactory
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Build system test: ENABLE_KOKKOS option verification
+# Validates: Requirements 8.5, 8.6, 8.7
+add_test(
+  NAME test_BuildSystem_Kokkos
+  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/test_BuildSystem_Kokkos.cmake
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 

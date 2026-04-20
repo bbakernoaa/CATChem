@@ -24,6 +24,12 @@ add_library(${_lib} ${WETDEP_ALL_SOURCES})
 # Link with required libraries
 target_link_libraries(${_lib} PUBLIC CATChem_core)
 
+# Conditional Kokkos linking
+if(ENABLE_KOKKOS)
+  target_link_libraries(${_lib} PUBLIC CATChem_kokkos)
+  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
+endif()
+
 # Additional dependencies
 
 # Set module directory

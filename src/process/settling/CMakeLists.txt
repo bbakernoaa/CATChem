@@ -7,6 +7,7 @@
 set(
   SETTLING_PROCESS_SOURCES
   SettlingCommon_Mod.F90
+  SettlingPhysics_Mod.F90
   ProcessSettlingInterface_Mod.F90
   SettlingProcessCreator_Mod.F90
 )
@@ -24,7 +25,11 @@ add_library(${_lib} ${SETTLING_ALL_SOURCES})
 # Link with required libraries
 target_link_libraries(${_lib} PUBLIC CATChem_core)
 
-# Additional dependencies
+# Conditional Kokkos linking
+if(ENABLE_KOKKOS)
+  target_link_libraries(${_lib} PUBLIC CATChem_kokkos)
+  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
+endif()
 
 # Set module directory
 set_target_properties(

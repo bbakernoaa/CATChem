@@ -22,7 +22,6 @@ set(
   _core_srcs
   ConfigManager_Mod.F90
   VirtualColumn_Mod.F90
-  ColumnInterface_Mod.F90
   GridManager_Mod.F90
   DiagnosticManager_Mod.F90
   StateManager_Mod.F90
@@ -55,6 +54,12 @@ target_link_libraries(CATChem_core PRIVATE yaml_interface catchem_utilities)
 # Link GOCART2G library for external process dependencies
 if(TARGET GOCART2G)
   target_link_libraries(CATChem_core PUBLIC GOCART2G)
+endif()
+
+# Conditional Kokkos linking
+if(ENABLE_KOKKOS)
+  target_link_libraries(CATChem_core PUBLIC CATChem_kokkos)
+  target_compile_definitions(CATChem_core PRIVATE ENABLE_KOKKOS)
 endif()
 
 set(METSTATE_MOD_F90 ${CMAKE_CURRENT_SOURCE_DIR}/metstate_mod.F90)

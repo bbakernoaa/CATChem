@@ -2,12 +2,26 @@ cmake_minimum_required(VERSION 3.10)
 
 project(CATChem VERSION 0.1.0 LANGUAGES Fortran C CXX)
 
-# Set C++ standard for yaml-cpp compatibility
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# Set C++ standard (default 11 for yaml-cpp; overridden to 17 when Kokkos is enabled)
+if(NOT ENABLE_KOKKOS)
+  set(CMAKE_CXX_STANDARD 11)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+endif()
 
 # Option to build NUOPC cap (defaults to OFF)
 option(BUILD_NUOPC "Build NUOPC cap and drivers" OFF)
+
+# Option to enable Kokkos GPU/parallel support (defaults to OFF)
+option(ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
+
+if(ENABLE_KOKKOS)
+  if(CMAKE_VERSION VERSION_LESS "3.16")
+    message(FATAL_ERROR "ENABLE_KOKKOS requires CMake 3.16 or later (Kokkos minimum)")
+  endif()
+  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  find_package(Kokkos REQUIRED)
+endif()
 
 include(CMakePrintHelpers)
 

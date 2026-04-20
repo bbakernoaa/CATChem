@@ -5,6 +5,9 @@ This presentation content has been consolidated to avoid duplicate documentation
 Please see the canonical document:
 
 - [`docs/nuopc-interface-presentation.md`](../nuopc-interface-presentation.md)
+
+| File | Purpose | Status |
+|------|---------|--------|
 | **catchem_nuopc_driver.F90** | Standalone driver | ✅ Production |
 | **catchem_nuopc_cf_input.F90** | NetCDF input handling | ✅ Production |
 | **catchem_nuopc_netcdf_out.F90** | NetCDF output handling | ✅ Production |
@@ -72,6 +75,8 @@ end subroutine
 ## 📊 Field Exchange Capabilities
 
 ### **Import Fields (Meteorological Inputs)**
+
+> ✅ = Required, ☑️ = Optional
 
 | Standard Name | Description | Units | Required |
 |---------------|-------------|-------|----------|
@@ -320,13 +325,8 @@ mpirun -np 96 ./ufs_model
 ### **Configuration Validation**
 
 ```bash
-# Validate NUOPC configuration
-python util/validate_nuopc_config.py CATChem_nuopc_config.yml
-
-# Check field compatibility
-python util/check_field_compatibility.py \
-  --atm_fields=ATM_export_fields.txt \
-  --chm_fields=CATChem_import_fields.txt
+# Run standalone test
+mpirun -np 4 ./catchem_nuopc_driver
 ```
 
 ---
@@ -472,10 +472,10 @@ ctest -R nuopc_performance
 
 | Feature | Timeline | Benefit |
 |---------|----------|---------|
-| **ML Acceleration** | 2025 Q2 | 100x speedup for select processes |
-| **Cloud Chemistry** | 2025 Q3 | Enhanced aqueous-phase chemistry |
-| **Aerosol Optics** | 2025 Q4 | Direct radiation feedback |
-| **GPU Support** | 2026 Q1 | Accelerated computations |
+| **ML Acceleration** | 2026 Q3 | 100x speedup for select processes |
+| **Cloud Chemistry** | 2026 Q4 | Enhanced aqueous-phase chemistry |
+| **Aerosol Optics** | 2027 Q1 | Direct radiation feedback |
+| **GPU Support** | 2027 Q2 | Accelerated computations |
 
 ### **Research Initiatives**
 

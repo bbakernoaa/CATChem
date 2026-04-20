@@ -402,7 +402,8 @@ contains
       endif
 
       ! Initialize the virtual column data container
-      call virtual_col%init(nlev, nspec_chem, nspec_emis, i, j, lat, lon, area, rc)
+      call virtual_col%init(nlev, nspec_chem, nspec_emis, i, j, lat, lon, area, rc, &
+         chem_species=this%chem_state%ChemSpecies)
       if (rc /= CC_SUCCESS) return
 
       ! Populate with data from 3D grid
@@ -417,10 +418,6 @@ contains
       type(VirtualColumnType), intent(in) :: virtual_col
       integer, intent(out) :: rc
 
-      integer :: grid_i, grid_j, k, ispec
-      integer :: nlev, nspec_chem, nspec_emis
-      real(fp) :: met_value, chem_value
-
       rc = CC_SUCCESS
 
       ! Check if states are allocated
@@ -429,26 +426,13 @@ contains
          return
       endif
 
-      ! Get column position and dimensions
-      call virtual_col%get_position(grid_i, grid_j)
-      call virtual_col%get_dimensions(nlev, nspec_chem, nspec_emis)
-
       ! NOTE: Meteorological data copy-back is not needed because VirtualMetType
       ! uses pointers directly to the 3D arrays. Changes are automatically reflected.
 
-      ! Apply chemical species data back to 3D arrays
-      if (allocated(this%chem_state%ChemSpecies) .and. nspec_chem > 0) then
-         do ispec = 1, min(nspec_chem, size(this%chem_state%ChemSpecies))
-            if (associated(this%chem_state%ChemSpecies(ispec)%conc)) then
-               do k = 1, nlev
-                  ! Get modified concentration from virtual column
-                  chem_value = virtual_col%get_chem_field(ispec, k)
-                  ! Apply back to the 3D concentration array
-                  this%chem_state%ChemSpecies(ispec)%conc(grid_i, grid_j, k) = chem_value
-               end do
-            endif
-         end do
-      endif
+      ! NOTE: Chemical data copy-back is not needed because VirtualColumnType now
+      ! uses pointer-based access via chem_species_ptr. Calls to set_chem_field
+      ! write directly to ChemSpecies(ispec)%conc(grid_i, grid_j, k), so the 3D
+      ! arrays are already up-to-date. This is a no-op for chemical data.
 
    end subroutine manager_apply_virtual_column
 
@@ -459,7 +443,7 @@ contains
       type(VirtualColumnType), intent(inout) :: virtual_col
       integer, intent(out) :: rc
 
-      integer :: grid_i, grid_j, k, ispec
+      integer :: grid_i, grid_j
       integer :: nlev, nspec_chem, nspec_emis
       real(fp), pointer :: column_ptr(:)
       integer, pointer :: column_ptr_int(:)
@@ -467,7 +451,6 @@ contains
       real(fp) :: scalar_val
       integer :: scalar_val_int
       logical :: scalar_val_logical
-      real(fp) :: chem_value
       integer :: field_rc
 
       rc = CC_SUCCESS
@@ -485,21 +468,10 @@ contains
       ! Populate VirtualMetType using generated macro
 #include "virtualmet_populate.inc"
 
-      ! Extract chemical species data (unchanged)
-      if (allocated(this%chem_state%ChemSpecies) .and. nspec_chem > 0) then
-         do ispec = 1, min(nspec_chem, size(this%chem_state%ChemSpecies))
-            if (associated(this%chem_state%ChemSpecies(ispec)%conc)) then
-               do k = 1, nlev
-                  chem_value = this%chem_state%ChemSpecies(ispec)%conc(grid_i, grid_j, k)
-                  call virtual_col%set_chem_field(k, ispec, chem_value)
-               end do
-            else
-               do k = 1, nlev
-                  call virtual_col%set_chem_field(k, ispec, 0.0_fp)
-               end do
-            endif
-         end do
-      endif
+      ! NOTE: Chemical species data population is not needed because VirtualColumnType
+      ! now uses pointer-based access via chem_species_ptr. Calls to get_chem_field
+      ! read directly from ChemSpecies(ispec)%conc(grid_i, grid_j, k), so no
+      ! element-by-element copying is required.
 
    end subroutine populate_virtual_column
 

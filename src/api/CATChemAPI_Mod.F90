@@ -28,7 +28,7 @@ module CATChemAPI_Mod
    use ConfigManager_Mod, only: ConfigManagerType
    use ProcessManager_Mod, only: ProcessManagerType
    use GridManager_Mod, only: GridManagerType
-   use ColumnInterface_Mod, only: VirtualColumnType
+   use VirtualColumn_Mod, only: VirtualColumnType
    use ChemState_Mod, only: ChemStateType
    use MetState_Mod, only: MetStateType
    use EmisState_Mod, only: EmisStateType

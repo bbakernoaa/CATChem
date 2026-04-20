@@ -21,7 +21,7 @@ module ProcessSettlingInterface_Mod
 
    ! Core CATChem infrastructure
    use precision_mod, only: fp
-   use ProcessInterface_Mod, only: ProcessInterface, ColumnProcessInterface
+   use ProcessInterface_Mod, only: ProcessInterface
    use StateManager_Mod, only: StateManagerType
    use GridManager_Mod, only: GridManagerType
    use error_mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType
@@ -38,7 +38,7 @@ module ProcessSettlingInterface_Mod
    ! Common utilities - unified configuration
    use SettlingCommon_Mod, only: SettlingProcessConfig
 
-   ! Scheme modules
+   ! Scheme modules (compute_gocart now uses SettlingPhysics_Mod internally)
    use SettlingScheme_GOCART_Mod, only: compute_gocart
 
    implicit none
@@ -46,11 +46,12 @@ module ProcessSettlingInterface_Mod
 
    public :: ProcessSettlingInterface
 
-   !> Main settling process interface type - extends core ColumnProcessInterface   !!
-   !! This type leverages CATChem's core ColumnProcessInterface infrastructure for column
+   !> Main settling process interface type - extends core ProcessInterface
+   !!
+   !! This type leverages CATChem's core ProcessInterface infrastructure for column
    !! virtualization, focusing only on process-specific configuration and scheme management.
    !! All boilerplate infrastructure and column processing is handled by the base class.
-   type, extends(ColumnProcessInterface) :: ProcessSettlingInterface
+   type, extends(ProcessInterface) :: ProcessSettlingInterface
       private
 
       ! Unified process configuration (bridges ConfigManager to process-specific config)
@@ -80,7 +81,7 @@ module ProcessSettlingInterface_Mod
       procedure :: finalize => process_finalize
       procedure :: parse_process_config => parse_settling_config
 
-      ! Required ColumnProcessInterface implementations
+      ! Required column processing implementations
       procedure :: init_column_processing => init_column_processing
       procedure :: run_column => run_column
       procedure :: finalize_column_processing => finalize_column_processing
@@ -166,7 +167,7 @@ contains
    !> Run the settling process
    !!
    !! This method implements the main ProcessInterface run method.
-   !! For ColumnProcessInterface processes, the actual column iteration is handled
+   !! For column-processing processes, the actual column iteration is handled
    !! by ProcessManager, so this method serves as a placeholder for any 3D operations
    !! that might be needed before or after column processing.
    subroutine process_run(this, container, rc)
@@ -181,7 +182,7 @@ contains
          return
       end if
 
-      ! For ColumnProcessInterface processes, the ProcessManager handles column iteration
+      ! For column-processing processes, the ProcessManager handles column iteration
       ! and calls run_column() for each virtual column. This method is mainly a placeholder
       ! for any global 3D operations that need to happen before/after column processing.
 
@@ -247,7 +248,7 @@ contains
    !> Initialize column processing for settling
    !!
    !! This method sets up the column processing infrastructure for the process.
-   !! The base class ColumnProcessInterface handles the actual column virtualization.
+   !! The base class ProcessInterface handles the actual column virtualization.
    subroutine init_column_processing(this, container, rc)
       class(ProcessSettlingInterface), intent(inout) :: this
       type(StateManagerType), intent(inout) :: container
@@ -328,6 +329,11 @@ contains
    end subroutine run_active_scheme_column
 
    !> Run the gocart scheme for a single virtual column
+   !!
+   !! Uses the simplified compute_gocart signature that calls settling_compute
+   !! from SettlingPhysics_Mod directly. No Mie data, species names, or vertical
+   !! reversal needed — species_radius and species_density are pre-computed
+   !! (possibly Mie-derived) during initialization.
    subroutine run_gocart_scheme_column(this, column, rc)
       class(ProcessSettlingInterface), intent(inout) :: this
       type(VirtualColumnType), intent(inout) :: column
@@ -335,16 +341,7 @@ contains
 
       ! Local variables for scheme calculation
       type(VirtualMetType), pointer :: met => null()  ! Pointer to meteorological data
-      ! Meteorological fields
-      real(fp), allocatable :: airden(:)
-      real(fp), allocatable :: delp(:)
-      real(fp), allocatable :: pmid(:)
-      real(fp), allocatable :: rh(:)
-      real(fp), allocatable :: t(:)
-      real(fp), allocatable :: tstep(:)
-      real(fp), allocatable :: z(:)
-      ! Species properties
-      integer, allocatable :: species_mie_map(:)  ! Mapping from process species to MieData indices
+      ! Species properties (pre-computed, possibly Mie-derived)
       real(fp), allocatable :: species_radius(:)
       real(fp), allocatable :: species_density(:)
       real(fp), allocatable :: species_conc(:,:)
@@ -367,38 +364,19 @@ contains
       allocate(species_indices(n_species))
       species_indices(1:n_species) = this%process_config%settling_config%species_indices(1:n_species)
 
-      ! Allocate arrays
+      ! Allocate arrays for species data
+      ! Note: species_conc needs to be a contiguous 2D array for compute_gocart
       allocate(species_conc(n_levels, n_species))
       allocate(species_tendencies(n_levels, n_species))
-      ! Allocate meteorological field arrays based on field type and process configuration
-      allocate(airden(n_levels))  ! Atmospheric field - always n_levels
-      allocate(delp(n_levels))  ! Atmospheric field - always n_levels
-      allocate(pmid(n_levels))  ! Atmospheric field - always n_levels
-      allocate(rh(n_levels))  ! Atmospheric field - always n_levels
-      allocate(t(n_levels))  ! Atmospheric field - always n_levels
-      allocate(tstep(1))  ! Special timestep field - scalar
-      allocate(z(n_levels+1))  ! Edge field - always n_levels+1
-      allocate(species_mie_map(n_species))
       allocate(species_radius(n_species))
       allocate(species_density(n_species))
       species_tendencies = 0.0_fp
 
       ! Get meteorological data pointer from virtual column (VirtualMet pattern)
+      ! Met pointers are passed directly to compute_gocart — no local copy needed
       met => column%get_met()
 
-      ! Now allocate categorical fields using the met pointer dimensions
-
-      ! Extract required fields from met pointer based on field type and processing mode
-      airden(1:n_levels) = met%AIRDEN(1:n_levels)  ! Atmospheric field - always n_levels
-      delp(1:n_levels) = met%DELP(1:n_levels)  ! Atmospheric field - always n_levels
-      pmid(1:n_levels) = met%PMID(1:n_levels)  ! Atmospheric field - always n_levels
-      rh(1:n_levels) = met%RH(1:n_levels)  ! Atmospheric field - always n_levels
-      t(1:n_levels) = met%T(1:n_levels)  ! Atmospheric field - always n_levels
-      tstep(1) = this%get_timestep()  ! Special timestep field - retrieved from ProcessInterface
-      z(1:n_levels+1) = met%Z(1:n_levels+1)  ! Edge field - always n_levels+1
-
       ! Get species concentrations from virtual column
-      ! Full column processing - get concentrations for all levels
       do k = 1, n_levels
          do i = 1, n_species
             species_conc(k, i) = column%get_chem_field(species_indices(i), k)
@@ -406,65 +384,50 @@ contains
       end do
 
       ! Get species properties from configuration (pre-loaded during initialization)
-      ! Extract filtered Mie mapping for process species
-      species_mie_map(1:n_species) = this%process_config%settling_config%species_mie_map(1:n_species)
-      ! Use species properties from process configuration
+      ! These already contain effective (possibly Mie-derived) values
       species_radius(1:n_species) = this%process_config%settling_config%species_radius(1:n_species)
-      ! Use species properties from process configuration
       species_density(1:n_species) = this%process_config%settling_config%species_density(1:n_species)
 
-      ! Call the science scheme with optional diagnostic parameters
-      ! Note: gocart uses the following diagnostic fields (if diagnostics enabled):
-      ! - settling_velocity_per_species_per_level (settling velocity per species per level)
-      ! - settling_flux_per_species (settling flux per species across column)
+      ! Call the science scheme with simplified signature
+      ! Met fields passed directly from VirtualMetType pointers — no local copy
       if (this%process_config%settling_config%diagnostics) then
-         ! Call with diagnostic outputs enabled
          call compute_gocart( &
             n_levels, &
             n_species, &
             this%process_config%gocart_config, &
-            airden, &
-            delp, &
-            pmid, &
-            rh, &
-            t, &
-            tstep(1), &
-            z            , &
-            this%process_config%settling_config%species_names, &
-            this%chem_state%MieData, &
-            species_mie_map, &
+            met%AIRDEN(1:n_levels), &
+            met%DELP(1:n_levels), &
+            met%PMID(1:n_levels), &
+            met%RH(1:n_levels), &
+            met%T(1:n_levels), &
+            this%get_timestep(), &
+            met%Z(1:n_levels+1), &
             species_radius, &
             species_density, &
             species_conc, &
             species_tendencies, &
             this%column_settling_velocity_per_species_per_level, &
             this%column_settling_flux_per_species, &
-            this%process_config%settling_config%diagnostic_species_id         )
+            this%process_config%settling_config%diagnostic_species_id)
       else
-         ! Call without diagnostic outputs (optional parameters not passed)
          call compute_gocart( &
             n_levels, &
             n_species, &
             this%process_config%gocart_config, &
-            airden, &
-            delp, &
-            pmid, &
-            rh, &
-            t, &
-            tstep(1), &
-            z            , &
-            this%process_config%settling_config%species_names, &
-            this%chem_state%MieData, &
-            species_mie_map, &
+            met%AIRDEN(1:n_levels), &
+            met%DELP(1:n_levels), &
+            met%PMID(1:n_levels), &
+            met%RH(1:n_levels), &
+            met%T(1:n_levels), &
+            this%get_timestep(), &
+            met%Z(1:n_levels+1), &
             species_radius, &
             species_density, &
             species_conc, &
-            species_tendencies &
-            )
+            species_tendencies)
       end if
 
-      ! Apply tendencies back to virtual column based on tendency_mode
-      ! Full column processing - apply tendencies to all levels
+      ! Apply tendencies back to virtual column
       do k = 1, n_levels
          do i = 1, n_species
             ! Replacement tendency: new_conc = tendency (tendency is the new value)

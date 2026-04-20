@@ -4,8 +4,7 @@
 !!!>
 program test_GridManager
    use testing_mod, only: assert, assert_close
-   use GridManager_Mod, only: GridManagerType, GridGeometryType, GridDecompositionType, ColumnIteratorType, GRID_TYPE_3D, COORD_CARTESIAN
-   use ColumnInterface_Mod, only: ColumnViewType
+   use GridManager_Mod, only: GridManagerType, GridGeometryType, GridDecompositionType, ColumnIteratorType, GRID_TYPE_3D, COORD_CARTESIAN, ColumnViewType
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType
    use Precision_Mod, only: fp
 
