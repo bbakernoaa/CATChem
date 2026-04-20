@@ -164,9 +164,9 @@ contains
 
       ! Time integration
       select case (solver)
-      case (1)
+       case (1)
          call settling_solver_default(nlev, cdt, delp, dz, vsettle, qa)
-      case (2)
+       case (2)
          call settling_solver(nlev, cdt, delp, dz, vsettle, qa)
       end select
 
@@ -315,7 +315,7 @@ contains
          ! Update interior and bottom layers (gain from above, loss downward)
          do k = nlev - 1, 1, -1
             qa(k) = qa(k) + (delp(k+1) / delp(k)) * (dt * tau(k+1)) * qa(k+1) &
-                  - dt * tau(k) * qa(k)
+               - dt * tau(k) * qa(k)
          end do
       end do
 
@@ -397,7 +397,7 @@ contains
             if (delp(k+1) > eps .and. delp(k) > eps) then
                transfer_factor = (delp(k+1) / delp(k)) * dt * tau(k+1)
                qa(k) = max(0.0_fp, qa(k) * (1.0_fp - min(loss_factor, 1.0_fp))) + &
-                        transfer_factor * qa_old(k+1)
+                  transfer_factor * qa_old(k+1)
             else
                qa(k) = max(0.0_fp, qa(k) * (1.0_fp - min(loss_factor, 1.0_fp)))
             end if
@@ -430,23 +430,23 @@ contains
       real(fp), intent(out) :: rhop(nlev)
 
       select case (flag)
-      case (0)
+       case (0)
          radius = radius_dry
          rhop = rhop_dry
 
-      case (1)
+       case (1)
          call settling_swelling_fitzgerald(nlev, rh, radius_dry, rhop_dry, radius, rhop)
 
-      case (2)
+       case (2)
          call settling_swelling_gerber(nlev, rh, radius_dry, rhop_dry, radius, rhop)
 
-      case (3)
+       case (3)
          call settling_swelling_gerber_nh4so4(nlev, rh, radius_dry, rhop_dry, radius, rhop)
 
-      case (4)
+       case (4)
          call settling_swelling_pk2007(nlev, rh, radius_dry, rhop_dry, radius, rhop)
 
-      case default
+       case default
          radius = radius_dry
          rhop = rhop_dry
       end select
@@ -557,7 +557,7 @@ contains
          rcm = radius_dry * 100.0_fp  ! Radius in cm
 
          radius(k) = 0.01_fp * (c1 * rcm**c2 / (c3 * rcm**c4 - log10(sat)) &
-                     + rcm * rcm * rcm)**(1.0_fp / 3.0_fp)
+            + rcm * rcm * rcm)**(1.0_fp / 3.0_fp)
 
          rrat = radius_dry / radius(k)
          rrat = rrat * rrat * rrat
@@ -604,7 +604,7 @@ contains
          rcm = radius_dry * 100.0_fp  ! Radius in cm
 
          radius(k) = 0.01_fp * (SU_c1 * rcm**SU_c2 / (SU_c3 * rcm**SU_c4 - log10(sat)) &
-                     + rcm * rcm * rcm)**(1.0_fp / 3.0_fp)
+            + rcm * rcm * rcm)**(1.0_fp / 3.0_fp)
 
          rrat = radius_dry / radius(k)
          rrat = rrat * rrat * rrat

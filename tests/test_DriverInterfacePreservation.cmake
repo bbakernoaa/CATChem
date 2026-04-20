@@ -23,7 +23,10 @@ function(assert_file_not_contains filepath search_string description)
   file(READ "${filepath}" file_content)
   string(FIND "${file_content}" "${search_string}" found_pos)
   if(NOT found_pos EQUAL -1)
-    message(FATAL_ERROR "FAILED: ${description}\n  File: ${filepath}\n  Should NOT contain: ${search_string}")
+    message(
+      FATAL_ERROR
+      "FAILED: ${description}\n  File: ${filepath}\n  Should NOT contain: ${search_string}"
+    )
   else()
     message(STATUS "PASSED: ${description}")
   endif()
@@ -37,7 +40,10 @@ function(assert_file_contains filepath search_string description)
   file(READ "${filepath}" file_content)
   string(FIND "${file_content}" "${search_string}" found_pos)
   if(found_pos EQUAL -1)
-    message(FATAL_ERROR "FAILED: ${description}\n  File: ${filepath}\n  Expected to find: ${search_string}")
+    message(
+      FATAL_ERROR
+      "FAILED: ${description}\n  File: ${filepath}\n  Expected to find: ${search_string}"
+    )
   else()
     message(STATUS "PASSED: ${description}")
   endif()
@@ -52,7 +58,8 @@ message(STATUS "")
 get_filename_component(SRC_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
 # List of removed types/modules that should NOT appear in driver sources
-set(REMOVED_SYMBOLS
+set(
+  REMOVED_SYMBOLS
   "ColumnProcessInterface"
   "ColumnInterface_Mod"
   "ColumnViewType"
@@ -60,7 +67,8 @@ set(REMOVED_SYMBOLS
 )
 
 # List of removed deprecated methods
-set(REMOVED_METHODS
+set(
+  REMOVED_METHODS
   "apply_emission_scaling"
   "accumulate_emissions"
   "validate_physical_ranges"
@@ -70,9 +78,13 @@ set(REMOVED_METHODS
 # ============================================================
 # Test 1: CCPP driver sources do not reference removed types
 # ============================================================
-message(STATUS "--- Test 1: CCPP driver sources free of removed types (Req 9.1) ---")
+message(
+  STATUS
+  "--- Test 1: CCPP driver sources free of removed types (Req 9.1) ---"
+)
 
-set(CCPP_SOURCES
+set(
+  CCPP_SOURCES
   "${SRC_ROOT}/drivers/ccpp/catchem_types.F90"
   "${SRC_ROOT}/drivers/ccpp/catchem_wrapper_utils.F90"
   "${SRC_ROOT}/drivers/ccpp/ccpp_catchem_interface.F90"
@@ -101,9 +113,13 @@ endforeach()
 # ============================================================
 # Test 2: NUOPC driver sources do not reference removed types
 # ============================================================
-message(STATUS "--- Test 2: NUOPC driver sources free of removed types (Req 9.2) ---")
+message(
+  STATUS
+  "--- Test 2: NUOPC driver sources free of removed types (Req 9.2) ---"
+)
 
-set(NUOPC_SOURCES
+set(
+  NUOPC_SOURCES
   "${SRC_ROOT}/drivers/nuopc/catchem_nuopc_cap.F90"
   "${SRC_ROOT}/drivers/nuopc/catchem_nuopc_interface.F90"
   "${SRC_ROOT}/drivers/nuopc/catchem_emis_mod.F90"
@@ -132,7 +148,10 @@ endforeach()
 # ============================================================
 # Test 3: Public API module maintains expected interface (Req 9.3)
 # ============================================================
-message(STATUS "--- Test 3: Public API module interface preservation (Req 9.3) ---")
+message(
+  STATUS
+  "--- Test 3: Public API module interface preservation (Req 9.3) ---"
+)
 
 # The public API module (catchem.F90) must expose these key interfaces
 assert_file_contains(

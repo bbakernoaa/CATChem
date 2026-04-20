@@ -46,8 +46,10 @@ foreach(test_source ${TEST_SOURCES})
 
   # Kokkos tests need CATChem_kokkos library
   if(ENABLE_KOKKOS)
-    if(${test_name} STREQUAL "test_KokkosCpuDispatch"
-       OR ${test_name} STREQUAL "test_KokkosGpuTolerance")
+    if(
+      ${test_name} STREQUAL "test_KokkosCpuDispatch"
+      OR ${test_name} STREQUAL "test_KokkosGpuTolerance"
+    )
       target_link_libraries(${test_name} CATChem_kokkos)
     endif()
   endif()

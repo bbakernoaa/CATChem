@@ -338,7 +338,9 @@ add_test(
 # Validates: Requirements 8.5, 8.6, 8.7
 add_test(
   NAME test_BuildSystem_Kokkos
-  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/test_BuildSystem_Kokkos.cmake
+  COMMAND
+    ${CMAKE_COMMAND} -P
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_BuildSystem_Kokkos.cmake
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 

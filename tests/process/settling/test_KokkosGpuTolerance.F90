@@ -99,7 +99,7 @@ contains
       rel_err = abs(a - b) / denom
       if (rel_err > rtol) then
          print '(a, ": rel_err=", es12.4, " (tol=", es12.4, &
-            &") a=", es22.14, " b=", es22.14)', &
+         &") a=", es22.14, " b=", es22.14)', &
             msg, rel_err, rtol, a, b
          stop 1
       end if

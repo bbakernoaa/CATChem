@@ -95,7 +95,7 @@ contains
          rh(k) = max(0.01_fp, min(0.95_fp, 0.80_fp - z_mid / 50000.0_fp + var * 0.05_fp))
          do s = 1, NSPECIES
             conc(k, s) = max(1.0e-20_fp, 1.0e-9_fp * exp(-z_mid / 8000.0_fp) &
-                        * (1.0_fp + var * 0.1_fp) * real(s, fp) * 0.5_fp)
+               * (1.0_fp + var * 0.1_fp) * real(s, fp) * 0.5_fp)
          end do
       end do
    end subroutine generate_profile

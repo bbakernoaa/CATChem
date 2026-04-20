@@ -12,10 +12,7 @@ set(
 )
 
 # Fortran ISO_C_BINDING interface module
-set(
-  _kokkos_f90_srcs
-  KokkosDispatch_Mod.F90
-)
+set(_kokkos_f90_srcs KokkosDispatch_Mod.F90)
 
 set(_lib CATChem_kokkos)
 add_library(${_lib} ${_kokkos_cpp_srcs} ${_kokkos_f90_srcs})

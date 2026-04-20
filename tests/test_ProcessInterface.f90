@@ -279,11 +279,11 @@ program test_ProcessInterface
 
       ! Verify call counts through select type
       select type (p => base_obj)
-      type is (DummyProcessType)
+       type is (DummyProcessType)
          call assert(p%init_column_call_count == 1, "init_column_processing should have been called once")
          call assert(p%run_column_call_count == 1, "run_column should have been called once")
          call assert(p%finalize_column_call_count == 1, "finalize_column_processing should have been called once")
-      class default
+       class default
          call assert(.false., "base_obj should be DummyProcessType")
       end select
 

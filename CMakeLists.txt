@@ -16,7 +16,10 @@ option(ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
 
 if(ENABLE_KOKKOS)
   if(CMAKE_VERSION VERSION_LESS "3.16")
-    message(FATAL_ERROR "ENABLE_KOKKOS requires CMake 3.16 or later (Kokkos minimum)")
+    message(
+      FATAL_ERROR
+      "ENABLE_KOKKOS requires CMake 3.16 or later (Kokkos minimum)"
+    )
   endif()
   set(CMAKE_CXX_STANDARD 17)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)

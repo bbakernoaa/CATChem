@@ -27,7 +27,10 @@ function(assert_file_contains filepath search_string description)
   file(READ "${filepath}" file_content)
   string(FIND "${file_content}" "${search_string}" found_pos)
   if(found_pos EQUAL -1)
-    message(FATAL_ERROR "FAILED: ${description}\n  File: ${filepath}\n  Expected to find: ${search_string}")
+    message(
+      FATAL_ERROR
+      "FAILED: ${description}\n  File: ${filepath}\n  Expected to find: ${search_string}"
+    )
   else()
     message(STATUS "PASSED: ${description}")
   endif()
@@ -38,7 +41,10 @@ function(assert_file_not_contains filepath search_string description)
   file(READ "${filepath}" file_content)
   string(FIND "${file_content}" "${search_string}" found_pos)
   if(NOT found_pos EQUAL -1)
-    message(FATAL_ERROR "FAILED: ${description}\n  File: ${filepath}\n  Should NOT contain: ${search_string}")
+    message(
+      FATAL_ERROR
+      "FAILED: ${description}\n  File: ${filepath}\n  Should NOT contain: ${search_string}"
+    )
   else()
     message(STATUS "PASSED: ${description}")
   endif()
@@ -98,7 +104,10 @@ assert_file_contains(
 )
 
 # --- Test 4: Process libraries conditionally link to CATChem_kokkos ---
-message(STATUS "--- Test 4: Conditional Kokkos linking in process libraries ---")
+message(
+  STATUS
+  "--- Test 4: Conditional Kokkos linking in process libraries ---"
+)
 
 foreach(process settling seasalt drydep wetdep)
   assert_file_contains(
@@ -138,7 +147,10 @@ assert_file_contains(
 )
 
 # --- Test 7: ENABLE_KOKKOS=OFF means no Kokkos dependency ---
-message(STATUS "--- Test 7: ENABLE_KOKKOS=OFF produces no Kokkos dependency ---")
+message(
+  STATUS
+  "--- Test 7: ENABLE_KOKKOS=OFF produces no Kokkos dependency ---"
+)
 message(STATUS "  Verified by structure: all Kokkos references are inside")
 message(STATUS "  if(ENABLE_KOKKOS) guards. When OFF, src/kokkos/ is skipped")
 message(STATUS "  entirely and no process library links to CATChem_kokkos.")
