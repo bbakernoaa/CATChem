@@ -1,0 +1,42 @@
+name: 'gas_phase_chemistry'
+description: "Process for solving gas phase chemistry"
+class_name: "GasChemistry"
+process_type: chemistry"
+author: "Maggie Bruckner & Rebecca Schwantes"
+
+process_behavior: 
+   type: "transformation"
+   tendency_mode: 'replacement'
+   species_filter:
+     type: 'by_metadata'
+     metadata_flags:
+       - "is_gas"
+   spatial_scope: 'column'
+   gas_aero_differentiation: false
+   parallelization: 'column'
+   memory_requirements: 'medium'
+   timestep_dependency: "dependent"
+
+schemes:
+  micm:
+    name: "micm"
+    class_name: "MICM"
+    description: "NSF NCAR MICM chemical solver"
+    algorithm_type: 'explicit'
+    affects_full_column: true
+    required_met_fields:
+      - temperature
+      - pressure
+      - humidity
+    parameters:
+      mechanism:
+        default: 'AM4.1/config.yaml'
+        description: 'Mechanism configuration yaml file'
+    diagnostics:
+      - name: "total_chemistry_rate"
+        description: "Chemical transformation rate by species by level"
+        units: "molecules/cm3/s"
+diagnostics:
+  - name: "total_chemistry_rate"
+    description: "Chemical transformation rate by species by level"
+    units: "molecules/cm3/s" 
