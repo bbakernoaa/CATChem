@@ -37,7 +37,7 @@
   __wd_retfactor: 5.0e-2
   __wd_LiqAndGas: true
   __wd_convfacI2G: 4.36564e-1
-- name: aso4j:       #This is to match CMAQ name to use the restart file. so4 is used in GEOS-Chem.
+- name: aso4j       #This is to match CMAQ name to use the restart file. so4 is used in GEOS-Chem.
   __description: sulfate
   __is_aerosol: true
   __is_drydep: true
