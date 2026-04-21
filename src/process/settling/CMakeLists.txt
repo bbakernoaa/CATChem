@@ -7,13 +7,15 @@
 set(
   SETTLING_PROCESS_SOURCES
   SettlingCommon_Mod.F90
-  SettlingPhysics_Mod.F90
   ProcessSettlingInterface_Mod.F90
   SettlingProcessCreator_Mod.F90
 )
 
 # Define settling scheme sources
-set(SETTLING_SCHEME_SOURCES schemes/SettlingScheme_GOCART_Mod.F90)
+set(SETTLING_SCHEME_SOURCES
+  schemes/SettlingScheme_GOCART_Mod.F90
+  schemes/SettlingPhysics_Mod.F90
+)
 
 # Combine all sources
 set(SETTLING_ALL_SOURCES ${SETTLING_PROCESS_SOURCES} ${SETTLING_SCHEME_SOURCES})

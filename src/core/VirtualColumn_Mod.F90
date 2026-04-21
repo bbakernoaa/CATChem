@@ -108,8 +108,8 @@ contains
       integer, intent(in) :: nlev, nspec_chem, nspec_emis
       integer, intent(in) :: grid_i, grid_j
       real(fp), intent(in) :: lat, lon, area
-      integer, intent(out) :: rc
       type(SpeciesType), target, optional, intent(in) :: chem_species(:)
+      integer, intent(out) :: rc
 
       rc = CC_SUCCESS
 
