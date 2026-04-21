@@ -325,7 +325,8 @@ contains
    function henrys_law_constant(H0, dH, T, T0) result(H)
       real(fp), intent(in) :: H0, dH, T, T0
       real(fp) :: H
-      H = H0 * exp(-dH/RSTARG * (1.0_fp/T - 1.0_fp/T0))
+      real(fp), parameter :: R = RSTARG  !< Universal gas constant [J/K/mol]
+      H = H0 * exp(-dH/R * (1.0_fp/T - 1.0_fp/T0))
    end function henrys_law_constant
 
    !> \brief Scale photolysis rate for solar zenith angle
