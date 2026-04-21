@@ -12,7 +12,8 @@ set(
 )
 
 # Define settling scheme sources
-set(SETTLING_SCHEME_SOURCES
+set(
+  SETTLING_SCHEME_SOURCES
   schemes/SettlingScheme_GOCART_Mod.F90
   schemes/SettlingPhysics_Mod.F90
 )
