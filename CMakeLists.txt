@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.21)
 
 project(CATChem VERSION 0.1.0 LANGUAGES Fortran C CXX)
 
@@ -25,6 +25,19 @@ if(ENABLE_KOKKOS)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
   find_package(Kokkos REQUIRED)
 endif()
+# Option to build NUOPC cap (defaults to OFF)
+option(BUILD_NUOPC "Build NUOPC cap and drivers" OFF)
+
+# Option to build with MUSICA chemistry library (defaults to OFF)
+option(BUILD_MUSICA "Build with MUSICA chemistry library" OFF)
+
+# Set C++ standard — MUSICA requires C++20, yaml-cpp needs at least C++11
+if(BUILD_MUSICA)
+  set(CMAKE_CXX_STANDARD 20)
+else()
+  set(CMAKE_CXX_STANDARD 11)
+endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(CMakePrintHelpers)
 
