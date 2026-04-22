@@ -135,8 +135,8 @@ contains
          ! Recompute the unclamped cossza using the same algorithm
          r = 2.0_fp * PI * real(jday - 1, fp) / 365.0_fp
          dec = a0 - a1*cos(r)       + b1*sin(r)       &
-                  - a2*cos(2.0_fp*r) + b2*sin(2.0_fp*r) &
-                  - a3*cos(3.0_fp*r) + b3*sin(3.0_fp*r)
+            - a2*cos(2.0_fp*r) + b2*sin(2.0_fp*r) &
+            - a3*cos(3.0_fp*r) + b3*sin(3.0_fp*r)
          xlon = lon_rad * radToDeg
          timloc = xhour + xlon / 15.0_fp
          if (timloc < 0.0_fp)  timloc = timloc + 24.0_fp
@@ -199,8 +199,8 @@ contains
          r = 2.0_fp * PI * real(jday - 1, fp) / 365.0_fp
 
          dec = a0 - a1*cos(r)          + b1*sin(r)          &
-                  - a2*cos(2.0_fp*r)    + b2*sin(2.0_fp*r)    &
-                  - a3*cos(3.0_fp*r)    + b3*sin(3.0_fp*r)
+            - a2*cos(2.0_fp*r)    + b2*sin(2.0_fp*r)    &
+            - a3*cos(3.0_fp*r)    + b3*sin(3.0_fp*r)
 
          xlon = lon_rad * radToDeg
          timloc = xhour + xlon / 15.0_fp
@@ -361,7 +361,7 @@ contains
             if (expected_oh_vmr < 0.0_fp) expected_oh_vmr = 0.0_fp
             ! Convert to number density
             expected_oh_nd = expected_oh_vmr * 1000.0_fp * rhoa(k) / AIRMW_VAL &
-                           * AVO_VAL * 1.0e-6_fp
+               * AVO_VAL * 1.0e-6_fp
 
             call assert_close(xoh(k), expected_oh_nd, &
                max(abs(expected_oh_nd) * 1.0e-10_fp, tiny(1.0_fp)), &
@@ -933,7 +933,7 @@ contains
          ! Compare DMS
          do k = 1, NLEV
             denom_val = max(abs(real(dms_g(1,1,NLEV + 1 - k), fp)), &
-                           abs(dms_c(k)), tiny(1.0_fp))
+               abs(dms_c(k)), tiny(1.0_fp))
             rel_err = abs(dms_c(k) - real(dms_g(1,1,NLEV + 1 - k), fp)) / denom_val
             if (rel_err > RTOL) then
                print '(a,i3,a,es12.4,a,es20.12,a,es20.12)', &
@@ -946,7 +946,7 @@ contains
          ! Compare SO2
          do k = 1, NLEV
             denom_val = max(abs(real(so2_g(1,1,NLEV + 1 - k), fp)), &
-                           abs(so2_c(k)), tiny(1.0_fp))
+               abs(so2_c(k)), tiny(1.0_fp))
             rel_err = abs(so2_c(k) - real(so2_g(1,1,NLEV + 1 - k), fp)) / denom_val
             if (rel_err > RTOL) then
                print '(a,i3,a,es12.4,a,es20.12,a,es20.12)', &
@@ -959,7 +959,7 @@ contains
          ! Compare SO4
          do k = 1, NLEV
             denom_val = max(abs(real(so4_g(1,1,NLEV + 1 - k), fp)), &
-                           abs(so4_c(k)), tiny(1.0_fp))
+               abs(so4_c(k)), tiny(1.0_fp))
             rel_err = abs(so4_c(k) - real(so4_g(1,1,NLEV + 1 - k), fp)) / denom_val
             if (rel_err > RTOL) then
                print '(a,i3,a,es12.4,a,es20.12,a,es20.12)', &
@@ -972,7 +972,7 @@ contains
          ! Compare MSA
          do k = 1, NLEV
             denom_val = max(abs(real(msa_g(1,1,NLEV + 1 - k), fp)), &
-                           abs(msa_c(k)), tiny(1.0_fp))
+               abs(msa_c(k)), tiny(1.0_fp))
             rel_err = abs(msa_c(k) - real(msa_g(1,1,NLEV + 1 - k), fp)) / denom_val
             if (rel_err > RTOL) then
                print '(a,i3,a,es12.4,a,es20.12,a,es20.12)', &

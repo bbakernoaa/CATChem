@@ -170,8 +170,8 @@ contains
       ! Compute day of year and hour
       jday = idaynum(nymd)
       xhour = (real(nhms / 10000, fp) * 3600.0_fp &
-             + real(mod(nhms, 10000) / 100, fp) * 60.0_fp &
-             + real(mod(nhms, 100), fp)) / 3600.0_fp
+         + real(mod(nhms, 10000) / 100, fp) * 60.0_fp &
+         + real(mod(nhms, 100), fp)) / 3600.0_fp
 
       ! Recycle H2O2 to climatology if flag is set
       if (recycle_h2o2) then
@@ -307,7 +307,7 @@ contains
          ! 1 & 2) DMS + OH: rk1 = addition, rk2 = abstraction
          if (oh > 0.0_fp) then
             rk1 = (C_ADD_A * exp(C_ADD_EA / tk) * o2) / &
-                  (1.0_fp + C_ADD_B * exp(C_ADD_EB / tk) * o2) * oh
+               (1.0_fp + C_ADD_B * exp(C_ADD_EB / tk) * o2) * oh
             rk2 = (C_ABS * exp(C_ABS_EA / tk)) * oh
          end if
 
@@ -325,13 +325,13 @@ contains
             pmsa_dms(k) = 0.0_fp
          else
             pmsa_dms(k) = (dms0 - dms_oh) * B_MSA * rk1 / (rk1 + rk2) &
-                          * (fMassMSA / fMassDMS) / cdt
+               * (fMassMSA / fMassDMS) / cdt
          end if
 
          ! SO2 production: everything else
          pso2_dms(k) = (dms0 - dms_final &
-                       - pmsa_dms(k) * cdt * (fMassDMS / fMassMSA)) &
-                       * (fMassSO2 / fMassDMS) / cdt
+            - pmsa_dms(k) * cdt * (fMassDMS / fMassMSA)) &
+            * (fMassSO2 / fMassDMS) / cdt
 
          ! Update DMS
          dms_final = max(dms_final, tiny(dms_final))
@@ -670,8 +670,8 @@ contains
       jday = idaynum(nymd)
       call solar_zenith_angle(jday, &
          (real(nhms / 10000, fp) * 3600.0_fp &
-        + real(mod(nhms, 10000) / 100, fp) * 60.0_fp &
-        + real(mod(nhms, 100), fp)) / 3600.0_fp, &
+         + real(mod(nhms, 10000) / 100, fp) * 60.0_fp &
+         + real(mod(nhms, 100), fp)) / 3600.0_fp, &
          lat_rad, lon_rad, sza_deg, cossza)
 
       ! 2) DMS oxidation
