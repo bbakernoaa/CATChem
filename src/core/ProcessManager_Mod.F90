@@ -384,7 +384,8 @@ contains
             col_i = batch%col_i(icol)
             col_j = batch%col_j(icol)
 
-            call container%create_virtual_column(col_i, col_j, virtual_col, rc)
+            call container%create_virtual_column(col_i, col_j, &
+               column_id=batch_start + icol - 1, virtual_col=virtual_col, rc=rc)
             if (rc /= CC_SUCCESS) then
                deallocate(all_col_i, all_col_j)
                return

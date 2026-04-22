@@ -6,6 +6,7 @@ set(
   TEST_SOURCES
   unit/test_so4chem_unit.F90
   integration/test_so4chem_integration.F90
+  test_SO4chemPhysics.F90
 )
 
 # Create test executables
@@ -21,6 +22,13 @@ foreach(test_source ${TEST_SOURCES})
     CATChem_core
     testing
   )
+
+  # The SO4chemPhysics equivalence test also needs GOCART2G for comparison
+  if(${test_name} STREQUAL "test_SO4chemPhysics")
+    if(TARGET GOCART2G)
+      target_link_libraries(${test_name} GOCART2G)
+    endif()
+  endif()
 
   # Set Fortran module directory
   set_target_properties(

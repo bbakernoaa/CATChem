@@ -12,7 +12,11 @@ set(
 )
 
 # Define so4chem scheme sources
-set(SO4CHEM_SCHEME_SOURCES schemes/SO4chemScheme_GOCART_Mod.F90)
+set(
+  SO4CHEM_SCHEME_SOURCES
+  schemes/SO4chemScheme_GOCART_Mod.F90
+  schemes/SO4chemPhysics_Mod.F90
+)
 
 # Combine all sources
 set(SO4CHEM_ALL_SOURCES ${SO4CHEM_PROCESS_SOURCES} ${SO4CHEM_SCHEME_SOURCES})

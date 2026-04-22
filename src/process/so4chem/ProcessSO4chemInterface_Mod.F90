@@ -21,7 +21,7 @@ module ProcessSO4chemInterface_Mod
 
    ! Core CATChem infrastructure
    use precision_mod, only: fp
-   use ProcessInterface_Mod, only: ProcessInterface, ColumnProcessInterface
+   use ProcessInterface_Mod, only: ProcessInterface
    use StateManager_Mod, only: StateManagerType
    use GridManager_Mod, only: GridManagerType
    use error_mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType
@@ -47,11 +47,11 @@ module ProcessSO4chemInterface_Mod
 
    public :: ProcessSO4chemInterface
 
-   !> Main so4chem process interface type - extends core ColumnProcessInterface   !!
-   !! This type leverages CATChem's core ColumnProcessInterface infrastructure for column
+   !> Main so4chem process interface type - extends core ProcessInterface   !!
+   !! This type leverages CATChem's core ProcessInterface infrastructure for column
    !! virtualization, focusing only on process-specific configuration and scheme management.
    !! All boilerplate infrastructure and column processing is handled by the base class.
-   type, extends(ColumnProcessInterface) :: ProcessSO4chemInterface
+   type, extends(ProcessInterface) :: ProcessSO4chemInterface
       private
 
       ! Unified process configuration (bridges ConfigManager to process-specific config)
@@ -83,7 +83,7 @@ module ProcessSO4chemInterface_Mod
       procedure :: finalize => process_finalize
       procedure :: parse_process_config => parse_so4chem_config
 
-      ! Required ColumnProcessInterface implementations
+      ! Required column processing implementations
       procedure :: init_column_processing => init_column_processing
       procedure :: run_column => run_column
       procedure :: finalize_column_processing => finalize_column_processing
@@ -175,7 +175,7 @@ contains
    !> Run the so4chem process
    !!
    !! This method implements the main ProcessInterface run method.
-   !! For ColumnProcessInterface processes, the actual column iteration is handled
+   !! For ProcessInterface processes, the actual column iteration is handled
    !! by ProcessManager, so this method serves as a placeholder for any 3D operations
    !! that might be needed before or after column processing.
    subroutine process_run(this, container, rc)
@@ -190,7 +190,7 @@ contains
          return
       end if
 
-      ! For ColumnProcessInterface processes, the ProcessManager handles column iteration
+      ! For ProcessInterface processes, the ProcessManager handles column iteration
       ! and calls run_column() for each virtual column. This method is mainly a placeholder
       ! for any global 3D operations that need to happen before/after column processing.
 
@@ -258,7 +258,7 @@ contains
    !> Initialize column processing for so4chem
    !!
    !! This method sets up the column processing infrastructure for the process.
-   !! The base class ColumnProcessInterface handles the actual column virtualization.
+   !! The base class ProcessInterface handles the actual column virtualization.
    subroutine init_column_processing(this, container, rc)
       class(ProcessSO4chemInterface), intent(inout) :: this
       type(StateManagerType), intent(inout) :: container

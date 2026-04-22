@@ -66,6 +66,7 @@ module Met_Utilities_Mod
    public :: nuclear_decay
    public :: stokes_number
    public :: mean_free_path_air
+   public :: solar_zenith_angle
 
 contains
 
@@ -430,5 +431,71 @@ contains
       real(fp), parameter :: d_air = 3.7e-10_fp  ! Effective air molecule diameter [m]
       lambda = BOLTZ * T / (sqrt(2.0_fp) * PI * d_air**2 * p)
    end function mean_free_path_air
+
+   !> \brief Compute solar zenith angle for a single geographic location
+   !!
+   !! Implements the same solar declination and hour-angle algorithm as
+   !! the GOCART2G szangle subroutine, producing identical numerical
+   !! results for the same inputs. The cosine output is clamped to [0,1]
+   !! for chemistry use (negative values set to zero).
+   !!
+   !! \param[in]  jday     Day of year (1–366)
+   !! \param[in]  xhour    Hour of day, UTC [0–24]
+   !! \param[in]  lat_rad  Latitude [radians]
+   !! \param[in]  lon_rad  Longitude [radians]
+   !! \param[out] sza_deg  Solar zenith angle [degrees, 0–180]
+   !! \param[out] cossza   Cosine of SZA, clamped to max(cossza, 0)
+   subroutine solar_zenith_angle(jday, xhour, lat_rad, lon_rad, sza_deg, cossza)
+      integer,  intent(in)  :: jday
+      real(fp), intent(in)  :: xhour
+      real(fp), intent(in)  :: lat_rad
+      real(fp), intent(in)  :: lon_rad
+      real(fp), intent(out) :: sza_deg
+      real(fp), intent(out) :: cossza
+
+      ! Solar declination Fourier coefficients (from GOCART2G szangle)
+      real(fp), parameter :: a0 = 0.006918_fp
+      real(fp), parameter :: a1 = 0.399912_fp
+      real(fp), parameter :: a2 = 0.006758_fp
+      real(fp), parameter :: a3 = 0.002697_fp
+      real(fp), parameter :: b1 = 0.070257_fp
+      real(fp), parameter :: b2 = 0.000907_fp
+      real(fp), parameter :: b3 = 0.000148_fp
+
+      real(fp) :: rad2deg
+      real(fp) :: r, dec, xlon, timloc, ahr
+
+      rad2deg = 180.0_fp / PI
+
+      ! Day-angle [radians]
+      r = 2.0_fp * PI * real(jday - 1, fp) / 365.0_fp
+
+      ! Solar declination [radians]
+      dec = a0 - a1*cos(r)     + b1*sin(r)     &
+         - a2*cos(2.0_fp*r) + b2*sin(2.0_fp*r) &
+         - a3*cos(3.0_fp*r) + b3*sin(3.0_fp*r)
+
+      ! Local time [hours]
+      xlon = lon_rad * rad2deg
+      timloc = xhour + xlon / 15.0_fp
+      if (timloc < 0.0_fp)  timloc = timloc + 24.0_fp
+      if (timloc > 24.0_fp) timloc = timloc - 24.0_fp
+
+      ! Hour angle [radians]
+      ahr = abs(timloc - 12.0_fp) * 15.0_fp * PI / 180.0_fp
+
+      ! Cosine of solar zenith angle
+      cossza = sin(lat_rad)*sin(dec) + cos(lat_rad)*cos(dec)*cos(ahr)
+
+      ! Clamp to [-1, 1] before acos
+      cossza = min(max(cossza, -1.0_fp), 1.0_fp)
+
+      ! Solar zenith angle in degrees
+      sza_deg = acos(cossza) * rad2deg
+
+      ! Clamp cosine to >= 0 for chemistry use
+      if (cossza < 0.0_fp) cossza = 0.0_fp
+
+   end subroutine solar_zenith_angle
 
 end module met_utilities_mod

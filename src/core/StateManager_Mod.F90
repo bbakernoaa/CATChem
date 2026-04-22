@@ -352,7 +352,8 @@ contains
    !! with data from the 3D grid at position (i,j)
    subroutine manager_create_virtual_column(this, i, j, column_id, virtual_col, rc)
       class(StateManagerType), intent(inout), target :: this
-      integer, intent(in) :: i, j, column_id
+      integer, intent(in) :: i, j
+      integer, intent(in), optional :: column_id
       type(VirtualColumnType), intent(out) :: virtual_col
       integer, intent(out) :: rc
 
@@ -405,6 +406,11 @@ contains
       call virtual_col%init(nlev, nspec_chem, nspec_emis, i, j, lat, lon, area, rc, &
          chem_species=this%chem_state%ChemSpecies)
       if (rc /= CC_SUCCESS) return
+
+      ! Set column_id if provided (used by processes that need per-column persistent state)
+      if (present(column_id)) then
+         virtual_col%column_id = column_id
+      endif
 
       ! Populate with data from 3D grid
       call this%populate_virtual_column(virtual_col, rc)
