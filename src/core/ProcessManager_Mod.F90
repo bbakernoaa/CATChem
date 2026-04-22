@@ -228,7 +228,7 @@ contains
       type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
-      integer :: i, local_rc, col_i, col_j
+      integer :: i, local_rc, col_i, col_j, col_id
       type(GridManagerType), pointer :: grid_mgr
       type(ColumnIteratorType) :: col_iter
       type(VirtualColumnType) :: virtual_col
@@ -253,8 +253,11 @@ contains
          ! Get current column indices (i, j)
          call col_iter%get_current_indices(col_i, col_j)
 
+         ! Get current column ID
+         call col_iter%get_current_column_id(col_id)
+
          ! Create and populate virtual column for this (i, j)
-         call container%create_virtual_column(col_i, col_j, virtual_col, rc)
+         call container%create_virtual_column(col_i, col_j, col_id, virtual_col, rc)
          if (rc /= CC_SUCCESS) return
 
          ! Run all column processes on this column

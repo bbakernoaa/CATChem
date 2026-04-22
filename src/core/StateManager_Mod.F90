@@ -350,9 +350,9 @@ contains
    !> \brief Create virtual column for grid position (i,j)
    !! \details Creates a virtual column data container and populates it
    !! with data from the 3D grid at position (i,j)
-   subroutine manager_create_virtual_column(this, i, j, virtual_col, rc)
+   subroutine manager_create_virtual_column(this, i, j, column_id, virtual_col, rc)
       class(StateManagerType), intent(inout), target :: this
-      integer, intent(in) :: i, j
+      integer, intent(in) :: i, j, column_id
       type(VirtualColumnType), intent(out) :: virtual_col
       integer, intent(out) :: rc
 

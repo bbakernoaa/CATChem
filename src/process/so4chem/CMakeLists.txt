@@ -1,38 +1,32 @@
-# Settling Process CMakeLists.txt
-# Generated on: 2025-12-18T14:12:33.107935
+# SO4chem Process CMakeLists.txt
+# Generated on: 2026-03-03T18:15:44.467807
 # Author: Wei Li
-# Description: Process for computing gravitational settling of aerosol species
+# Description: Process for computing chemical production of sulfate from SO2 oxidation
 
-# Define settling process sources
+# Define so4chem process sources
 set(
-  SETTLING_PROCESS_SOURCES
-  SettlingCommon_Mod.F90
-  ProcessSettlingInterface_Mod.F90
-  SettlingProcessCreator_Mod.F90
+  SO4CHEM_PROCESS_SOURCES
+  SO4chemCommon_Mod.F90
+  ProcessSO4chemInterface_Mod.F90
+  SO4chemProcessCreator_Mod.F90
 )
 
-# Define settling scheme sources
-set(
-  SETTLING_SCHEME_SOURCES
-  schemes/SettlingScheme_GOCART_Mod.F90
-  schemes/SettlingPhysics_Mod.F90
-)
+# Define so4chem scheme sources
+set(SO4CHEM_SCHEME_SOURCES schemes/SO4chemScheme_GOCART_Mod.F90)
 
 # Combine all sources
-set(SETTLING_ALL_SOURCES ${SETTLING_PROCESS_SOURCES} ${SETTLING_SCHEME_SOURCES})
+set(SO4CHEM_ALL_SOURCES ${SO4CHEM_PROCESS_SOURCES} ${SO4CHEM_SCHEME_SOURCES})
 
-# Create the settling process library
-set(_lib CATChem_process_settling)
-add_library(${_lib} ${SETTLING_ALL_SOURCES})
+# Create the so4chem process library
+set(_lib CATChem_process_so4chem)
+add_library(${_lib} ${SO4CHEM_ALL_SOURCES})
 
 # Link with required libraries
 target_link_libraries(${_lib} PUBLIC CATChem_core)
 
-# Conditional Kokkos linking
-if(ENABLE_KOKKOS)
-  target_link_libraries(${_lib} PUBLIC CATChem_kokkos)
-  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
-endif()
+# Additional dependencies
+# Chemistry processes may need additional math libraries
+target_link_libraries(${_lib} PUBLIC ${LAPACK_LIBRARIES})
 
 # Set module directory
 set_target_properties(
@@ -46,14 +40,17 @@ target_include_directories(${_lib} PRIVATE ${CMAKE_BINARY_DIR}/include)
 # Compiler-specific flags
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   target_compile_options(${_lib} PRIVATE -fdefault-real-8 -fdefault-double-8)
+  # Chemistry processes may benefit from aggressive optimization
+  target_compile_options(${_lib} PRIVATE -O3 -funroll-loops)
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   target_compile_options(${_lib} PRIVATE -r8)
+  target_compile_options(${_lib} PRIVATE -O3 -unroll)
 endif()
 
 # Add preprocessor definitions
 target_compile_definitions(
   ${_lib}
-  PRIVATE PROCESS_NAME="settling" PROCESS_VERSION="1.0.0"
+  PRIVATE PROCESS_NAME="so4chem" PROCESS_VERSION="1.0.0"
 )
 
 # Install targets
@@ -73,7 +70,7 @@ install(
 )
 
 # Add subdirectories
-# Note: tests are registered via tests/CMakeLists.txt (tests/process/settling/)
+# Note: tests are registered via tests/CMakeLists.txt (tests/process/so4chem/)
 if(BUILD_EXAMPLES)
   add_subdirectory(examples)
 endif()
@@ -82,10 +79,10 @@ endif()
 if(BUILD_DOCUMENTATION)
   find_package(Doxygen QUIET)
   if(DOXYGEN_FOUND)
-    set(DOXYGEN_PROJECT_NAME "Settling Process")
+    set(DOXYGEN_PROJECT_NAME "SO4chem Process")
     set(
       DOXYGEN_PROJECT_BRIEF
-      "Process for computing gravitational settling of aerosol species"
+      "Process for computing chemical production of sulfate from SO2 oxidation"
     )
     set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/docs")
     set(DOXYGEN_INPUT "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -94,28 +91,39 @@ if(BUILD_DOCUMENTATION)
     set(DOXYGEN_EXCLUDE_PATTERNS "*/build/* */tests/*")
 
     doxygen_add_docs(
-      settling_docs
+      so4chem_docs
       ${CMAKE_CURRENT_SOURCE_DIR}
-      COMMENT "Generating settling process documentation"
+      COMMENT "Generating so4chem process documentation"
     )
 
     install(
       DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/docs/
-      DESTINATION share/doc/settling
+      DESTINATION share/doc/so4chem
       OPTIONAL
     )
   endif()
 endif()
 
 # Performance testing
+if(BUILD_BENCHMARKS)
+  find_package(benchmark QUIET)
+  if(benchmark_FOUND)
+    add_executable(so4chem_benchmark benchmarks/benchmark_so4chem.F90)
+    target_link_libraries(
+      so4chem_benchmark
+      PRIVATE ${_lib} benchmark::benchmark
+    )
+  endif()
+endif()
 
 # Process-specific targets
 
 # Print configuration summary
-message(STATUS "Configured Settling process:")
-message(STATUS "  Process type: deposition")
+message(STATUS "Configured SO4chem process:")
+message(STATUS "  Process type: chemistry")
 message(STATUS "  Number of schemes: 1")
 message(STATUS "  Default scheme: ")
+message(STATUS "  Number of species: 8")
 message(STATUS "  Has size bins: No")
 message(STATUS "  Multiphase: No")
 message(STATUS "  Generate tests: Yes")
