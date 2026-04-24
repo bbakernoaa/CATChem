@@ -56,7 +56,6 @@ module ConfigManager_Mod
       yaml_get_size, yaml_get_string_array, yaml_get_all_keys, &
       yaml_get_real_array, safe_yaml_get_real, safe_yaml_get_logical, &
       safe_yaml_get_integer
-   !use musica_micm, only: get_micm_version_ => get_micm_version 
    implicit none
    private
 
@@ -197,7 +196,7 @@ module ConfigManager_Mod
 
       ! Metadata
       character(len=64) :: config_version = '2.0'       !< Configuration version
-      character(len=512) :: source_file = ''            !< Source configuration file
+      character(len=256) :: source_file = ''            !< Source configuration file
       logical :: is_validated = .false.                 !< Has configuration been validated?
       logical :: run_phases_enabled = .false.           !< Are run phases configured?
 
@@ -1512,8 +1511,6 @@ contains
       use ChemState_Mod, only: ChemStateType
       use Error_Mod, only: ErrorManagerType
       use GridGeometry_Mod, only: GridGeometryType
-      use musica_util, only: string_t
-      use musica_micm, only: get_micm_version
       implicit none
       class(ConfigManagerType), intent(inout) :: this
       character(len=*), intent(in) :: filename
@@ -1529,7 +1526,6 @@ contains
       character(len=256) :: species_path
       character(len=64), allocatable :: species_keys(:)
       character(len=64) :: all_yaml_keys(200)
-      type(string_t) :: micm_version
 
       rc = CC_SUCCESS
 
@@ -1540,9 +1536,6 @@ contains
          rc = CC_FAILURE
          return
       endif
-
-      micm_version = get_micm_version()
-      write(*, '(A,A)') "MICM version", micm_version%get_char_array()
 
       ! Load species configuration file
       species_config = yaml_load_file(filename)
@@ -1556,9 +1549,6 @@ contains
       if (yaml_is_sequence(species_config)) then
          write(*, '(A)') 'INFO: Converting MICM-style species configuration to YAML map/dictionary'
          species_config = yaml_sequence_to_map(species_config)
-         !rc = CC_FAILURE
-         !call yaml_destroy_node(species_config)
-         !return
       endif
       
       ! Check if this is a map/dictionary structure
@@ -1750,7 +1740,7 @@ contains
          write(*, '(A,A)') 'ERROR: Failed to initialize species at path: ', trim(species_path)
          return
       endif
-      write(*, '(A,A)') species_path
+      
       ! Load species name (required) - try 'name' field first, then use path as fallback
       write(field_path, '(A,A)') trim(species_path), '/name'
       success = yaml_get_string(yaml_root, trim(field_path), species_name)
