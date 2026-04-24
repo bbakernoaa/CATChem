@@ -59,6 +59,7 @@ module catchem_nuopc_interface
    public :: transform_catchem_to_nuopc
    public :: load_field_config
    public :: catchem_diagnostics_write
+   public :: write_chem_diagnostics
    !public :: get_cc_wrap  ! Accessor for process-local wrapper
    public :: get_n_import_fields, get_import_field_info  ! Safe field_config access
    public :: get_n_export_fields, get_export_field_info  ! Safe field_config access
@@ -121,6 +122,7 @@ module catchem_nuopc_interface
       character(len=256) :: output_directory = './output'
       character(len=64) :: output_prefix = 'catchem_diag'
       integer :: output_frequency = 3600  ! Default: 1 hour in seconds
+      integer :: compress_lev = 0         !< Compression level for output NC files (0-9)
       type(ESMF_GridComp) :: iocomp
       ! Time slice tracking for NetCDF output
       integer :: current_time_slice = 0
@@ -237,6 +239,12 @@ contains
       config_manager => state_mgr%get_config_ptr()
       call catchem_emis_init(cc_wrap%ext_emis, config_manager, nx, ny, nlev, clock, rc)
 
+      !get output information from config
+      cc_wrap%output_frequency = config_manager%config_data%runtime%Output_Frequency
+      cc_wrap%compress_lev = config_manager%config_data%runtime%CompressLev
+      cc_wrap%output_directory = config_manager%config_data%file_paths%Output_Directory
+      cc_wrap%output_prefix = config_manager%config_data%file_paths%Output_Prefix
+
       !populate tracer mapping using process-local tracer_map
       call TracerInfoGet(tracerinfo, 'tracerNames', tracer_names, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -288,6 +296,13 @@ contains
       cc_wrap%field_config = field_config
       ! Set the process-local grid variable
       cc_wrap%grid = input_grid
+
+      ! Initialize AQMIO component if not done
+      if (.not. ESMF_GridCompIsCreated(cc_wrap%iocomp)) then
+         cc_wrap%iocomp = AQMIO_Create(cc_wrap%grid, rc =rc)
+         if (rc /= CC_SUCCESS) return
+      end if
+
       ! Set time information if provided
       if (present(stopTime)) then
          cc_wrap%endTime = stopTime
@@ -654,6 +669,7 @@ contains
       !type(cc_wrap_type), pointer :: cc_wrap
       real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
       real(ESMF_KIND_R8), pointer :: fptr4d_rev(:,:,:,:), fptr3d_rev(:,:,:)
+      real(fp), allocatable :: cc_conc(:,:,:,:)
       real(fp), pointer :: column_ptr(:) !catchem met column pointer to get vertical dimension for nz+1 variables
       real(ESMF_KIND_R8) :: unit_conv
       integer :: i, j, k, v, ni, nj, nk, nk1, nv, kk, v_cc, met_index
@@ -815,6 +831,18 @@ contains
          ! Allocate fptr4d_rev with the same dimensions as fptr4d
          allocate(fptr4d_rev(ni, nj, nk, size(chem_state%ChemSpecies)))
          fptr4d_rev = 0.0_fp  ! Initialize to zero
+         !get original concentrations from CATChem.
+         !This is because some species in CATChem may not go through advection and should keep their values.
+         call chem_state%get_all_concentrations(cc_conc, rc)
+         if (rc /= CC_SUCCESS) then
+            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+               msg="CATChem tracer array is not retrieved successfully for: " // trim(field_map%catchem_var), &
+               line=__LINE__, file=__FILE__, rcToReturn=rc)
+            if (allocated(cc_conc)) deallocate(cc_conc)  ! Clean up before returning
+            return  ! bail out
+         end if
+         !assign to fptr4d_rev
+         fptr4d_rev = real(cc_conc, ESMF_KIND_R8)
 
          ! Reverse vertical layers
          do v = 1, nv
@@ -838,6 +866,7 @@ contains
                      msg="Met field is not set successfully for: QV", &
                      line=__LINE__, file=__FILE__, rcToReturn=rc)
                   deallocate(fptr4d_rev)  ! Clean up before returning
+                  if (allocated(cc_conc)) deallocate(cc_conc)
                   return  ! bail out
                end if
             end if
@@ -845,6 +874,7 @@ contains
             !map NUOPC tracer index to CATChem species index
             v_cc = cc_wrap%tracer_map%nuopc_to_cc(v)
             if (v_cc <= 0) cycle !if not a species in CATChem, go to next cycle
+            if (.not. chem_state%ChemSpecies(v_cc)%is_advected) cycle !if not advected, go to next cycle
             !unit conversion
             if (chem_state%ChemSpecies(v_cc)%is_gas) then
                !unit_conv = 28.9644  / chem_state%ChemSpecies(v_cc)%mw_g * 1.0e-3  ! convert from ug/kg to ppm for gases
@@ -868,14 +898,16 @@ contains
          call chem_state%set_all_concentrations(real(fptr4d_rev, fp), rc)
          if (rc /= CC_SUCCESS) then
             call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-               msg="Tracer array is not retrieved successfully for: " // trim(field_map%catchem_var), &
+               msg="CATChem tracer array is not set successfully for: " // trim(field_map%catchem_var), &
                line=__LINE__, file=__FILE__, rcToReturn=rc)
             deallocate(fptr4d_rev)  ! Clean up before returning
+            if (allocated(cc_conc)) deallocate(cc_conc)
             return  ! bail out
          end if
 
          ! Clean up allocated memory
          deallocate(fptr4d_rev)
+         if (allocated(cc_conc)) deallocate(cc_conc)
 
        case default
          call ESMF_LogWrite("Unknown field mapping dimension for: " // trim(field_map%catchem_var), &
@@ -1012,6 +1044,7 @@ contains
          do v = 1, nv
             v_cc = cc_wrap%tracer_map%nuopc_to_cc(v)
             if (v_cc > 0) then
+               if (.not. chem_state%ChemSpecies(v_cc)%is_advected) cycle !if not advected, go to next cycle
                cc_diag_data = chem_state%ChemSpecies(v_cc)%conc
                if (chem_state%ChemSpecies(v_cc)%is_gas) then
                   !unit_conv = 1.0e3 * chem_state%ChemSpecies(v_cc)%mw_g /28.9644  ! convert from ppm to ug/kg for gases
@@ -1098,12 +1131,6 @@ contains
          return
       end if
 
-      ! Initialize AQMIO component if not done
-      if (.not. ESMF_GridCompIsCreated(cc_wrap%iocomp)) then
-         cc_wrap%iocomp = AQMIO_Create(cc_wrap%grid, rc =rc)
-         if (rc /= CC_SUCCESS) return
-      end if
-
       ! Generate filename for current time
       call generate_diagnostic_filename(cc_wrap, time_on_file, filename, rc)
       if (rc /= CC_SUCCESS) return
@@ -1126,6 +1153,13 @@ contains
       call catchem_emis_write_diagnostics(cc_wrap%ext_emis, cc_wrap%current_time_slice, cc_wrap%iocomp, cc_wrap%grid, filename, rc)
       if (rc /= CC_SUCCESS) then
          write(*,'(A)') 'Error: Failed to write external emission diagnostics.'
+         return
+      end if
+
+      ! Write chemical species concentration diagnostics
+      call write_chem_diagnostics(cc_wrap, filename, rc)
+      if (rc /= CC_SUCCESS) then
+         write(*,'(A)') 'Error: Failed to write chemical species diagnostics.'
          return
       end if
 
@@ -1232,9 +1266,9 @@ contains
       character(len=*), intent(in) :: field_name
       integer, intent(in) :: data_type
       real(fp), intent(in) :: scalar_value
-      real(fp), pointer, intent(in) :: array_1d_ptr(:)
-      real(fp), pointer, intent(in) :: array_2d_ptr(:,:)
-      real(fp), pointer, intent(in) :: array_3d_ptr(:,:,:)
+      real(fp), pointer, optional, intent(in) :: array_1d_ptr(:)
+      real(fp), pointer, optional, intent(in) :: array_2d_ptr(:,:)
+      real(fp), pointer, optional, intent(in) :: array_3d_ptr(:,:,:)
       character(len=*), intent(in) :: description
       character(len=*), intent(in) :: units
       character(len=*), intent(in) :: filename
@@ -1254,6 +1288,10 @@ contains
       ! Create appropriate ESMF field based on data type
       select case (data_type)
        case (DIAG_REAL_2D)
+         if (.not. present(array_2d_ptr)) then
+            rc = CC_FAILURE
+            return
+         end if
          if (.not. associated(array_2d_ptr)) then
             rc = CC_FAILURE
             return
@@ -1280,10 +1318,14 @@ contains
                field_data_2d(i, j) = real(array_2d_ptr(i, j), ESMF_KIND_R4)
             end do
          end do
-         call AQMIO_Write(cc_wrap%iocomp, (/esmf_field/), timeSlice=time_slice, fileName=trim(filename), &
-            iofmt=AQMIO_FMT_NETCDF, rc=rc)
+         call AQMIO_Write(cc_wrap%iocomp, (/esmf_field/), timeSlice=time_slice, compressLev=cc_wrap%compress_lev, &
+            fileName=trim(filename), iofmt=AQMIO_FMT_NETCDF, rc=rc)
 
        case (DIAG_REAL_3D)
+         if (.not. present(array_3d_ptr)) then
+            rc = CC_FAILURE
+            return
+         end if
          if (.not. associated(array_3d_ptr)) then
             rc = CC_FAILURE
             return
@@ -1314,8 +1356,8 @@ contains
                end do
             end do
          end do
-         call AQMIO_Write(cc_wrap%iocomp, (/esmf_field/), timeSlice=time_slice, fileName=trim(filename), &
-            iofmt=AQMIO_FMT_NETCDF, rc=rc)
+         call AQMIO_Write(cc_wrap%iocomp, (/esmf_field/), timeSlice=time_slice, compressLev=cc_wrap%compress_lev, &
+            fileName=trim(filename), iofmt=AQMIO_FMT_NETCDF, rc=rc)
 
        case default
          rc = CC_FAILURE
@@ -1332,6 +1374,211 @@ contains
       end if
 
    end subroutine write_diagnostic_field
+
+   !> \brief Write chemical species diagnostics to NetCDF file
+   !!
+   !! This function saves chemical species concentrations as diagnostic output
+   !! based on the diag_species configuration. It handles both individual species
+   !! and the 'All' option to save all available species. Units are properly
+   !! converted - aerosols from ug/kg to ug/m3 using air density, and gases
+   !! are output in ppm.
+   !!
+   !! \param cc_wrap CATChem wrapper containing model state and configuration
+   !! \param filename Output NetCDF filename
+   !! \param rc Return code
+   subroutine write_chem_diagnostics(cc_wrap, filename, rc)
+      type(cc_wrap_type), intent(inout) :: cc_wrap
+      character(len=*), intent(in) :: filename
+      integer, intent(out) :: rc
+
+      ! Local variables
+      type(StateManagerType), pointer :: state_mgr => null()
+      type(ConfigManagerType), pointer :: config_manager => null()
+      type(ChemStateType), pointer :: chem_state => null()
+      type(MetStateType), pointer :: met_state => null()
+      character(len=64), allocatable :: diag_species(:)
+      integer :: num_diag_species, i, j, species_idx
+      character(len=64) :: species_name, field_name, units_str
+      character(len=128) :: description
+      logical :: found_species, save_all_species
+      real(fp), pointer :: conc_data(:,:,:) => null()
+      real(fp), pointer :: converted_conc(:,:,:) => null()
+      real(fp), pointer :: air_density(:,:,:) => null()
+      type(ESMF_Field) :: air_density_field
+
+      ! Initialize return code
+      rc = CC_SUCCESS
+
+      ! Get state manager from CATChem model
+      state_mgr => cc_wrap%catchem_model%get_state_manager()
+      if (.not. associated(state_mgr)) then
+         write(*,'(A)') 'Error: StateManager not available for chemistry diagnostics'
+         rc = CC_FAILURE
+         return
+      end if
+
+      ! Get configuration manager
+      config_manager => state_mgr%get_config_ptr()
+      if (.not. associated(config_manager)) then
+         write(*,'(A)') 'Error: ConfigManager not available for chemistry diagnostics'
+         rc = CC_FAILURE
+         return
+      end if
+
+      if (.not. config_manager%config_data%runtime%DiagEnabled) then
+         ! Chemistry diagnostics not enabled, skip
+         return
+      end if
+
+      ! Get chemistry state
+      chem_state => state_mgr%get_chem_state_ptr()
+      if (.not. associated(chem_state)) then
+         write(*,'(A)') 'Error: ChemState not available for chemistry diagnostics'
+         rc = CC_FAILURE
+         return
+      end if
+
+      ! Get meteorology state for air density
+      met_state => state_mgr%get_met_state_ptr()
+      if (.not. associated(met_state)) then
+         write(*,'(A)') 'Error: MetState not available for chemistry diagnostics'
+         rc = CC_FAILURE
+         return
+      end if
+
+      ! Get diagnostic species configuration
+      if (allocated(config_manager%config_data%runtime%diag_species)) then
+         diag_species = config_manager%config_data%runtime%diag_species
+         num_diag_species = size(diag_species)
+      else
+         ! No species configured for diagnostics
+         return
+      end if
+
+      ! Check if 'All' species should be saved
+      save_all_species = .false.
+      if (num_diag_species > 0) then
+         if (trim(diag_species(1)) == 'All' .or. trim(diag_species(1)) == 'ALL') then
+            save_all_species = .true.
+         end if
+      end if
+
+      ! Get air density field for unit conversion
+      air_density => met_state%AIRDEN
+
+      if (save_all_species) then
+         ! Save all available chemical species
+         do i = 1, size(chem_state%ChemSpecies)
+            species_name = trim(chem_state%ChemSpecies(i)%short_name)
+            field_name = 'conc_' // trim(species_name)
+
+            ! Set units and description based on species type
+            if (chem_state%ChemSpecies(i)%is_gas) then
+               units_str = 'ppm'
+               description = 'Gas phase concentration of ' // trim(species_name)
+            else if (chem_state%ChemSpecies(i)%is_aerosol) then
+               units_str = 'ug/m3'
+               description = 'Aerosol mass concentration of ' // trim(species_name)
+            else
+               ! Skip species that are neither gas nor aerosol
+               cycle
+            end if
+
+            ! Get concentration data
+            conc_data => chem_state%ChemSpecies(i)%conc
+            if (.not. associated(conc_data)) cycle
+
+            ! Apply unit conversion if needed
+            if (chem_state%ChemSpecies(i)%is_aerosol) then
+               allocate(converted_conc(size(conc_data,1), size(conc_data,2), size(conc_data,3)))
+               converted_conc = conc_data * air_density
+
+               ! Write the converted aerosol data
+               call write_diagnostic_field(cc_wrap, field_name, DIAG_REAL_3D, 0.0_fp, &
+                  null(), null(), converted_conc, &
+                  trim(description), trim(units_str), filename, rc)
+
+               deallocate(converted_conc)
+            else
+               ! Write gas data directly (already in ppm)
+               call write_diagnostic_field(cc_wrap, field_name, DIAG_REAL_3D, 0.0_fp, &
+                  null(), null(), conc_data, &
+                  trim(description), trim(units_str), filename, rc)
+            end if
+
+            if (rc /= CC_SUCCESS) then
+               write(*,'(A,A)') 'Warning: Failed to write diagnostics for species: ', trim(species_name)
+               rc = CC_SUCCESS  ! Continue with other species
+            end if
+         end do
+
+      else
+         ! Save only specified species
+         do i = 1, num_diag_species
+            species_name = trim(diag_species(i))
+            found_species = .false.
+
+            ! Find the species in the ChemSpecies array
+            do j = 1, size(chem_state%ChemSpecies)
+               if (trim(chem_state%ChemSpecies(j)%short_name) == species_name) then
+                  found_species = .true.
+                  species_idx = j
+                  exit
+               end if
+            end do
+
+            if (.not. found_species) then
+               write(*,'(A,A)') 'Warning: Requested diagnostic species not found: ', trim(species_name)
+               cycle
+            end if
+
+            field_name = 'conc_' // trim(species_name)
+
+            ! Set units and description based on species type
+            if (chem_state%ChemSpecies(species_idx)%is_gas) then
+               units_str = 'ppm'
+               description = 'Gas phase concentration of ' // trim(species_name)
+            else if (chem_state%ChemSpecies(species_idx)%is_aerosol) then
+               units_str = 'ug/m3'
+               description = 'Aerosol mass concentration of ' // trim(species_name)
+            else
+               write(*,'(A,A)') 'Warning: Species is neither gas nor aerosol: ', trim(species_name)
+               cycle
+            end if
+
+            ! Get concentration data
+            conc_data => chem_state%ChemSpecies(species_idx)%conc
+            if (.not. associated(conc_data)) then
+               write(*,'(A,A)') 'Warning: Concentration data not available for species: ', trim(species_name)
+               cycle
+            end if
+
+            ! Apply unit conversion if needed
+            if (chem_state%ChemSpecies(species_idx)%is_aerosol) then
+               allocate(converted_conc(size(conc_data,1), size(conc_data,2), size(conc_data,3)))
+               converted_conc = conc_data * air_density
+
+               ! Write the converted aerosol data
+               call write_diagnostic_field(cc_wrap, field_name, DIAG_REAL_3D, 0.0_fp, &
+                  array_3d_ptr=converted_conc, description = trim(description), &
+                  units = trim(units_str), filename = filename, rc = rc)
+
+               deallocate(converted_conc)
+            else
+               ! Write gas data directly (already in ppm)
+               call write_diagnostic_field(cc_wrap, field_name, DIAG_REAL_3D, 0.0_fp, &
+                  array_3d_ptr=conc_data, description = trim(description), &
+                  units = trim(units_str), filename = filename, rc = rc)
+            end if
+
+            if (rc /= CC_SUCCESS) then
+               write(*,'(A,A)') 'Warning: Failed to write diagnostics for species: ', trim(species_name)
+               rc = CC_SUCCESS  ! Continue with other species
+            end if
+         end do
+      end if
+
+   end subroutine write_chem_diagnostics
 
    !> \brief Update time variable in NetCDF file
    !!

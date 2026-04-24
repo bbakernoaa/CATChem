@@ -11,7 +11,7 @@
   __is_wetdep: true
   __dd_f0: 0.0
   __dd_hstar: 1.0e+5
-  molecular weight [kg mol-1]: 0.06404
+  molecular weight [kg mol-1]: 64.04e-3
   __dd_DvzAerSnow: 0.03
   __dd_DvzMinVal_snow: 0.2
   __dd_DvzMinVal_land: 0.3
@@ -28,23 +28,35 @@
   __is_gas: true
   __is_drydep: true
   __is_wetdep: true
+  __is_advected: false
   __dd_f0: 1.0
   __dd_hstar: 5.0e+7
-  molecular weight [kg mol-1]: 0.03402
+  molecular weight [kg mol-1]: 34.02e-3
   __viscosity: 0.0 #dummy value
   __henry_k0: 8.3e+4
   __henry_cr: 7400.0
   __wd_retfactor: 5.0e-2
   __wd_LiqAndGas: true
   __wd_convfacI2G: 4.36564e-1
-- name: aso4j       #This is to match CMAQ name to use the restart file. so4 is used in GEOS-Chem.
+- name: oh
+  __description: Hydroxyl radical
+  __is_gas: true
+  __is_advected: false
+  molecular weight [kg mol-1]: 17.01e-3
+- name: no3
+  __description: Nitrate radical
+  __is_gas: true
+  __is_photolysis: true
+  __is_advected: false
+  molecular weight [kg mol-1]: 62.01e-3
+- name: so4       #This is to match CMAQ name to use the restart file. so4 is used in GEOS-Chem.
   __description: sulfate
   __is_aerosol: true
   __is_drydep: true
   __is_wetdep: true
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.09606
+  molecular weight [kg mol-1]: 96.06e-3
   __radius: 0.087
   __density: 1500.0
   __dd_DvzAerSnow: 0.03
@@ -56,7 +68,7 @@
   __mie_name: SU
 - name: dms
   __description: Dimethyl sulfide
-  molecular weight [kg mol-1]: 0.06213
+  molecular weight [kg mol-1]: 62.13e-3
   __radius: 8.7e-2
   __is_dust: false
   __is_aerosol: true
@@ -64,6 +76,14 @@
   __henry_k0: 0.48
   __henry_cr: 3100.0
   __mie_name: SU
+- name: dms_in
+  __description: Dimethyl sulfide in ocean water (climatology for emissions calculation)
+  molecular weight [kg mol-1]: 62.13e-3
+  radius: 8.7e-2
+- name: msa
+  __description: methanesulphonic acid
+  __is_gas: true
+  molecular weight [kg mol-1]: 96.10e-3
 - name: bc1
   __description: BC1
   __is_aerosol: true
@@ -71,7 +91,7 @@
   __is_wetdep: true
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.1201
+  molecular weight [kg mol-1]: 12.01e-3
   __radius: 0.087   #gocart is 0.35
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
@@ -86,7 +106,7 @@
   __is_wetdep: true
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.01201
+  molecular weight [kg mol-1]: 12.01e-3
   __radius: 0.087   #gocart is 0.35
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
@@ -101,7 +121,7 @@
   __is_wetdep: true
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.01201
+  molecular weight [kg mol-1]: 12.01e-3
   __radius: 0.087
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
@@ -116,7 +136,7 @@
   __is_wetdep: true
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.01201
+  molecular weight [kg mol-1]: 12.01e-3
   __radius: 0.087
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
@@ -131,7 +151,7 @@
   __upper_radius: 1.0
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.02900
+  molecular weight [kg mol-1]: 29.00e-3
   __radius: 0.73
   __density: 2500.
   __is_dust: true
@@ -147,7 +167,7 @@
   __upper_radius: 1.8
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.02900
+  molecular weight [kg mol-1]: 29.00e-3
   __radius: 1.4
   __density: 2650.
   __is_dust: true
@@ -163,7 +183,7 @@
   __upper_radius: 3.0
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.02900
+  molecular weight [kg mol-1]: 29.00e-3
   __radius: 2.4
   __density: 2650.
   __is_dust: true
@@ -179,7 +199,7 @@
   __upper_radius: 6.0
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.02900
+  molecular weight [kg mol-1]: 29.00e-3
   __radius: 4.5
   __density: 2650.
   __is_dust: true
@@ -195,7 +215,7 @@
   __upper_radius: 10.0
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.2900
+  molecular weight [kg mol-1]: 29.00
   __radius: 8.0
   __density: 2650.
   __is_dust: true
@@ -211,7 +231,7 @@
   __upper_radius: 0.1
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.03140  #GEOS-Chem is 31.40; gocart is 58 but it seems not used in gocart processes. So we go with GC
+  molecular weight [kg mol-1]: 31.40  #GEOS-Chem is 31.40; gocart is 58 but it seems not used in gocart processes. So we go with GC
   __radius: 0.079
   __density: 2200.
   __is_seasalt: true
@@ -227,7 +247,7 @@
   __upper_radius: 0.5
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.03140  #GEOS-Chem is 31.40; gocart is 58
+  molecular weight [kg mol-1]: 31.40  #GEOS-Chem is 31.40; gocart is 58
   __radius: 0.316
   __density: 2200.
   __is_seasalt: true
@@ -243,7 +263,7 @@
   __upper_radius: 1.5
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.03140  #GEOS-Chem is 31.40; gocart is 58
+  molecular weight [kg mol-1]: 31.40  #GEOS-Chem is 31.40; gocart is 58
   __radius: 1.119
   __density: 2200.
   __is_seasalt: true
@@ -259,7 +279,7 @@
   __upper_radius: 5.0
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.03140  #GEOS-Chem is 31.40; gocart is 58
+  molecular weight [kg mol-1]: 31.40  #GEOS-Chem is 31.40; gocart is 58
   __radius: 2.818
   __density: 2200.
   __is_seasalt: true
@@ -275,7 +295,7 @@
   __upper_radius: 10.0
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 0.03140  #GEOS-Chem is 31.40; gocart is 58
+  molecular weight [kg mol-1]: 31.40  #GEOS-Chem is 31.40; gocart is 58
   __radius: 7.772
   __density: 2200.
   __is_seasalt: true

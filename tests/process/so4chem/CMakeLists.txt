@@ -1,11 +1,11 @@
-# CMakeLists.txt for seasalt process tests
-# Generated on: 2025-11-14T23:01:21.936351
+# CMakeLists.txt for so4chem process tests
+# Generated on: 2026-03-03T18:15:44.634976
 
 # Test executables
 set(
   TEST_SOURCES
-  unit/test_seasalt_unit.F90
-  integration/test_seasalt_integration.F90
+  unit/test_so4chem_unit.F90
+  integration/test_so4chem_integration.F90
 )
 
 # Create test executables
@@ -17,7 +17,7 @@ foreach(test_source ${TEST_SOURCES})
   # Link against process modules
   target_link_libraries(
     ${test_name}
-    CATChem_process_seasalt
+    CATChem_process_so4chem
     CATChem_core
     testing
   )
@@ -47,7 +47,7 @@ endforeach()
 # Test data files
 configure_file(
   "${CMAKE_SOURCE_DIR}/tests/Configs/Default/CATChem_new_config.yml"
-  "${CMAKE_CURRENT_BINARY_DIR}/seasalt_config.yaml"
+  "${CMAKE_CURRENT_BINARY_DIR}/so4chem_config.yaml"
   COPYONLY
 )
 
@@ -64,25 +64,25 @@ endforeach()
 
 # Custom test targets with unique names
 add_custom_target(
-  run_seasalt_unit
-  COMMAND test_seasalt_unit
-  DEPENDS test_seasalt_unit
+  run_so4chem_unit
+  COMMAND test_so4chem_unit
+  DEPENDS test_so4chem_unit
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-  COMMENT "Running unit tests for seasalt process"
+  COMMENT "Running unit tests for so4chem process"
 )
 
 add_custom_target(
-  run_seasalt_integration
-  COMMAND test_seasalt_integration
-  DEPENDS test_seasalt_integration
+  run_so4chem_integration
+  COMMAND test_so4chem_integration
+  DEPENDS test_so4chem_integration
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-  COMMENT "Running integration tests for seasalt process"
+  COMMENT "Running integration tests for so4chem process"
 )
 
 add_custom_target(
-  run_seasalt_all
-  DEPENDS run_seasalt_unit run_seasalt_integration
-  COMMENT "Running all tests for seasalt process"
+  run_so4chem_all
+  DEPENDS run_so4chem_unit run_so4chem_integration
+  COMMENT "Running all tests for so4chem process"
 )
 
 # Test coverage (if available)
@@ -98,39 +98,39 @@ if(CODE_COVERAGE)
 
     # Coverage target
     add_custom_target(
-      coverage_seasalt
+      coverage_so4chem
       COMMAND
-        ${LCOV_PATH} --directory . --capture --output-file coverage_seasalt.info
+        ${LCOV_PATH} --directory . --capture --output-file coverage_so4chem.info
       COMMAND
-        ${LCOV_PATH} --remove coverage_seasalt.info '/usr/*' --output-file
-        coverage_seasalt.info
-      COMMAND ${GENHTML_PATH} -o coverage_seasalt_html coverage_seasalt.info
-      DEPENDS run_seasalt_all
+        ${LCOV_PATH} --remove coverage_so4chem.info '/usr/*' --output-file
+        coverage_so4chem.info
+      COMMAND ${GENHTML_PATH} -o coverage_so4chem_html coverage_so4chem.info
+      DEPENDS run_so4chem_all
       WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-      COMMENT "Generating test coverage report for seasalt process"
+      COMMENT "Generating test coverage report for so4chem process"
     )
   endif()
 endif()
 
 # Performance benchmarks
 add_custom_target(
-  benchmark_seasalt
-  DEPENDS run_seasalt_integration
+  benchmark_so4chem
+  DEPENDS run_so4chem_integration
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-  COMMENT "Running performance benchmarks for seasalt process"
+  COMMENT "Running performance benchmarks for so4chem process"
 )
 
 # Memory checking with valgrind (if available)
 find_program(VALGRIND_PATH valgrind)
 if(VALGRIND_PATH)
   add_custom_target(
-    memcheck_seasalt
+    memcheck_so4chem
     COMMAND
       ${VALGRIND_PATH} --tool=memcheck --leak-check=full --show-leak-kinds=all
-      --track-origins=yes ./test_seasalt_integration
-    DEPENDS test_seasalt_integration
+      --track-origins=yes ./test_so4chem_integration
+    DEPENDS test_so4chem_integration
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-    COMMENT "Running memory check for seasalt process"
+    COMMENT "Running memory check for so4chem process"
   )
 endif()
 
@@ -140,7 +140,7 @@ if(INSTALL_TESTS)
 
   install(
     FILES "${CMAKE_SOURCE_DIR}/tests/Configs/Default/CATChem_new_config.yml"
-    DESTINATION share/tests/seasalt
-    RENAME seasalt_config.yaml
+    DESTINATION share/tests/so4chem
+    RENAME so4chem_config.yaml
   )
 endif()

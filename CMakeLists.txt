@@ -111,11 +111,13 @@ if(BUILD_NUOPC)
   endif()
 endif()
 
-# Enable testing for standalone builds
-enable_testing()
-
 add_subdirectory(src)
-add_subdirectory(tests)
+
+# Enable testing for standalone builds
+if(BUILD_TESTING)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
 
 if(BUILD_NUOPC)
   add_subdirectory(drivers/nuopc)
@@ -157,6 +159,7 @@ if(BUILD_NUOPC)
       $<TARGET_FILE:CATChem_process_drydep>
       $<TARGET_FILE:CATChem_process_wetdep>
       $<TARGET_FILE:CATChem_process_settling>
+      $<TARGET_FILE:CATChem_process_so4chem>
       $<TARGET_FILE:CATChem_core>
       $<TARGET_FILE:yaml_interface>
       $<TARGET_FILE:catchem_utilities>
