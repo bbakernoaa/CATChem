@@ -57,7 +57,7 @@ if(TARGET GOCART2G)
 endif()
 
 if(TARGET musica)
-  target_link_libraries(CATChem_core PUBLIC musica::musica-fortran) 
+  target_link_libraries(CATChem_core PUBLIC musica::musica-fortran)
 endif()
 
 set(METSTATE_MOD_F90 ${CMAKE_CURRENT_SOURCE_DIR}/metstate_mod.F90)

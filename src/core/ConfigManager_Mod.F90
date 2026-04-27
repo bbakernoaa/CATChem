@@ -1550,7 +1550,7 @@ contains
          write(*, '(A)') 'INFO: Converting MICM-style species configuration to YAML map/dictionary'
          species_config = yaml_sequence_to_map(species_config)
       endif
-      
+
       ! Check if this is a map/dictionary structure
       if (.not. yaml_is_map(species_config)) then
          write(*, '(A)') 'ERROR: Must be able to access species configuration as YAML map/dictionary'
@@ -1740,7 +1740,7 @@ contains
          write(*, '(A,A)') 'ERROR: Failed to initialize species at path: ', trim(species_path)
          return
       endif
-      
+
       ! Load species name (required) - try 'name' field first, then use path as fallback
       write(field_path, '(A,A)') trim(species_path), '/name'
       success = yaml_get_string(yaml_root, trim(field_path), species_name)

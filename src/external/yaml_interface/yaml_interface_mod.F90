@@ -273,7 +273,7 @@ contains
    function yaml_sequence_to_map(node) result(modified_node)
       type(yaml_node_t), intent(in) :: node
       type(yaml_node_t) :: modified_node
-      if (c_associated(node%ptr)) then 
+      if (c_associated(node%ptr)) then
          modified_node%ptr = c_yaml_sequence_to_map(node%ptr)
       else
          modified_node%ptr = c_null_ptr
