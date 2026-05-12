@@ -1,15 +1,14 @@
-!> \file test_so4chem_integration.F90
-!! \brief Comprehensive integration tests for so4chem process using CATChemCore
+!> \file test_carbchem_integration.F90
+!! \brief Comprehensive integration tests for carbchem process using CATChemCore
 !!
-!! This file contains comprehensive integration tests for the so4chem process implementation
+!! This file contains comprehensive integration tests for the carbchem process implementation
 !! using the centralized CATChemCore framework. Tests complete workflow: core initialization,
 !! configuration loading, process registration, and all scheme validation.
-!! Generated on: 2026-03-03T18:15:44.599765
+!! Generated on: 2026-04-10T16:46:37.972585
 
-program test_so4chem_integration
-   use precision_mod, only: fp, rae
+program test_carbchem_integration
+   use precision_mod, only: fp
    use iso_fortran_env, only: output_unit, error_unit
-   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
    use error_mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType, ERROR_UNSUPPORTED_OPERATION
    use CATChemCore_Mod, only: CATChemCoreType, CATChemBuilderType
    use StateManager_Mod, only: StateManagerType
@@ -19,9 +18,9 @@ program test_so4chem_integration
    use MetState_Mod, only: MetStateType
    use ChemState_Mod, only: ChemStateType
    use ConfigManager_Mod, only: ConfigManagerType
-   use ProcessSO4chemInterface_Mod, only: ProcessSO4chemInterface
-   use SO4chemProcessCreator_Mod, only: register_so4chem_process
-   use SO4chemCommon_Mod, only: SO4chemProcessConfig
+   use ProcessCarbChemInterface_Mod, only: ProcessCarbChemInterface
+   use CarbChemProcessCreator_Mod, only: register_carbchem_process
+   use CarbChemCommon_Mod, only: CarbChemProcessConfig
    use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DiagnosticFieldType, &
       DIAG_REAL_SCALAR, DIAG_REAL_1D, DIAG_REAL_2D, DIAG_REAL_3D, &
       DIAG_INTEGER_SCALAR, DIAG_INTEGER_1D, DIAG_INTEGER_2D, DIAG_INTEGER_3D
@@ -53,7 +52,7 @@ program test_so4chem_integration
       'gocart              ']
 
    write(output_unit,'(A)') '=================================='
-   write(output_unit,'(A)') '=== SO4CHEM INTEGRATION TESTS ==='
+   write(output_unit,'(A)') '=== CARBCHEM INTEGRATION TESTS ==='
    write(output_unit,'(A)') '=================================='
    write(output_unit,'(A)') 'Using CATChemCore for comprehensive testing with'
    write(output_unit,'(A)') 'configuration, meteorological data, and all scheme validation'
@@ -63,7 +62,7 @@ program test_so4chem_integration
    write(output_unit,'(A)') 'Step 1: Initializing CATChem Core...'
 
    call builder%init()
-   builder = builder%with_name('SO4chemIntegrationTest')
+   builder = builder%with_name('CarbChemIntegrationTest')
    builder = builder%with_config(config_file)
    builder = builder%with_grid(n_columns, 1, n_levels)
    builder = builder%with_verbose()
@@ -77,15 +76,15 @@ program test_so4chem_integration
    write(output_unit,'(A,I0,A,I0,A)') '  ✓ CATChemCore initialized: ', n_columns, ' columns, ', n_levels, ' levels'
    write(output_unit,'(A)') '  ✓ Configuration loaded and all managers set up'
 
-   ! Register so4chem processes with ProcessFactory
+   ! Register carbchem processes with ProcessFactory
    process_mgr_ptr => core%get_process_manager()
-   call register_so4chem_process(process_mgr_ptr, rc)
+   call register_carbchem_process(process_mgr_ptr, rc)
    if (rc /= CC_SUCCESS) then
-      write(error_unit,'(A)') 'ERROR: Failed to register so4chem processes with ProcessFactory'
+      write(error_unit,'(A)') 'ERROR: Failed to register carbchem processes with ProcessFactory'
       all_tests_passed = .false.
       goto 999
    end if
-   write(output_unit,'(A)') '  ✓ SO4chem processes registered with ProcessFactory'
+   write(output_unit,'(A)') '  ✓ CarbChem processes registered with ProcessFactory'
 
    ! Step 2: Set up realistic meteorological conditions
    write(output_unit,'(A)') ''
@@ -98,21 +97,21 @@ program test_so4chem_integration
    end if
    write(output_unit,'(A)') '  ✓ Meteorological conditions configured'
 
-   ! Step 3: Testing so4chem process with all schemes
+   ! Step 3: Testing carbchem process with all schemes
    write(output_unit,'(A)') ''
-   write(output_unit,'(A)') 'Step 3: Testing so4chem process with all schemes...'
+   write(output_unit,'(A)') 'Step 3: Testing carbchem process with all schemes...'
 
-   ! Add so4chem process for scheme testing
-   call core%add_process('so4chem', rc)
+   ! Add carbchem process for scheme testing
+   call core%add_process('carbchem', rc)
    if (rc /= CC_SUCCESS) then
-      write(error_unit,'(A)') 'ERROR: Failed to add so4chem process for scheme testing'
+      write(error_unit,'(A)') 'ERROR: Failed to add carbchem process for scheme testing'
       all_tests_passed = .false.
       goto 999
    end if
-   write(output_unit,'(A)') '  ✓ SO4chem process added successfully'
+   write(output_unit,'(A)') '  ✓ CarbChem process added successfully'
 
    write(output_unit,'(A)') ''
-   write(output_unit,'(A)') '  Testing multiple so4chem schemes...'
+   write(output_unit,'(A)') '  Testing multiple carbchem schemes...'
    do i_scheme = 1, size(schemes)
       write(output_unit,'(A,A,A)') '    Testing ', trim(schemes(i_scheme)), ' scheme...'
 
@@ -144,7 +143,7 @@ program test_so4chem_integration
 
    if (all_tests_passed) then
       write(output_unit,'(A,I0,A)') '  ✓ All ', n_time_steps, ' timesteps completed successfully'
-      write(output_unit,'(A)') '    - SO4chem process stability verified'
+      write(output_unit,'(A)') '    - CarbChem process stability verified'
       write(output_unit,'(A)') '    - Multi-timestep conservation maintained'
    end if
 
@@ -162,10 +161,10 @@ program test_so4chem_integration
    write(output_unit,'(A)') ''
    write(output_unit,'(A)') '=================================='
    if (all_tests_passed) then
-      write(output_unit,'(A)') '=== ALL SO4CHEM TESTS PASSED! ==='
+      write(output_unit,'(A)') '=== ALL CARBCHEM TESTS PASSED! ==='
       write(output_unit,'(A)') '=== Integration test successful ==='
    else
-      write(output_unit,'(A)') '=== SOME SO4CHEM TESTS FAILED ==='
+      write(output_unit,'(A)') '=== SOME CARBCHEM TESTS FAILED ==='
       write(output_unit,'(A)') '=== Check error messages above ==='
    end if
    write(output_unit,'(A)') '=================================='
@@ -174,7 +173,7 @@ program test_so4chem_integration
 
 contains
 
-   !> Set up realistic meteorological conditions for so4chem testing
+   !> Set up realistic meteorological conditions for carbchem testing
    subroutine setup_met(core_arg, rc_arg)
       type(CATChemCoreType), intent(inout) :: core_arg
       integer, intent(out) :: rc_arg
@@ -197,20 +196,12 @@ contains
 
       ! Allocate categorical arrays with standard dimensions
 
-      ! Set realistic conditions for so4chem processes
+      ! Set realistic conditions for carbchem processes
       do j = 1, ny
          ! Calculate latitude for realistic gradients
          lat = -30.0_fp + (j-1) * 60.0_fp / max(1, ny-1)  ! -30°S to 30°N
          do i = 1, nx
-            met_state%LAT(i,j) = lat                           ! Latitude [degrees]
-            met_state%LON(i,j) = -120.0_fp + (i-1) * 240.0_fp / max(1, nx-1)  ! Longitude [degrees]
-            wind_speed = 8.0_fp + 2.0_fp * cos(lat * 3.14159_fp / 180.0_fp)  ! 6-10 m/s
-            met_state%U10M(i,j) = -wind_speed * 0.8_fp         ! Easterly trade winds
-            met_state%V10M(i,j) = wind_speed * 0.3_fp          ! Slight northerly component
-            met_state%USTAR(i,j) = 0.03_fp * sqrt(met_state%U10M(i,j)**2 + met_state%V10M(i,j)**2)
-            met_state%Z0H(i,j) = 0.0001_fp                     ! Thermal roughness [m]
-            met_state%PBLH(i,j) = 800.0_fp                     ! PBL height [m]
-            met_state%HFLUX(i,j) = 15.0_fp                     ! Sensible heat flux [W/m2]
+
          end do
       end do
 
@@ -221,21 +212,10 @@ contains
                ! Calculate height-dependent values
                ! Approximate altitude in km (assuming ~1 km per level near surface)
                altitude_km = real(k-1, fp) * 1.0_fp
-               met_state%T(i,j,k) = 288.15_fp - 6.5_fp * altitude_km  ! Temperature lapse rate [K]
                met_state%PMID(i,j,k) = 101300.25_fp * exp(-altitude_km / 8.0_fp)  ! Mid-level pressure [Pa]
                met_state%DELP(i,j,k) = 5000.0_fp                                  ! Pressure thickness [Pa]
                met_state%AIRDEN_DRY(i,j,k) = 1.2_fp * exp(-altitude_km / 8.0_fp)    ! Dry air density [kg/m3]
                met_state%AIRDEN(i,j,k) = met_state%AIRDEN_DRY(i,j,k) * 1.01_fp    ! wet Air density [kg/m3]
-               met_state%CLDF(i,j,k) = max(0.0_fp, 0.4_fp - altitude_km * 0.05_fp)  ! 3D cloud fraction
-            end do
-         end do
-      end do
-      ! Set up pressure edge arrays (nx, ny, nz+1)
-      do j = 1, ny
-         do i = 1, nx
-            do k = 1, nz+1
-               edge_altitude_km = real(k-1, fp) * 1.0_fp - 0.5_fp
-               met_state%Z(i,j,k) = 1000.0_fp * (edge_altitude_km + 0.65_fp)   ! Geopotential height at edges [m]
             end do
          end do
       end do
@@ -245,7 +225,7 @@ contains
 
    end subroutine setup_met
 
-   !> Test a specific so4chem scheme with comprehensive validation
+   !> Test a specific carbchem scheme with comprehensive validation
    subroutine test_scheme(core_arg, scheme_name, rc_arg)
       type(CATChemCoreType), intent(inout) :: core_arg
       character(len=*), intent(in) :: scheme_name
@@ -253,7 +233,7 @@ contains
 
       type(ProcessManagerType), pointer :: process_mgr
       type(StateManagerType), pointer :: state_mgr
-      type(ProcessSO4chemInterface), pointer :: so4chem_interface
+      type(ProcessCarbChemInterface), pointer :: carbchem_interface
       type(ConfigManagerType), pointer :: config_mgr
       type(ErrorManagerType), pointer :: error_mgr
 
@@ -263,23 +243,23 @@ contains
       process_mgr => core_arg%get_process_manager()
       state_mgr => core_arg%get_state_manager()
 
-      ! Get so4chem process interface
-      so4chem_interface => null()
+      ! Get carbchem process interface
+      carbchem_interface => null()
       select type(process => process_mgr%processes(1)%item)
-       type is (ProcessSO4chemInterface)
-         so4chem_interface => process
+       type is (ProcessCarbChemInterface)
+         carbchem_interface => process
       end select
 
-      if (.not. associated(so4chem_interface)) then
+      if (.not. associated(carbchem_interface)) then
          rc_arg = CC_FAILURE
          return
       end if
 
       ! Step 1: Set the timestep for process calculations
-      call so4chem_interface%set_timestep(dt)
+      call carbchem_interface%set_timestep(dt)
 
       ! Step 2: Set the scheme
-      call so4chem_interface%set_scheme(scheme_name)
+      call carbchem_interface%set_scheme(scheme_name)
 
       ! Step 3: Reload scheme-specific configuration
       config_mgr => state_mgr%get_config_ptr()
@@ -299,7 +279,7 @@ contains
       ! Call the scheme-specific loading function directly
       select case (trim(scheme_name))
        case ('gocart')
-         call so4chem_interface%process_config%load_gocart_config(config_mgr, error_mgr)
+         call carbchem_interface%process_config%load_gocart_config(config_mgr, error_mgr)
        case default
          call error_mgr%report_error(1004, &
             'Unknown scheme: ' // trim(scheme_name), rc_arg)
@@ -308,7 +288,7 @@ contains
 
 
       ! Step 3: Reset diagnostics for the new scheme
-      call reset_diagnostics_for_scheme(so4chem_interface, state_mgr, scheme_name, rc_arg)
+      call reset_diagnostics_for_scheme(carbchem_interface, state_mgr, scheme_name, rc_arg)
       if (rc_arg /= CC_SUCCESS) return
 
       ! Step 4: Run the process to populate diagnostic data
@@ -322,8 +302,8 @@ contains
 
    !> Reset diagnostics for a specific scheme (test-specific function)
    !! This function handles diagnostic reset when switching between schemes during testing
-   subroutine reset_diagnostics_for_scheme(so4chem_interface, container, scheme_name, rc_arg)
-      type(ProcessSO4chemInterface), intent(inout) :: so4chem_interface
+   subroutine reset_diagnostics_for_scheme(carbchem_interface, container, scheme_name, rc_arg)
+      type(ProcessCarbChemInterface), intent(inout) :: carbchem_interface
       type(StateManagerType), intent(inout) :: container
       character(len=*), intent(in) :: scheme_name
       integer, intent(out) :: rc_arg
@@ -339,20 +319,20 @@ contains
       error_mgr => container%get_error_manager()
 
       ! Get current scheme
-      current_scheme = so4chem_interface%get_scheme()
+      current_scheme = carbchem_interface%get_scheme()
 
       ! Remove existing process registration (this clears all diagnostic fields)
-      call diag_mgr%remove_process('so4chem', rc_arg)
+      call diag_mgr%remove_process('carbchem', rc_arg)
       if (rc_arg /= CC_SUCCESS) then
          call error_mgr%report_error(ERROR_UNSUPPORTED_OPERATION, &
-            'Failed to remove existing diagnostics for so4chem process', rc_arg)
+            'Failed to remove existing diagnostics for carbchem process', rc_arg)
          ! Continue anyway - this might be the first registration
          rc_arg = CC_SUCCESS
       endif
 
       ! Re-register diagnostics for the new scheme
       ! The scheme-specific configuration should already be set correctly
-      call so4chem_interface%register_diagnostics(container, rc_arg)
+      call carbchem_interface%register_diagnostics(container, rc_arg)
       if (rc_arg /= CC_SUCCESS) then
          call error_mgr%report_error(ERROR_UNSUPPORTED_OPERATION, &
             'Failed to re-register diagnostics for scheme: ' // &
@@ -368,7 +348,7 @@ contains
       integer, intent(out) :: rc_arg
 
       type(DiagnosticManagerType), pointer :: diag_mgr
-      type(DiagnosticRegistryType), pointer :: so4chem_registry
+      type(DiagnosticRegistryType), pointer :: carbchem_registry
       character(len=64), allocatable :: field_names(:)
       integer :: num_fields, i, local_rc, data_type
       real(fp) :: scalar_value
@@ -377,11 +357,12 @@ contains
       real(fp), pointer :: array_3d_ptr(:,:,:) => null()
       logical :: validation_passed
       character(len=64) :: field_name
+      character(len=20) :: type_name
 
       rc_arg = CC_SUCCESS
       validation_passed = .true.
 
-      write(output_unit,'(A)') '  Validating so4chem emission results...'
+      write(output_unit,'(A)') '  Validating carbchem emission results...'
 
       ! Use core validation first
       if (.not. core_arg%validate()) then
@@ -399,20 +380,20 @@ contains
          return
       end if
 
-      ! Get the so4chem process diagnostic registry
-      call diag_mgr%get_process_registry('so4chem', so4chem_registry, local_rc)
-      if (local_rc /= CC_SUCCESS .or. .not. associated(so4chem_registry)) then
-         write(error_unit,'(A)') '  ERROR: Could not get so4chem process registry'
+      ! Get the carbchem process diagnostic registry
+      call diag_mgr%get_process_registry('carbchem', carbchem_registry, local_rc)
+      if (local_rc /= CC_SUCCESS .or. .not. associated(carbchem_registry)) then
+         write(error_unit,'(A)') '  ERROR: Could not get carbchem process registry'
          rc_arg = CC_FAILURE
          return
       end if
 
       ! Get the number of registered diagnostic fields
-      num_fields = so4chem_registry%get_field_count()
-      write(output_unit,'(A,I0,A)') '    Found ', num_fields, ' registered diagnostic fields for so4chem process'
+      num_fields = carbchem_registry%get_field_count()
+      write(output_unit,'(A,I0,A)') '    Found ', num_fields, ' registered diagnostic fields for carbchem process'
 
       if (num_fields == 0) then
-         write(error_unit,'(A)') '  ERROR: No diagnostic fields registered for so4chem process'
+         write(error_unit,'(A)') '  ERROR: No diagnostic fields registered for carbchem process'
          rc_arg = CC_FAILURE
          return
       end if
@@ -421,7 +402,7 @@ contains
       allocate(field_names(num_fields))
 
       ! Get all field names
-      call so4chem_registry%list_fields(field_names, num_fields)
+      call carbchem_registry%list_fields(field_names, num_fields)
 
       ! Iterate through all diagnostic fields and validate them
       write(output_unit,'(A)') '    Validating all registered diagnostic fields:'
@@ -431,7 +412,7 @@ contains
          write(output_unit,'(A,I0,A,A)') '      Field ', i, ': ', trim(field_name)
 
          ! Get field values and type information directly from DiagnosticManager
-         call diag_mgr%get_field_value('so4chem', field_name, &
+         call diag_mgr%get_field_value('carbchem', field_name, &
             scalar_value=scalar_value, &
             array_1d_ptr=array_1d_ptr, &
             array_2d_ptr=array_2d_ptr, &
@@ -455,10 +436,10 @@ contains
 
       ! Final validation result
       if (.not. validation_passed) then
-         write(error_unit,'(A)') '  VALIDATION FAILED: Some so4chem diagnostics failed validation'
+         write(error_unit,'(A)') '  VALIDATION FAILED: Some carbchem diagnostics failed validation'
          rc_arg = CC_FAILURE
       else
-         write(output_unit,'(A)') '  ✓ All so4chem diagnostic validations passed'
+         write(output_unit,'(A)') '  ✓ All carbchem diagnostic validations passed'
          write(output_unit,'(A,I0,A)') '    - ', num_fields, ' diagnostic fields validated'
          write(output_unit,'(A)') '    - All emission values are positive'
          write(output_unit,'(A)') '    - Diagnostic system is functioning correctly'
@@ -500,7 +481,7 @@ contains
          end if
 
          ! Check if scalar value is finite and non-negative
-         if (ieee_is_nan(scalar_value)) then  ! NaN check
+         if (scalar_value /= scalar_value) then  ! NaN check
             write(error_unit,'(A,A)') '    ERROR: Field has NaN value: ', trim(field_name)
             field_passed = .false.
          else if (scalar_value < 0.0_fp) then
@@ -525,7 +506,7 @@ contains
                if (is_verbose) then
                   write(output_unit,'(A,A,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, '] = ', current_value
                end if
-               if (ieee_is_nan(current_value)) then  ! NaN check
+               if (current_value /= current_value) then  ! NaN check
                   write(error_unit,'(A,A,A,I0,A)') '    ERROR: Field has NaN at index ', trim(field_name), ' (', i, ')'
                   field_passed = .false.
                   exit
@@ -542,7 +523,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (rae(sum(array_1d_ptr), 0.0_fp)) then
+               if (sum(array_1d_ptr) == 0.0_fp) then
                   write(error_unit,'(A,A)') '    WARNING: Field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
@@ -567,7 +548,7 @@ contains
                   if (is_verbose) then
                      write(output_unit,'(A,A,A,I0,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, ',', j, '] = ', current_value
                   end if
-                  if (ieee_is_nan(current_value)) then  ! NaN check
+                  if (current_value /= current_value) then  ! NaN check
                      write(error_unit,'(A,A,A,I0,A,I0,A)') '    ERROR: Field has NaN at index ', trim(field_name), ' (', i, ',', j, ')'
                      field_passed = .false.
                      exit outer_loop_2d
@@ -585,7 +566,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (rae(sum(array_2d_ptr), 0.0_fp)) then
+               if (sum(array_2d_ptr) == 0.0_fp) then
                   write(error_unit,'(A,A)') '    WARNING: Field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
@@ -611,7 +592,7 @@ contains
                      if (is_verbose) then
                         write(output_unit,'(A,A,A,I0,A,I0,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, ',', j, ',', k, '] = ', current_value
                      end if
-                     if (ieee_is_nan(current_value)) then  ! NaN check
+                     if (current_value /= current_value) then  ! NaN check
                         write(error_unit,'(A,A,A,I0,A,I0,A,I0,A)') '    ERROR: Field has NaN at index ', trim(field_name), ' (', i, ',', j, ',', k, ')'
                         field_passed = .false.
                         exit outer_loop_3d
@@ -630,7 +611,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (rae(sum(array_3d_ptr), 0.0_fp)) then
+               if (sum(array_3d_ptr) == 0.0_fp) then
                   write(error_unit,'(A,A)') '    WARNING: Field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
@@ -670,7 +651,7 @@ contains
                if (is_verbose) then
                   write(output_unit,'(A,A,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, '] = ', current_value
                end if
-               if (ieee_is_nan(current_value)) then  ! NaN check
+               if (current_value /= current_value) then  ! NaN check
                   write(error_unit,'(A,A,A,I0,A)') '    ERROR: Integer field has NaN at index ', trim(field_name), ' (', i, ')'
                   field_passed = .false.
                   exit
@@ -683,7 +664,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (rae(sum(array_1d_ptr), 0.0_fp)) then
+               if (sum(array_1d_ptr) == 0.0_fp) then
                   write(error_unit,'(A,A)') '    WARNING: Integer field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
@@ -708,7 +689,7 @@ contains
                   if (is_verbose) then
                      write(output_unit,'(A,A,A,I0,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, ',', j, '] = ', current_value
                   end if
-                  if (ieee_is_nan(current_value)) then  ! NaN check
+                  if (current_value /= current_value) then  ! NaN check
                      write(error_unit,'(A,A,A,I0,A,I0,A)') '    ERROR: Integer field has NaN at index ', trim(field_name), ' (', i, ',', j, ')'
                      field_passed = .false.
                      exit outer_loop_int_2d
@@ -722,7 +703,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (rae(sum(array_2d_ptr), 0.0_fp)) then
+               if (sum(array_2d_ptr) == 0.0_fp) then
                   write(error_unit,'(A,A)') '    WARNING: Integer field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
@@ -748,7 +729,7 @@ contains
                      if (is_verbose) then
                         write(output_unit,'(A,A,A,I0,A,I0,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, ',', j, ',', k, '] = ', current_value
                      end if
-                     if (ieee_is_nan(current_value)) then  ! NaN check
+                     if (current_value /= current_value) then  ! NaN check
                         write(error_unit,'(A,A,A,I0,A,I0,A,I0,A)') '    ERROR: Integer field has NaN at index ', trim(field_name), ' (', i, ',', j, ',', k, ')'
                         field_passed = .false.
                         exit outer_loop_int_3d
@@ -763,7 +744,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (rae(sum(array_3d_ptr), 0.0_fp)) then
+               if (sum(array_3d_ptr) == 0.0_fp) then
                   write(error_unit,'(A,A)') '    WARNING: Integer field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
@@ -790,4 +771,4 @@ contains
 
    end subroutine validate_field_by_type
 
-end program test_so4chem_integration
+end program test_carbchem_integration

@@ -39,7 +39,7 @@ diagnostics:
     frequency: 3600  #output frequency in seconds; e.g., 3600 for hourly output
     format: "netcdf" #only format supported now
     compress_lev: 0 #compress NC file; 0 for no compression, 1-9 for increasing levels of compression (and run time)
-    diag_list: [so2, so4, seas1, seas2, seas3, seas4, seas5]  #list of species to output; empty list for all species
+    diag_list: [so2, so4, seas1, seas2, seas3, seas4, seas5, bc1, bc2, oc1, oc2]  #list of species to output; empty list for all species
   collection:
     enabled: true
     buffer_size: 1000
@@ -70,6 +70,7 @@ run_phases:
     description: "Test phase 1"
     processes:
       - seasalt
+      - carbchem
       - settling
       - drydep
       - so4chem
@@ -181,7 +182,7 @@ processes:
   drydep:
     activate: true
     diagnostics: true
-    diag_species: [so2, so4, seas1, seas3, seas5]
+    diag_species: [so2, so4, seas1, seas3, seas5, oc1,oc2,bc1,bc2]
     gas_scheme: 'wesely'
     aero_scheme: 'zhang'
     wesely:
@@ -194,7 +195,7 @@ processes:
   wetdep:
     activate: true
     diagnostics: true
-    diag_species: [so2, so4, seas1, seas3, seas5]
+    diag_species: [so2, so4, seas1, seas3, seas5, oc1,oc2,bc1,bc2]
     scheme: 'jacob'
     jacob:
       scale_factor: 1.0
@@ -202,7 +203,7 @@ processes:
   settling:
     activate: true
     diagnostics: true
-    diag_species: [so4, seas1, seas3, seas5]
+    diag_species: [so4, seas1, seas3, seas5, oc1,oc2,bc1,bc2]
     scheme: 'gocart'
     gocart:
       scale_factor: 1.0 #not doing anything for now since we cannot edit gocart2g module
@@ -216,3 +217,10 @@ processes:
     scheme: 'gocart'
     gocart:
       update_so2: true #whether to update SO2 concentration based on chemical production/loss
+  carbchem:
+    activate: true
+    diagnostics: true
+    diag_species: [oc1,oc2,bc1,bc2]  #no brown carbon for now
+    scheme: 'gocart'
+    gocart:
+      time_days_hydrophobic_to_hydrophilic: 2.5  # Rate of conversion of hydrophobic to hydrophilic [days]

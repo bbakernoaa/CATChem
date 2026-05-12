@@ -1,14 +1,14 @@
-!> \file SO4chemCommon_Mod.F90
-!! \brief Common types and utilities for so4chem process
+!> \file CarbChemCommon_Mod.F90
+!! \brief Common types and utilities for carbchem process
 !!
 !! This module defines the configuration types used by the
-!! so4chem process and its schemes.
+!! carbchem process and its schemes.
 !!
-!! Generated on: 2026-03-03T18:15:44.287860
+!! Generated on: 2026-04-10T16:46:37.664483
 !! Author: Wei Li
 !! Version: 1.0.0
 
-module SO4chemCommon_Mod
+module CarbChemCommon_Mod
 
    use precision_mod, only: fp
    ! use precision_mod, only: fp
@@ -21,15 +21,15 @@ module SO4chemCommon_Mod
    private
 
    ! Export types
-   public :: SO4chemProcessConfig  ! New unified process config
-   public :: SO4chemConfig
-   public :: SO4chemSchemeGOCARTConfig
+   public :: CarbChemProcessConfig  ! New unified process config
+   public :: CarbChemConfig
+   public :: CarbChemSchemeGOCARTConfig
 
    ! Export utility functions
    public :: int_to_string
 
-   !> Main configuration type for so4chem process
-   type :: SO4chemConfig
+   !> Main configuration type for carbchem process
+   type :: CarbChemConfig
 
       ! Process settings
       character(len=32) :: scheme = 'gocart'
@@ -46,29 +46,29 @@ module SO4chemCommon_Mod
       ! Species configuration
       integer :: n_species = 0
       character(len=32), allocatable :: species_names(:)
-      integer, allocatable :: species_indices(:)  ! Indices of so4chem species in ChemState
+      integer, allocatable :: species_indices(:)  ! Indices of carbchem species in ChemState
 
 
 
       ! Species properties
-      real(fp), allocatable :: species_mw_g(:)      ! mw_g for each species
+      real(fp), allocatable :: species_t_chem_loss(:)      ! t_chem_loss for each species
 
       ! Diagnostic configuration
       logical :: output_diagnostics = .true.
       real(fp) :: diagnostic_frequency = 3600.0_fp  ! Output frequency (seconds)
 
    contains
-      procedure, public :: validate => validate_so4chem_config
-      procedure, public :: finalize => finalize_so4chem_config
-      procedure, public :: print_summary => print_so4chem_config_summary
-   end type SO4chemConfig
+      procedure, public :: validate => validate_carbchem_config
+      procedure, public :: finalize => finalize_carbchem_config
+      procedure, public :: print_summary => print_carbchem_config_summary
+   end type CarbChemConfig
 
    !> Configuration type for gocart scheme
-   type :: SO4chemSchemeGOCARTConfig
+   type :: CarbChemSchemeGOCARTConfig
 
       ! Scheme metadata
       character(len=64) :: scheme_name = 'gocart'
-      character(len=256) :: description = 'GOCART SO2 to SO4 production scheme'
+      character(len=256) :: description = 'GOCART carbon species chemical production and loss scheme'
       character(len=64) :: author = 'Wei Li'
       character(len=16) :: algorithm_type = 'explicit'
 
@@ -76,62 +76,51 @@ module SO4chemCommon_Mod
       logical :: affects_full_column = .true.  ! Full column processing
 
       ! Scheme parameters
-      logical :: update_so2 = .true.  ! whether to update SO2 concentration based on chemical production/loss
+      real(fp) :: time_days_hydrophobic_to_hydrophilic = 2.5  ! Rate of conversion of hydrophobic to hydrophilic [days]
 
       ! Required meteorological fields
-      integer :: n_required_met_fields = 16
-      character(len=32) :: required_met_fields(16)
+      integer :: n_required_met_fields = 4
+      character(len=32) :: required_met_fields(4)
 
    contains
       procedure, public :: validate => validate_gocart_config
       procedure, public :: finalize => finalize_gocart_config
-   end type SO4chemSchemeGOCARTConfig
+   end type CarbChemSchemeGOCARTConfig
 
-   !> Persistent state type for gocart scheme
-   !! Contains variables that persist across time steps for each column
-   type :: SO4chemGOCARTPersistentState
-      logical :: firsttime  ! flag for first time step
-      integer :: nymd_last  ! last day of H2O2 update
-      integer :: nhms_last_recycle  ! last time step of H2O2 recycle
-      real(fp), allocatable :: xh2o2_init(:)  ! H2O2 column initialization
-   end type SO4chemGOCARTPersistentState
+   ! gocart scheme uses local variables only - no persistent state type needed
 
 
    !> Unified process configuration type that bridges ConfigManager and process-specific configs
    !! This is the main configuration type that ProcessInterface should use
-   type :: SO4chemProcessConfig
+   type :: CarbChemProcessConfig
 
       ! Process metadata
-      character(len=64) :: process_name = 'so4chem'
+      character(len=64) :: process_name = 'carbchem'
       character(len=16) :: process_version = '1.0.0'
       logical :: is_active = .true.
 
-      ! Process-specific configuration (delegate to SO4chemConfig)
-      type(SO4chemConfig) :: so4chem_config
+      ! Process-specific configuration (delegate to CarbChemConfig)
+      type(CarbChemConfig) :: carbchem_config
 
       ! Scheme configurations
-      type(SO4chemSchemeGOCARTConfig) :: gocart_config
+      type(CarbChemSchemeGOCARTConfig) :: gocart_config
 
-      ! Persistent state arrays for column processing
-      type(SO4chemGocartPersistentState), allocatable :: gocart_persistent_state(:)  ! Per-column state for gocart scheme
-      integer :: total_columns = 0  ! Total number of columns for state allocation
 
    contains
-      procedure, public :: load_from_config => so4chem_process_load_config
+      procedure, public :: load_from_config => carbchem_process_load_config
       procedure, public :: load_species_from_list => load_species_from_list
-      procedure, public :: validate => so4chem_process_validate
-      procedure, public :: finalize => so4chem_process_finalize
-      procedure, public :: initialize_persistent_state => so4chem_initialize_persistent_state
+      procedure, public :: validate => carbchem_process_validate
+      procedure, public :: finalize => carbchem_process_finalize
       procedure, public :: get_active_scheme_config => get_active_scheme_config
       procedure, public :: load_gocart_config
       procedure, public :: map_diagnostic_species_indices
-   end type SO4chemProcessConfig
+   end type CarbChemProcessConfig
 
 contains
 
-   !> Validate so4chem configuration
-   subroutine validate_so4chem_config(this, error_handler)
-      class(SO4chemConfig), intent(inout) :: this
+   !> Validate carbchem configuration
+   subroutine validate_carbchem_config(this, error_handler)
+      class(CarbChemConfig), intent(inout) :: this
       type(ErrorManagerType), intent(inout) :: error_handler
 
       character(len=256) :: error_msg
@@ -159,13 +148,13 @@ contains
          return
       end if
 
-   end subroutine validate_so4chem_config
+   end subroutine validate_carbchem_config
 
    !> Print configuration summary
-   subroutine print_so4chem_config_summary(this)
-      class(SO4chemConfig), intent(in) :: this
+   subroutine print_carbchem_config_summary(this)
+      class(CarbChemConfig), intent(in) :: this
 
-      write(*, '(A)') "=== SO4chem Process Configuration ==="
+      write(*, '(A)') "=== CarbChem Process Configuration ==="
       write(*, '(A,A)') "  Active scheme: ", trim(this%scheme)
       write(*, '(A,I0)') "  Number of species: ", this%n_species
       write(*, '(A,F0.1,A)') "  Minimum time step: ", this%dt_min, " s"
@@ -173,11 +162,11 @@ contains
       write(*, '(A,L1)') "  Output diagnostics: ", this%output_diagnostics
       write(*, '(A)') "============================================="
 
-   end subroutine print_so4chem_config_summary
+   end subroutine print_carbchem_config_summary
 
-   !> Finalize so4chem configuration
-   subroutine finalize_so4chem_config(this)
-      class(SO4chemConfig), intent(inout) :: this
+   !> Finalize carbchem configuration
+   subroutine finalize_carbchem_config(this)
+      class(CarbChemConfig), intent(inout) :: this
 
       ! Deallocate species names array
       if (allocated(this%species_names)) then
@@ -190,8 +179,8 @@ contains
       end if
 
       ! Deallocate species properties arrays
-      if (allocated(this%species_mw_g)) then
-         deallocate(this%species_mw_g)
+      if (allocated(this%species_t_chem_loss)) then
+         deallocate(this%species_t_chem_loss)
       end if
 
 
@@ -205,11 +194,11 @@ contains
          deallocate(this%diagnostic_species_id)
       end if
 
-   end subroutine finalize_so4chem_config
+   end subroutine finalize_carbchem_config
 
    !> Validate gocart scheme configuration
    subroutine validate_gocart_config(this, error_handler)
-      class(SO4chemSchemeGOCARTConfig), intent(inout) :: this
+      class(CarbChemSchemeGOCARTConfig), intent(inout) :: this
       type(ErrorManagerType), intent(inout) :: error_handler
 
       ! TODO: Add scheme-specific validation
@@ -218,7 +207,7 @@ contains
 
    !> Finalize gocart scheme configuration
    subroutine finalize_gocart_config(this)
-      class(SO4chemSchemeGOCARTConfig), intent(inout) :: this
+      class(CarbChemSchemeGOCARTConfig), intent(inout) :: this
 
       ! Nothing to deallocate for basic configuration
 
@@ -239,80 +228,80 @@ contains
    !> Load unified process configuration from ConfigManager
    !! This is the main function that ProcessInterface.parse_process_config should call
    !! Process reads its configuration directly from the master YAML via ConfigManager
-   subroutine so4chem_process_load_config(this, config_manager, error_handler)
-      class(SO4chemProcessConfig), intent(inout) :: this
+   subroutine carbchem_process_load_config(this, config_manager, error_handler)
+      class(CarbChemProcessConfig), intent(inout) :: this
       type(ConfigManagerType), intent(inout) :: config_manager
       type(ErrorManagerType), intent(inout) :: error_handler
 
       character(len=256) :: scheme_name
-      integer :: rc
+      integer :: ierr, rc
 
-      ! Process reads directly from master YAML structure: processes.so4chem
+      ! Process reads directly from master YAML structure: processes.carbchem
       ! ConfigManager provides generic YAML access, process handles its own configuration
 
       ! Load process metadata
-      call config_manager%get_string("processes/so4chem/name", this%process_name, rc, "so4chem")
-      if (rc /= CC_SUCCESS) this%process_name = "so4chem"  ! default
+      call config_manager%get_string("processes/carbchem/name", this%process_name, rc, "carbchem")
+      if (rc /= CC_SUCCESS) this%process_name = "carbchem"  ! default
 
-      call config_manager%get_string("processes/so4chem/version", this%process_version, rc, "1.0.0")
+      call config_manager%get_string("processes/carbchem/version", this%process_version, rc, "1.0.0")
       if (rc /= CC_SUCCESS) this%process_version = "1.0.0"  ! default
 
-      call config_manager%get_logical("processes/so4chem/activate", this%is_active, rc, .true.)
+      call config_manager%get_logical("processes/carbchem/activate", this%is_active, rc, .true.)
       if (rc /= CC_SUCCESS) this%is_active = .true.  ! default
 
       ! Load process-specific configuration directly from master YAML
-      call config_manager%get_string("processes/so4chem/scheme", this%so4chem_config%scheme, rc, "gocart")
+      call config_manager%get_string("processes/carbchem/scheme", this%carbchem_config%scheme, rc, "gocart")
       if (rc /= CC_SUCCESS) then
          call error_handler%report_error(ERROR_INVALID_CONFIG, &
-            "Missing required 'scheme' in processes/so4chem configuration", rc)
+            "Missing required 'scheme' in processes/carbchem configuration", rc)
          return
       end if
 
       ! Load diagnostic switch
-      call config_manager%get_logical("processes/so4chem/diagnostics", this%so4chem_config%diagnostics, rc, .false.)
-      if (rc /= CC_SUCCESS) this%so4chem_config%diagnostics = .false.  ! Default
+      call config_manager%get_logical("processes/carbchem/diagnostics", this%carbchem_config%diagnostics, rc, .false.)
+      if (rc /= CC_SUCCESS) this%carbchem_config%diagnostics = .false.  ! Default
 
       ! Load diagnostic species list
-      call config_manager%get_array("processes/so4chem/diag_species", this%so4chem_config%diagnostic_species, &
+      call config_manager%get_array("processes/carbchem/diag_species", this%carbchem_config%diagnostic_species, &
          rc, default_values=["All"])
       if (rc /= CC_SUCCESS) then
          ! Default to all species if not specified
-         allocate(this%so4chem_config%diagnostic_species(1))
-         this%so4chem_config%diagnostic_species(1) = "All"
-         this%so4chem_config%n_diagnostic_species = 1
+         allocate(this%carbchem_config%diagnostic_species(1))
+         this%carbchem_config%diagnostic_species(1) = "All"
+         this%carbchem_config%n_diagnostic_species = 1
       else
          ! Set the count based on the returned array size
-         if (allocated(this%so4chem_config%diagnostic_species)) then
-            this%so4chem_config%n_diagnostic_species = size(this%so4chem_config%diagnostic_species)
+         if (allocated(this%carbchem_config%diagnostic_species)) then
+            this%carbchem_config%n_diagnostic_species = size(this%carbchem_config%diagnostic_species)
          else
-            this%so4chem_config%n_diagnostic_species = 0
+            this%carbchem_config%n_diagnostic_species = 0
          end if
       end if
 
       ! Species configuration is loaded from ChemState in load_species_from_chem_state
       ! The species come from the master species YAML file (CATChem_species.yml)
-      ! and are filtered by is_so4chem property
+      ! and are filtered by is_carbchem property
 
 
       ! Load scheme-specific configuration from master YAML
-      scheme_name = trim(this%so4chem_config%scheme)
+      scheme_name = trim(this%carbchem_config%scheme)
       select case (scheme_name)
        case ('gocart')
          call this%load_gocart_config(config_manager, error_handler)
        case default
          call error_handler%report_error(ERROR_INVALID_STATE, &
-            "Unknown so4chem scheme: " // trim(scheme_name), rc)
+            "Unknown carbchem scheme: " // trim(scheme_name), rc)
          return
       end select
 
-   end subroutine so4chem_process_load_config
+   end subroutine carbchem_process_load_config
 
    !> Load species from explicit list (from species_filter)
    !! This function is used when explicit species are provided via species_filter
    subroutine load_species_from_list(this, chem_state, error_handler, rc)
       use ChemState_Mod, only: ChemStateType
 
-      class(SO4chemProcessConfig), intent(inout) :: this
+      class(CarbChemProcessConfig), intent(inout) :: this
       type(ChemStateType), pointer, intent(in) :: chem_state
       type(ErrorManagerType), intent(inout) :: error_handler
       integer, intent(inout) :: rc
@@ -322,15 +311,11 @@ contains
       logical :: found
 
       ! Explicit species list from configuration
-      character(len=32), parameter :: EXPLICIT_SPECIES(8) = [ &
-         'h2o2                            ', &
-         'oh                              ', &
-         'no3                             ', &
-         'dms                             ', &
-         'so2                             ', &
-         'so4                             ', &
-         'msa                             ', &
-         'dms_in                          ' ]
+      character(len=32), parameter :: EXPLICIT_SPECIES(4) = [ &
+         'oc1                             ', &
+         'oc2                             ', &
+         'bc1                             ', &
+         'bc2                             ' ]
 
       if (.not. associated(chem_state)) then
          call error_handler%report_error(ERROR_INVALID_STATE, &
@@ -339,36 +324,36 @@ contains
       end if
 
       ! Set number of species from explicit list
-      this%so4chem_config%n_species = 8
+      this%carbchem_config%n_species = 4
 
       ! Deallocate existing arrays if allocated
-      if (allocated(this%so4chem_config%species_names)) then
-         deallocate(this%so4chem_config%species_names)
+      if (allocated(this%carbchem_config%species_names)) then
+         deallocate(this%carbchem_config%species_names)
       end if
-      if (allocated(this%so4chem_config%species_indices)) then
-         deallocate(this%so4chem_config%species_indices)
+      if (allocated(this%carbchem_config%species_indices)) then
+         deallocate(this%carbchem_config%species_indices)
       end if
-      if (allocated(this%so4chem_config%species_mw_g)) then
-         deallocate(this%so4chem_config%species_mw_g)
+      if (allocated(this%carbchem_config%species_t_chem_loss)) then
+         deallocate(this%carbchem_config%species_t_chem_loss)
       end if
 
       ! Allocate arrays
-      allocate(this%so4chem_config%species_names(this%so4chem_config%n_species))
-      allocate(this%so4chem_config%species_indices(this%so4chem_config%n_species))
+      allocate(this%carbchem_config%species_names(this%carbchem_config%n_species))
+      allocate(this%carbchem_config%species_indices(this%carbchem_config%n_species))
 
       ! Allocate species properties arrays
-      allocate(this%so4chem_config%species_mw_g(this%so4chem_config%n_species))
+      allocate(this%carbchem_config%species_t_chem_loss(this%carbchem_config%n_species))
 
       ! Find indices for each explicit species
-      do i = 1, this%so4chem_config%n_species
+      do i = 1, this%carbchem_config%n_species
          species_name = trim(EXPLICIT_SPECIES(i))
          found = .false.
 
          ! Search for species in ChemState
          do species_idx = 1, size(chem_state%SpeciesNames)
             if (trim(chem_state%SpeciesNames(species_idx)) == species_name) then
-               this%so4chem_config%species_names(i) = species_name
-               this%so4chem_config%species_indices(i) = species_idx
+               this%carbchem_config%species_names(i) = species_name
+               this%carbchem_config%species_indices(i) = species_idx
                found = .true.
                exit
             end if
@@ -382,9 +367,9 @@ contains
       end do
 
       ! Load species properties from ChemState using found indices
-      do i = 1, this%so4chem_config%n_species
-         species_idx = this%so4chem_config%species_indices(i)
-         this%so4chem_config%species_mw_g(i) = chem_state%ChemSpecies(species_idx)%mw_g
+      do i = 1, this%carbchem_config%n_species
+         species_idx = this%carbchem_config%species_indices(i)
+         this%carbchem_config%species_t_chem_loss(i) = chem_state%ChemSpecies(species_idx)%t_chem_loss
       end do
 
    end subroutine load_species_from_list
@@ -393,91 +378,55 @@ contains
 
    !> Load gocart scheme configuration from master YAML
    subroutine load_gocart_config(this, config_manager, error_handler)
-      class(SO4chemProcessConfig), intent(inout) :: this
+      class(CarbChemProcessConfig), intent(inout) :: this
       type(ConfigManagerType), intent(inout) :: config_manager
       type(ErrorManagerType), intent(inout) :: error_handler
 
-      integer :: rc
+      integer :: ierr, rc
 
-      ! Load scheme parameters directly from processes/so4chem/gocart/ in master YAML
-      call config_manager%get_logical("processes/so4chem/gocart/update_so2", &
-         this%gocart_config%update_so2, rc, .true.)
-      if (rc /= CC_SUCCESS) this%gocart_config%update_so2 = .true.
+      ! Load scheme parameters directly from processes/carbchem/gocart/ in master YAML
+      call config_manager%get_real("processes/carbchem/gocart/time_days_hydrophobic_to_hydrophilic", &
+         this%gocart_config%time_days_hydrophobic_to_hydrophilic, rc, 2.5_fp)
+      if (rc /= CC_SUCCESS) this%gocart_config%time_days_hydrophobic_to_hydrophilic = 2.5_fp
 
 
    end subroutine load_gocart_config
 
 
    !> Validate unified process configuration
-   subroutine so4chem_process_validate(this, state_manager, error_handler)
-      class(SO4chemProcessConfig), intent(inout) :: this
+   subroutine carbchem_process_validate(this, state_manager, error_handler)
+      class(CarbChemProcessConfig), intent(inout) :: this
       type(StateManagerType), intent(in) :: state_manager
       type(ErrorManagerType), intent(inout) :: error_handler
 
       ! Validate main config
-      call this%so4chem_config%validate(error_handler)
+      call this%carbchem_config%validate(error_handler)
 
       ! Validate scheme-specific config
-      select case (trim(this%so4chem_config%scheme))
+      select case (trim(this%carbchem_config%scheme))
        case ('gocart')
          call this%gocart_config%validate(error_handler)
       end select
 
-   end subroutine so4chem_process_validate
+   end subroutine carbchem_process_validate
 
    !> Finalize unified process configuration
-   subroutine so4chem_process_finalize(this)
-      class(SO4chemProcessConfig), intent(inout) :: this
-      integer :: i
+   subroutine carbchem_process_finalize(this)
+      class(CarbChemProcessConfig), intent(inout) :: this
 
-      ! Deallocate persistent state arrays
-      if (allocated(this%gocart_persistent_state)) then
-         ! Deallocate allocatable components in each column
-         do i = 1, size(this%gocart_persistent_state)
-            if (allocated(this%gocart_persistent_state(i)%xh2o2_init)) then
-               deallocate(this%gocart_persistent_state(i)%xh2o2_init)
-            end if
-         end do
-         deallocate(this%gocart_persistent_state)
-      end if
 
-      call this%so4chem_config%finalize()
+      call this%carbchem_config%finalize()
       call this%gocart_config%finalize()
 
-   end subroutine so4chem_process_finalize
+   end subroutine carbchem_process_finalize
 
-   !> Initialize persistent state arrays for column processing
-   subroutine so4chem_initialize_persistent_state(this, grid_manager)
-      use GridManager_Mod, only: GridManagerType
-      class(SO4chemProcessConfig), intent(inout) :: this
-      type(GridManagerType), intent(in) :: grid_manager
-
-      integer :: i
-
-      ! Get total number of columns from GridManager
-      this%total_columns = grid_manager%get_total_columns()
-
-      ! Allocate persistent state arrays for each scheme that needs them
-      if (.not. allocated(this%gocart_persistent_state)) then
-         allocate(this%gocart_persistent_state(this%total_columns))
-
-         ! Initialize each column's state with default values
-         do i = 1, this%total_columns
-            this%gocart_persistent_state(i)%firsttime = .true.
-            this%gocart_persistent_state(i)%nymd_last = -1
-            this%gocart_persistent_state(i)%nhms_last_recycle = -1
-            ! xh2o2_init is allocatable - will be allocated when needed
-         end do
-      end if
-
-   end subroutine so4chem_initialize_persistent_state
 
    !> Get active scheme configuration (polymorphic return)
    function get_active_scheme_config(this) result(scheme_config)
-      class(SO4chemProcessConfig), intent(in) :: this
+      class(CarbChemProcessConfig), intent(in) :: this
       class(*), allocatable :: scheme_config
 
-      select case (trim(this%so4chem_config%scheme))
+      select case (trim(this%carbchem_config%scheme))
        case ('gocart')
          allocate(scheme_config, source=this%gocart_config)
        case default
@@ -490,7 +439,7 @@ contains
    !! This function creates the diagnostic_species_id array that maps each diagnostic species
    !! to its corresponding index in the full species_names array
    subroutine map_diagnostic_species_indices(this, error_handler)
-      class(SO4chemProcessConfig), intent(inout) :: this
+      class(CarbChemProcessConfig), intent(inout) :: this
       type(ErrorManagerType), intent(inout) :: error_handler
 
       integer :: i, j, rc
@@ -498,39 +447,39 @@ contains
       logical :: found_species
 
       ! Only proceed if diagnostic species are defined
-      if (this%so4chem_config%n_diagnostic_species == 0) return
+      if (this%carbchem_config%n_diagnostic_species == 0) return
 
       ! Handle "All" case - map all available species
-      if (this%so4chem_config%n_diagnostic_species == 1 .and. &
-         trim(this%so4chem_config%diagnostic_species(1)) == "All") then
+      if (this%carbchem_config%n_diagnostic_species == 1 .and. &
+         trim(this%carbchem_config%diagnostic_species(1)) == "All") then
 
          ! Deallocate and reallocate for all species
-         if (allocated(this%so4chem_config%diagnostic_species_id)) deallocate(this%so4chem_config%diagnostic_species_id)
-         allocate(this%so4chem_config%diagnostic_species_id(this%so4chem_config%n_species))
-         if (allocated(this%so4chem_config%diagnostic_species)) deallocate(this%so4chem_config%diagnostic_species)
-         allocate(this%so4chem_config%diagnostic_species(this%so4chem_config%n_species))
-         this%so4chem_config%n_diagnostic_species = this%so4chem_config%n_species
-         this%so4chem_config%diagnostic_species = this%so4chem_config%species_names
+         if (allocated(this%carbchem_config%diagnostic_species_id)) deallocate(this%carbchem_config%diagnostic_species_id)
+         allocate(this%carbchem_config%diagnostic_species_id(this%carbchem_config%n_species))
+         if (allocated(this%carbchem_config%diagnostic_species)) deallocate(this%carbchem_config%diagnostic_species)
+         allocate(this%carbchem_config%diagnostic_species(this%carbchem_config%n_species))
+         this%carbchem_config%n_diagnostic_species = this%carbchem_config%n_species
+         this%carbchem_config%diagnostic_species = this%carbchem_config%species_names
 
          ! Map all species indices (1:n_species)
-         do i = 1, this%so4chem_config%n_species
-            this%so4chem_config%diagnostic_species_id(i) = i
+         do i = 1, this%carbchem_config%n_species
+            this%carbchem_config%diagnostic_species_id(i) = i
          end do
 
          return
       end if
 
       ! Allocate diagnostic species indices array
-      if (allocated(this%so4chem_config%diagnostic_species_id)) deallocate(this%so4chem_config%diagnostic_species_id)
-      allocate(this%so4chem_config%diagnostic_species_id(this%so4chem_config%n_diagnostic_species))
+      if (allocated(this%carbchem_config%diagnostic_species_id)) deallocate(this%carbchem_config%diagnostic_species_id)
+      allocate(this%carbchem_config%diagnostic_species_id(this%carbchem_config%n_diagnostic_species))
 
       ! Map each diagnostic species name to its index in species_names
-      do i = 1, this%so4chem_config%n_diagnostic_species
+      do i = 1, this%carbchem_config%n_diagnostic_species
          found_species = .false.
 
-         do j = 1, this%so4chem_config%n_species
-            if (trim(this%so4chem_config%diagnostic_species(i)) == trim(this%so4chem_config%species_names(j))) then
-               this%so4chem_config%diagnostic_species_id(i) = j
+         do j = 1, this%carbchem_config%n_species
+            if (trim(this%carbchem_config%diagnostic_species(i)) == trim(this%carbchem_config%species_names(j))) then
+               this%carbchem_config%diagnostic_species_id(i) = j
                found_species = .true.
                exit
             end if
@@ -538,7 +487,7 @@ contains
 
          if (.not. found_species) then
             write(error_msg, '(A,A,A)') "Diagnostic species '", &
-               trim(this%so4chem_config%diagnostic_species(i)), &
+               trim(this%carbchem_config%diagnostic_species(i)), &
                "' not found in process species list"
             call error_handler%report_error(ERROR_NOT_FOUND, error_msg, rc)
             !return !do not return and the diagnostics for this unspecified species will be zero in the output
@@ -547,4 +496,4 @@ contains
 
    end subroutine map_diagnostic_species_indices
 
-end module SO4chemCommon_Mod
+end module CarbChemCommon_Mod
