@@ -91,13 +91,14 @@
   __is_wetdep: true
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 12.01e-3
-  __radius: 0.087   #gocart is 0.35
+  molecular weight [kg mol-1]: 12.01e-3    #gocart is 180 g/mol but it seems not used in gocart processes. So we go with GC
+  __radius: 0.35   #gocart is 0.35; GC is 0.087
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
   __lower_radius: 0.1
-  _upper_radius: 1.0
+  __upper_radius: 1.0
   __wd_rainouteff: [1.0, 0.0, 1.0]
+  __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: BC
 - name: bc2
   __description: BC2
@@ -106,13 +107,14 @@
   __is_wetdep: true
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 12.01e-3
-  __radius: 0.087   #gocart is 0.35
+  molecular weight [kg mol-1]: 12.01e-3    #gocart is 180 g/mol but it seems not used in gocart processes. So we go with GC
+  __radius: 0.35   #gocart is 0.35; GC is 0.087
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
   __lower_radius: 0.1
   __upper_radius: 1.0
   __wd_rainouteff: [1.0, 0.0, 1.0]
+  __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: BC
 - name: oc1
   __description: OC1
@@ -121,13 +123,14 @@
   __is_wetdep: true
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 12.01e-3
-  __radius: 0.087
+  molecular weight [kg mol-1]: 12.01e-3    #gocart is 180 g/mol but it seems not used in gocart processes. So we go with GC
+  __radius: 0.35   #gocart is 0.35; GC is 0.087
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
   __lower_radius: 0.1
   __upper_radius: 1.0
   __wd_rainouteff: [1.0, 0.0, 1.0]
+  __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: OC
 - name: oc2
   __description: OC2
@@ -136,13 +139,14 @@
   __is_wetdep: true
   __dd_f0: 0.0
   __dd_hstar: 0.0
-  molecular weight [kg mol-1]: 12.01e-3
-  __radius: 0.087
+  molecular weight [kg mol-1]: 12.01e-3    #gocart is 180 g/mol but it seems not used in gocart processes. So we go with GC
+  __radius: 0.35   #gocart is 0.35; GC is 0.087
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
   __lower_radius: 0.1
   __upper_radius: 1.0
   __wd_rainouteff: [1.0, 0.0, 1.0]
+  __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: OC
 - name: dust1
   __long_name: dust1
