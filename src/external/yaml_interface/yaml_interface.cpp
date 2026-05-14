@@ -78,10 +78,10 @@ void* yaml_sequence_to_map(void* node_ptr) {
             resultMap[std::to_string(i)] = wrapper->node[i];
         }
     }
-    //Remove sequence version of node from memory
+    // Remove sequence version of node from memory
     delete wrapper;
 
-    //Return the new map wrapped in a new pointer
+    // Return the new map wrapped in a new pointer
     return new YamlNodeWrapper(resultMap);
 }
 
