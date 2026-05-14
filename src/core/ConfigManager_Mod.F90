@@ -1668,7 +1668,7 @@ contains
          ! write(*, *) 'lower radius: ', chem_state%ChemSpecies(i)%lower_radius
          ! write(*, *) 'upper radius: ', chem_state%ChemSpecies(i)%upper_radius
          ! write(*, *) 'density: ', chem_state%ChemSpecies(i)%density
-         write(*, *) 'Molecular weight: ', chem_state%ChemSpecies(i)%mw_g
+         ! write(*, *) 'Molecular weight: ', chem_state%ChemSpecies(i)%mw_g
          ! write(*, *) 'is gas: ', chem_state%ChemSpecies(i)%is_gas
          ! write(*, *) 'is aerosol: ', chem_state%ChemSpecies(i)%is_aerosol
          ! write(*, *) 'is dust: ', chem_state%ChemSpecies(i)%is_dust
