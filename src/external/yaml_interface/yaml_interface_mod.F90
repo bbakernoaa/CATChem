@@ -90,7 +90,7 @@ module yaml_interface_mod
       function c_yaml_sequence_to_map(node) bind(C, name='yaml_sequence_to_map')
          import :: c_ptr
          type(c_ptr), value :: node
-         type(c_ptr) ::  c_yaml_sequence_to_map
+         type(c_ptr) :: c_yaml_sequence_to_map
       end function
 
       ! Getters
