@@ -14,6 +14,12 @@ void catchem_state_sync_to_device(void* state_ptr);
 void catchem_state_sync_to_host(void* state_ptr);
 void catchem_core_run_timestep(void* core_ptr, double dt);
 
+// Diagnostic API
+void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1, int dim2, int dim3);
+void* catchem_diag_get_pointer(void* core_ptr, const char* name);
+void catchem_diag_sync_to_host(void* core_ptr);
+void catchem_diag_reset(void* core_ptr);
+
 #ifdef __cplusplus
 }
 #endif
