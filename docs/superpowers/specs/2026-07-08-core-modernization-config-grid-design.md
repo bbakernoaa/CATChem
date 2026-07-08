@@ -31,3 +31,10 @@ This design outlines the plan for porting the CATChem `ConfigManager` and `GridM
   - C++ physics schemes will use the idiomatic Kokkos approach: receiving the full 3D `Kokkos::View`s (or the full `StateManager`) and launching `Kokkos::parallel_for` or `Kokkos::MDRangePolicy` kernels directly over `n_cols` (and optionally `n_levels`).
   - This provides the maximum performance on GPUs by minimizing register pressure and overhead that would otherwise be incurred by passing 1D `Kokkos::subview` objects.
   - Legacy Fortran schemes will continue to use the Fortran `VirtualColumn_Mod.F90` through the dynamic C++-to-Fortran bridge.
+
+## 4. Fortran Interoperability and Legacy Support
+- **Role:** Ensure that unported legacy Fortran processes continue to function seamlessly alongside the new C++ core components.
+- **Implementation Details:**
+  - **Configuration & Grid Access:** We will expose C-API endpoints (e.g., `catchem_get_grid_dimensions`, `catchem_get_config_value`) so the legacy Fortran code can query the C++ `ConfigManager` and `GridManager` directly, replacing redundant Fortran parsers.
+  - **VirtualColumn Preservation:** Due to the strided memory layout of a 1D column in a `Kokkos::LayoutLeft` 3D array (`nx, ny, nz`), creating a `Kokkos::subview` in C++ yields a non-contiguous slice. Since Fortran's `c_f_pointer` only accepts contiguous blocks, we cannot easily pass C++ subviews across the language boundary. 
+  - **Execution Flow:** Therefore, when `catchem::Core` executes a legacy Fortran process, it will pass the **raw pointer to the entire 3D array** to the Fortran bridge callback. The Fortran bridging layer will use `c_f_pointer` to construct a 3D Fortran array pointer, and then utilize the legacy `VirtualColumn_Mod.F90` to create the strided 1D slices (`col_ptr => conc(i, j, :)`) that the legacy Fortran schemes expect. This keeps all strided pointer math safely inside the language that owns the object.
