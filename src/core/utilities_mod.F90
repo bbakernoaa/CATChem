@@ -126,6 +126,9 @@ contains
       real(fp) :: pressure_out
 
       pressure_out = convert_pressure(pressure_in, unit_in, unit_out, rc)
+      if (rc == CC_FAILURE) then
+         rc = ERROR_INVALID_INPUT
+      endif
 
    end function convert_pressure_units
 
@@ -147,6 +150,9 @@ contains
       real(fp) :: temp_out
 
       temp_out = convert_temperature(temp_in, unit_in, unit_out, rc)
+      if (rc == CC_FAILURE) then
+         rc = ERROR_INVALID_INPUT
+      endif
 
    end function convert_temperature_units
 
@@ -186,20 +192,20 @@ contains
    !! \param[in] temperature Temperature [K]
    !! \param[out] rc Return code
    !! \param[in] z (optional) Geometric height above surface [m]
-   function calculate_scale_height(temperature, rc, z) result(h_scale)
+   function calculate_scale_height(temperature, rc, z) result(scale_height)
       use constants, only: g0, Rd, Re
       implicit none
       real(fp), intent(in) :: temperature
       integer, intent(out) :: rc
       real(fp), intent(in), optional :: z
-      real(fp) :: h_scale
+      real(fp) :: scale_height
       real(fp) :: g_local
 
       rc = CC_SUCCESS
 
       if (temperature <= 0.0_fp) then
          rc = ERROR_INVALID_INPUT
-         h_scale = 0.0_fp
+         scale_height = 0.0_fp
          return
       endif
 
@@ -209,7 +215,7 @@ contains
          g_local = g0
       endif
 
-      h_scale = Rd * temperature / g_local
+      scale_height = Rd * temperature / g_local
 
    end function calculate_scale_height
 

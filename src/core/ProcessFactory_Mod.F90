@@ -79,7 +79,13 @@ contains
       if (associated(met_state) .and. allocated(met_fields)) then
          do i = 1, size(met_fields)
             call met_state%allocate_field(met_fields(i), alloc_rc)
-            ! Optionally handle alloc_rc errors here
+            if (alloc_rc /= CC_SUCCESS) then
+               call error_mgr%report_error(alloc_rc, &
+                  'Failed to allocate required met field: ' // trim(met_fields(i)), rc, &
+                  'factory_create_process')
+               call error_mgr%pop_context()
+               return
+            endif
          end do
       endif
 
@@ -127,9 +133,11 @@ contains
 
    !> \brief Module-level convenience function using global registry
    !!
-   !! Creates a process by name, allocates its required met fields in the
-   !! container, and reports errors through the container's error manager.
-   !! For repeated use, prefer creating a ProcessFactoryType instance.
+   !! This convenience wrapper uses the global process registry directly
+   !! and delegates process creation to it. It does not create or
+   !! initialize a temporary ProcessFactoryType instance, and it performs
+   !! no built-in process registration itself. Any initialization side
+   !! effects are limited to those of get_global_registry(), if any.
    function create_process(process_name, container, rc) result(process)
       use ProcessRegistry_Mod, only: get_global_registry, ProcessRegistryType
       character(len=*), intent(in) :: process_name
@@ -165,6 +173,13 @@ contains
       if (associated(met_state) .and. allocated(met_fields)) then
          do i = 1, size(met_fields)
             call met_state%allocate_field(met_fields(i), alloc_rc)
+            if (alloc_rc /= CC_SUCCESS) then
+               call error_mgr%report_error(alloc_rc, &
+                  'Failed to allocate required met field: ' // trim(met_fields(i)), rc, &
+                  'create_process')
+               call error_mgr%pop_context()
+               return
+            endif
          end do
       endif
 
