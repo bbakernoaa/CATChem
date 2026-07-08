@@ -4,10 +4,17 @@
 
 #ifdef ENABLE_KOKKOS
 #include <Kokkos_Core.hpp>
-#define KOKKOS_FUNCTION KOKKOS_INLINE_FUNCTION
 #else
+#ifndef KOKKOS_INLINE_FUNCTION
 #define KOKKOS_INLINE_FUNCTION inline
+#endif
+#ifndef KOKKOS_FUNCTION
 #define KOKKOS_FUNCTION inline
+#endif
+#endif
+
+#ifndef KOKKOS_FUNCTION
+#define KOKKOS_FUNCTION KOKKOS_INLINE_FUNCTION
 #endif
 
 #include "catchem_precision.hpp"
@@ -29,7 +36,6 @@ struct TimeState {
     KOKKOS_FUNCTION
     double get_cos_sza(double lat_deg, double lon_deg, bool mid_timestep = false) const {
         double lat_rad = lat_deg * constants::PI_180;
-        double lon_rad = lon_deg * constants::PI_180;
 
         double frac_hour = hour + minute / 60.0 + second / 3600.0;
         if (mid_timestep) {
