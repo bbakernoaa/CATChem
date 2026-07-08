@@ -34,6 +34,33 @@ void catchem_state_bind_3d(void* state_ptr, const char* name, double* ptr) {
     state->bind_field_3d(name, ptr);
 }
 
+void catchem_state_bind_met_2d(void* state_ptr, const char* name, double* ptr) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    state->bind_met_field_2d(name, ptr);
+}
+
+void catchem_state_bind_met_3d(void* state_ptr, const char* name, double* ptr) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    state->bind_met_field_3d(name, ptr);
+}
+
+void catchem_state_bind_unified_chemistry(void* state_ptr, double* ptr) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    state->bind_unified_chemistry(ptr);
+}
+
+void catchem_state_set_time(void* state_ptr, int yr, int mo, int dy, int hr, int mn, int sc, int doy, double tstep) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    state->time.year = yr;
+    state->time.month = mo;
+    state->time.day = dy;
+    state->time.hour = hr;
+    state->time.minute = mn;
+    state->time.second = sc;
+    state->time.doy = doy;
+    state->time.timestep = tstep;
+}
+
 void catchem_state_sync_to_device(void* state_ptr) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     state->sync_to_device();
