@@ -64,14 +64,9 @@ if(ENABLE_KOKKOS)
     catchem_core.cpp
     catchem_api.cpp
     catchem_diagnostic.cpp
-    catchem_process_settling.cpp
-    catchem_process_seasalt.cpp
-    catchem_process_drydep.cpp
-    catchem_process_wetdep.cpp
-    catchem_process_so4chem.cpp
   )
   add_library(CATChem_core_cpp STATIC ${_cpp_core_srcs})
-  target_link_libraries(CATChem_core_cpp PUBLIC Kokkos::kokkos)
+  target_link_libraries(CATChem_core_cpp PUBLIC Kokkos::kokkos yaml-cpp)
   target_include_directories(CATChem_core_cpp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
   target_link_libraries(CATChem_core PUBLIC CATChem_kokkos CATChem_core_cpp)
