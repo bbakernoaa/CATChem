@@ -29,7 +29,7 @@ set_target_properties(
 # Include directories for Fortran .mod files and C++ headers
 target_include_directories(
   ${_lib}
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/src/core
   PRIVATE ${CMAKE_BINARY_DIR}/include
 )
 

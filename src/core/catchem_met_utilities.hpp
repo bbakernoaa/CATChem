@@ -2,11 +2,23 @@
 
 #ifdef ENABLE_KOKKOS
 #include <Kokkos_Core.hpp>
+namespace catchem {
+namespace math {
+using Kokkos::pow;
+using Kokkos::exp;
+}
+}
 #else
 #define KOKKOS_INLINE_FUNCTION inline
+#include <cmath>
+namespace catchem {
+namespace math {
+using std::pow;
+using std::exp;
+}
+}
 #endif
 
-#include <cmath>
 #include "catchem_precision.hpp"
 #include "catchem_constants.hpp"
 
@@ -15,7 +27,7 @@ namespace met_utilities {
 
 KOKKOS_INLINE_FUNCTION
 inline fp potential_temperature(fp temp, fp press, fp sfc_press) {
-    return temp * std::pow(sfc_press / press, constants::RD / constants::CP);
+    return temp * math::pow(sfc_press / press, constants::RD / constants::CP);
 }
 
 KOKKOS_INLINE_FUNCTION
@@ -26,7 +38,7 @@ inline fp virtual_temperature(fp temp, fp qv) {
 KOKKOS_INLINE_FUNCTION
 inline fp cunningham_correction_factor(fp dp, fp lambda) {
     if (dp > 0.0 && lambda > 0.0) {
-        return 1.0 + 2.0 * lambda / dp * (1.257 + 0.4 * std::exp(-1.1 * dp / lambda));
+        return 1.0 + 2.0 * lambda / dp * (1.257 + 0.4 * math::exp(-1.1 * dp / lambda));
     }
     return 1.0;
 }
