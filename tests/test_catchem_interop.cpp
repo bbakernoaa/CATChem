@@ -1,10 +1,15 @@
 #include "catchem_api.hpp"
 #include "catchem_core.hpp"
 #include "catchem_diagnostic_manager.hpp"
+#include "catchem_fortran_process.hpp"
 #include <Kokkos_Core.hpp>
 #include <cassert>
 #include <iostream>
 #include <vector>
+
+extern "C" {
+    void run_settling_physics_fortran_bridge(void* state_ptr);
+}
 
 // Mock Fortran physics scheme working directly on host array
 void run_mock_fortran_physics(double* ptr, int n_cols, int n_levels) {
@@ -136,8 +141,44 @@ int main(int argc, char* argv[]) {
                 Kokkos::finalize();
                 return 1;
             }
-            
+
             catchem_core_destroy(core_ptr);
+        }
+
+        // ==========================================
+        // TEST 3: Phase 2 Sequenced Fortran Dynamic Bridge
+        // ==========================================
+        {
+            int n_cols = 4;
+            int n_levels = 5;
+            int n_species = 2;
+
+            // Allocate mock Fortran memory
+            std::vector<double> fortran_array(n_cols * n_levels, 1.0);
+
+            // 1. Create Core, StateManager and Dynamic Registry
+            void* core_ptr = catchem_core_create(n_cols, n_levels, n_species);
+            auto* core = static_cast<catchem::Core*>(core_ptr);
+            void* state = catchem_core_get_state_manager(core_ptr);
+
+            // Bind temperature array
+            catchem_state_bind_2d(state, "temperature", fortran_array.data());
+
+            // 2. Attach our newly created C++ FortranProcess bridge callback
+            core->add_process(std::make_shared<catchem::FortranProcess>(
+                "legacy_settling_physics", 
+                run_settling_physics_fortran_bridge
+            ));
+
+            // 3. Step forward (runs dynamic process, which syncs memory & calls bridge in order)
+            catchem_core_run_timestep(core_ptr, 3600.0);
+
+            // 4. Verify results
+            // Fortran bridge executes: temp = temp + 10.0D0
+            assert(fortran_array[0] == 11.0);
+
+            catchem_core_destroy(core_ptr);
+            std::cout << "SUCCESS: Sequenced Fortran Dynamic Bridge Validation Passed!\n";
         }
     }
     Kokkos::finalize();
