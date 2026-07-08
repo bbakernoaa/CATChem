@@ -84,8 +84,8 @@ assert_file_contains(
 
 assert_file_contains(
   "${SRC_ROOT}/CMakeLists.txt"
-  "CMAKE_CXX_STANDARD 17"
-  "ENABLE_KOKKOS=ON sets C++17 standard"
+  "CMAKE_CXX_STANDARD 20"
+  "ENABLE_KOKKOS=ON sets C++20 standard"
 )
 
 # --- Test 3: src/kokkos/ is conditionally included ---

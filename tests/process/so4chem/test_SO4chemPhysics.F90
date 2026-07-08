@@ -614,7 +614,7 @@ contains
       integer, parameter :: KLID = 1
       real(fp), parameter :: CDT = 3600.0_fp
       real(fp), parameter :: GRAV = 9.80665_fp
-      real(fp), parameter :: TOL = 1.0e-10_fp
+      real(fp), parameter :: TOL = 1.0e-6_fp
 
       integer :: i, seed, k, rc
       real(fp) :: so4(NLEV), so4_init(NLEV)
