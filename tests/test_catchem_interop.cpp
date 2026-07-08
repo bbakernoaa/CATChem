@@ -2,13 +2,16 @@
 #include "catchem_core.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_fortran_process.hpp"
+#include "catchem_state_manager.hpp"
 #include <Kokkos_Core.hpp>
 #include <cassert>
+#include <fstream>
 #include <iostream>
 #include <vector>
 
 extern "C" {
     void run_settling_physics_fortran_bridge(void* state_ptr);
+    void catchem_register_settling_cpp();
 }
 
 // Mock Fortran physics scheme working directly on host array
@@ -179,6 +182,97 @@ int main(int argc, char* argv[]) {
 
             catchem_core_destroy(core_ptr);
             std::cout << "SUCCESS: Sequenced Fortran Dynamic Bridge Validation Passed!\n";
+        }
+
+        // ==========================================
+        // TEST 4: Modular dynamic process registration validation
+        // ==========================================
+        {
+            // Simulate Fortran explicitly linking and calling C++ register_settling_cpp
+            catchem_register_settling_cpp();
+
+            int n_cols = 4;
+            int n_levels = 5;
+            int n_species = 2;
+
+            void* core_ptr = catchem_core_create(n_cols, n_levels, n_species);
+
+            // Add the dynamically registered settling process by name via dynamic registry
+            catchem_core_add_process_by_name(core_ptr, "settling");
+
+            catchem_core_destroy(core_ptr);
+            std::cout << "SUCCESS: Modular Dynamic Process C-API Registration Validation Passed!\n";
+        }
+
+        // ==========================================
+        // TEST 5: C++ Species Metadata & State Initialization
+        // ==========================================
+        {
+            int n_cols = 4;
+            int n_levels = 5;
+            int n_species = 2;
+
+            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            void* state = catchem_core_get_state_manager(core);
+
+            // 1. Load species config from CATChem_species.yml (finding correct path)
+            std::string config_path = "";
+            std::vector<std::string> candidates = {
+                "tests/CATChem_species.yml",
+                "../tests/CATChem_species.yml",
+                "../../tests/CATChem_species.yml",
+                "CATChem_species.yml"
+            };
+            for (const auto& path : candidates) {
+                std::ifstream f(path);
+                if (f.good()) {
+                    config_path = path;
+                    break;
+                }
+            }
+            assert(!config_path.empty() && "ERROR: Could not find CATChem_species.yml");
+            catchem_state_load_species_config(state, config_path.c_str());
+
+            // 2. Validate species counts and offsets
+            int count = catchem_state_get_species_count(state);
+            assert(count > 0);
+            std::cout << "INFO: Loaded " << count << " species in integration test.\n";
+
+            // 3. Translate species names to 1-based indices
+            int idx_so2 = catchem_state_get_species_index(state, "so2");
+            int idx_so4 = catchem_state_get_species_index(state, "so4");
+            assert(idx_so2 != -1);
+            assert(idx_so4 != -1);
+
+            // 4. Validate physical properties of species
+            double mw_so2 = catchem_state_get_species_mw(state, idx_so2);
+            assert(mw_so2 == 64.04);
+
+            int is_gas_so2 = catchem_state_is_species_gas(state, idx_so2);
+            int is_aero_so2 = catchem_state_is_species_aerosol(state, idx_so2);
+            assert(is_gas_so2 == 1);
+            assert(is_aero_so2 == 0);
+
+            int is_gas_so4 = catchem_state_is_species_gas(state, idx_so4);
+            int is_aero_so4 = catchem_state_is_species_aerosol(state, idx_so4);
+            assert(is_gas_so4 == 0);
+            assert(is_aero_so4 == 1);
+
+            // 5. Validate category lists (gas / aerosol)
+            int gas_count = catchem_state_get_gas_species_count(state);
+            assert(gas_count > 0);
+            std::vector<int> gas_indices(gas_count);
+            catchem_state_get_gas_indices(state, gas_indices.data());
+
+            // Ensure so2 index is present in gas_indices
+            bool found_so2 = false;
+            for (int idx : gas_indices) {
+                if (idx == idx_so2) found_so2 = true;
+            }
+            assert(found_so2);
+
+            catchem_core_destroy(core);
+            std::cout << "SUCCESS: C++ Species Metadata & State Initialization Validation Passed!\n";
         }
     }
     Kokkos::finalize();
