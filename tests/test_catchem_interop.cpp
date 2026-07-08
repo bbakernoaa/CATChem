@@ -485,6 +485,43 @@ int main(int argc, char* argv[]) {
             catchem_core_destroy(core);
             std::cout << "SUCCESS: C++ Config & Grid Validation Passed!\n";
         }
+
+        // ==========================================
+        // TEST 8: Standard C++20 mdspan Representation and Indexing
+        // ==========================================
+        {
+            int n_cols = 4;
+            int n_levels = 5;
+            int n_species = 2;
+
+            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            auto* state_obj = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
+
+            // 1. Bind mock temperature 3D array (using layout left column-major)
+            std::vector<double> temp_array(n_cols * n_levels, 298.15);
+            temp_array[0 + 0 * n_cols] = 273.15; // Bottom-left level 0
+            temp_array[1 + 2 * n_cols] = 300.00; // Col 1, Level 2
+            
+            catchem_state_bind_met_3d(state_obj, "T", temp_array.data());
+            catchem_state_sync_to_device(state_obj);
+
+            // 2. Extract standard mdspan accessor
+            auto temp_mds = state_obj->met.T->mdspan();
+
+            // 3. Assert dimensions and layout access
+            assert(temp_mds.extent(0) == n_cols);
+            assert(temp_mds.extent(1) == n_levels);
+            assert(temp_mds(0, 0, 0) == 273.15);
+            assert(temp_mds(1, 2, 0) == 300.00);
+
+            std::cout << "INFO: mdspan dimension 0 (cols) = " << temp_mds.extent(0) << "\n";
+            std::cout << "INFO: mdspan dimension 1 (levels) = " << temp_mds.extent(1) << "\n";
+            std::cout << "INFO: Verified mdspan(0,0,0) = " << temp_mds(0, 0, 0) << " K\n";
+            std::cout << "INFO: Verified mdspan(1,2,0) = " << temp_mds(1, 2, 0) << " K\n";
+
+            catchem_core_destroy(core);
+            std::cout << "SUCCESS: C++20 Kokkos::mdspan Multidimensional Access Validation Passed!\n";
+        }
     }
     Kokkos::finalize();
     return 0;

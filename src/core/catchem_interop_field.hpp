@@ -1,10 +1,30 @@
 #pragma once
 #include <Kokkos_Core.hpp>
+#include <mdspan/mdspan.hpp>
 #include <vector>
 #include <memory>
 #include <type_traits>
 
 namespace catchem {
+
+// --- SFINAE template helpers for standard Kokkos::mdspan mapping defined at namespace scope ---
+template <typename DataType, int Rank>
+struct MdspanTypeHelper;
+
+template <typename DataType>
+struct MdspanTypeHelper<DataType, 1> {
+    using type = Kokkos::mdspan<DataType, Kokkos::extents<int, Kokkos::dynamic_extent>, Kokkos::layout_left>;
+};
+
+template <typename DataType>
+struct MdspanTypeHelper<DataType, 2> {
+    using type = Kokkos::mdspan<DataType, Kokkos::extents<int, Kokkos::dynamic_extent, Kokkos::dynamic_extent>, Kokkos::layout_left>;
+};
+
+template <typename DataType>
+struct MdspanTypeHelper<DataType, 3> {
+    using type = Kokkos::mdspan<DataType, Kokkos::extents<int, Kokkos::dynamic_extent, Kokkos::dynamic_extent, Kokkos::dynamic_extent>, Kokkos::layout_left>;
+};
 
 template <typename DataType, int Rank>
 class InteropField {
@@ -38,6 +58,8 @@ public:
 
     using HostViewType = typename ViewType<DataType, Rank, HostSpace, true>::type;
     using DeviceViewType = typename ViewType<DataType, Rank, DeviceSpace, false>::type;
+
+    using MdspanType = typename MdspanTypeHelper<DataType, Rank>::type;
 
     HostViewType host_view;
     DeviceViewType device_view;
@@ -75,6 +97,18 @@ public:
             return device_view;
         } else {
             return host_view;
+        }
+    }
+
+    // --- standard C++20 non-owning mdspan mapping ---
+    MdspanType mdspan() const {
+        auto v = view();
+        if constexpr (Rank == 1) {
+            return MdspanType(v.data(), v.extent(0));
+        } else if constexpr (Rank == 2) {
+            return MdspanType(v.data(), v.extent(0), v.extent(1));
+        } else if constexpr (Rank == 3) {
+            return MdspanType(v.data(), v.extent(0), v.extent(1), v.extent(2));
         }
     }
 };
