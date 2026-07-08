@@ -12,6 +12,9 @@ void catchem_state_bind_2d(void* state_ptr, const char* name, double* ptr);
 void catchem_state_bind_3d(void* state_ptr, const char* name, double* ptr);
 void catchem_state_sync_to_device(void* state_ptr);
 void catchem_state_sync_to_host(void* state_ptr);
+double* catchem_state_get_pointer_1d(void* state_ptr, const char* name);
+double* catchem_state_get_pointer_2d(void* state_ptr, const char* name);
+double* catchem_state_get_pointer_3d(void* state_ptr, const char* name);
 void catchem_core_run_timestep(void* core_ptr, double dt);
 
 // Diagnostic API

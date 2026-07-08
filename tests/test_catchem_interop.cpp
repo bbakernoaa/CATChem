@@ -65,6 +65,17 @@ int main(int argc, char* argv[]) {
 
             catchem_state_bind_2d(state, "temperature", fortran_array.data());
 
+            // Verify our new pointer retrievers
+            std::vector<double> dummy_1d(n_cols, 2.0);
+            std::vector<double> dummy_3d(n_cols * n_levels * n_species, 3.0);
+            catchem_state_bind_1d(state, "dummy1", dummy_1d.data());
+            catchem_state_bind_3d(state, "dummy3", dummy_3d.data());
+
+            assert(catchem_state_get_pointer_1d(state, "dummy1") == dummy_1d.data());
+            assert(catchem_state_get_pointer_2d(state, "temperature") == fortran_array.data());
+            assert(catchem_state_get_pointer_3d(state, "dummy3") == dummy_3d.data());
+            assert(catchem_state_get_pointer_1d(state, "nonexistent") == nullptr);
+
             // 2. Sync to active space
             catchem_state_sync_to_device(state);
 

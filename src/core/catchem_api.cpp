@@ -43,6 +43,21 @@ void catchem_state_sync_to_host(void* state_ptr) {
     state->sync_to_host();
 }
 
+double* catchem_state_get_pointer_1d(void* state_ptr, const char* name) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    return state->get_host_pointer_1d(name);
+}
+
+double* catchem_state_get_pointer_2d(void* state_ptr, const char* name) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    return state->get_host_pointer_2d(name);
+}
+
+double* catchem_state_get_pointer_3d(void* state_ptr, const char* name) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    return state->get_host_pointer_3d(name);
+}
+
 void catchem_core_run_timestep(void* core_ptr, double dt) {
     auto* core = static_cast<catchem::Core*>(core_ptr);
     core->run_timestep(dt);

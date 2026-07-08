@@ -42,6 +42,21 @@ public:
         for (auto& [k, v] : fields_2d) v->sync_to_host();
         for (auto& [k, v] : fields_3d) v->sync_to_host();
     }
+
+    double* get_host_pointer_1d(const std::string& name) {
+        if (fields_1d.find(name) == fields_1d.end()) return nullptr;
+        return fields_1d.at(name)->host_view.data();
+    }
+
+    double* get_host_pointer_2d(const std::string& name) {
+        if (fields_2d.find(name) == fields_2d.end()) return nullptr;
+        return fields_2d.at(name)->host_view.data();
+    }
+
+    double* get_host_pointer_3d(const std::string& name) {
+        if (fields_3d.find(name) == fields_3d.end()) return nullptr;
+        return fields_3d.at(name)->host_view.data();
+    }
 };
 
 } // namespace catchem
