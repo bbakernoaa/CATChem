@@ -32,6 +32,7 @@ set(
   ProcessRegistry_Mod.F90
   ProcessManager_Mod.F90
   CATChemCore_Mod.F90
+  FortranCoreBridge_Mod.F90
 )
 
 set(_srcs ${_base_srcs} ${_state_srcs} ${_core_srcs})
