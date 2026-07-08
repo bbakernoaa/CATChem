@@ -353,6 +353,138 @@ int main(int argc, char* argv[]) {
             catchem_core_destroy(core);
             std::cout << "SUCCESS: C++ Species Metadata & State Initialization Validation Passed!\n";
         }
+
+        // ==========================================
+        // TEST 7: C++ Kokkos Settling Process Execution
+        // ==========================================
+        {
+            int n_cols = 4;
+            int n_levels = 5;
+            int n_species = 22;
+
+            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            void* state = catchem_core_get_state_manager(core);
+            auto* state_obj = static_cast<catchem::StateManager*>(state);
+
+            // Load species config so we have aerosols to process
+            std::string config_path = "";
+            std::vector<std::string> candidates = {
+                "tests/CATChem_species.yml",
+                "../tests/CATChem_species.yml",
+                "../../tests/CATChem_species.yml",
+                "CATChem_species.yml"
+            };
+            for (const auto& path : candidates) {
+                std::ifstream f(path);
+                if (f.good()) {
+                    config_path = path;
+                    break;
+                }
+            }
+            catchem_state_load_species_config(state, config_path.c_str());
+
+            // Allocate mock meteorological arrays
+            std::vector<double> temp_array(n_cols * n_levels, 298.15); // Temperature [K]
+            std::vector<double> qv_array(n_cols * n_levels, 0.01);    // Specific humidity [kg/kg]
+            std::vector<double> pmid_array(n_cols * n_levels, 100000.0); // Mid-pressure [Pa]
+            std::vector<double> pedge_array(n_cols * (n_levels + 1), 101325.0); // Pressure edges [Pa]
+            std::vector<double> airden_array(n_cols * n_levels, 1.2); // Output dry density
+            std::vector<double> bxheight_array(n_cols * n_levels, 1000.0); // Output height
+
+            for (int i = 0; i < n_cols; ++i) {
+                pedge_array[i + 0 * n_cols] = 101325.0; // Surface
+                pedge_array[i + 1 * n_cols] = 90000.0;
+                pedge_array[i + 2 * n_cols] = 80000.0;
+                pedge_array[i + 3 * n_cols] = 70000.0;
+                pedge_array[i + 4 * n_cols] = 60000.0;
+                pedge_array[i + 5 * n_cols] = 50000.0; // Top
+            }
+
+            std::vector<double> mock_chem_state(n_cols * n_levels * n_species, 1.0); // Initial concentration of 1.0 for all
+
+            // Bind arrays to StateManager
+            catchem_state_bind_met_3d(state, "T", temp_array.data());
+            catchem_state_bind_met_3d(state, "QV", qv_array.data());
+            catchem_state_bind_met_3d(state, "PMID", pmid_array.data());
+            catchem_state_bind_met_3d(state, "PEDGE", pedge_array.data());
+            catchem_state_bind_met_3d(state, "BXHEIGHT", bxheight_array.data());
+            catchem_state_bind_met_3d(state, "AIRDEN", airden_array.data());
+
+            catchem_state_bind_unified_chemistry(state, mock_chem_state.data());
+            catchem_state_set_time(state, 2026, 7, 8, 12, 0, 0, 189, 3600.0);
+
+            catchem_state_sync_to_device(state);
+
+            // Register and initialize settling process
+            catchem_register_settling_cpp();
+            catchem_core_add_process_by_name(core, "settling");
+
+            // Execute the settling process
+            catchem_core_run_timestep(core, 3600.0);
+
+            catchem_state_sync_to_host(state);
+
+            // Verify the concentrations have changed (sedimented)
+            // The top layer should have less concentration due to settling.
+            // Note: Since all aerosols settle down, concentration at the top layer should decrease.
+            // We just check if the top layer of an aerosol species is less than 1.0.
+            
+            // Get index of an aerosol (e.g., 'so4')
+            int idx_so4_1based = catchem_state_get_species_index(state, "so4");
+            int idx_so4_0based = idx_so4_1based - 1;
+
+            std::cout << "DEBUG: idx_so4_1based=" << idx_so4_1based << ", idx_so4_0based=" << idx_so4_0based << std::endl;
+
+            // Since LayoutLeft is (i, j, k), meaning (col, lev, spec)
+            // Wait, LayoutLeft means innermost dimension is leftmost.
+            // InteropField 3D: (col, level, species). Memory layout: col + level * nc + species * nc * nl
+            int top_level_idx = n_levels - 1;
+            double top_layer_conc = mock_chem_state[0 + top_level_idx * n_cols + idx_so4_0based * n_cols * n_levels];
+            
+            std::cout << "DEBUG: top_layer_conc=" << top_layer_conc << std::endl;
+            for (int k = 0; k < n_levels; ++k) {
+                std::cout << "  Level " << k << " conc = " << mock_chem_state[0 + k * n_cols + idx_so4_0based * n_cols * n_levels] << std::endl;
+            }
+            
+            assert(top_layer_conc < 1.0); // Concentration should drop at the top
+            
+            catchem_core_destroy(core);
+            std::cout << "SUCCESS: C++ Kokkos Settling Process Validation Passed!\n";
+        }
+
+        // ==========================================
+        // TEST 7: C++ Config and Grid Initialization
+        // ==========================================
+        {
+            std::string config_path = "";
+            std::vector<std::string> candidates = {
+                "tests/CATChem_new_config.yml",
+                "../tests/CATChem_new_config.yml",
+                "../../tests/CATChem_new_config.yml",
+                "CATChem_new_config.yml"
+            };
+            for (const auto& path : candidates) {
+                std::ifstream f(path);
+                if (f.good()) {
+                    config_path = path;
+                    break;
+                }
+            }
+            void* core = catchem_core_create_from_config(config_path.c_str());
+            
+            int nx, ny, nz;
+            catchem_get_grid_dimensions(core, &nx, &ny, &nz);
+            assert(nx > 0);
+            assert(nz > 0);
+            std::cout << "INFO: Loaded grid dimensions from config: " << nx << "x" << ny << "x" << nz << "\n";
+
+            double dt = catchem_get_config_timestep(core);
+            assert(dt > 0.0);
+            std::cout << "INFO: Loaded timestep from config: " << dt << " s\n";
+
+            catchem_core_destroy(core);
+            std::cout << "SUCCESS: C++ Config & Grid Validation Passed!\n";
+        }
     }
     Kokkos::finalize();
     return 0;
