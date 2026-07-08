@@ -10,6 +10,10 @@ void* catchem_core_create(int nc, int nl, int ns) {
     return static_cast<void*>(new catchem::Core(nc, nl, ns));
 }
 
+void* catchem_core_create_from_config(const char* config_file) {
+    return static_cast<void*>(new catchem::Core(config_file));
+}
+
 void catchem_core_destroy(void* core_ptr) {
     delete static_cast<catchem::Core*>(core_ptr);
 }
@@ -93,7 +97,9 @@ void catchem_core_run_timestep(void* core_ptr, double dt) {
 
 void catchem_core_add_process_by_name(void* core_ptr, const char* name) {
     auto* core = static_cast<catchem::Core*>(core_ptr);
-    core->add_process(catchem::ProcessRegistry::get_instance().create(name));
+    auto process = catchem::ProcessRegistry::get_instance().create(name);
+    process->init(core->get_state_manager());
+    core->add_process(process);
 }
 
 void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1, int dim2, int dim3) {
@@ -205,6 +211,19 @@ void catchem_state_derive_bxheight(void* state_ptr) {
 void catchem_state_derive_airden_dry(void* state_ptr) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     state->derive_airden_dry();
+}
+
+void catchem_get_grid_dimensions(void* core_ptr, int* nx, int* ny, int* nz) {
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    auto grid = core->get_grid_manager();
+    *nx = grid->geometry.nx;
+    *ny = grid->geometry.ny;
+    *nz = grid->geometry.nz;
+}
+
+double catchem_get_config_timestep(void* core_ptr) {
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return core->get_config_manager()->data.runtime.dt;
 }
 
 }

@@ -5,6 +5,7 @@ extern "C" {
 #endif
 
 void* catchem_core_create(int nc, int nl, int ns);
+void* catchem_core_create_from_config(const char* config_file);
 void catchem_core_destroy(void* core_ptr);
 void* catchem_core_get_state_manager(void* core_ptr);
 void catchem_state_bind_1d(void* state_ptr, const char* name, double* ptr);
@@ -21,6 +22,10 @@ double* catchem_state_get_pointer_2d(void* state_ptr, const char* name);
 double* catchem_state_get_pointer_3d(void* state_ptr, const char* name);
 void catchem_core_run_timestep(void* core_ptr, double dt);
 void catchem_core_add_process_by_name(void* core_ptr, const char* name);
+
+// Grid and Configuration API
+void catchem_get_grid_dimensions(void* core_ptr, int* nx, int* ny, int* nz);
+double catchem_get_config_timestep(void* core_ptr);
 
 // Diagnostic API
 void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1, int dim2, int dim3);
