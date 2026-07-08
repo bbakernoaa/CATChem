@@ -205,6 +205,85 @@ int main(int argc, char* argv[]) {
         }
 
         // ==========================================
+        // TEST 6: Parallel Meteorological Derivations, SZA, and Unified Chem State
+        // ==========================================
+        {
+            int n_cols = 4;
+            int n_levels = 5;
+            int n_species = 2;
+
+            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            void* state = catchem_core_get_state_manager(core);
+
+            // 1. Allocate mock meteorological and chemical arrays
+            std::vector<double> temp_array(n_cols * n_levels, 290.15); // Temperature [K]
+            std::vector<double> qv_array(n_cols * n_levels, 0.01);    // Specific humidity [kg/kg]
+            std::vector<double> pmid_array(n_cols * n_levels, 100000.0); // Mid-pressure [Pa]
+            std::vector<double> pedge_array(n_cols * (n_levels + 1), 101325.0); // Pressure edges [Pa]
+
+            // Assign standard pressure edge levels sequentially
+            for (int i = 0; i < n_cols; ++i) {
+                pedge_array[i + 0 * n_cols] = 101325.0; // Surface
+                pedge_array[i + 1 * n_cols] = 90000.0;
+                pedge_array[i + 2 * n_cols] = 80000.0;
+                pedge_array[i + 3 * n_cols] = 70000.0;
+                pedge_array[i + 4 * n_cols] = 60000.0;
+                pedge_array[i + 5 * n_cols] = 50000.0; // Top
+            }
+
+            std::vector<double> bxheight_array(n_cols * n_levels, 0.0); // Output height
+            std::vector<double> airden_dry_array(n_cols * n_levels, 0.0); // Output dry density
+
+            std::vector<double> mock_chem_state(n_cols * n_levels * n_species, 4.2); // Unified chem state
+
+            // 2. Bind arrays to StateManager
+            catchem_state_bind_met_3d(state, "T", temp_array.data());
+            catchem_state_bind_met_3d(state, "QV", qv_array.data());
+            catchem_state_bind_met_3d(state, "PMID", pmid_array.data());
+            catchem_state_bind_met_3d(state, "PEDGE", pedge_array.data());
+            catchem_state_bind_met_3d(state, "BXHEIGHT", bxheight_array.data());
+            catchem_state_bind_met_3d(state, "AIRDEN_DRY", airden_dry_array.data());
+
+            catchem_state_bind_unified_chemistry(state, mock_chem_state.data());
+
+            // 3. Sync arrays to device memory spaces
+            catchem_state_sync_to_device(state);
+
+            // 4. Trigger parallel derived met equations
+            catchem_state_derive_bxheight(state);
+            catchem_state_derive_airden_dry(state);
+
+            // 5. Sync derived results back to host heap
+            catchem_state_sync_to_host(state);
+
+            // 6. Assert correct calculations
+            // Layer 1 edge pressures: P_lower = 101325.0, P_upper = 90000.0
+            // Virtual T = 290.15 * (1 + 0.608 * 0.01) = 291.914
+            // Expected height = (287 / 9.80665) * 291.914 * std::log(101325.0 / 90000.0) ≈ 1010.5 meters
+            double derived_h = bxheight_array[0];
+            assert(derived_h > 990.0 && derived_h < 1030.0);
+            std::cout << "INFO: Derived BXHEIGHT = " << derived_h << " meters.\n";
+
+            double derived_rho = airden_dry_array[0];
+            assert(derived_rho > 1.0 && derived_rho < 1.3);
+            std::cout << "INFO: Derived Dry Air Density = " << derived_rho << " kg/m³.\n";
+
+            // Assert unified chemistry array mapped accurately
+            auto* state_obj = static_cast<catchem::StateManager*>(state);
+            assert(state_obj->chem.conc != nullptr);
+            assert(state_obj->chem.conc->host_view(0, 0, 0) == 4.2);
+
+            // 7. Test portable Time State calculations
+            catchem_state_set_time(state, 2026, 7, 8, 12, 0, 0, 189, 3600.0);
+            double cos_sza = state_obj->time.get_cos_sza(40.0, -80.0);
+            assert(cos_sza >= -1.0 && cos_sza <= 1.0);
+            std::cout << "INFO: Calculated Cos(SZA) at lat=40, lon=-80: " << cos_sza << "\n";
+
+            catchem_core_destroy(core);
+            std::cout << "SUCCESS: Parallel Meteorological Derivations & SZA Validation Passed!\n";
+        }
+
+        // ==========================================
         // TEST 5: C++ Species Metadata & State Initialization
         // ==========================================
         {
