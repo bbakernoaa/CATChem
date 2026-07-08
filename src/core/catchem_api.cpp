@@ -197,4 +197,14 @@ int catchem_state_is_species_aerosol(void* state_ptr, int index) {
     return 0;
 }
 
+void catchem_state_derive_bxheight(void* state_ptr) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    state->derive_bxheight();
+}
+
+void catchem_state_derive_airden_dry(void* state_ptr) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    state->derive_airden_dry();
+}
+
 }

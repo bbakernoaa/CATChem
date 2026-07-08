@@ -8,6 +8,8 @@
 #include "catchem_met_state.hpp"
 #include "catchem_chem_state.hpp"
 #include "catchem_time_state.hpp"
+#include "catchem_met_utilities.hpp"
+#include "catchem_constants.hpp"
 
 namespace catchem {
 
@@ -60,6 +62,57 @@ public:
 
     void bind_unified_chemistry(double* ptr) {
         chem.conc = std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, n_levels, n_species});
+    }
+
+    void derive_bxheight() {
+        if (!met.PEDGE || !met.T || !met.QV || !met.BXHEIGHT) return;
+        
+        int nc = n_cols;
+        int nl = n_levels;
+
+        auto pedge = met.PEDGE->view();
+        auto temp = met.T->view();
+        auto qv = met.QV->view();
+        auto bxheight = met.BXHEIGHT->view();
+
+        Kokkos::parallel_for("derive_bxheight_kernel",
+            Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({0, 0}, {nc, nl}),
+            KOKKOS_LAMBDA(int icol, int ilev) {
+                double p_lower = pedge(icol, ilev, 0);
+                double p_upper = pedge(icol, ilev + 1, 0);
+
+                if (p_upper > 0.0) {
+                    double virtual_t = met_utilities::virtual_temperature(temp(icol, ilev, 0), qv(icol, ilev, 0));
+                    bxheight(icol, ilev, 0) = (constants::RD / constants::G0) * virtual_t * std::log(p_lower / p_upper);
+                } else {
+                    bxheight(icol, ilev, 0) = 0.0;
+                }
+            }
+        );
+    }
+
+    void derive_airden_dry() {
+        if (!met.PMID || !met.T || !met.QV || !met.AIRDEN_DRY) return;
+
+        int nc = n_cols;
+        int nl = n_levels;
+
+        auto pmid = met.PMID->view();
+        auto temp = met.T->view();
+        auto qv = met.QV->view();
+        auto airden_dry = met.AIRDEN_DRY->view();
+
+        Kokkos::parallel_for("derive_airden_dry_kernel",
+            Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({0, 0}, {nc, nl}),
+            KOKKOS_LAMBDA(int icol, int ilev) {
+                double q = qv(icol, ilev, 0);
+                double avgw = (constants::AIR_MW / constants::H2O_MW) * q / (1.0 - q);
+                double xh2o = avgw / (1.0 + avgw);
+
+                double p_dry = pmid(icol, ilev, 0) * (1.0 - xh2o);
+                airden_dry(icol, ilev, 0) = p_dry / (constants::RD * temp(icol, ilev, 0));
+            }
+        );
     }
 
     void sync_to_device() {

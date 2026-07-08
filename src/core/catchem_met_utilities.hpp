@@ -9,7 +9,9 @@ using Kokkos::exp;
 }
 }
 #else
+#ifndef KOKKOS_INLINE_FUNCTION
 #define KOKKOS_INLINE_FUNCTION inline
+#endif
 #include <cmath>
 namespace catchem {
 namespace math {
@@ -26,17 +28,17 @@ namespace catchem {
 namespace met_utilities {
 
 KOKKOS_INLINE_FUNCTION
-inline fp potential_temperature(fp temp, fp press, fp sfc_press) {
+fp potential_temperature(fp temp, fp press, fp sfc_press) {
     return temp * math::pow(sfc_press / press, constants::RD / constants::CP);
 }
 
 KOKKOS_INLINE_FUNCTION
-inline fp virtual_temperature(fp temp, fp qv) {
+fp virtual_temperature(fp temp, fp qv) {
     return temp * (1.0 + 0.61 * qv);
 }
 
 KOKKOS_INLINE_FUNCTION
-inline fp cunningham_correction_factor(fp dp, fp lambda) {
+fp cunningham_correction_factor(fp dp, fp lambda) {
     if (dp > 0.0 && lambda > 0.0) {
         return 1.0 + 2.0 * lambda / dp * (1.257 + 0.4 * math::exp(-1.1 * dp / lambda));
     }

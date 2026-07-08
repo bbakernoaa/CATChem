@@ -43,6 +43,9 @@ double catchem_state_get_species_mw(void* state_ptr, int index);
 int catchem_state_is_species_gas(void* state_ptr, int index);
 int catchem_state_is_species_aerosol(void* state_ptr, int index);
 
+void catchem_state_derive_bxheight(void* state_ptr);
+void catchem_state_derive_airden_dry(void* state_ptr);
+
 #ifdef __cplusplus
 }
 #endif
