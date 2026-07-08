@@ -62,6 +62,7 @@ if(ENABLE_KOKKOS)
     _cpp_core_srcs
     catchem_core.cpp
     catchem_api.cpp
+    catchem_diagnostic.cpp
   )
   add_library(CATChem_core_cpp STATIC ${_cpp_core_srcs})
   target_link_libraries(CATChem_core_cpp PUBLIC Kokkos::kokkos)
