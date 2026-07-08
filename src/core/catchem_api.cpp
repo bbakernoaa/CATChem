@@ -107,13 +107,13 @@ void catchem_state_load_species_config(void* state_ptr, const char* filename) {
 
 int catchem_state_get_species_count(void* state_ptr) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    return static_cast<int>(state->species_list.size());
+    return static_cast<int>(state->chem.species_list.size());
 }
 
 int catchem_state_get_species_index(void* state_ptr, const char* name) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    auto it = state->species_name_to_index.find(name);
-    if (it != state->species_name_to_index.end()) {
+    auto it = state->chem.species_name_to_index.find(name);
+    if (it != state->chem.species_name_to_index.end()) {
         return it->second + 1; // Translate 0-based C++ index to 1-based Fortran index
     }
     return -1;
@@ -121,33 +121,33 @@ int catchem_state_get_species_index(void* state_ptr, const char* name) {
 
 int catchem_state_get_gas_species_count(void* state_ptr) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    return static_cast<int>(state->gas_indices.size());
+    return static_cast<int>(state->chem.gas_indices.size());
 }
 
 void catchem_state_get_gas_indices(void* state_ptr, int* indices_out) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    for (size_t i = 0; i < state->gas_indices.size(); ++i) {
-        indices_out[i] = state->gas_indices[i] + 1; // 1-based
+    for (size_t i = 0; i < state->chem.gas_indices.size(); ++i) {
+        indices_out[i] = state->chem.gas_indices[i] + 1; // 1-based
     }
 }
 
 int catchem_state_get_aerosol_species_count(void* state_ptr) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    return static_cast<int>(state->aerosol_indices.size());
+    return static_cast<int>(state->chem.aerosol_indices.size());
 }
 
 void catchem_state_get_aerosol_indices(void* state_ptr, int* indices_out) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    for (size_t i = 0; i < state->aerosol_indices.size(); ++i) {
-        indices_out[i] = state->aerosol_indices[i] + 1; // 1-based
+    for (size_t i = 0; i < state->chem.aerosol_indices.size(); ++i) {
+        indices_out[i] = state->chem.aerosol_indices[i] + 1; // 1-based
     }
 }
 
 double catchem_state_get_species_mw(void* state_ptr, int index) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     int idx_0 = index - 1; // 1-based to 0-based
-    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->species_list.size())) {
-        return state->species_list[idx_0].mw_g;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        return state->chem.species_list[idx_0].mw_g;
     }
     return 0.0;
 }
@@ -155,8 +155,8 @@ double catchem_state_get_species_mw(void* state_ptr, int index) {
 int catchem_state_is_species_gas(void* state_ptr, int index) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     int idx_0 = index - 1;
-    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->species_list.size())) {
-        return state->species_list[idx_0].is_gas ? 1 : 0;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        return state->chem.species_list[idx_0].is_gas ? 1 : 0;
     }
     return 0;
 }
@@ -164,8 +164,8 @@ int catchem_state_is_species_gas(void* state_ptr, int index) {
 int catchem_state_is_species_aerosol(void* state_ptr, int index) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     int idx_0 = index - 1;
-    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->species_list.size())) {
-        return state->species_list[idx_0].is_aerosol ? 1 : 0;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        return state->chem.species_list[idx_0].is_aerosol ? 1 : 0;
     }
     return 0;
 }
