@@ -12,8 +12,3 @@ option(
 if(BUILD_PROCESSES)
   add_subdirectory(process)
 endif()
-
-# Kokkos interop layer (only when ENABLE_KOKKOS=ON)
-if(ENABLE_KOKKOS)
-  add_subdirectory(kokkos)
-endif()

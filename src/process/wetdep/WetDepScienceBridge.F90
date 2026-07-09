@@ -108,7 +108,6 @@ contains
             dummy_sp_names(i)(j:j) = species_names(j, i)
          end do
          dummy_sp_names(i) = trim(adjustl(dummy_sp_names(i)))
-         print *, "DEBUG WETDEP: species ", i, " name = '", trim(dummy_sp_names(i)), "'"
       end do
 
       ! Copy to standard logical arrays & cast doubles once

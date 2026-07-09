@@ -2,9 +2,9 @@ add_compile_options(${_catchem_compiler_options})
 
 if(ENABLE_KOKKOS)
     add_executable(test_catchem_interop test_catchem_interop.cpp)
-    target_link_libraries(test_catchem_interop PRIVATE CATChem_core CATChem_kokkos)
+    target_link_libraries(test_catchem_interop PRIVATE CATChem_core)
     target_include_directories(test_catchem_interop PRIVATE ${CMAKE_BINARY_DIR}/include)
-    add_dependencies(test_catchem_interop CATChem_core CATChem_kokkos)
+    add_dependencies(test_catchem_interop CATChem_core)
     
     # Required to link against Kokkos and C++ core
     if(TARGET CATChem_core_cpp)

@@ -55,7 +55,7 @@ if(ENABLE_KOKKOS)
   target_include_directories(CATChem_core_cpp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
   target_compile_definitions(CATChem_core_cpp PUBLIC ENABLE_KOKKOS)
 
-  target_link_libraries(CATChem_core PUBLIC CATChem_kokkos CATChem_core_cpp)
+  target_link_libraries(CATChem_core PUBLIC CATChem_core_cpp)
   target_compile_definitions(CATChem_core PRIVATE ENABLE_KOKKOS)
 endif()
 
