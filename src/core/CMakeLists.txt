@@ -76,6 +76,10 @@ if(ENABLE_KOKKOS)
   target_compile_definitions(CATChem_core PRIVATE ENABLE_KOKKOS)
 endif()
 
+if(TARGET musica)
+  target_link_libraries(CATChem_core PUBLIC musica::musica-fortran)
+endif()
+
 set(METSTATE_MOD_F90 ${CMAKE_CURRENT_SOURCE_DIR}/metstate_mod.F90)
 set(
   METSTATE_ACCESSOR_INC

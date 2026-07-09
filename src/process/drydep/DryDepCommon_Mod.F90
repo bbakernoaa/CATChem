@@ -122,6 +122,7 @@ module DryDepCommon_Mod
       ! Scheme parameters
       real(fp) :: scale_factor = 1.0  ! Dry deposition velocity scale factor
       logical :: resuspension = .false.  ! Apply resuspension for dry deposition
+      logical :: dust_resuspension_only = .true.  ! If true, resuspension only applies to dust species
 
       ! Required meteorological fields
       integer :: n_required_met_fields = 13
@@ -392,7 +393,7 @@ contains
       type(ErrorManagerType), intent(inout) :: error_handler
 
       character(len=256) :: scheme_name
-      integer :: ierr, rc
+      integer :: rc
 
       ! Process reads directly from master YAML structure: processes.drydep
       ! ConfigManager provides generic YAML access, process handles its own configuration
@@ -591,7 +592,7 @@ contains
       type(ConfigManagerType), intent(inout) :: config_manager
       type(ErrorManagerType), intent(inout) :: error_handler
 
-      integer :: ierr, rc
+      integer :: rc
 
       ! Load scheme parameters directly from processes/drydep/wesely/ in master YAML
       call config_manager%get_real("processes/drydep/wesely/scale_factor", &
@@ -616,7 +617,7 @@ contains
       type(ConfigManagerType), intent(inout) :: config_manager
       type(ErrorManagerType), intent(inout) :: error_handler
 
-      integer :: ierr, rc
+      integer :: rc
 
       ! Load scheme parameters directly from processes/drydep/gocart/ in master YAML
       call config_manager%get_real("processes/drydep/gocart/scale_factor", &
@@ -625,6 +626,9 @@ contains
       call config_manager%get_logical("processes/drydep/gocart/resuspension", &
          this%gocart_config%resuspension, rc, .false.)
       if (rc /= CC_SUCCESS) this%gocart_config%resuspension = .false.
+      call config_manager%get_logical("processes/drydep/gocart/dust_resuspension_only", &
+         this%gocart_config%dust_resuspension_only, rc, .true.)
+      if (rc /= CC_SUCCESS) this%gocart_config%dust_resuspension_only = .true.
 
 
    end subroutine load_gocart_config
@@ -635,7 +639,7 @@ contains
       type(ConfigManagerType), intent(inout) :: config_manager
       type(ErrorManagerType), intent(inout) :: error_handler
 
-      integer :: ierr, rc
+      integer :: rc
 
       ! Load scheme parameters directly from processes/drydep/zhang/ in master YAML
       call config_manager%get_real("processes/drydep/zhang/scale_factor", &

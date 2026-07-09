@@ -414,7 +414,9 @@ contains
 {% endif %}
 {% endfor %}
       case default
-         rc = CC_FAILURE
+         call CC_Error('Unknown {{ config.name }} gas scheme: ' // &
+            trim(this%process_config%{{ config.name }}_config%gas_scheme), rc, &
+            ThisLoc='run_active_scheme_column (in module Process{{ config.class_name }}Interface_Mod.F90)')
          return
       end select
 
@@ -427,7 +429,9 @@ contains
 {% endif %}
 {% endfor %}
       case default
-         rc = CC_FAILURE
+         call CC_Error('Unknown {{ config.name }} aerosol scheme: ' // &
+            trim(this%process_config%{{ config.name }}_config%aero_scheme), rc, &
+            ThisLoc='run_active_scheme_column (in module Process{{ config.class_name }}Interface_Mod.F90)')
       end select
 {% else %}
       ! Delegate to appropriate scheme using unified config
@@ -437,7 +441,9 @@ contains
          call this%run_{{ scheme.name }}_scheme_column(column, rc)
 {% endfor %}
       case default
-         rc = CC_FAILURE
+         call CC_Error('Unknown {{ config.name }} scheme: ' // &
+            trim(this%process_config%{{ config.name }}_config%scheme), rc, &
+            ThisLoc='run_active_scheme_column (in module Process{{ config.class_name }}Interface_Mod.F90)')
       end select
 {% endif %}
 

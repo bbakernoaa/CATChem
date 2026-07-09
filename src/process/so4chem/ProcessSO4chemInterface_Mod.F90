@@ -343,7 +343,9 @@ contains
        case ('gocart')
          call this%run_gocart_scheme_column(column, rc)
        case default
-         rc = CC_FAILURE
+         call CC_Error('Unknown so4chem scheme "' // &
+            trim(this%process_config%so4chem_config%scheme), rc, &
+            ThisLoc='run_active_scheme_column (in module ProcessSO4chemInterface_Mod.F90)')
       end select
 
    end subroutine run_active_scheme_column
@@ -795,7 +797,6 @@ contains
       integer :: i_col, j_col  ! Column grid position
       integer :: i  ! Loop variable for diagnostic species
       character(len=256) :: field_name  ! For constructing species-specific field names
-      character(len=64) :: selected_scheme
 
       rc = CC_SUCCESS
 
