@@ -61,7 +61,7 @@ struct TimeState {
         double ha_rad = hour_angle * constants::PI_180;
 
         double cos_sza = std::sin(lat_rad) * std::sin(dec) + std::cos(lat_rad) * std::cos(dec) * std::cos(ha_rad);
-        
+
         // Clamp output safely to [-1.0, 1.0]
         return std::max(-1.0, std::min(1.0, cos_sza));
     }

@@ -20,7 +20,7 @@ extern "C" {
 
 namespace catchem {
 
-SO4chemProcess::SO4chemProcess() 
+SO4chemProcess::SO4chemProcess()
     : active_scheme("gocart"), diagnostics_enabled(true) {}
 
 void SO4chemProcess::init(std::shared_ptr<StateManager> state) {
@@ -39,7 +39,7 @@ void SO4chemProcess::init(std::shared_ptr<StateManager> state) {
     if (state->diag_mgr) {
         std::vector<int> dims_2d = {state->n_cols, state->n_levels};
         std::vector<int> dims_1d = {state->n_cols, 1};
-        
+
         state->diag_mgr->register_field("PSO4_from_gaseous_SO2_per_level", "PSO4 gas source", "kg/kg/s", DiagType::FIELD_2D, dims_2d);
         state->diag_mgr->register_field("PSO4_from_aqueous_SO2_per_level", "PSO4 aq source", "kg/kg/s", DiagType::FIELD_2D, dims_2d);
         state->diag_mgr->register_field("DMS_emission_flux", "DMS emission surface flux", "kg/m2/s", DiagType::FIELD_2D, dims_1d);
@@ -49,7 +49,7 @@ void SO4chemProcess::init(std::shared_ptr<StateManager> state) {
             if (meta.short_name == "SO2" || meta.short_name == "SO4" || meta.short_name == "DMS" || meta.short_name == "MSA") {
                 std::string diag_name = "Production_rate_" + meta.short_name;
                 state->diag_mgr->register_field(diag_name, "Production rate " + meta.short_name, "kg/kg/s", DiagType::FIELD_2D, dims_2d);
-                
+
                 // Track diagnostic species index (1-based)
                 diagnostic_species_id.push_back(i + 1);
             }
@@ -86,7 +86,7 @@ void SO4chemProcess::run(std::shared_ptr<StateManager> state) {
 
     // 3. Chemical and Tendency Views
     double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
-    
+
     // Allocate local tendencies buffer
     std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);
 

@@ -12,16 +12,16 @@ contains
    subroutine run_seasalt_science_bridge( &
       n_cols, n_levels, n_species, dt, &
       active_scheme, diagnostics, &
-      ! Met Pointers
+   ! Met Pointers
       c_frocean, c_frseaice, c_lat, c_lon, c_sst, c_u10m, c_v10m, c_ustar, c_delp, &
-      ! Species Metadata
+   ! Species Metadata
       species_density, species_radius, species_lower_radius, species_upper_radius, is_gas_arr, species_mw_g, &
-      ! Concentrations and Tendency
+   ! Concentrations and Tendency
       c_conc, c_tendency, &
-      ! Diagnostics
+   ! Diagnostics
       c_diag_mass_total, c_diag_num_total, c_diag_mass_bin, c_diag_num_bin, &
       diagnostic_species_id, n_diag_species &
-   ) bind(C, name="run_seasalt_science_bridge")
+      ) bind(C, name="run_seasalt_science_bridge")
 
       integer(c_int), value :: n_cols, n_levels, n_species
       real(c_double), value :: dt
@@ -166,7 +166,7 @@ contains
          ! Apply calculated emission fluxes to surface concentration (layer 1)
          do i = 1, n_species
             tendency(icol, 1, i) = f_tendency(1, i)
-            
+
             ! dqa = species_tendencies(1, i) * timestep * g0 / met%DELP(1)
             dqa = f_tendency(1, i) * real(dt, fp) * g0 / f_delp_layer1
 

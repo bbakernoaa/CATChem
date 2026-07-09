@@ -22,7 +22,7 @@ extern "C" {
 
 namespace catchem {
 
-DustProcess::DustProcess() 
+DustProcess::DustProcess()
     : active_scheme("fengsha"), diagnostics_enabled(true) {}
 
 void DustProcess::init(std::shared_ptr<StateManager> state) {
@@ -36,7 +36,7 @@ void DustProcess::init(std::shared_ptr<StateManager> state) {
     // 2. Register C++ Diagnostic fields (registering 1D fields as 2D with second dimension of 1)
     std::vector<int> dims_1d_as_2d = {state->n_cols, 1};
     std::vector<int> dims_2d = {state->n_cols, state->n_species};
-    
+
     state->diag_mgr->register_field("dust_emission_total", "Total Dust Emission", "kg/m2/s", DiagType::FIELD_2D, dims_1d_as_2d);
     state->diag_mgr->register_field("dust_emission_bin", "Dust Emission Per Bin", "kg/m2/s", DiagType::FIELD_2D, dims_2d);
     state->diag_mgr->register_field("dust_horizontal_flux", "Dust Horizontal Flux", "kg/m/s", DiagType::FIELD_2D, dims_1d_as_2d);
@@ -82,7 +82,7 @@ void DustProcess::run(std::shared_ptr<StateManager> state) {
     double* ustar_th_ptr = (ustar_th_ptr_it != state->met.fields_2d.end()) ? ustar_th_ptr_it->second->host_view.data() : nullptr;
     auto z0_ptr_it = state->met.fields_2d.find("roughness_length");
     double* z0_ptr = (z0_ptr_it != state->met.fields_2d.end()) ? z0_ptr_it->second->host_view.data() : nullptr;
-    
+
     // Provide dummy variables for non-existent ones so tests pass
     std::vector<double> dummy_1d(state->n_cols, 0.0);
     std::vector<int> dummy_1d_int(state->n_cols, 1); // default land
@@ -124,7 +124,7 @@ void DustProcess::run(std::shared_ptr<StateManager> state) {
     }
 
     double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
-    
+
     // Allocate local tendencies buffer
     std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);
 

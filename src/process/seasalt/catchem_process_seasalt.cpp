@@ -17,7 +17,7 @@ extern "C" {
 
 namespace catchem {
 
-SeaSaltProcess::SeaSaltProcess() 
+SeaSaltProcess::SeaSaltProcess()
     : active_scheme("geos12"), diagnostics_enabled(true) {}
 
 void SeaSaltProcess::init(std::shared_ptr<StateManager> state) {
@@ -78,8 +78,8 @@ void SeaSaltProcess::run(std::shared_ptr<StateManager> state) {
     for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
         auto& meta = state->chem.species_list[i];
         if (meta.is_seasalt) {
-            std::cout << "DEBUG SS: species=" << meta.short_name 
-                      << ", lower_radius=" << meta.lower_radius 
+            std::cout << "DEBUG SS: species=" << meta.short_name
+                      << ", lower_radius=" << meta.lower_radius
                       << ", upper_radius=" << meta.upper_radius << std::endl;
             ss_global_indices.push_back(i);
             density.push_back(meta.density);

@@ -20,7 +20,7 @@ contains
       conc, tendency, &
       diag_emission_total, diag_emission_bin, diag_horizontal_flux, diag_moisture_correction, diag_effective_threshold, diag_utar_threshold, &
       diagnostic_species_id, n_diag_species &
-   ) bind(C, name="run_dust_science_bridge")
+      ) bind(C, name="run_dust_science_bridge")
 
       ! C-interoperable metadata
       integer(c_int), value :: n_cols, n_levels, n_species, n_soil

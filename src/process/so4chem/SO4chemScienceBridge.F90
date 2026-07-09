@@ -10,21 +10,21 @@ contains
    subroutine run_so4chem_science_bridge( &
       n_cols, n_levels, n_species, dt, &
       diagnostics, &
-      ! Date & Time
+   ! Date & Time
       year, month, day, hour, minute, second, &
-      ! 3D Met Pointers
+   ! 3D Met Pointers
       c_airden, c_cldf, c_delp, c_pmid, c_t_air, c_z_edges, &
-      ! 2D Met Pointers
+   ! 2D Met Pointers
       c_hflux, c_lat, c_lon, c_lwi, c_pblh, c_u10m, c_ustar, c_v10m, c_z0h, &
-      ! Metadata
+   ! Metadata
       species_mw_g, species_names, &
-      ! Chem and Tendency
+   ! Chem and Tendency
       c_conc, c_tendency, &
-      ! Persistent states
+   ! Persistent states
       c_firsttime, c_nymd_last, c_nhms_last_recycle, c_xh2o2_init, &
       c_pso4_so2, c_pso4_g_so2, c_pso4_aq_so2, c_pso2_dms, c_dms_flux, &
       diagnostic_species_id, n_diag_species &
-   ) bind(C, name="run_so4chem_science_bridge")
+      ) bind(C, name="run_so4chem_science_bridge")
 
       integer(c_int), value :: n_cols, n_levels, n_species
       real(c_double), value :: dt
@@ -51,7 +51,7 @@ contains
       real(c_double), pointer :: hflux(:), lat(:), lon(:), pblh(:), u10m(:), ustar(:), v10m(:), z0h(:)
       integer, pointer :: lwi(:)
       real(c_double), pointer :: conc(:,:,:), tendency(:,:,:)
-      
+
       ! Persistent pointers pointing to double precision C++ views
       logical(c_bool), pointer :: firsttime(:)
       integer, pointer :: nymd_last(:), nhms_last_recycle(:)

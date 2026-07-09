@@ -18,7 +18,7 @@ extern "C" {
 
 namespace catchem {
 
-WetDepProcess::WetDepProcess() 
+WetDepProcess::WetDepProcess()
     : active_scheme("jacob"), diagnostics_enabled(true) {}
 
 void WetDepProcess::init(std::shared_ptr<StateManager> state) {
@@ -31,7 +31,7 @@ void WetDepProcess::init(std::shared_ptr<StateManager> state) {
                 std::string flux_name = "wetdep_flux_" + meta.short_name;
                 state->diag_mgr->register_field(mass_name, "Wet Mass " + meta.short_name, "kg/m2", DiagType::FIELD_2D, dims_2d);
                 state->diag_mgr->register_field(flux_name, "Wet Flux " + meta.short_name, "kg/m2/s", DiagType::FIELD_2D, dims_2d);
-                
+
                 // Track diagnostic species index (1-based)
                 diagnostic_species_id.push_back(i + 1);
             }
@@ -59,7 +59,7 @@ void WetDepProcess::run(std::shared_ptr<StateManager> state) {
 
     // 2. Extract chemical arrays & C++ allocated diagnostics
     double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
-    
+
     // Allocate local tendencies buffer
     std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);
 

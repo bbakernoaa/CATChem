@@ -33,10 +33,10 @@ public:
 
     bool is_gpu_target;
 
-    DiagnosticField(const std::string& name_val, 
-                    const std::string& desc_val, 
-                    const std::string& units_val, 
-                    DiagType type_val, 
+    DiagnosticField(const std::string& name_val,
+                    const std::string& desc_val,
+                    const std::string& units_val,
+                    DiagType type_val,
                     const std::vector<int>& dims);
 
     void sync_to_host();

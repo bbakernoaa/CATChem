@@ -13,19 +13,19 @@ private:
 public:
     DiagnosticManager() = default;
 
-    void register_field(const std::string& name, 
-                        const std::string& desc, 
-                        const std::string& units, 
-                        DiagType type, 
+    void register_field(const std::string& name,
+                        const std::string& desc,
+                        const std::string& units,
+                        DiagType type,
                         const std::vector<int>& dims);
 
     bool has_field(const std::string& name) const;
     std::shared_ptr<DiagnosticField> get_field(const std::string& name);
 
-    Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space> 
+    Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
     get_device_view_2d(const std::string& name);
 
-    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space> 
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
     get_device_view_3d(const std::string& name);
 
     void* get_host_pointer(const std::string& name);

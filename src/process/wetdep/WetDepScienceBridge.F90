@@ -10,21 +10,21 @@ contains
    subroutine run_wetdep_science_bridge( &
       n_cols, n_levels, n_species, dt, &
       diagnostics, &
-      ! 3D Met Pointers
+   ! 3D Met Pointers
       c_airden_dry, c_mairden, c_pedge, c_pfilsan, c_pfllsan, c_reevapls, c_t_air, &
-      ! Metadata
+   ! Metadata
       species_is_aerosol, species_henry_cr, species_henry_k0, species_henry_pKa, &
       species_wd_retfactor, species_wd_LiqAndGas, species_wd_convfacI2G, species_wd_rainouteff, species_wd_reevap_frac, &
       species_radius, species_mw_g, species_names, &
-      ! Concentrations, Tendencies & Diagnostics
+   ! Concentrations, Tendencies & Diagnostics
       c_conc, c_tendency, c_diag_mass, c_diag_flux, &
       diagnostic_species_id, n_diag_species &
-   ) bind(C, name="run_wetdep_science_bridge")
+      ) bind(C, name="run_wetdep_science_bridge")
 
       integer(c_int), value :: n_cols, n_levels, n_species
       real(c_double), value :: dt
       integer(c_int), value :: diagnostics
-      
+
       ! C pointers
       type(c_ptr), value :: c_airden_dry, c_mairden, c_pedge, c_pfilsan, c_pfllsan, c_reevapls, c_t_air
       type(c_ptr), value :: c_conc, c_tendency, c_diag_mass, c_diag_flux
@@ -153,7 +153,7 @@ contains
          ! Write tendencies and concentrations back in-place (casting to c_double)
          tendency(icol, :, :) = real(col_tendencies, c_double)
          conc(icol, :, :) = conc(icol, :, :) + real(dt * col_tendencies, c_double)
-         
+
          if (diagnostics /= 0) then
             diag_mass(icol, :, :) = real(col_diag_mass, c_double)
             diag_flux(icol, :, :) = real(col_diag_flux, c_double)

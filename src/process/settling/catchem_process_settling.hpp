@@ -21,7 +21,7 @@ public:
     void init(std::shared_ptr<StateManager> state) override;
     void run(std::shared_ptr<StateManager> state) override;
     void finalize() override;
-    
+
     // For legacy tests
     void set_fortran_bridge_callback(std::function<void(void*)> cb);
 };

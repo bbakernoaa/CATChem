@@ -22,7 +22,7 @@ extern "C" {
 
 namespace catchem {
 
-DryDepProcess::DryDepProcess() 
+DryDepProcess::DryDepProcess()
     : gas_scheme("wesely"), aero_scheme("gocart"), diagnostics_enabled(true) {}
 
 void DryDepProcess::init(std::shared_ptr<StateManager> state) {
@@ -61,7 +61,7 @@ void DryDepProcess::run(std::shared_ptr<StateManager> state) {
 
     // Mock/Fallbacks for remaining metadata arrays - Using char for bool to support standard .data()
     std::vector<double> cldfrc(state->n_cols, 0.1);
-    
+
     // Multi-dimensional standard C++20 views using standard layout_left to match Fortran column-major
     std::vector<double> frlai_storage(state->n_cols * 1 * 20, 1.5);
     std::vector<double> frlanduse_storage(state->n_cols * 1 * 20, 0.05);
@@ -88,10 +88,10 @@ void DryDepProcess::run(std::shared_ptr<StateManager> state) {
 
     // 3. Extract chemical arrays & C++ allocated diagnostics
     double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
-    
+
     // Allocate local tendencies buffer
     std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);
-    
+
     double* diag_con = (double*)state->diag_mgr->get_host_pointer("drydep_con_per_species");
     double* diag_vel = (double*)state->diag_mgr->get_host_pointer("drydep_velocity_per_species");
 

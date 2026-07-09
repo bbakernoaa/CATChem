@@ -80,7 +80,7 @@ public:
         if (!met.T) throw std::runtime_error("derive_bxheight failed: T field is not bound.");
         if (!met.QV) throw std::runtime_error("derive_bxheight failed: QV field is not bound.");
         if (!met.BXHEIGHT) throw std::runtime_error("derive_bxheight failed: BXHEIGHT field is not bound.");
-        
+
         int nc = n_cols;
         int nl = n_levels;
 

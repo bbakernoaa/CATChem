@@ -23,9 +23,9 @@ void SettlingProcess::init(std::shared_ptr<StateManager> state) {
             host_aero_indices(i) = ispec;
             host_radius_dry(i) = state->chem.species_list[ispec].radius * 1e-6; // Convert microns to meters
             host_rhop_dry(i) = state->chem.species_list[ispec].density;
-            std::cout << "DEBUG INIT: Aerosol " << i << ": species index=" << ispec 
-                      << ", name=" << state->chem.species_list[ispec].short_name 
-                      << ", radius_dry=" << host_radius_dry(i) 
+            std::cout << "DEBUG INIT: Aerosol " << i << ": species index=" << ispec
+                      << ", name=" << state->chem.species_list[ispec].short_name
+                      << ", radius_dry=" << host_radius_dry(i)
                       << ", density=" << host_rhop_dry(i) << std::endl;
         }
 

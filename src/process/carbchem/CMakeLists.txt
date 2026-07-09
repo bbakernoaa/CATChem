@@ -30,7 +30,6 @@ if(ENABLE_KOKKOS)
   target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
 endif()
 
-
 # Additional dependencies
 # Chemistry processes may need additional math libraries
 target_link_libraries(${_lib} PUBLIC ${LAPACK_LIBRARIES})
@@ -42,7 +41,10 @@ set_target_properties(
 )
 
 # Include directories
-target_include_directories(${_lib} PRIVATE ${CMAKE_BINARY_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/../../core)
+target_include_directories(
+  ${_lib}
+  PRIVATE ${CMAKE_BINARY_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/../../core
+)
 
 # Compiler-specific flags
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")

@@ -2,7 +2,7 @@
 !! \brief Modernized high-level BIND(C) API for host model integration
 !!
 !! This module provides the standard, backward-compatible CATChem_Model
-!! derived type used by Earth System drivers (like NUOPC and UFS). 
+!! derived type used by Earth System drivers (like NUOPC and UFS).
 !! It delegates all memory management, synchronization, and process scheduling
 !! directly to the modernized top-down C++ Core via standard BIND(C) bridges.
 !!

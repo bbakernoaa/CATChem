@@ -22,7 +22,7 @@ public:
     bool is_initialized = false;
 
     GridManager(int nx, int ny, int nz);
-    
+
     // Bindings to support Fortran Interop arrays if allocated externally
     void bind_lat(double* ptr);
     void bind_lon(double* ptr);

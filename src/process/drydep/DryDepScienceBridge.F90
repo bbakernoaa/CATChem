@@ -11,28 +11,28 @@ contains
    subroutine run_drydep_science_bridge( &
       n_cols, n_levels, n_species, dt, &
       gas_scheme, aero_scheme, diagnostics, &
-      ! 3D Met Pointers
+   ! 3D Met Pointers
       c_bxheight, c_airden, c_t_air, c_z_edges, c_rh, &
-      ! 2D/1D Met Pointers
+   ! 2D/1D Met Pointers
       c_cldfrc, c_frlai, c_frlanduse, c_iland, c_is_ice, c_is_land, c_is_snow, &
       c_lat, c_lon, c_obk, c_ps, c_salinity, c_suncosmid, c_swgdn, c_ts, c_tskin, &
       c_ustar, c_z0, c_frlake, c_gwettop, c_hflux, c_lwi, c_pblh, c_u10m, c_v10m, c_z0h, &
-      ! Species Metadata Dummy Arrays
+   ! Species Metadata Dummy Arrays
       species_mw_g, species_dd_f0, species_dd_hstar, species_dd_DvzAerSnow, &
       species_dd_DvzMinVal_snow, species_dd_DvzMinVal_land, species_density, &
       species_radius, species_is_seasalt, species_is_dust, species_lower_radius, &
       species_upper_radius, is_gas_arr, &
-      ! Concentrations, Tendencies & Diagnostics
+   ! Concentrations, Tendencies & Diagnostics
       c_conc, c_tendency, c_diag_con, c_diag_vel, &
       diagnostic_species_id, n_diag_species &
-   ) bind(C, name="run_drydep_science_bridge")
+      ) bind(C, name="run_drydep_science_bridge")
 
       integer(c_int), value :: n_cols, n_levels, n_species
       real(c_double), value :: dt
       character(kind=c_char), intent(in) :: gas_scheme(*)
       character(kind=c_char), intent(in) :: aero_scheme(*)
       integer(c_int), value :: diagnostics
-      
+
       ! C pointers
       type(c_ptr), value :: c_bxheight, c_airden, c_t_air, c_z_edges, c_rh
       type(c_ptr), value :: c_cldfrc, c_frlai, c_frlanduse, c_iland, c_is_ice, c_is_land, c_is_snow
@@ -66,7 +66,7 @@ contains
       real(c_double), pointer :: ustar(:), z0(:), frlake(:), gwettop(:), hflux(:)
       integer, pointer :: lwi(:)
       real(c_double), pointer :: pblh(:), u10m(:), v10m(:), z0h(:)
-      
+
       real(c_double), pointer :: conc(:,:,:), tendency(:,:,:), diag_con(:,:), diag_vel(:,:)
 
       ! Loop variables
@@ -160,7 +160,7 @@ contains
 
       call c_f_pointer(c_conc,     conc,     [n_cols, n_levels, n_species])
       call c_f_pointer(c_tendency, tendency, [n_cols, n_levels, n_species])
-      
+
       if (diagnostics /= 0) then
          call c_f_pointer(c_diag_con, diag_con, [n_cols, n_species])
          call c_f_pointer(c_diag_vel, diag_vel, [n_cols, n_species])
@@ -265,7 +265,7 @@ contains
          ! Write tendencies and concentrations back in-place (casting back to c_double)
          tendency(icol, 1, :) = real(col_tendencies(1, :), c_double)
          conc(icol, 1, :) = conc(icol, 1, :) + real(dt * col_tendencies(1, :), c_double)
-         
+
          if (diagnostics /= 0) then
             diag_con(icol, :) = real(col_diag_con, c_double)
             diag_vel(icol, :) = real(col_diag_vel, c_double)

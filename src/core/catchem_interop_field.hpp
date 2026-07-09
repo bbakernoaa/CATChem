@@ -90,7 +90,7 @@ public:
         }
 
         is_gpu_target = !std::is_same_v<HostSpace, DeviceSpace>;
-        
+
         if constexpr (Rank == 1) {
             host_view = HostViewType(ptr, dims[0]);
             if (is_gpu_target) device_view = DeviceViewType("dev_field_1d", dims[0]);

@@ -35,7 +35,7 @@ struct ChemState {
         YAML::Node config = YAML::LoadFile(filename);
         species_list.clear();
         species_name_to_index.clear();
-        
+
         gas_indices.clear();
         aerosol_indices.clear();
         tracer_indices.clear();
@@ -82,7 +82,7 @@ struct ChemState {
             meta.wd_retfactor = val["__wd_retfactor"] ? val["__wd_retfactor"].as<double>() : 0.0;
             meta.wd_LiqAndGas = val["__wd_LiqAndGas"] ? val["__wd_LiqAndGas"].as<bool>() : false;
             meta.wd_convfacI2G = val["__wd_convfacI2G"] ? val["__wd_convfacI2G"].as<double>() : 0.0;
-            
+
             if (val["__wd_rainouteff"]) {
                 meta.wd_rainouteff = val["__wd_rainouteff"].as<std::vector<double>>();
             }

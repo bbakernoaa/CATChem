@@ -4,12 +4,12 @@
 
 namespace catchem {
 
-DiagnosticField::DiagnosticField(const std::string& name_val, 
-                                 const std::string& desc_val, 
-                                 const std::string& units_val, 
-                                 DiagType type_val, 
+DiagnosticField::DiagnosticField(const std::string& name_val,
+                                 const std::string& desc_val,
+                                 const std::string& units_val,
+                                 DiagType type_val,
                                  const std::vector<int>& dims)
-    : name(name_val), description(desc_val), units(units_val), type(type_val), dimensions(dims) 
+    : name(name_val), description(desc_val), units(units_val), type(type_val), dimensions(dims)
 {
     is_gpu_target = !std::is_same_v<HostSpace, DeviceSpace>;
 
@@ -58,10 +58,10 @@ void DiagnosticField::reset() {
     }
 }
 
-void DiagnosticManager::register_field(const std::string& name, 
-                                       const std::string& desc, 
-                                       const std::string& units, 
-                                       DiagType type, 
+void DiagnosticManager::register_field(const std::string& name,
+                                       const std::string& desc,
+                                       const std::string& units,
+                                       DiagType type,
                                        const std::vector<int>& dims) {
     fields[name] = std::make_shared<DiagnosticField>(name, desc, units, type, dims);
 }
@@ -75,14 +75,14 @@ std::shared_ptr<DiagnosticField> DiagnosticManager::get_field(const std::string&
     return fields.at(name);
 }
 
-Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space> 
+Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
 DiagnosticManager::get_device_view_2d(const std::string& name) {
     auto field = get_field(name);
     if (field->type != DiagType::FIELD_2D) throw std::invalid_argument("Field is not 2D: " + name);
     return field->device_view_2d;
 }
 
-Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space> 
+Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
 DiagnosticManager::get_device_view_3d(const std::string& name) {
     auto field = get_field(name);
     if (field->type != DiagType::FIELD_3D) throw std::invalid_argument("Field is not 3D: " + name);

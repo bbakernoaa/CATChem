@@ -19,7 +19,7 @@ extern "C" {
 
 namespace catchem {
 
-CarbChemProcess::CarbChemProcess() 
+CarbChemProcess::CarbChemProcess()
     : active_scheme("gocart"), diagnostics_enabled(true) {}
 
 void CarbChemProcess::init(std::shared_ptr<StateManager> state) {
@@ -31,7 +31,7 @@ void CarbChemProcess::init(std::shared_ptr<StateManager> state) {
     // 2. Register C++ Diagnostic fields
     std::vector<int> dims_3d = {state->n_cols, state->n_levels, state->n_species};
     std::vector<int> dims_2d = {state->n_cols, state->n_species};
-    
+
     state->diag_mgr->register_field("carbchem_prod_mass", "Carbon Chemistry Production Mass", "kg/kg", DiagType::FIELD_3D, dims_3d);
     state->diag_mgr->register_field("carbchem_loss_flux", "Carbon Chemistry Loss Flux", "kg/m2/s", DiagType::FIELD_2D, dims_2d);
     state->diag_mgr->register_field("carbchem_phobic_mass", "Carbon Chemistry Phobic to Philic Mass", "kg/kg", DiagType::FIELD_3D, dims_3d);
@@ -48,7 +48,7 @@ void CarbChemProcess::run(std::shared_ptr<StateManager> state) {
     double* delp_ptr = (delp_ptr_it != state->met.fields_3d.end()) ? delp_ptr_it->second->host_view.data() : nullptr;
     auto pmid_ptr_it = state->met.fields_3d.find("PMID");
     double* pmid_ptr = (pmid_ptr_it != state->met.fields_3d.end()) ? pmid_ptr_it->second->host_view.data() : nullptr;
-    
+
     if (!airden_ptr || !delp_ptr || !pmid_ptr) {
         std::cerr << "CarbChemProcess: Missing required meteorological fields." << std::endl;
         return;
@@ -68,7 +68,7 @@ void CarbChemProcess::run(std::shared_ptr<StateManager> state) {
     }
 
     double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
-    
+
     // Allocate local tendencies buffer
     std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);
 
@@ -76,7 +76,7 @@ void CarbChemProcess::run(std::shared_ptr<StateManager> state) {
     std::vector<double> t_chem_loss(state->n_species, 0.0);
     for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
         // Mock t_chem_loss for carbchem if not directly in metadata struct
-        t_chem_loss[i] = 1.0; 
+        t_chem_loss[i] = 1.0;
     }
 
     // 5. Invoke flat science bridge
