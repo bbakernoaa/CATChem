@@ -34,17 +34,17 @@ private:
     int n_cols;
 public:
     DummyDiagProcess(std::shared_ptr<catchem::DiagnosticManager> dm, int nc) : diag_mgr(dm), n_cols(nc) {}
-    
+
     std::string get_name() const override { return "DummyDiagProcess"; }
-    
+
     void init(std::shared_ptr<catchem::StateManager> state) override {}
-    
+
     void run(std::shared_ptr<catchem::StateManager> state) override {
         // Retrieve the underlying diagnostic device View
         auto dust_flux = diag_mgr->get_device_view_2d("dust_emission_flux");
-        
+
         // Capture View by value in the parallel kernel
-        Kokkos::parallel_for("calculate_dust_emissions", 
+        Kokkos::parallel_for("calculate_dust_emissions",
             Kokkos::RangePolicy<Kokkos::DefaultExecutionSpace>(0, n_cols),
             KOKKOS_LAMBDA(int icol) {
                 // Write directly to the diagnostic view
@@ -52,7 +52,7 @@ public:
             }
         );
     }
-    
+
     void finalize() override {}
 };
 
@@ -111,34 +111,34 @@ int main(int argc, char* argv[]) {
             int ny = 1;
             int nz = 5;
             int n_cols = nx * ny;
-            
+
             // 1. Create Core (creates StateManager & DiagnosticManager)
             void* core_ptr = catchem_core_create(n_cols, nz, 1);
             auto* core = static_cast<catchem::Core*>(core_ptr);
             auto diag_mgr = core->get_diagnostic_manager();
-            
+
             // 2. Register diagnostic through C-API
             catchem_diag_register(core_ptr, "dust_emission_flux", "Dust flux", "kg/m2/s", 2, n_cols, 1, 0);
-            
+
             // 3. Attach dummy diagnostic process
             core->add_process(std::make_shared<DummyDiagProcess>(diag_mgr, n_cols));
-            
+
             // 4. Run timestep (runs dummy process and syncs diagnostics to host)
             catchem_core_run_timestep(core_ptr, 3600.0);
-            
+
             // 5. Get host pointer and verify results
             void* host_ptr = catchem_diag_get_pointer(core_ptr, "dust_emission_flux");
             double* dust_flux_host = static_cast<double*>(host_ptr);
-            
+
             bool passed = true;
             for (int i = 0; i < n_cols; ++i) {
                 if (dust_flux_host[i] != 42.0 + i) { // Note LayoutLeft means col_i is inner dimension
-                    std::cerr << "Diagnostic mismatch at col " << i << ": expected " << 42.0 + i 
+                    std::cerr << "Diagnostic mismatch at col " << i << ": expected " << 42.0 + i
                               << ", got " << dust_flux_host[i] << std::endl;
                     passed = false;
                 }
             }
-            
+
             if (passed) {
                 std::cout << "SUCCESS: C++ Diagnostic Validation Passed!\n";
             } else {
@@ -395,7 +395,7 @@ int main(int argc, char* argv[]) {
             // The top layer should have less concentration due to settling.
             // Note: Since all aerosols settle down, concentration at the top layer should decrease.
             // We just check if the top layer of an aerosol species is less than 1.0.
-            
+
             // Get index of an aerosol (e.g., 'so4')
             int idx_so4_1based = catchem_state_get_species_index(state, "so4");
             int idx_so4_0based = idx_so4_1based - 1;
@@ -407,14 +407,14 @@ int main(int argc, char* argv[]) {
             // InteropField 3D: (col, level, species). Memory layout: col + level * nc + species * nc * nl
             int top_level_idx = n_levels - 1;
             double top_layer_conc = mock_chem_state[0 + top_level_idx * n_cols + idx_so4_0based * n_cols * n_levels];
-            
+
             std::cout << "DEBUG: top_layer_conc=" << top_layer_conc << std::endl;
             for (int k = 0; k < n_levels; ++k) {
                 std::cout << "  Level " << k << " conc = " << mock_chem_state[0 + k * n_cols + idx_so4_0based * n_cols * n_levels] << std::endl;
             }
-            
+
             assert(top_layer_conc < 1.0); // Concentration should drop at the top
-            
+
             catchem_core_destroy(core);
             std::cout << "SUCCESS: C++ Kokkos Settling Process Validation Passed!\n";
         }
@@ -438,7 +438,7 @@ int main(int argc, char* argv[]) {
                 }
             }
             void* core = catchem_core_create_from_config(config_path.c_str());
-            
+
             int nx, ny, nz;
             catchem_get_grid_dimensions(core, &nx, &ny, &nz);
             assert(nx > 0);
@@ -500,7 +500,7 @@ int main(int argc, char* argv[]) {
             std::vector<double> mock_lon(n_cols, -80.0);
 
             std::vector<double> mock_chem_state(n_cols * n_levels * n_species, 1.0);
-            
+
             // Bind 3D Met fields
             catchem_state_bind_met_3d(state, "T", mock_t.data());
             catchem_state_bind_met_3d(state, "QV", mock_qv.data());
@@ -577,7 +577,7 @@ int main(int argc, char* argv[]) {
             std::vector<double> mock_ustar(n_cols, 0.5);
 
             // Bind them
-            
+
             std::vector<double> mock_lat(n_cols, 40.0);
             std::vector<double> mock_lon(n_cols, -80.0);
             state->bind_met_field_2d("LAT", mock_lat.data());

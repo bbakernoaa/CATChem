@@ -48,7 +48,10 @@ set_target_properties(
     Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
     LINKER_LANGUAGE Fortran
 )
-target_include_directories(test_UnitConversion PRIVATE ${CMAKE_BINARY_DIR}/include)
+target_include_directories(
+  test_UnitConversion
+  PRIVATE ${CMAKE_BINARY_DIR}/include
+)
 add_dependencies(test_UnitConversion CATChem_core)
 add_test(
   NAME test_UnitConversion
@@ -59,35 +62,42 @@ add_test(
 # New C++ Interop and Integration Suite
 if(ENABLE_KOKKOS)
   add_executable(test_catchem_interop test_catchem_interop.cpp)
-  target_link_libraries(test_catchem_interop PRIVATE 
-    CATChem_core_cpp 
-    CATChem_core 
-    Kokkos::kokkos
-    CATChem_process_settling
-    CATChem_process_seasalt
-    CATChem_process_drydep
-    CATChem_process_wetdep
-    CATChem_process_so4chem
-    CATChem_process_dust
-    CATChem_process_carbchem
+  target_link_libraries(
+    test_catchem_interop
+    PRIVATE
+      CATChem_core_cpp
+      CATChem_core
+      Kokkos::kokkos
+      CATChem_process_settling
+      CATChem_process_seasalt
+      CATChem_process_drydep
+      CATChem_process_wetdep
+      CATChem_process_so4chem
+      CATChem_process_dust
+      CATChem_process_carbchem
   )
   set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE Fortran)
   add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
 
   # Modern Randomized Property-Based Testing
   add_executable(test_catchem_properties test_catchem_properties.cpp)
-  target_link_libraries(test_catchem_properties PRIVATE 
-    CATChem_core_cpp 
-    CATChem_core 
-    Kokkos::kokkos
-    CATChem_process_settling
-    CATChem_process_seasalt
-    CATChem_process_drydep
-    CATChem_process_wetdep
-    CATChem_process_so4chem
-    CATChem_process_dust
-    CATChem_process_carbchem
+  target_link_libraries(
+    test_catchem_properties
+    PRIVATE
+      CATChem_core_cpp
+      CATChem_core
+      Kokkos::kokkos
+      CATChem_process_settling
+      CATChem_process_seasalt
+      CATChem_process_drydep
+      CATChem_process_wetdep
+      CATChem_process_so4chem
+      CATChem_process_dust
+      CATChem_process_carbchem
   )
-  set_target_properties(test_catchem_properties PROPERTIES LINKER_LANGUAGE Fortran)
+  set_target_properties(
+    test_catchem_properties
+    PROPERTIES LINKER_LANGUAGE Fortran
+  )
   add_test(NAME test_catchem_properties COMMAND test_catchem_properties)
 endif()

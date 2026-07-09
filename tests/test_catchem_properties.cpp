@@ -31,12 +31,12 @@ void fill_random(std::vector<double>& vec, double min_val, double max_val, std::
 void verify_properties(const std::vector<double>& conc, size_t size, int iteration) {
     for (size_t i = 0; i < size; ++i) {
         if (!std::isfinite(conc[i])) {
-            std::cerr << "PROPERTY FAILURE: Index " << i 
+            std::cerr << "PROPERTY FAILURE: Index " << i
                       << " is NaN or Inf at iteration " << iteration << std::endl;
             assert(false && "Concentration must remain finite!");
         }
         if (conc[i] < -1e-15) {
-            std::cerr << "PROPERTY FAILURE: Index " << i 
+            std::cerr << "PROPERTY FAILURE: Index " << i
                       << " is negative (" << conc[i] << ") at iteration " << iteration << std::endl;
             assert(false && "Mass conservation violated!");
         }
@@ -238,8 +238,8 @@ int main(int argc, char* argv[]) {
                     int col_lev_idx = i % size_3d;
                     int col_idx = col_lev_idx / n_levels;
                     int lev_idx = col_lev_idx % n_levels;
-                    std::cerr << "PROPERTY FAILURE: NaN detected at conc index " << i 
-                              << " (Species=" << spec_idx << ", Column=" << col_idx 
+                    std::cerr << "PROPERTY FAILURE: NaN detected at conc index " << i
+                              << " (Species=" << spec_idx << ", Column=" << col_idx
                               << ", Level=" << lev_idx << ") during iteration " << iter << std::endl;
                 }
                 assert(std::isfinite(conc[i]) && "Concentration must remain finite!");
@@ -257,7 +257,7 @@ int main(int argc, char* argv[]) {
 
         // Finalize lifecycle
         catchem_core_destroy(core_ptr);
-        
+
         std::cout << "\n==========================================" << std::endl;
         std::cout << "=== SUCCESS: ALL PROPERTY CHECKS HELD! ===" << std::endl;
         std::cout << "==========================================\n" << std::endl;
