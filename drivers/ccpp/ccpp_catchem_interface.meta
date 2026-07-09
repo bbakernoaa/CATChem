@@ -492,7 +492,7 @@
   type = real | kind = kind_phys
   intent = in
 [clayfrac]
-  standard_name = clay_fraction_in_soil
+  standard_name = clay_fraction
   units = fraction
   dimensions = (horizontal_loop_extent)
   type = real | kind = kind_phys
@@ -504,7 +504,7 @@
   type = real | kind = kind_phys
   intent = in
 [sandfrac]
-  standard_name = sand_fraction_in_soil
+  standard_name = sand_fraction
   units = fraction
   dimensions = (horizontal_loop_extent)
   type = real | kind = kind_phys
