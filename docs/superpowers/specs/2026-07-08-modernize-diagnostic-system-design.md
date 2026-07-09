@@ -105,10 +105,10 @@ public:
 
     bool is_gpu_target;
 
-    DiagnosticField(const std::string& name_val, 
-                    const std::string& desc_val, 
-                    const std::string& units_val, 
-                    DiagType type_val, 
+    DiagnosticField(const std::string& name_val,
+                    const std::string& desc_val,
+                    const std::string& units_val,
+                    DiagType type_val,
                     const std::vector<int>& dims);
 
     void sync_to_host();
@@ -140,20 +140,20 @@ private:
 public:
     DiagnosticManager() = default;
 
-    void register_field(const std::string& name, 
-                        const std::string& desc, 
-                        const std::string& units, 
-                        DiagType type, 
+    void register_field(const std::string& name,
+                        const std::string& desc,
+                        const std::string& units,
+                        DiagType type,
                         const std::vector<int>& dims);
 
     bool has_field(const std::string& name) const;
     std::shared_ptr<DiagnosticField> get_field(const std::string& name);
 
     // Upfront View Getters for capture in Kokkos parallel kernels
-    Kokkos::View<double**, Kokkos::LayoutLeft, DefaultExecutionSpace::memory_space> 
+    Kokkos::View<double**, Kokkos::LayoutLeft, DefaultExecutionSpace::memory_space>
     get_device_view_2d(const std::string& name);
 
-    Kokkos::View<double***, Kokkos::LayoutLeft, DefaultExecutionSpace::memory_space> 
+    Kokkos::View<double***, Kokkos::LayoutLeft, DefaultExecutionSpace::memory_space>
     get_device_view_3d(const std::string& name);
 
     void* get_host_pointer(const std::string& name);
@@ -179,7 +179,7 @@ void DustProcess::run(std::shared_ptr<StateManager> state, std::shared_ptr<Diagn
     auto dust_flux = diag_mgr->get_device_view_2d("dust_emission_flux");
 
     // 2. Capture View by value in the parallel kernel
-    Kokkos::parallel_for("calculate_dust_emissions", 
+    Kokkos::parallel_for("calculate_dust_emissions",
         Kokkos::RangePolicy<Kokkos::DefaultExecutionSpace>(0, n_cols),
         KOKKOS_LAMBDA(int icol) {
             double emission_rate = run_dust_scheme_on_column(icol);

@@ -107,7 +107,7 @@ For coupled simulations, raw pointer binders at the C-API boundary construct unm
 void catchem_state_bind_met_3d(void* state_ptr, const char* name, double* ptr) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     std::string key(name);
-    
+
     // Bind directly to unmanaged InteropField mapping the Fortran heap address
     auto field = std::make_shared<catchem::InteropField<double, 3>>(ptr, std::vector<int>{state->n_cols, state->n_levels, 1});
     state->met.fields_3d[key] = field;
@@ -225,7 +225,7 @@ struct TimeState {
         double ha_rad = hour_angle * constants::PI_180;
 
         double cos_sza = std::sin(lat_rad) * std::sin(dec) + std::cos(lat_rad) * std::cos(dec) * std::cos(ha_rad);
-        
+
         // Clamp output safely to [-1.0, 1.0]
         return std::max(-1.0, std::min(1.0, cos_sza));
     }
@@ -258,17 +258,17 @@ void StateManager::derive_bxheight() {
     double Rdg0 = constants::RD / constants::G0;
 
     // 2. Parallel Hydrostatic Integration
-    Kokkos::parallel_for("derive_bxheight", 
+    Kokkos::parallel_for("derive_bxheight",
         Kokkos::RangePolicy<Kokkos::DefaultExecutionSpace>(0, nc),
         KOKKOS_LAMBDA(int icol) {
             for (int k = 0; k < nl; ++k) {
                 // Calculate virtual temperature: Tv = T * (1 + 0.608 * qv)
                 double tv = t_view(icol, k, 0) * (1.0 + 0.608 * qv_view(icol, k, 0));
-                
+
                 // Box height from edge pressures: H_k = (R_d / g) * Tv * log(P_lower_edge / P_upper_edge)
                 double p_lower = pedge_view(icol, k, 0);
                 double p_upper = pedge_view(icol, k + 1, 0);
-                
+
                 bxheight_view(icol, k, 0) = Rdg0 * tv * std::log(p_lower / p_upper);
             }
         }

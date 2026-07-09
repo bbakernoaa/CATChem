@@ -10,11 +10,11 @@
 #include <vector>
 
 extern "C" {
-    void catchem_register_settling_cpp();
-    void catchem_register_drydep_cpp();
-    void catchem_register_seasalt_cpp();
-    void catchem_register_wetdep_cpp();
-    void catchem_register_so4chem_cpp();
+void catchem_register_settling_cpp();
+void catchem_register_drydep_cpp();
+void catchem_register_seasalt_cpp();
+void catchem_register_wetdep_cpp();
+void catchem_register_so4chem_cpp();
 }
 
 // Mock Fortran physics scheme working directly on host array
@@ -32,6 +32,7 @@ class DummyDiagProcess : public catchem::ProcessInterface {
 private:
     std::shared_ptr<catchem::DiagnosticManager> diag_mgr;
     int n_cols;
+
 public:
     DummyDiagProcess(std::shared_ptr<catchem::DiagnosticManager> dm, int nc) : diag_mgr(dm), n_cols(nc) {}
 
@@ -44,13 +45,12 @@ public:
         auto dust_flux = diag_mgr->get_device_view_2d("dust_emission_flux");
 
         // Capture View by value in the parallel kernel
-        Kokkos::parallel_for("calculate_dust_emissions",
-            Kokkos::RangePolicy<Kokkos::DefaultExecutionSpace>(0, n_cols),
+        Kokkos::parallel_for(
+            "calculate_dust_emissions", Kokkos::RangePolicy<Kokkos::DefaultExecutionSpace>(0, n_cols),
             KOKKOS_LAMBDA(int icol) {
                 // Write directly to the diagnostic view
                 dust_flux(icol, 0) = 42.0 + icol;
-            }
-        );
+            });
     }
 
     void finalize() override {}
@@ -133,8 +133,8 @@ int main(int argc, char* argv[]) {
             bool passed = true;
             for (int i = 0; i < n_cols; ++i) {
                 if (dust_flux_host[i] != 42.0 + i) { // Note LayoutLeft means col_i is inner dimension
-                    std::cerr << "Diagnostic mismatch at col " << i << ": expected " << 42.0 + i
-                              << ", got " << dust_flux_host[i] << std::endl;
+                    std::cerr << "Diagnostic mismatch at col " << i << ": expected " << 42.0 + i << ", got "
+                              << dust_flux_host[i] << std::endl;
                     passed = false;
                 }
             }
@@ -183,9 +183,9 @@ int main(int argc, char* argv[]) {
             void* state = catchem_core_get_state_manager(core);
 
             // 1. Allocate mock meteorological and chemical arrays
-            std::vector<double> temp_array(n_cols * n_levels, 290.15); // Temperature [K]
-            std::vector<double> qv_array(n_cols * n_levels, 0.01);    // Specific humidity [kg/kg]
-            std::vector<double> pmid_array(n_cols * n_levels, 100000.0); // Mid-pressure [Pa]
+            std::vector<double> temp_array(n_cols * n_levels, 290.15);          // Temperature [K]
+            std::vector<double> qv_array(n_cols * n_levels, 0.01);              // Specific humidity [kg/kg]
+            std::vector<double> pmid_array(n_cols * n_levels, 100000.0);        // Mid-pressure [Pa]
             std::vector<double> pedge_array(n_cols * (n_levels + 1), 101325.0); // Pressure edges [Pa]
 
             // Assign standard pressure edge levels sequentially
@@ -198,7 +198,7 @@ int main(int argc, char* argv[]) {
                 pedge_array[i + 5 * n_cols] = 50000.0; // Top
             }
 
-            std::vector<double> bxheight_array(n_cols * n_levels, 0.0); // Output height
+            std::vector<double> bxheight_array(n_cols * n_levels, 0.0);   // Output height
             std::vector<double> airden_dry_array(n_cols * n_levels, 0.0); // Output dry density
 
             std::vector<double> mock_chem_state(n_cols * n_levels * n_species, 4.2); // Unified chem state
@@ -263,12 +263,8 @@ int main(int argc, char* argv[]) {
 
             // 1. Load species config from CATChem_species.yml (finding correct path)
             std::string config_path = "";
-            std::vector<std::string> candidates = {
-                "tests/CATChem_species.yml",
-                "../tests/CATChem_species.yml",
-                "../../tests/CATChem_species.yml",
-                "CATChem_species.yml"
-            };
+            std::vector<std::string> candidates = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+                                                   "../../tests/CATChem_species.yml", "CATChem_species.yml"};
             for (const auto& path : candidates) {
                 std::ifstream f(path);
                 if (f.good()) {
@@ -313,7 +309,8 @@ int main(int argc, char* argv[]) {
             // Ensure so2 index is present in gas_indices
             bool found_so2 = false;
             for (int idx : gas_indices) {
-                if (idx == idx_so2) found_so2 = true;
+                if (idx == idx_so2)
+                    found_so2 = true;
             }
             assert(found_so2);
 
@@ -335,12 +332,8 @@ int main(int argc, char* argv[]) {
 
             // Load species config so we have aerosols to process
             std::string config_path = "";
-            std::vector<std::string> candidates = {
-                "tests/CATChem_species.yml",
-                "../tests/CATChem_species.yml",
-                "../../tests/CATChem_species.yml",
-                "CATChem_species.yml"
-            };
+            std::vector<std::string> candidates = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+                                                   "../../tests/CATChem_species.yml", "CATChem_species.yml"};
             for (const auto& path : candidates) {
                 std::ifstream f(path);
                 if (f.good()) {
@@ -351,12 +344,12 @@ int main(int argc, char* argv[]) {
             catchem_state_load_species_config(state, config_path.c_str());
 
             // Allocate mock meteorological arrays
-            std::vector<double> temp_array(n_cols * n_levels, 298.15); // Temperature [K]
-            std::vector<double> qv_array(n_cols * n_levels, 0.01);    // Specific humidity [kg/kg]
-            std::vector<double> pmid_array(n_cols * n_levels, 100000.0); // Mid-pressure [Pa]
+            std::vector<double> temp_array(n_cols * n_levels, 298.15);          // Temperature [K]
+            std::vector<double> qv_array(n_cols * n_levels, 0.01);              // Specific humidity [kg/kg]
+            std::vector<double> pmid_array(n_cols * n_levels, 100000.0);        // Mid-pressure [Pa]
             std::vector<double> pedge_array(n_cols * (n_levels + 1), 101325.0); // Pressure edges [Pa]
-            std::vector<double> airden_array(n_cols * n_levels, 1.2); // Output dry density
-            std::vector<double> bxheight_array(n_cols * n_levels, 1000.0); // Output height
+            std::vector<double> airden_array(n_cols * n_levels, 1.2);           // Output dry density
+            std::vector<double> bxheight_array(n_cols * n_levels, 1000.0);      // Output height
 
             for (int i = 0; i < n_cols; ++i) {
                 pedge_array[i + 0 * n_cols] = 101325.0; // Surface
@@ -367,7 +360,8 @@ int main(int argc, char* argv[]) {
                 pedge_array[i + 5 * n_cols] = 50000.0; // Top
             }
 
-            std::vector<double> mock_chem_state(n_cols * n_levels * n_species, 1.0); // Initial concentration of 1.0 for all
+            std::vector<double> mock_chem_state(n_cols * n_levels * n_species,
+                                                1.0); // Initial concentration of 1.0 for all
 
             // Bind arrays to StateManager
             catchem_state_bind_met_3d(state, "T", temp_array.data());
@@ -400,7 +394,8 @@ int main(int argc, char* argv[]) {
             int idx_so4_1based = catchem_state_get_species_index(state, "so4");
             int idx_so4_0based = idx_so4_1based - 1;
 
-            std::cout << "DEBUG: idx_so4_1based=" << idx_so4_1based << ", idx_so4_0based=" << idx_so4_0based << std::endl;
+            std::cout << "DEBUG: idx_so4_1based=" << idx_so4_1based << ", idx_so4_0based=" << idx_so4_0based
+                      << std::endl;
 
             // Since LayoutLeft is (i, j, k), meaning (col, lev, spec)
             // Wait, LayoutLeft means innermost dimension is leftmost.
@@ -410,7 +405,9 @@ int main(int argc, char* argv[]) {
 
             std::cout << "DEBUG: top_layer_conc=" << top_layer_conc << std::endl;
             for (int k = 0; k < n_levels; ++k) {
-                std::cout << "  Level " << k << " conc = " << mock_chem_state[0 + k * n_cols + idx_so4_0based * n_cols * n_levels] << std::endl;
+                std::cout << "  Level " << k
+                          << " conc = " << mock_chem_state[0 + k * n_cols + idx_so4_0based * n_cols * n_levels]
+                          << std::endl;
             }
 
             assert(top_layer_conc < 1.0); // Concentration should drop at the top
@@ -424,12 +421,8 @@ int main(int argc, char* argv[]) {
         // ==========================================
         {
             std::string config_path = "";
-            std::vector<std::string> candidates = {
-                "tests/CATChem_new_config.yml",
-                "../tests/CATChem_new_config.yml",
-                "../../tests/CATChem_new_config.yml",
-                "CATChem_new_config.yml"
-            };
+            std::vector<std::string> candidates = {"tests/CATChem_new_config.yml", "../tests/CATChem_new_config.yml",
+                                                   "../../tests/CATChem_new_config.yml", "CATChem_new_config.yml"};
             for (const auto& path : candidates) {
                 std::ifstream f(path);
                 if (f.good()) {
@@ -469,16 +462,14 @@ int main(int argc, char* argv[]) {
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
 
             // Load species configuration first (otherwise species_list is empty)
-            std::vector<std::string> paths = {
-                "tests/CATChem_species.yml",
-                "../tests/CATChem_species.yml",
-                "../../tests/CATChem_species.yml"
-            };
+            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+                                              "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {
                     state->load_species_config(path);
                     break;
-                } catch (...) {}
+                } catch (...) {
+                }
             }
 
             // Set up mock temperature and concentrations (so4 at index 4)
@@ -557,16 +548,14 @@ int main(int argc, char* argv[]) {
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
 
             // Load species
-            std::vector<std::string> paths = {
-                "tests/CATChem_species.yml",
-                "../tests/CATChem_species.yml",
-                "../../tests/CATChem_species.yml"
-            };
+            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+                                              "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {
                     state->load_species_config(path);
                     break;
-                } catch (...) {}
+                } catch (...) {
+                }
             }
 
             // Allocate met fields dynamically (FROCEAN, FRSEAICE, SST, DELP)
@@ -620,16 +609,14 @@ int main(int argc, char* argv[]) {
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
 
             // Load species
-            std::vector<std::string> paths = {
-                "tests/CATChem_species.yml",
-                "../tests/CATChem_species.yml",
-                "../../tests/CATChem_species.yml"
-            };
+            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+                                              "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {
                     state->load_species_config(path);
                     break;
-                } catch (...) {}
+                } catch (...) {
+                }
             }
 
             // Allocate met fields dynamically (AIRDEN_DRY, AIRDEN, MAIRDEN, PEDGE, PFILSAN, PFLLSAN, REEVAPLS, T)
@@ -678,16 +665,14 @@ int main(int argc, char* argv[]) {
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
 
             // Load species
-            std::vector<std::string> paths = {
-                "tests/CATChem_species.yml",
-                "../tests/CATChem_species.yml",
-                "../../tests/CATChem_species.yml"
-            };
+            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+                                              "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {
                     state->load_species_config(path);
                     break;
-                } catch (...) {}
+                } catch (...) {
+                }
             }
 
             // Allocate met fields dynamically (AIRDEN, CLDF, DELP, PMID, T, PEDGE, HFLUX, LAT, LON, PBLH, USTAR)

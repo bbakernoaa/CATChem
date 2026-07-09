@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary & Objectives
 
-This design details the replacement of the Fortran operational core (`src/core/**`) with a native, GPU-enabled C++ implementation powered by **Kokkos**. 
+This design details the replacement of the Fortran operational core (`src/core/**`) with a native, GPU-enabled C++ implementation powered by **Kokkos**.
 
 ### Primary Goals:
 * **GPU & CPU Interoperability:** Provide compile-time toggles and runtime optimization for CPU (zero-copy) and GPU execution.
@@ -77,7 +77,7 @@ public:
 
     InteropField(DataType* ptr, const std::vector<int>& dims) {
         is_gpu_target = !std::is_same_v<HostSpace, DeviceSpace>;
-        
+
         if constexpr (Rank == 1) {
             host_view = HostViewType(ptr, dims[0]);
             if (is_gpu_target) device_view = DeviceViewType("dev_field_1d", dims[0]);
@@ -170,7 +170,7 @@ namespace catchem {
 class StateManager {
 public:
     int n_cols, n_levels, n_species;
-    
+
     std::unordered_map<std::string, std::shared_ptr<InteropField<double, 1>>> fields_1d;
     std::unordered_map<std::string, std::shared_ptr<InteropField<double, 2>>> fields_2d;
     std::unordered_map<std::string, std::shared_ptr<InteropField<double, 3>>> fields_3d;

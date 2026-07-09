@@ -1,22 +1,22 @@
-#include <Kokkos_Core.hpp>
-#include "catchem_core.hpp"
 #include "catchem_api.hpp"
-#include "catchem_state_manager.hpp"
+#include "catchem_core.hpp"
 #include "catchem_process_registry.hpp"
-#include <iostream>
-#include <vector>
-#include <random>
-#include <cmath>
+#include "catchem_state_manager.hpp"
+#include <Kokkos_Core.hpp>
 #include <cassert>
+#include <cmath>
+#include <iostream>
+#include <random>
+#include <vector>
 
 extern "C" {
-    void catchem_register_seasalt_cpp();
-    void catchem_register_drydep_cpp();
-    void catchem_register_wetdep_cpp();
-    void catchem_register_settling_cpp();
-    void catchem_register_so4chem_cpp();
-    void catchem_register_dust_cpp();
-    void catchem_register_carbchem_cpp();
+void catchem_register_seasalt_cpp();
+void catchem_register_drydep_cpp();
+void catchem_register_wetdep_cpp();
+void catchem_register_settling_cpp();
+void catchem_register_so4chem_cpp();
+void catchem_register_dust_cpp();
+void catchem_register_carbchem_cpp();
 }
 
 // Bounded random filling
@@ -31,13 +31,12 @@ void fill_random(std::vector<double>& vec, double min_val, double max_val, std::
 void verify_properties(const std::vector<double>& conc, size_t size, int iteration) {
     for (size_t i = 0; i < size; ++i) {
         if (!std::isfinite(conc[i])) {
-            std::cerr << "PROPERTY FAILURE: Index " << i
-                      << " is NaN or Inf at iteration " << iteration << std::endl;
+            std::cerr << "PROPERTY FAILURE: Index " << i << " is NaN or Inf at iteration " << iteration << std::endl;
             assert(false && "Concentration must remain finite!");
         }
         if (conc[i] < -1e-15) {
-            std::cerr << "PROPERTY FAILURE: Index " << i
-                      << " is negative (" << conc[i] << ") at iteration " << iteration << std::endl;
+            std::cerr << "PROPERTY FAILURE: Index " << i << " is negative (" << conc[i] << ") at iteration "
+                      << iteration << std::endl;
             assert(false && "Mass conservation violated!");
         }
     }
@@ -175,7 +174,7 @@ int main(int argc, char* argv[]) {
 
         for (int iter = 1; iter <= 100; ++iter) {
             // Fuzz temperature across extreme physical atmospheric ranges
-            fill_random(t_air, 170.0, 330.0, gen);       // Stratosphere to boundary surface Temps
+            fill_random(t_air, 170.0, 330.0, gen); // Stratosphere to boundary surface Temps
 
             // Construct monotonic, physically consistent pressure edges and midpoints per column
             for (int icol = 0; icol < n_cols; ++icol) {
@@ -184,7 +183,8 @@ int main(int argc, char* argv[]) {
                 for (int k = 0; k < n_levels; ++k) {
                     double delta = std::uniform_real_distribution<double>(5000.0, 12000.0)(gen);
                     current_p -= delta;
-                    if (current_p < 100.0) current_p = 100.0;
+                    if (current_p < 100.0)
+                        current_p = 100.0;
                     pedge[icol * (n_levels + 1) + k + 1] = current_p;
 
                     // Midpoint pressure is average of the edges
@@ -196,29 +196,33 @@ int main(int argc, char* argv[]) {
                     // Derive dry air density using the Ideal Gas Law: rho = P / (R_dry * T)
                     double t = t_air[icol * n_levels + k];
                     double rho = pmid[icol * n_levels + k] / (287.05 * t);
-                    if (rho < 0.01) rho = 0.01;
-                    if (rho > 2.0) rho = 2.0;
+                    if (rho < 0.01)
+                        rho = 0.01;
+                    if (rho > 2.0)
+                        rho = 2.0;
                     airden_dry[icol * n_levels + k] = rho;
                     mairden[icol * n_levels + k] = rho;
 
                     // Derive dz (layer thickness) using hydrostatic balance: dz = dp / (rho * g)
                     double dz = delp[icol * n_levels + k] / (rho * 9.80665);
-                    if (dz < 1.0) dz = 1.0;
-                    if (dz > 5000.0) dz = 5000.0;
+                    if (dz < 1.0)
+                        dz = 1.0;
+                    if (dz > 5000.0)
+                        dz = 5000.0;
                     bxheight[icol * n_levels + k] = dz;
                 }
             }
 
-            fill_random(cldf, 0.0, 1.0, gen);           // cloud fractions
-            fill_random(pfilsan, 0.0, 0.1, gen);        // Dynamic fractions
+            fill_random(cldf, 0.0, 1.0, gen);    // cloud fractions
+            fill_random(pfilsan, 0.0, 0.1, gen); // Dynamic fractions
             fill_random(pfllsan, 0.0, 0.1, gen);
-            fill_random(reevapls, 0.0, 1e-4, gen);      // Dynamic liquid reevaporations
-            fill_random(ustar, 0.01, 2.5, gen);         // Extreme shear friction winds
-            fill_random(u10m, -50.0, 50.0, gen);        // Dynamic 10-meter wind components
+            fill_random(reevapls, 0.0, 1e-4, gen); // Dynamic liquid reevaporations
+            fill_random(ustar, 0.01, 2.5, gen);    // Extreme shear friction winds
+            fill_random(u10m, -50.0, 50.0, gen);   // Dynamic 10-meter wind components
             fill_random(v10m, -50.0, 50.0, gen);
 
             // Fuzz chemical concentrations
-            fill_random(conc, 0.0, 1e-6, gen);          // Plausible trace-gas concentrations (kg/kg)
+            fill_random(conc, 0.0, 1e-6, gen); // Plausible trace-gas concentrations (kg/kg)
 
             // Dynamic pointers association and synchronizations
             state->bind_unified_chemistry(conc.data());
@@ -238,16 +242,17 @@ int main(int argc, char* argv[]) {
                     int col_lev_idx = i % size_3d;
                     int col_idx = col_lev_idx / n_levels;
                     int lev_idx = col_lev_idx % n_levels;
-                    std::cerr << "PROPERTY FAILURE: NaN detected at conc index " << i
-                              << " (Species=" << spec_idx << ", Column=" << col_idx
-                              << ", Level=" << lev_idx << ") during iteration " << iter << std::endl;
+                    std::cerr << "PROPERTY FAILURE: NaN detected at conc index " << i << " (Species=" << spec_idx
+                              << ", Column=" << col_idx << ", Level=" << lev_idx << ") during iteration " << iter
+                              << std::endl;
                 }
                 assert(std::isfinite(conc[i]) && "Concentration must remain finite!");
             }
 
             // Clip tiny negative concentrations to 0.0 to mimic standard atmospheric model boundaries
             for (auto& val : conc) {
-                if (val < 0.0) val = 0.0;
+                if (val < 0.0)
+                    val = 0.0;
             }
             state->sync_to_device();
 

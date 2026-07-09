@@ -9,7 +9,7 @@ This specification details the design for incorporating standard-conforming C++2
 * **Seamless CPU/GPU Targets:** Integrates transparently with `InteropField` automatic dual-space host/device mirrors, binding standard `mdspan` over whichever memory buffer is active on the physical hardware target.
 
 ## 2. Foundational Memory Layer (`InteropField`)
-We will include the Kokkos-bundled reference `mdspan` header `<mdspan/mdspan.hpp>` inside `src/core/catchem_interop_field.hpp`. 
+We will include the Kokkos-bundled reference `mdspan` header `<mdspan/mdspan.hpp>` inside `src/core/catchem_interop_field.hpp`.
 
 To support compile-time type-safety, we will declare type-safe aliasing helpers inside `InteropField` using template specializations for Rank 1, 2, and 3:
 

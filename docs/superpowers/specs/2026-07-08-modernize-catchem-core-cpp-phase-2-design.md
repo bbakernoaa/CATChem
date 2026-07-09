@@ -162,7 +162,7 @@ contains
    ! C-linked bridging callback
    subroutine run_settling_physics_fortran_bridge(state_ptr) bind(C, name="run_settling_physics_fortran_bridge")
       type(c_ptr), value :: state_ptr
-      
+
       type(c_ptr) :: c_temp_ptr
       real(c_double), pointer :: fortran_temp(:,:)
       integer :: n_cols, n_levels
@@ -187,7 +187,7 @@ contains
    subroutine legacy_settling_physics_run(temp, n_cols, n_levels)
       integer, intent(in) :: n_cols, n_levels
       real(c_double), intent(inout) :: temp(n_cols, n_levels)
-      
+
       ! Sequentially modify values
       temp(:,:) = temp(:,:) + 10.0D0
    end subroutine legacy_settling_physics_run

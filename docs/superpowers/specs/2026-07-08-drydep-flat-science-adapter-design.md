@@ -1,7 +1,7 @@
 # Spec: C++ to Flat-Fortran Science Adapter for DryDep
 
 ## 1. Overview
-The goal of this design is to fully modernize the **`DryDep` (Dry Deposition)** process. In the original legacy codebase, `DryDep` relies on complex Fortran abstractions (`ProcessDryDepInterface_Mod.F90` and `DryDepProcessCreator_Mod.F90`), which require the legacy Fortran StateManager, VirtualColumns, and auto-generated meteorological macros to run. 
+The goal of this design is to fully modernize the **`DryDep` (Dry Deposition)** process. In the original legacy codebase, `DryDep` relies on complex Fortran abstractions (`ProcessDryDepInterface_Mod.F90` and `DryDepProcessCreator_Mod.F90`), which require the legacy Fortran StateManager, VirtualColumns, and auto-generated meteorological macros to run.
 
 This design implements a **C++ to Flat-Fortran Science Adapter (Approach 1)**. It completely bypasses the legacy Fortran Core. Instead, the centralized C++ Core (`catchem::Core` and `catchem::StateManager`) acts as the single source of truth. When running dry deposition, the C++ wrapper retrieves raw host pointers of its Kokkos Views (and dynamic diagnostic fields), and passes them straight to a thin, C-linkable Fortran bridge (**`DryDepScienceBridge.F90`**). The bridge standardizes the raw pointers as native Fortran arrays, loops over columns, and slices them to dispatch unmodified physical calculations (`compute_wesely`, `compute_gocart`, or `compute_zhang`) in-place.
 

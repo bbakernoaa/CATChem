@@ -124,7 +124,7 @@ struct ChemState {
         YAML::Node config = YAML::LoadFile(filename);
         species_list.clear();
         species_name_to_index.clear();
-        
+
         gas_indices.clear();
         aerosol_indices.clear();
         tracer_indices.clear();
@@ -171,7 +171,7 @@ struct ChemState {
             meta.wd_retfactor = val["wd_retfactor"] ? val["wd_retfactor"].as<double>() : 0.0;
             meta.wd_LiqAndGas = val["wd_LiqAndGas"] ? val["wd_LiqAndGas"].as<bool>() : false;
             meta.wd_convfacI2G = val["wd_convfacI2G"] ? val["wd_convfacI2G"].as<double>() : 0.0;
-            
+
             if (val["wd_rainouteff"]) {
                 meta.wd_rainouteff = val["wd_rainouteff"].as<std::vector<double>>();
             }
@@ -260,7 +260,7 @@ struct TimeState {
         double ha_rad = hour_angle * constants::PI_180;
 
         double cos_sza = std::sin(lat_rad) * std::sin(dec) + std::cos(lat_rad) * std::cos(dec) * std::cos(ha_rad);
-        
+
         // Clamp output safely to [-1.0, 1.0]
         return std::max(-1.0, std::min(1.0, cos_sza));
     }
@@ -552,7 +552,7 @@ Inside `src/core/catchem_state_manager.hpp`:
 public:
     void derive_bxheight() {
         if (!met.PEDGE || !met.T || !met.QV || !met.BXHEIGHT) return;
-        
+
         int nc = n_cols;
         int nl = n_levels;
 

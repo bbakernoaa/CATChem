@@ -1,8 +1,8 @@
 #include "catchem_api.hpp"
 #include "catchem_core.hpp"
-#include "catchem_state_manager.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_process_registry.hpp"
+#include "catchem_state_manager.hpp"
 #include <iostream>
 
 extern "C" {
@@ -15,7 +15,8 @@ void* catchem_core_create_from_config(const char* config_file) {
     try {
         return static_cast<void*>(new catchem::Core(config_file));
     } catch (const std::exception& e) {
-        std::cerr << "CATChem API Error: Failed to create Core from config '" << config_file << "'. Details: " << e.what() << std::endl;
+        std::cerr << "CATChem API Error: Failed to create Core from config '" << config_file
+                  << "'. Details: " << e.what() << std::endl;
         return nullptr;
     }
 }
@@ -112,7 +113,8 @@ void catchem_core_add_process_by_name(void* core_ptr, const char* name) {
     core->add_process(process);
 }
 
-void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1, int dim2, int dim3) {
+void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1,
+                           int dim2, int dim3) {
     auto* core = static_cast<catchem::Core*>(core_ptr);
     catchem::DiagType type;
     std::vector<int> dims;
@@ -163,7 +165,8 @@ void catchem_state_load_species_config(void* state_ptr, const char* filename) {
         auto* state = static_cast<catchem::StateManager*>(state_ptr);
         state->load_species_config(filename);
     } catch (const std::exception& e) {
-        std::cerr << "CATChem API Error: Failed to load species configuration '" << filename << "'. Details: " << e.what() << std::endl;
+        std::cerr << "CATChem API Error: Failed to load species configuration '" << filename
+                  << "'. Details: " << e.what() << std::endl;
     }
 }
 
@@ -254,5 +257,4 @@ double catchem_get_config_timestep(void* core_ptr) {
     auto* core = static_cast<catchem::Core*>(core_ptr);
     return core->get_config_manager()->data.runtime.dt;
 }
-
 }

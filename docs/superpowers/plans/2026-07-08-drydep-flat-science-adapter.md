@@ -64,7 +64,7 @@ contains
       character(kind=c_char), intent(in) :: gas_scheme(*)
       character(kind=c_char), intent(in) :: aero_scheme(*)
       integer, value :: diagnostics
-      
+
       ! C pointers
       type(c_ptr), value :: c_bxheight, c_airden, c_t_air, c_z_edges, c_rh
       type(c_ptr), value :: c_cldfrc, c_frlai, c_frlanduse, c_iland, c_is_ice, c_is_land, c_is_snow
@@ -98,7 +98,7 @@ contains
       real(fp), pointer :: ustar(:), z0(:), frlake(:), gwettop(:), hflux(:)
       integer, pointer :: lwi(:)
       real(fp), pointer :: pblh(:), u10m(:), v10m(:), z0h(:)
-      
+
       real(fp), pointer :: conc(:,:,:), tendency(:,:,:), diag_con(:,:), diag_vel(:,:)
 
       ! Loop variables & structures
@@ -164,7 +164,7 @@ contains
 
       call c_f_pointer(c_conc,     conc,     [n_cols, n_levels, n_species])
       call c_f_pointer(c_tendency, tendency, [n_cols, n_levels, n_species])
-      
+
       if (diagnostics /= 0) then
          call c_f_pointer(c_diag_con, diag_con, [n_cols, n_species])
          call c_f_pointer(c_diag_vel, diag_vel, [n_cols, n_species])
@@ -219,7 +219,7 @@ contains
          ! Write tendencies and diagnostics back in-place
          tendency(icol, 1, :) = col_tendencies(1, :)
          conc(icol, 1, :) = conc(icol, 1, :) + dt * col_tendencies(1, :)
-         
+
          if (diagnostics /= 0) then
             diag_con(icol, :) = col_diag_con
             diag_vel(icol, :) = col_diag_vel
@@ -301,7 +301,7 @@ extern "C" {
 
 namespace catchem {
 
-DryDepProcess::DryDepProcess() 
+DryDepProcess::DryDepProcess()
     : gas_scheme("wesely"), aero_scheme("gocart"), diagnostics_enabled(true) {}
 
 void DryDepProcess::init(std::shared_ptr<StateManager> state) {
@@ -356,10 +356,10 @@ void DryDepProcess::run(std::shared_ptr<StateManager> state) {
 
     // 3. Extract chemical arrays & C++ allocated diagnostics
     double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
-    
+
     // Allocate local tendencies buffer
     std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);
-    
+
     double* diag_con = (double*)state->diag_mgr->get_host_pointer("drydep_con_per_species");
     double* diag_vel = (double*)state->diag_mgr->get_host_pointer("drydep_velocity_per_species");
 
@@ -469,10 +469,10 @@ Add `TEST 9` verifying that the modernized C++ `drydep` process initializes corr
             // TEST 9: Direct Flat-Science Interop Adapter for DryDep
             std::cout << "\n--- TEST 9: Direct Flat-Science Interop Adapter for DryDep ---\n";
             catchem_core_add_process_by_name(core, "drydep");
-            
+
             // Execute the pipeline which executes DryDepProcess::run()
             catchem_core_run_timestep(core, 3600.0);
-            
+
             // Retrieve dynamic diagnostic memory buffer
             double* host_diag_con = (double*)catchem_diag_get_pointer(core, "drydep_con_per_species");
             assert(host_diag_con != nullptr);

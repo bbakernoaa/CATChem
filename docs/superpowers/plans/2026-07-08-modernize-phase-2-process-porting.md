@@ -510,7 +510,7 @@ void Core::run_timestep(double dt) {
 
     // Sync execution outputs back to Fortran-accessible memory
     state_mgr->sync_to_host();
-    
+
     // Sync diagnostics
     diag_mgr->sync_to_host();
 }

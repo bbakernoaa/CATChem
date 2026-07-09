@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Apply the exact same "Direct C++ to Flat-Fortran Science Adapter" pattern used in `DryDep` to the remaining three legacy Fortran processes: `SeaSalt` (emissions), `WetDep` (wet deposition), and `SO4chem` (chemistry). 
+**Goal:** Apply the exact same "Direct C++ to Flat-Fortran Science Adapter" pattern used in `DryDep` to the remaining three legacy Fortran processes: `SeaSalt` (emissions), `WetDep` (wet deposition), and `SO4chem` (chemistry).
 
 **Architecture:** For each process, we bypass the legacy Fortran `StateManager` and `VirtualColumn` containers by writing a flat C-linkable Fortran bridge (`<Process>ScienceBridge.F90`). This bridge accepts raw host pointers from C++ and passes standard Fortran array slices to the unmodified science routines inside `src/process/<process>/schemes/`. The C++ caller (`catchem_process_<process>.cpp`) extracts host view pointers from `catchem::StateManager` (and `catchem::DiagnosticManager`) and executes the bridge. The legacy Fortran wrappers (`Process<Name>Interface_Mod.F90` and `<Name>ProcessCreator_Mod.F90`) are deleted.
 
@@ -35,7 +35,7 @@ Look at the signatures of `compute_gong97`, `compute_gong03`, and `compute_geos1
 Update `SeaSaltProcess::init` to register dynamic diagnostics in `state->diag_mgr`. Update `SeaSaltProcess::run` to extract raw view pointers (including from `mdspan` fields if necessary via `.data_handle()`), call `run_seasalt_science_bridge`, and fence with `sync_to_host()` and `sync_to_device()`.
 
 - [ ] **Step 3: Update `CMakeLists.txt` and Delete Legacy Code**
-Remove `ProcessSeaSaltInterface_Mod.F90` and `SeaSaltProcessCreator_Mod.F90`. Add `SeaSaltScienceBridge.F90` to the build. 
+Remove `ProcessSeaSaltInterface_Mod.F90` and `SeaSaltProcessCreator_Mod.F90`. Add `SeaSaltScienceBridge.F90` to the build.
 
 - [ ] **Step 4: Verify in Docker**
 Compile `CATChem_process_seasalt` to ensure syntax correctness.

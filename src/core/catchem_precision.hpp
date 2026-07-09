@@ -3,9 +3,9 @@
 namespace catchem {
 
 #ifdef USE_REAL8
-using fp = double;
+    using fp = double;
 #else
-using fp = float;
+    using fp = float;
 #endif
 
 } // namespace catchem

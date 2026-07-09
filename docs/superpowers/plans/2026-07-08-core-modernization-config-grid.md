@@ -176,7 +176,7 @@ public:
     bool is_initialized = false;
 
     GridManager(int nx, int ny, int nz);
-    
+
     // Bindings to support Fortran Interop arrays if allocated externally
     void bind_lat(double* ptr);
     void bind_lon(double* ptr);
@@ -309,10 +309,10 @@ Core::Core(const std::string& config_file) {
     int nz = config_mgr->data.runtime.nz;
 
     grid_mgr = std::make_shared<GridManager>(nx, ny, nz);
-    
+
     // For n_species, we either load it here or default to a safe value until ChemState loads it.
     // Assuming 50 default, or read from config if we add it to ConfigManager later.
-    state_mgr = std::make_shared<StateManager>(nx, ny, nz, 50); 
+    state_mgr = std::make_shared<StateManager>(nx, ny, nz, 50);
     diag_mgr = std::make_shared<DiagnosticManager>();
 }
 
@@ -441,7 +441,7 @@ Add **TEST 7: C++ Config and Grid Initialization** inside `tests/test_catchem_in
         // ==========================================
         {
             void* core = catchem_core_create_from_config("tests/CATChem_new_config.yml");
-            
+
             int nx, ny, nz;
             catchem_get_grid_dimensions(core, &nx, &ny, &nz);
             assert(nx > 0);

@@ -82,10 +82,10 @@ public:
 
     bool is_gpu_target;
 
-    DiagnosticField(const std::string& name_val, 
-                    const std::string& desc_val, 
-                    const std::string& units_val, 
-                    DiagType type_val, 
+    DiagnosticField(const std::string& name_val,
+                    const std::string& desc_val,
+                    const std::string& units_val,
+                    DiagType type_val,
                     const std::vector<int>& dims);
 
     void sync_to_host();
@@ -114,19 +114,19 @@ private:
 public:
     DiagnosticManager() = default;
 
-    void register_field(const std::string& name, 
-                        const std::string& desc, 
-                        const std::string& units, 
-                        DiagType type, 
+    void register_field(const std::string& name,
+                        const std::string& desc,
+                        const std::string& units,
+                        DiagType type,
                         const std::vector<int>& dims);
 
     bool has_field(const std::string& name) const;
     std::shared_ptr<DiagnosticField> get_field(const std::string& name);
 
-    Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space> 
+    Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
     get_device_view_2d(const std::string& name);
 
-    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space> 
+    Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
     get_device_view_3d(const std::string& name);
 
     void* get_host_pointer(const std::string& name);
@@ -146,12 +146,12 @@ public:
 
 namespace catchem {
 
-DiagnosticField::DiagnosticField(const std::string& name_val, 
-                                 const std::string& desc_val, 
-                                 const std::string& units_val, 
-                                 DiagType type_val, 
+DiagnosticField::DiagnosticField(const std::string& name_val,
+                                 const std::string& desc_val,
+                                 const std::string& units_val,
+                                 DiagType type_val,
                                  const std::vector<int>& dims)
-    : name(name_val), description(desc_val), units(units_val), type(type_val), dimensions(dims) 
+    : name(name_val), description(desc_val), units(units_val), type(type_val), dimensions(dims)
 {
     is_gpu_target = !std::is_same_v<HostSpace, DeviceSpace>;
 
@@ -200,10 +200,10 @@ void DiagnosticField::reset() {
     }
 }
 
-void DiagnosticManager::register_field(const std::string& name, 
-                                       const std::string& desc, 
-                                       const std::string& units, 
-                                       DiagType type, 
+void DiagnosticManager::register_field(const std::string& name,
+                                       const std::string& desc,
+                                       const std::string& units,
+                                       DiagType type,
                                        const std::vector<int>& dims) {
     fields[name] = std::make_shared<DiagnosticField>(name, desc, units, type, dims);
 }
@@ -217,14 +217,14 @@ std::shared_ptr<DiagnosticField> DiagnosticManager::get_field(const std::string&
     return fields.at(name);
 }
 
-Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space> 
+Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
 DiagnosticManager::get_device_view_2d(const std::string& name) {
     auto field = get_field(name);
     if (field->type != DiagType::FIELD_2D) throw std::invalid_argument("Field is not 2D: " + name);
     return field->device_view_2d;
 }
 
-Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space> 
+Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
 DiagnosticManager::get_device_view_3d(const std::string& name) {
     auto field = get_field(name);
     if (field->type != DiagType::FIELD_3D) throw std::invalid_argument("Field is not 3D: " + name);
@@ -374,7 +374,7 @@ void Core::run_timestep(double dt) {
 
     // Sync execution outputs back to Fortran-accessible memory
     state_mgr->sync_to_host();
-    
+
     // Sync diagnostics
     diag_mgr->sync_to_host();
 }
@@ -537,17 +537,17 @@ private:
     int n_cols;
 public:
     DummyDiagProcess(std::shared_ptr<catchem::DiagnosticManager> dm, int nc) : diag_mgr(dm), n_cols(nc) {}
-    
+
     std::string get_name() const override { return "DummyDiagProcess"; }
-    
+
     void init(std::shared_ptr<catchem::StateManager> state) override {}
-    
+
     void run(std::shared_ptr<catchem::StateManager> state) override {
         // Retrieve the underlying diagnostic device View
         auto dust_flux = diag_mgr->get_device_view_2d("dust_emission_flux");
-        
+
         // Capture View by value in the parallel kernel
-        Kokkos::parallel_for("calculate_dust_emissions", 
+        Kokkos::parallel_for("calculate_dust_emissions",
             Kokkos::RangePolicy<Kokkos::DefaultExecutionSpace>(0, n_cols),
             KOKKOS_LAMBDA(int icol) {
                 // Write directly to the diagnostic view
@@ -555,7 +555,7 @@ public:
             }
         );
     }
-    
+
     void finalize() override {}
 };
 
@@ -566,41 +566,41 @@ int main(int argc, char* argv[]) {
         int ny = 1;
         int nz = 5;
         int n_cols = nx * ny;
-        
+
         // 1. Create Core (which creates StateManager and DiagnosticManager)
         void* core_ptr = catchem_core_create(n_cols, nz, 1);
         auto* core = static_cast<catchem::Core*>(core_ptr);
         auto diag_mgr = core->get_diagnostic_manager();
-        
+
         // 2. Register diagnostic through C-API
         catchem_diag_register(core_ptr, "dust_emission_flux", "Dust flux", "kg/m2/s", 2, n_cols, 1, 0);
-        
+
         // 3. Attach dummy process
         core->add_process(std::make_shared<DummyDiagProcess>(diag_mgr, n_cols));
-        
+
         // 4. Run timestep (executes process, syncs diagnostics to host)
         catchem_core_run_timestep(core_ptr, 3600.0);
-        
+
         // 5. Get host pointer and verify results
         void* host_ptr = catchem_diag_get_pointer(core_ptr, "dust_emission_flux");
         double* dust_flux_host = static_cast<double*>(host_ptr);
-        
+
         bool passed = true;
         for (int i = 0; i < n_cols; ++i) {
             if (dust_flux_host[i] != 42.0 + i) { // Note LayoutLeft means col_i is inner dimension
-                std::cerr << "Diagnostic mismatch at col " << i << ": expected " << 42.0 + i 
+                std::cerr << "Diagnostic mismatch at col " << i << ": expected " << 42.0 + i
                           << ", got " << dust_flux_host[i] << std::endl;
                 passed = false;
             }
         }
-        
+
         if (passed) {
             std::cout << "SUCCESS: C++ Diagnostic Validation Passed!" << std::endl;
         } else {
             std::cout << "FAILURE: C++ Diagnostic Validation Failed!" << std::endl;
             return 1;
         }
-        
+
         catchem_core_destroy(core_ptr);
     }
     Kokkos::finalize();

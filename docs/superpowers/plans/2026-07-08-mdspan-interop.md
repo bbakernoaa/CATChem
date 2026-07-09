@@ -117,7 +117,7 @@ public:
 
     InteropField(DataType* ptr, const std::vector<int>& dims) {
         is_gpu_target = !std::is_same_v<HostSpace, DeviceSpace>;
-        
+
         if constexpr (Rank == 1) {
             host_view = HostViewType(ptr, dims[0]);
             if (is_gpu_target) device_view = DeviceViewType("dev_field_1d", dims[0]);
@@ -208,7 +208,7 @@ Add **TEST 8: Standard C++20 mdspan Representation and Indexing** inside `tests/
             std::vector<double> temp_array(n_cols * n_levels, 298.15);
             temp_array[0 + 0 * n_cols] = 273.15; // Bottom-left level 0
             temp_array[1 + 2 * n_cols] = 300.00; // Col 1, Level 2
-            
+
             catchem_state_bind_met_3d(state_obj, "T", temp_array.data());
             catchem_state_sync_to_device(state_obj);
 

@@ -5,18 +5,18 @@
 
 namespace catchem {
 
-class SeaSaltProcess : public ProcessInterface {
-private:
-    std::string active_scheme;
-    bool diagnostics_enabled;
-    std::vector<int> diagnostic_species_id;
+    class SeaSaltProcess : public ProcessInterface {
+    private:
+        std::string active_scheme;
+        bool diagnostics_enabled;
+        std::vector<int> diagnostic_species_id;
 
-public:
-    SeaSaltProcess();
-    std::string get_name() const override { return "seasalt"; }
-    void init(std::shared_ptr<StateManager> state) override;
-    void run(std::shared_ptr<StateManager> state) override;
-    void finalize() override {}
-};
+    public:
+        SeaSaltProcess();
+        std::string get_name() const override { return "seasalt"; }
+        void init(std::shared_ptr<StateManager> state) override;
+        void run(std::shared_ptr<StateManager> state) override;
+        void finalize() override {}
+    };
 
 } // namespace catchem

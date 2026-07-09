@@ -85,7 +85,8 @@ void catchem_get_grid_dimensions(void* core_ptr, int* nx, int* ny, int* nz);
 double catchem_get_config_timestep(void* core_ptr);
 
 // Diagnostic API
-void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1, int dim2, int dim3);
+void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1,
+                           int dim2, int dim3);
 void* catchem_diag_get_pointer(void* core_ptr, const char* name);
 void catchem_diag_sync_to_host(void* core_ptr);
 void catchem_diag_reset(void* core_ptr);
@@ -95,7 +96,8 @@ void catchem_diag_get_name_at(void* core_ptr, int index, char* name_out);
 // YAML Species Metadata
 void catchem_state_load_species_config(void* state_ptr, const char* filename);
 int catchem_state_get_species_count(void* state_ptr);
-int catchem_state_get_species_index(void* state_ptr, const char* name); // returns 1-based index matching Fortran, or -1 if not found
+int catchem_state_get_species_index(void* state_ptr,
+                                    const char* name); // returns 1-based index matching Fortran, or -1 if not found
 
 // Categorized counts and list getters
 int catchem_state_get_gas_species_count(void* state_ptr);

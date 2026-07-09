@@ -247,7 +247,7 @@ contains
       ! 2. Retrieve C++ double pointer for "temperature"
       ! append null-termination to Fortran string literal
       c_temp = catchem_state_get_pointer_2d(state_ptr, "temperature" // c_null_char)
-      
+
       if (.not. c_associated(c_temp)) return
 
       ! 3. Wrap raw C++ pointer back to Fortran array pointer (LayoutLeft matching column-major size)
@@ -332,7 +332,7 @@ Add **TEST 3: Phase 2 Sequenced Fortran Dynamic Bridge** inside `main()`:
 
             // 2. Attach our newly created C++ FortranProcess bridge callback
             core->add_process(std::make_shared<catchem::FortranProcess>(
-                "legacy_settling_physics", 
+                "legacy_settling_physics",
                 run_settling_physics_fortran_bridge
             ));
 

@@ -7,7 +7,7 @@
 ---
 
 ## 1. Executive Summary
-The CATChem C++ core architecture is designed to orchestrate physical and chemical processes using a centralized, high-performance C++20 layer. Initially, concrete process implementations (e.g. `SettlingProcess`, `SeaSaltProcess`, etc.) were placed under `@src/core`. To achieve absolute separation of concerns, improve modularity, and conform to the project's original directories structure, we are re-architecting the system to place all physical processes under `@src/process/<name>/**`. 
+The CATChem C++ core architecture is designed to orchestrate physical and chemical processes using a centralized, high-performance C++20 layer. Initially, concrete process implementations (e.g. `SettlingProcess`, `SeaSaltProcess`, etc.) were placed under `@src/core`. To achieve absolute separation of concerns, improve modularity, and conform to the project's original directories structure, we are re-architecting the system to place all physical processes under `@src/process/<name>/**`.
 
 This design establishes **mixed-language (Fortran/C++) process libraries** under `@src/process/` and introduces a **linker-safe, ISO_C_BINDING registration pattern** that prevents C++ symbols from being optimized out by the linker when compiled inside process-specific static libraries.
 
