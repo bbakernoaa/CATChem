@@ -25,6 +25,7 @@
 
 module catchem_nuopc_interface
 
+   use iso_c_binding, only: c_loc, c_null_char, c_char, c_double, c_ptr
    use ESMF
    use NUOPC
    use MPI
@@ -817,7 +818,6 @@ contains
       end if
 
       ! Transform based on field mapping
-      !select case (trim(field_map%catchem_var))
       select case (field_map%dimensions)
 
          ! 2D meteorological fields
@@ -827,7 +827,7 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
 
-         !set to met_state in CATChem
+         ! Special mask/convert variables
          if (trim(field_map%catchem_var) == 'DLUSE' .or. trim(field_map%catchem_var) == 'DSOILTYPE' .or. &
             trim(field_map%catchem_var) == 'LWI') then
             !convert to integer
@@ -835,109 +835,37 @@ contains
          else if (trim(field_map%catchem_var) == 'Z0') then ! roughness length in cm in NUOPC but m in CATChem
             call met_state%set_field(trim(field_map%catchem_var), real(fptr2d, fp)*0.01_fp, error_mgr, rc)
          else
-            call met_state%set_field(trim(field_map%catchem_var), real(fptr2d, fp), error_mgr, rc)
+            ! Standard direct zero-copy pointer mapping
+            call cc_wrap%catchem_model%bind_met_2d(trim(field_map%catchem_var) // c_null_char, c_loc(fptr2d(1,1)))
          end if
 
-         if (rc == CC_SUCCESS) then
-            if (allocated(cc_wrap%catchem_model%required_fields)) then
-               met_index = cc_wrap%catchem_model%get_required_met_index( trim(field_map%catchem_var) )
-               if (met_index >0 ) then
-                  is_met_set(met_index) = .true.
-               end if
+         if (allocated(cc_wrap%catchem_model%required_fields)) then
+            met_index = cc_wrap%catchem_model%get_required_met_index( trim(field_map%catchem_var) )
+            if (met_index > 0) then
+               is_met_set(met_index) = .true.
             end if
-            !TODO: met%set_met will stop the model run if field not matching. We may fix it later.
-         else if (.not. required) then
-            ! If the field is not required, we can skip the transformation
-            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-               msg="Met field is not set and its optional: " // trim(field_map%catchem_var), &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)
-         else
-            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-               msg="Met field is not set successfully for: " // trim(field_map%catchem_var), &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)
-            return  ! bail out
          end if
 
          ! 3D meteorological fields
        case (3)
-         nullify(fptr3d, fptr3d_rev)
+         nullify(fptr3d)
          call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
 
-         ni = size(fptr3d, 1)
-         nj = size(fptr3d, 2)
-         nk = size(fptr3d, 3)
+         ! Direct zero-copy 3D volumetric array pointer mapping to C++ core StateManager
+         call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var) // c_null_char, c_loc(fptr3d(1,1,1)))
 
-         if (trim(field_map%catchem_var) .ne. 'SOILM' .and.  trim(field_map%catchem_var) .ne. 'SOILT') then
-            !get catchem receriver vertical dimension for nz+1 variables while NUOPC has nz levels
-            !Currently only PFILSAN and PFLLSAN are in this case following GOCART and in most cases,
-            ! nk == nk1
-            call met_state%get_field_ptr(trim(field_map%catchem_var), i=1, j=1, col_ptr=column_ptr, rc=rc)
-            if (rc /= CC_SUCCESS) then
-               call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-                  msg="Error getting met field pointer for: " // trim(field_map%catchem_var), &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)
-               return  ! bail out
+         if (allocated(cc_wrap%catchem_model%required_fields)) then
+            met_index = cc_wrap%catchem_model%get_required_met_index( trim(field_map%catchem_var) )
+            if (met_index > 0) then
+               is_met_set(met_index) = .true.
             end if
-            nk1 = size(column_ptr)
-         else
-            !SOILM and SOILT have not been allocated because we do not have soil layers yet and the get_field_ptr will fail
-            nk1 = nk
          end if
-
-         ! Allocate fptr3d_rev with the same dimensions as fptr3d
-         allocate(fptr3d_rev(ni, nj, nk1))
-
-         ! -- map provider field levels to receiver field levels in the same (not reverse) order
-         ! -- NOTE: if provider field from NUOPC has fewer vertical levels than the receiver field in CATChem,
-         ! -- the remaining receiver field levels are filled by replicating values from
-         ! -- the closest available level in the provider field.
-         kk = 1
-         do k = 1, nk1
-            !kk = nk - k + 1 !no need to reverse
-            !kk = k
-            do j = 1, nj
-               do i = 1, ni
-                  if (trim(field_map%catchem_var) == 'Z' .or. trim(field_map%catchem_var) == 'ZMID') then
-                     fptr3d_rev(i,j,k) = fptr3d(i,j,kk) / g0
-                  else
-                     fptr3d_rev(i,j,k) = fptr3d(i,j,kk)
-                  end if
-               end do
-            end do
-            kk = min(nk, kk + 1)
-         end do
-
-         !set to met_state in CATChem
-         call met_state%set_field(trim(field_map%catchem_var), real(fptr3d_rev,fp), error_mgr, rc)
-
-         if (rc == CC_SUCCESS) then
-            if (allocated(cc_wrap%catchem_model%required_fields)) then
-               met_index = cc_wrap%catchem_model%get_required_met_index( trim(field_map%catchem_var) )
-               if (met_index >0 ) then
-                  is_met_set(met_index) = .true.
-               end if
-            end if
-         else if (.not. required) then
-            ! If the field is not required, we can skip the transformation
-            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-               msg="Met field is not set and its optional: " // trim(field_map%catchem_var), &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)
-         else
-            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-               msg="Met field is not set successfully for: " // trim(field_map%catchem_var), &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)
-            deallocate(fptr3d_rev)  ! Clean up before returning
-            return  ! bail out
-         end if
-
-         ! Clean up allocated memory
-         deallocate(fptr3d_rev)
 
          ! 4D tracer concentrations
        case (4)
-         nullify(fptr4d, fptr4d_rev)
+         nullify(fptr4d)
          call ESMF_FieldGet(field, farrayPtr=fptr4d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
@@ -950,91 +878,8 @@ contains
             return  ! bail out
          end if
 
-         ni = size(fptr4d, 1)
-         nj = size(fptr4d, 2)
-         nk = size(fptr4d, 3)
-         nv = size(fptr4d, 4)
-
-         ! Allocate fptr4d_rev with the same dimensions as fptr4d
-         allocate(fptr4d_rev(ni, nj, nk, size(chem_state%ChemSpecies)))
-         fptr4d_rev = 0.0_fp  ! Initialize to zero
-         !get original concentrations from CATChem.
-         !This is because some species in CATChem may not go through advection and should keep their values.
-         call chem_state%get_all_concentrations(cc_conc, rc)
-         if (rc /= CC_SUCCESS) then
-            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-               msg="CATChem tracer array is not retrieved successfully for: " // trim(field_map%catchem_var), &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)
-            if (allocated(cc_conc)) deallocate(cc_conc)  ! Clean up before returning
-            return  ! bail out
-         end if
-         !assign to fptr4d_rev
-         fptr4d_rev = real(cc_conc, ESMF_KIND_R8)
-
-         ! Reverse vertical layers
-         do v = 1, nv
-            !read in specific humidity from tracer array
-            if (trim(cc_wrap%tracer_map%names(v)) == 'sphum') then
-               call met_state%set_field('QV', real(fptr4d(:,:, :,v), fp), error_mgr, rc)
-               if (rc == CC_SUCCESS) then
-                  if (allocated(cc_wrap%catchem_model%required_fields)) then
-                     met_index = cc_wrap%catchem_model%get_required_met_index( 'QV' )
-                     if (met_index >0 ) then
-                        is_met_set(met_index) = .true.
-                     end if
-                  end if
-               else if (.not. required) then
-                  ! If the field is not required, we can skip the transformation
-                  call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-                     msg="Met field is not set and its optional: QV", &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)
-               else
-                  call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-                     msg="Met field is not set successfully for: QV", &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)
-                  deallocate(fptr4d_rev)  ! Clean up before returning
-                  if (allocated(cc_conc)) deallocate(cc_conc)
-                  return  ! bail out
-               end if
-            end if
-
-            !map NUOPC tracer index to CATChem species index
-            v_cc = cc_wrap%tracer_map%nuopc_to_cc(v)
-            if (v_cc <= 0) cycle !if not a species in CATChem, go to next cycle
-            if (.not. chem_state%ChemSpecies(v_cc)%is_advected) cycle !if not advected, go to next cycle
-            !unit conversion
-            if (chem_state%ChemSpecies(v_cc)%is_gas) then
-               !unit_conv = 28.9644  / chem_state%ChemSpecies(v_cc)%mw_g * 1.0e-3  ! convert from ug/kg to ppm for gases
-               unit_conv = 1.00  !keep it in ppmV
-            else
-               unit_conv = 1.00  ! convert from ug/kg to ug/kg for aerosols
-            end if
-
-            do k = 1, nk
-               !kk = nk - k + 1 !no need to reverse
-               kk = k
-               do j = 1, nj
-                  do i = 1, ni
-                     fptr4d_rev(i,j,kk,v_cc) = max(fptr4d(i,j,k,v), 0.0_fp) * unit_conv
-                  end do
-               end do
-            end do
-         end do
-
-         !set to concentrations in CATChem
-         call chem_state%set_all_concentrations(real(fptr4d_rev, fp), rc)
-         if (rc /= CC_SUCCESS) then
-            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-               msg="CATChem tracer array is not set successfully for: " // trim(field_map%catchem_var), &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)
-            deallocate(fptr4d_rev)  ! Clean up before returning
-            if (allocated(cc_conc)) deallocate(cc_conc)
-            return  ! bail out
-         end if
-
-         ! Clean up allocated memory
-         deallocate(fptr4d_rev)
-         if (allocated(cc_conc)) deallocate(cc_conc)
+         ! Direct zero-copy 4D chemistry concentration array mapping to C++ core StateManager
+         call cc_wrap%catchem_model%bind_unified_chemistry(c_loc(fptr4d(1,1,1,1)))
 
        case default
          call ESMF_LogWrite("Unknown field mapping dimension for: " // trim(field_map%catchem_var), &
