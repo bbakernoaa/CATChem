@@ -145,6 +145,9 @@ module CATChem_API
       procedure :: get_required_met_index => model_get_required_met_index
       procedure :: get_grid_dimensions => model_get_grid_dimensions
       procedure :: is_initialized => model_is_initialized
+      procedure :: bind_met_3d => model_bind_met_3d
+      procedure :: bind_met_2d => model_bind_met_2d
+      procedure :: bind_unified_chemistry => model_bind_unified_chemistry
    end type CATChem_Model
 
 contains
@@ -347,5 +350,37 @@ contains
 
       is_initialized = this%initialized
    end function model_is_initialized
+
+   ! Bind a 3D meteorological field
+   subroutine model_bind_met_3d(this, name, arr)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: name
+      real(c_double), target, intent(in) :: arr(:,:,:)
+
+      character(kind=c_char) :: c_name(64)
+
+      call to_c_string(name, c_name)
+      call catchem_state_bind_met_3d(this%state_mgr_ptr, c_name, c_loc(arr))
+   end subroutine model_bind_met_3d
+
+   ! Bind a 2D meteorological field
+   subroutine model_bind_met_2d(this, name, arr)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: name
+      real(c_double), target, intent(in) :: arr(:,:)
+
+      character(kind=c_char) :: c_name(64)
+
+      call to_c_string(name, c_name)
+      call catchem_state_bind_met_2d(this%state_mgr_ptr, c_name, c_loc(arr))
+   end subroutine model_bind_met_2d
+
+   ! Bind unified chemical concentrations array
+   subroutine model_bind_unified_chemistry(this, arr)
+      class(CATChem_Model), intent(inout) :: this
+      real(c_double), target, intent(in) :: arr(:,:,:)
+
+      call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr))
+   end subroutine model_bind_unified_chemistry
 
 end module CATChem_API
