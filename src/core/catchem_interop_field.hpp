@@ -26,6 +26,16 @@ struct MdspanTypeHelper<DataType, 3> {
     using type = Kokkos::mdspan<DataType, Kokkos::extents<int, Kokkos::dynamic_extent, Kokkos::dynamic_extent, Kokkos::dynamic_extent>, Kokkos::layout_left>;
 };
 
+/**
+ * @class InteropField
+ * @brief High-performance wrapper mapping host-allocated contiguous pointers to Kokkos Views.
+ *
+ * This class translates standard raw pointer buffers across language boundaries (e.g. Fortran to C++)
+ * into unmanaged Kokkos LayoutLeft Views for zero-copy parallel processing.
+ *
+ * @tparam DataType Numeric type of the grid elements (typically double).
+ * @tparam Rank Dimensional dimensionality of the field (1, 2, or 3).
+ */
 template <typename DataType, int Rank>
 class InteropField {
 public:
@@ -61,11 +71,24 @@ public:
 
     using MdspanType = typename MdspanTypeHelper<DataType, Rank>::type;
 
-    HostViewType host_view;
-    DeviceViewType device_view;
-    bool is_gpu_target;
+    HostViewType host_view;             ///< Contiguous host layout left view mapping raw pointer.
+    DeviceViewType device_view;         ///< Dedicated device view managed by Kokkos execution space.
+    bool is_gpu_target;                 ///< Flag indicating if device-host data sync is required.
 
+    /**
+     * @brief Constructs InteropField and maps raw host memory.
+     * @param ptr Raw host pointer (must be non-null).
+     * @param dims Vector indicating grid bounds.
+     * @throws std::invalid_argument if ptr is null or dimensions are invalid.
+     */
     InteropField(DataType* ptr, const std::vector<int>& dims) {
+        if (ptr == nullptr) {
+            throw std::invalid_argument("InteropField constructor failed: input pointer is null.");
+        }
+        if (dims.size() != static_cast<size_t>(Rank)) {
+            throw std::invalid_argument("InteropField constructor failed: dimension size mismatch.");
+        }
+
         is_gpu_target = !std::is_same_v<HostSpace, DeviceSpace>;
         
         if constexpr (Rank == 1) {
@@ -80,18 +103,21 @@ public:
         }
     }
 
+    /** @brief Copy host data buffer to the selected Kokkos device view. */
     void sync_to_device() {
         if constexpr (!std::is_same_v<HostSpace, DeviceSpace>) {
             Kokkos::deep_copy(device_view, host_view);
         }
     }
 
+    /** @brief Sync calculated outputs from Kokkos device back to host buffer. */
     void sync_to_host() {
         if constexpr (!std::is_same_v<HostSpace, DeviceSpace>) {
             Kokkos::deep_copy(host_view, device_view);
         }
     }
 
+    /** @brief Retrieves the active Kokkos view mapped to current execution space. */
     auto view() const {
         if constexpr (!std::is_same_v<HostSpace, DeviceSpace>) {
             return device_view;
@@ -100,7 +126,7 @@ public:
         }
     }
 
-    // --- standard C++20 non-owning mdspan mapping ---
+    /** @brief Constructs a modern, standard-conforming mdspan referencing active data memory. */
     MdspanType mdspan() const {
         auto v = view();
         if constexpr (Rank == 1) {

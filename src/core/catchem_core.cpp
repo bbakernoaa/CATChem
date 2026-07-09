@@ -50,6 +50,10 @@ void Core::add_process(std::shared_ptr<ProcessInterface> process) {
 }
 
 void Core::run_timestep(double dt) {
+    if (dt <= 0.0 || dt > 86400.0) {
+        throw std::out_of_range("Timestep dt must be positive and within a plausible physical daily limit (0 < dt <= 86400).");
+    }
+
     // Sync shared boundary arrays to active execution spaces
     state_mgr->sync_to_device();
 

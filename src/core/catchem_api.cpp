@@ -3,6 +3,7 @@
 #include "catchem_state_manager.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_process_registry.hpp"
+#include <iostream>
 
 extern "C" {
 
@@ -11,7 +12,12 @@ void* catchem_core_create(int nc, int nl, int ns) {
 }
 
 void* catchem_core_create_from_config(const char* config_file) {
-    return static_cast<void*>(new catchem::Core(config_file));
+    try {
+        return static_cast<void*>(new catchem::Core(config_file));
+    } catch (const std::exception& e) {
+        std::cerr << "CATChem API Error: Failed to create Core from config '" << config_file << "'. Details: " << e.what() << std::endl;
+        return nullptr;
+    }
 }
 
 void catchem_core_destroy(void* core_ptr) {
@@ -91,8 +97,12 @@ double* catchem_state_get_pointer_3d(void* state_ptr, const char* name) {
 }
 
 void catchem_core_run_timestep(void* core_ptr, double dt) {
-    auto* core = static_cast<catchem::Core*>(core_ptr);
-    core->run_timestep(dt);
+    try {
+        auto* core = static_cast<catchem::Core*>(core_ptr);
+        core->run_timestep(dt);
+    } catch (const std::exception& e) {
+        std::cerr << "CATChem API Error: Exception caught during core run_timestep: " << e.what() << std::endl;
+    }
 }
 
 void catchem_core_add_process_by_name(void* core_ptr, const char* name) {
@@ -149,8 +159,12 @@ void catchem_diag_get_name_at(void* core_ptr, int index, char* name_out) {
 }
 
 void catchem_state_load_species_config(void* state_ptr, const char* filename) {
-    auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    state->load_species_config(filename);
+    try {
+        auto* state = static_cast<catchem::StateManager*>(state_ptr);
+        state->load_species_config(filename);
+    } catch (const std::exception& e) {
+        std::cerr << "CATChem API Error: Failed to load species configuration '" << filename << "'. Details: " << e.what() << std::endl;
+    }
 }
 
 int catchem_state_get_species_count(void* state_ptr) {

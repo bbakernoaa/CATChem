@@ -69,8 +69,17 @@ public:
         chem.conc = std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, n_levels, n_species});
     }
 
+    /**
+     * @brief Derives layer thicknesses (BXHEIGHT / dz) hydrostatically.
+     *
+     * Computes the vertical distance of each grid cell based on pressure edges, temperature, and moisture content.
+     * @throws std::runtime_error If required input fields (PEDGE, T, QV, BXHEIGHT) are not bound.
+     */
     void derive_bxheight() {
-        if (!met.PEDGE || !met.T || !met.QV || !met.BXHEIGHT) return;
+        if (!met.PEDGE) throw std::runtime_error("derive_bxheight failed: PEDGE field is not bound.");
+        if (!met.T) throw std::runtime_error("derive_bxheight failed: T field is not bound.");
+        if (!met.QV) throw std::runtime_error("derive_bxheight failed: QV field is not bound.");
+        if (!met.BXHEIGHT) throw std::runtime_error("derive_bxheight failed: BXHEIGHT field is not bound.");
         
         int nc = n_cols;
         int nl = n_levels;
@@ -96,8 +105,17 @@ public:
         );
     }
 
+    /**
+     * @brief Derives dry air density (AIRDEN_DRY) using the Ideal Gas Law.
+     *
+     * Calculates dry air mass densities based on mid-point pressures, temperature, and specific humidity.
+     * @throws std::runtime_error If required input fields (PMID, T, QV, AIRDEN_DRY) are not bound.
+     */
     void derive_airden_dry() {
-        if (!met.PMID || !met.T || !met.QV || !met.AIRDEN_DRY) return;
+        if (!met.PMID) throw std::runtime_error("derive_airden_dry failed: PMID field is not bound.");
+        if (!met.T) throw std::runtime_error("derive_airden_dry failed: T field is not bound.");
+        if (!met.QV) throw std::runtime_error("derive_airden_dry failed: QV field is not bound.");
+        if (!met.AIRDEN_DRY) throw std::runtime_error("derive_airden_dry failed: AIRDEN_DRY field is not bound.");
 
         int nc = n_cols;
         int nl = n_levels;

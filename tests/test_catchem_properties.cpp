@@ -233,6 +233,15 @@ int main(int argc, char* argv[]) {
 
             // Assert finite properties first
             for (size_t i = 0; i < total_size; ++i) {
+                if (!std::isfinite(conc[i])) {
+                    int spec_idx = i / size_3d;
+                    int col_lev_idx = i % size_3d;
+                    int col_idx = col_lev_idx / n_levels;
+                    int lev_idx = col_lev_idx % n_levels;
+                    std::cerr << "PROPERTY FAILURE: NaN detected at conc index " << i 
+                              << " (Species=" << spec_idx << ", Column=" << col_idx 
+                              << ", Level=" << lev_idx << ") during iteration " << iter << std::endl;
+                }
                 assert(std::isfinite(conc[i]) && "Concentration must remain finite!");
             }
 
