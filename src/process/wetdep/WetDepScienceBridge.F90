@@ -85,7 +85,7 @@ contains
 
       type(WetDepSchemeJACOBConfig) :: jacob_config
 
-      ! Associate pointers
+      ! Map pointers
       call c_f_pointer(c_airden_dry, airden_dry, [n_cols, n_levels])
       call c_f_pointer(c_mairden,    mairden,    [n_cols, n_levels])
       call c_f_pointer(c_pedge,      pedge,      [n_cols, n_levels+1])

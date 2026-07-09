@@ -33,15 +33,15 @@ void DustProcess::init(std::shared_ptr<StateManager> state) {
         }
     }
 
-    // 2. Register C++ Diagnostic fields
-    std::vector<int> dims_1d = {state->n_cols};
+    // 2. Register C++ Diagnostic fields (registering 1D fields as 2D with second dimension of 1)
+    std::vector<int> dims_1d_as_2d = {state->n_cols, 1};
     std::vector<int> dims_2d = {state->n_cols, state->n_species};
     
-    state->diag_mgr->register_field("dust_emission_total", "Total Dust Emission", "kg/m2/s", DiagType::FIELD_1D, dims_1d);
+    state->diag_mgr->register_field("dust_emission_total", "Total Dust Emission", "kg/m2/s", DiagType::FIELD_2D, dims_1d_as_2d);
     state->diag_mgr->register_field("dust_emission_bin", "Dust Emission Per Bin", "kg/m2/s", DiagType::FIELD_2D, dims_2d);
-    state->diag_mgr->register_field("dust_horizontal_flux", "Dust Horizontal Flux", "kg/m/s", DiagType::FIELD_1D, dims_1d);
-    state->diag_mgr->register_field("dust_moisture_correction", "Dust Moisture Correction", "unitless", DiagType::FIELD_1D, dims_1d);
-    state->diag_mgr->register_field("dust_effective_threshold", "Dust Effective Threshold", "m/s", DiagType::FIELD_1D, dims_1d);
+    state->diag_mgr->register_field("dust_horizontal_flux", "Dust Horizontal Flux", "kg/m/s", DiagType::FIELD_2D, dims_1d_as_2d);
+    state->diag_mgr->register_field("dust_moisture_correction", "Dust Moisture Correction", "unitless", DiagType::FIELD_2D, dims_1d_as_2d);
+    state->diag_mgr->register_field("dust_effective_threshold", "Dust Effective Threshold", "m/s", DiagType::FIELD_2D, dims_1d_as_2d);
     state->diag_mgr->register_field("dust_utar_threshold", "Dust Ustar Threshold Per Bin", "m/s", DiagType::FIELD_2D, dims_2d);
 }
 
@@ -157,12 +157,13 @@ void DustProcess::run(std::shared_ptr<StateManager> state) {
 
 void DustProcess::finalize() {}
 
-// Register Dust Process
-namespace {
-    struct Dummy { Dummy() { catchem::ProcessRegistry::get_instance().register_process(
-        "dust",
-        []() { return std::make_shared<DustProcess>(); }
-    ); } } dummy;
-}
-
 } // namespace catchem
+
+extern "C" {
+void catchem_register_dust_cpp() {
+    catchem::ProcessRegistry::get_instance().register_process(
+        "dust",
+        []() { return std::make_shared<catchem::DustProcess>(); }
+    );
+}
+}

@@ -1,4 +1,5 @@
 #include "catchem_core.hpp"
+#include <iostream>
 
 namespace catchem {
 

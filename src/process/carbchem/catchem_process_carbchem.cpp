@@ -42,11 +42,11 @@ void CarbChemProcess::run(std::shared_ptr<StateManager> state) {
     state->sync_to_host();
 
     // 1. Retrieve 3D Meteorological state pointers
-    auto airden_ptr_it = state->met.fields_3d.find("air_density_dry");
+    auto airden_ptr_it = state->met.fields_3d.find("AIRDEN_DRY");
     double* airden_ptr = (airden_ptr_it != state->met.fields_3d.end()) ? airden_ptr_it->second->host_view.data() : nullptr;
-    auto delp_ptr_it = state->met.fields_3d.find("delp");
+    auto delp_ptr_it = state->met.fields_3d.find("DELP");
     double* delp_ptr = (delp_ptr_it != state->met.fields_3d.end()) ? delp_ptr_it->second->host_view.data() : nullptr;
-    auto pmid_ptr_it = state->met.fields_3d.find("pmid");
+    auto pmid_ptr_it = state->met.fields_3d.find("PMID");
     double* pmid_ptr = (pmid_ptr_it != state->met.fields_3d.end()) ? pmid_ptr_it->second->host_view.data() : nullptr;
     
     if (!airden_ptr || !delp_ptr || !pmid_ptr) {
@@ -94,12 +94,13 @@ void CarbChemProcess::run(std::shared_ptr<StateManager> state) {
 
 void CarbChemProcess::finalize() {}
 
-// Register CarbChem Process
-namespace {
-    struct Dummy { Dummy() { catchem::ProcessRegistry::get_instance().register_process(
-        "carbchem",
-        []() { return std::make_shared<CarbChemProcess>(); }
-    ); } } dummy;
-}
-
 } // namespace catchem
+
+extern "C" {
+void catchem_register_carbchem_cpp() {
+    catchem::ProcessRegistry::get_instance().register_process(
+        "carbchem",
+        []() { return std::make_shared<catchem::CarbChemProcess>(); }
+    );
+}
+}

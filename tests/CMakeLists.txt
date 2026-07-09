@@ -73,4 +73,21 @@ if(ENABLE_KOKKOS)
   )
   set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE Fortran)
   add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
+
+  # Modern Randomized Property-Based Testing
+  add_executable(test_catchem_properties test_catchem_properties.cpp)
+  target_link_libraries(test_catchem_properties PRIVATE 
+    CATChem_core_cpp 
+    CATChem_core 
+    Kokkos::kokkos
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+    CATChem_process_dust
+    CATChem_process_carbchem
+  )
+  set_target_properties(test_catchem_properties PROPERTIES LINKER_LANGUAGE Fortran)
+  add_test(NAME test_catchem_properties COMMAND test_catchem_properties)
 endif()

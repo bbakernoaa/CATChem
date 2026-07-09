@@ -52,7 +52,7 @@ public:
     }
 
     void bind_met_field_3d(const std::string& name, double* ptr) {
-        int nl = (name == "PEDGE") ? n_levels + 1 : n_levels;
+        int nl = (name == "PEDGE" || name == "PFILSAN" || name == "PFLLSAN") ? n_levels + 1 : n_levels;
         auto field = std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, nl, 1}); // Using 1 for single-field layout
         if (name == "T") met.T = field;
         else if (name == "QV") met.QV = field;
