@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = ccpp_catchem_interface
   type = scheme
-  dependencies = ../../src/core/charpak_mod.F90,../../src/core/chemstate_mod.F90,../../src/core/cmn_size_mod.F90,../../src/core/config_mod.F90,../../src/core/config_opt_mod.F90,../../src/core/constants.F90,../../src/core/diagstate_mod.F90,../../src/core/emisstate_mod.F90,../../src/core/error_mod.F90,../../src/core/gridstate_mod.F90,../../src/core/init_mod.F90,../../src/core/metstate_mod.F90,../../src/core/precision_mod.F90,../../src/core/qfyaml_mod.F90,../../src/core/species_mod.F90,../../src/core/state_mod.F90,../../src/external/GOCART/Process_Library/GOCART2G_Process.F90,../../src/external/GOCART/Process_Library/GOCART2G_MieMod.F90,../../src/process/dust/ccpr_dust_common_mod.F90,../../src/process/dust/ccpr_scheme_fengsha_mod.F90,../../src/process/dust/ccpr_scheme_ginoux_mod.F90,../../src/process/dust/CCPr_Dust_Mod.F90,../../src/process/seasalt/ccpr_seasalt_common_mod.F90,../../src/process/seasalt/ccpr_scheme_gong03_mod.F90,../../src/process/seasalt/ccpr_scheme_gong97_mod.F90,../../src/process/seasalt/ccpr_scheme_geos12_mod.F90,../../src/process/seasalt/CCPr_SeaSalt_Mod.F90,../../src/process/drydep/ccpr_scheme_GOCART_DryDep_mod.F90,../../src/process/drydep/CCPr_DryDep_Mod.F90,../../src/process/plumerise/CCPr_Scheme_Briggs_mod.F90,../../src/process/plumerise/CCPr_Scheme_Sofiev_mod.F90,../../src/process/plumerise/CCPr_Plumerise_Mod.F90,../../src/api/run_mod.F90,../../src/api/catchem.F90,./catchem_types.F90,./catchem_wrapper_utils.F90
+  dependencies = ./catchem_types.F90,./catchem_wrapper_utils.F90,../../src/api/catchem.F90
 
 ########################################################################
 [ccpp-arg-table]
