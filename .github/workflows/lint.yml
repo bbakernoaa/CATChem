@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Install Fortran Compiler for findent
+        run: sudo apt-get update && sudo apt-get install -y gfortran findent
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
