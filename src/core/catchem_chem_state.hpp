@@ -80,6 +80,10 @@ namespace catchem {
                 meta.dd_DvzMinVal_snow = val["__dd_DvzMinVal_snow"] ? val["__dd_DvzMinVal_snow"].as<double>() : 0.0;
                 meta.dd_DvzMinVal_land = val["__dd_DvzMinVal_land"] ? val["__dd_DvzMinVal_land"].as<double>() : 0.0;
 
+                // Wet deposition parameters
+                meta.henry_k0 = val["__henry_k0"] ? val["__henry_k0"].as<double>() : 0.0;
+                meta.henry_cr = val["__henry_cr"] ? val["__henry_cr"].as<double>() : 0.0;
+                meta.henry_pKa = val["__henry_pKa"] ? val["__henry_pKa"].as<double>() : 0.0;
                 meta.wd_retfactor = val["__wd_retfactor"] ? val["__wd_retfactor"].as<double>() : 0.0;
                 meta.wd_LiqAndGas = val["__wd_LiqAndGas"] ? val["__wd_LiqAndGas"].as<bool>() : false;
                 meta.wd_convfacI2G = val["__wd_convfacI2G"] ? val["__wd_convfacI2G"].as<double>() : 0.0;
@@ -87,6 +91,13 @@ namespace catchem {
                 if (val["__wd_rainouteff"]) {
                     meta.wd_rainouteff = val["__wd_rainouteff"].as<std::vector<double>>();
                 }
+                meta.wd_reevap_frac = val["__wd_reevap_frac"] ? val["__wd_reevap_frac"].as<double>() : 0.5;
+
+                // GOCART carbon chemical loss rate [days]
+                meta.t_chem_loss = val["__t_chem_loss"] ? val["__t_chem_loss"].as<double>() : -1.0;
+
+                // Background VMR concentration
+                meta.BackgroundVV = val["BackgroundVV"] ? val["BackgroundVV"].as<double>() : 1.0e-20;
                 meta.mie_name = val["__mie_name"] ? val["__mie_name"].as<std::string>() : "";
 
                 species_list.push_back(meta);

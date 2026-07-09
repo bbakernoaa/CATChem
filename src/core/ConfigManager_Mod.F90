@@ -9,7 +9,7 @@ module ConfigManager_Mod
    private
 
    public :: ConfigManagerType, ConfigDataType, EmissionCategoryMapping, EmisSpeciesMappingEntry, EmissionMappingConfig, &
-             RuntimeConfig, FilePathConfig
+      RuntimeConfig, FilePathConfig
 
    type :: EmisSpeciesMappingEntry
       character(len=128) :: emission_field = ""

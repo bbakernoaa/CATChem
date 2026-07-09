@@ -5,8 +5,10 @@
 #include <Kokkos_Core.hpp>
 #include <cassert>
 #include <cmath>
+#include <fstream>
 #include <iostream>
 #include <random>
+#include <string>
 #include <vector>
 
 extern "C" {
@@ -70,7 +72,21 @@ int main(int argc, char* argv[]) {
         auto state = core->get_state_manager();
 
         // Load runtime YAML specifications
-        state->load_species_config("CATChem_species.yml");
+        std::string config_path = "";
+        std::vector<std::string> candidates = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+                                               "../../tests/CATChem_species.yml", "CATChem_species.yml"};
+        for (const auto& path : candidates) {
+            std::ifstream f(path);
+            if (f.good()) {
+                config_path = path;
+                break;
+            }
+        }
+        if (config_path.empty()) {
+            std::cerr << "ERROR: Could not find CATChem_species.yml inside test_catchem_properties.cpp\n";
+            std::exit(1);
+        }
+        state->load_species_config(config_path);
 
         // Set up bounded fuzzer generator with fixed seed
         std::mt19937 gen(1337);

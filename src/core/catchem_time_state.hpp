@@ -34,6 +34,70 @@ namespace catchem {
         int doy = 1;
 
         KOKKOS_FUNCTION
+        static bool is_leap_year(int y) { return (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0); }
+
+        KOKKOS_FUNCTION
+        static int get_days_in_month(int m, int y) {
+            const int days_per_month[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+            if (m < 1 || m > 12)
+                return 0;
+            if (m == 2 && is_leap_year(y))
+                return 29;
+            return days_per_month[m];
+        }
+
+        KOKKOS_FUNCTION
+        void calculate_derived_fields() {
+            // Julian Day arithmetic
+            int a = (14 - month) / 12;
+            int y = year + 4800 - a;
+            int m = month + 12 * a - 3;
+            int jdn = day + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045;
+
+            julian_date = static_cast<double>(jdn) - 0.5 + (hour + minute / 60.0 + second / 3600.0) / 24.0;
+
+            // Calculate Day of Year (DOY)
+            const int days_per_month[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+            doy = day;
+            for (int i = 1; i < month; ++i) {
+                doy += days_per_month[i];
+                if (i == 2 && is_leap_year(year)) {
+                    doy += 1;
+                }
+            }
+        }
+
+        KOKKOS_FUNCTION
+        void advance(double dt) {
+            timestep = dt;
+            int total_sec = second + static_cast<int>(dt);
+            second = total_sec % 60;
+            int total_min = minute + total_sec / 60;
+            minute = total_min % 60;
+            int total_hr = hour + total_min / 60;
+            hour = total_hr % 24;
+            int extra_days = total_hr / 24;
+
+            while (extra_days > 0) {
+                int dim = get_days_in_month(month, year);
+                if (day + extra_days <= dim) {
+                    day += extra_days;
+                    extra_days = 0;
+                } else {
+                    extra_days -= (dim - day + 1);
+                    day = 1;
+                    if (month == 12) {
+                        month = 1;
+                        year += 1;
+                    } else {
+                        month += 1;
+                    }
+                }
+            }
+            calculate_derived_fields();
+        }
+
+        KOKKOS_FUNCTION
         double get_cos_sza(double lat_deg, double lon_deg, bool mid_timestep = false) const {
             double lat_rad = lat_deg * constants::PI_180;
 

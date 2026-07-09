@@ -14,6 +14,7 @@ program test_UnitConversion
    use UnitConversion_Mod, only: convert_process_concentration_units, &
       convert_process_flux_units
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE
+   use Constants, only: RSTARG, AVO
 
    implicit none
 
@@ -132,7 +133,7 @@ contains
       call assert(rc == CC_SUCCESS, "ppbv->molec/cm3 should succeed")
 
       ! Expected: 1 ppbv * (P/RT) * 1e-9 * NA * 1e-6
-      expected = (pres / (8.314_fp * temp)) * 1.0e-9_fp * 6.022e23_fp * 1.0e-6_fp
+      expected = (pres / (RSTARG * temp)) * 1.0e-9_fp * AVO * 1.0e-6_fp
       call assert_close(vals(1), expected, abs(expected) * REL_TOL, &
          "ppbv->molec/cm3 value check")
 
@@ -161,7 +162,7 @@ contains
       call assert(rc == CC_SUCCESS, "ppbv->ug/m3 should succeed")
 
       ! Expected: 100 * (P/RT) * MW * 1e-3
-      expected = 100.0_fp * (pres / (8.314_fp * temp)) * mw * 1.0e-3_fp
+      expected = 100.0_fp * (pres / (RSTARG * temp)) * mw * 1.0e-3_fp
       call assert_close(vals(1), expected, abs(expected) * REL_TOL, &
          "ppbv->ug/m3 value check")
 
@@ -189,7 +190,7 @@ contains
       call assert(rc == CC_SUCCESS, "molec/cm3->ppbv should succeed")
 
       ! Expected: val * (RT/P) * 1e9 / NA * 1e6
-      expected = 2.46e10_fp * (8.314_fp * temp / pres) * 1.0e9_fp / 6.022e23_fp * 1.0e6_fp
+      expected = 2.46e10_fp * (RSTARG * temp / pres) * 1.0e9_fp / AVO * 1.0e6_fp
       call assert_close(vals(1), expected, abs(expected) * REL_TOL, &
          "molec/cm3->ppbv value check")
 
@@ -216,7 +217,7 @@ contains
       call assert(rc == CC_SUCCESS, "molec/cm3->ug/m3 should succeed")
 
       ! Expected: val * MW / NA * 1e12
-      expected = 2.46e10_fp * mw / 6.022e23_fp * 1.0e12_fp
+      expected = 2.46e10_fp * mw / AVO * 1.0e12_fp
       call assert_close(vals(1), expected, abs(expected) * REL_TOL, &
          "molec/cm3->ug/m3 value check")
 
@@ -243,7 +244,7 @@ contains
       call assert(rc == CC_SUCCESS, "kg/m2/s->molec/cm2/s should succeed")
 
       ! Expected: val * 1000 * (1/MW) * NA * 1e-4
-      expected = 1.0e-8_fp * 1000.0_fp * (1.0_fp / mw) * 6.022e23_fp * 1.0e-4_fp
+      expected = 1.0e-8_fp * 1000.0_fp * (1.0_fp / mw) * AVO * 1.0e-4_fp
       call assert_close(vals(1), expected, abs(expected) * REL_TOL, &
          "kg/m2/s->molec/cm2/s value check")
 
@@ -270,7 +271,7 @@ contains
       call assert(rc == CC_SUCCESS, "molec/cm2/s->kg/m2/s should succeed")
 
       ! Expected: val * (1/NA) * MW * 1e-3 * 1e4
-      expected = 1.0e12_fp * (1.0_fp / 6.022e23_fp) * mw * 1.0e-3_fp * 1.0e4_fp
+      expected = 1.0e12_fp * (1.0_fp / AVO) * mw * 1.0e-3_fp * 1.0e4_fp
       call assert_close(vals(1), expected, abs(expected) * REL_TOL, &
          "molec/cm2/s->kg/m2/s value check")
 
@@ -301,7 +302,7 @@ contains
             molecular_weight=mws(i), temperature=temp, pressure=pres, rc=rc)
          call assert(rc == CC_SUCCESS, "ppbv->ug/m3 should succeed for various MW")
 
-         expected = 10.0_fp * (pres / (8.314_fp * temp)) * mws(i) * 1.0e-3_fp
+         expected = 10.0_fp * (pres / (RSTARG * temp)) * mws(i) * 1.0e-3_fp
          call assert_close(vals(1), expected, abs(expected) * REL_TOL, &
             "ppbv->ug/m3 with varying MW")
       end do
@@ -330,8 +331,8 @@ contains
             molecular_weight=48.0_fp, temperature=temps(i), pressure=press(i), rc=rc)
          call assert(rc == CC_SUCCESS, "ppbv->molec/cm3 should succeed for various T,P")
 
-         expected = 5.0_fp * (press(i) / (8.314_fp * temps(i))) * &
-            1.0e-9_fp * 6.022e23_fp * 1.0e-6_fp
+         expected = 5.0_fp * (press(i) / (RSTARG * temps(i))) * &
+            1.0e-9_fp * AVO * 1.0e-6_fp
          call assert_close(vals(1), expected, abs(expected) * REL_TOL, &
             "ppbv->molec/cm3 with varying T,P")
       end do

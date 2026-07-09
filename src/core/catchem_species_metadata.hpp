@@ -38,10 +38,18 @@ namespace catchem {
         double dd_DvzMinVal_land = 0.0;
 
         // Wet deposition parameters
+        double henry_k0 = 0.0;
+        double henry_cr = 0.0;
+        double henry_pKa = 0.0;
         double wd_retfactor = 0.0;
         bool wd_LiqAndGas = false;
         double wd_convfacI2G = 0.0;
-        std::vector<double> wd_rainouteff;
+        std::vector<double> wd_rainouteff = {0.0, 0.0, 0.0};
+        double wd_reevap_frac = 0.5;
+
+        // Chemical loss rate and background volume-mixing ratio
+        double t_chem_loss = -1.0;
+        double BackgroundVV = 1.0e-20;
         std::string mie_name;
     };
 

@@ -8,7 +8,7 @@ module StateManager_Mod
    use ChemState_Mod, only: ChemStateType
    use ConfigManager_Mod, only: ConfigManagerType
    use TimeState_Mod, only: TimeStateType
-   use iso_c_binding, only: c_ptr, c_null_ptr
+   use iso_c_binding, only: c_ptr, c_null_ptr, c_associated
 
    implicit none
    private
@@ -34,9 +34,41 @@ module StateManager_Mod
 contains
 
    function state_mgr_get_met_state_ptr(this) result(ptr)
+      use Interop_Mod, only: get_cpp_field
       class(StateManagerType), intent(in) :: this
       type(MetStateType), pointer :: ptr
+      integer :: rc, nx, ny, nz
+
       ptr => this%met_state
+      if (associated(ptr) .and. c_associated(this%cpp_ptr)) then
+         ptr%cpp_ptr = this%cpp_ptr
+         call ptr%geometry%get_dimensions(nx, ny, nz)
+
+         ! Bind volumetric 3D arrays
+         call get_cpp_field(this%cpp_ptr, "T", ptr%T, [nx, ny, nz], rc)
+         call get_cpp_field(this%cpp_ptr, "QV", ptr%QV, [nx, ny, nz], rc)
+         call get_cpp_field(this%cpp_ptr, "RH", ptr%RH, [nx, ny, nz], rc)
+         call get_cpp_field(this%cpp_ptr, "PMID", ptr%PMID, [nx, ny, nz], rc)
+         call get_cpp_field(this%cpp_ptr, "PEDGE", ptr%PEDGE, [nx, ny, nz+1], rc)
+         call get_cpp_field(this%cpp_ptr, "AIRDEN", ptr%AIRDEN, [nx, ny, nz], rc)
+         call get_cpp_field(this%cpp_ptr, "AIRDEN_DRY", ptr%AIRDEN_DRY, [nx, ny, nz], rc)
+         call get_cpp_field(this%cpp_ptr, "BXHEIGHT", ptr%BXHEIGHT, [nx, ny, nz], rc)
+         call get_cpp_field(this%cpp_ptr, "DELP", ptr%DELP, [nx, ny, nz], rc)
+         call get_cpp_field(this%cpp_ptr, "DELP_DRY", ptr%DELP_DRY, [nx, ny, nz], rc)
+
+         ! Bind surface 2D arrays
+         call get_cpp_field(this%cpp_ptr, "PS", ptr%PS, [nx, ny], rc)
+         call get_cpp_field(this%cpp_ptr, "TS", ptr%TS, [nx, ny], rc)
+         call get_cpp_field(this%cpp_ptr, "PBLH", ptr%PBLH, [nx, ny], rc)
+         call get_cpp_field(this%cpp_ptr, "USTAR", ptr%USTAR, [nx, ny], rc)
+         call get_cpp_field(this%cpp_ptr, "HFLUX", ptr%HFLUX, [nx, ny], rc)
+         call get_cpp_field(this%cpp_ptr, "OBK", ptr%OBK, [nx, ny], rc)
+         call get_cpp_field(this%cpp_ptr, "LAT", ptr%LAT, [nx, ny], rc)
+         call get_cpp_field(this%cpp_ptr, "LON", ptr%LON, [nx, ny], rc)
+         call get_cpp_field(this%cpp_ptr, "FROCEAN", ptr%FROCEAN, [nx, ny], rc)
+         call get_cpp_field(this%cpp_ptr, "FRSEAICE", ptr%FRSEAICE, [nx, ny], rc)
+         call get_cpp_field(this%cpp_ptr, "SST", ptr%SST, [nx, ny], rc)
+      end if
    end function state_mgr_get_met_state_ptr
 
    function state_mgr_get_chem_state_ptr(this) result(ptr)

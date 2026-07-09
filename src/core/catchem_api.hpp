@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "catchem_precision.hpp"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -113,6 +115,118 @@ int catchem_state_is_species_aerosol(void* state_ptr, int index);
 // Physics derivations
 void catchem_state_derive_bxheight(void* state_ptr);
 void catchem_state_derive_airden_dry(void* state_ptr);
+
+// TimeState C-Linkable API
+void* catchem_time_state_create();
+void catchem_time_state_destroy(void* ptr);
+int catchem_time_state_init(void* ptr, int year, int month, int day, int hour, int minute, int second, double timestep);
+int catchem_time_state_advance(void* ptr, double dt);
+int catchem_time_state_reset(void* ptr);
+int catchem_time_state_get_year(void* ptr);
+int catchem_time_state_get_month(void* ptr);
+int catchem_time_state_get_day(void* ptr);
+int catchem_time_state_get_hour(void* ptr);
+int catchem_time_state_get_minute(void* ptr);
+int catchem_time_state_get_second(void* ptr);
+double catchem_time_state_get_timestep(void* ptr);
+double catchem_time_state_get_julian_date(void* ptr);
+int catchem_time_state_get_doy(void* ptr);
+double catchem_time_state_get_cos_sza(void* ptr, double lat, double lon, bool mid_timestep);
+int catchem_time_state_get_timezone_offset(void* ptr, double lon);
+bool catchem_time_state_is_leap_year(int year);
+int catchem_time_state_get_days_in_month(int month, int year);
+bool catchem_time_state_is_global_holiday(int month, int day);
+bool catchem_time_state_is_us_holiday(int month, int day);
+
+// UnitConversion C-Linkable API
+double catchem_convert_concentration(double val, const char* from_units, const char* to_units, double mw, double temp,
+                                     double press, int* rc);
+double catchem_convert_pressure(double val, const char* from_units, const char* to_units, int* rc);
+double catchem_convert_temperature(double val, const char* from_units, const char* to_units, int* rc);
+double catchem_convert_flux(double val, const char* from_units, const char* to_units, double mw, int* rc);
+double catchem_convert_rate_constant(double val, const char* from_units, const char* to_units, int* rc);
+double catchem_convert_mass_units(double val, const char* from_units, const char* to_units, int* rc);
+double catchem_calculate_air_density(double temp, double press, double humidity, bool use_humidity);
+double catchem_calculate_molecular_weight(const char* formula);
+double catchem_convert_imperial(double val, const char* from_units, const char* to_units, const char* category,
+                                int* rc);
+int catchem_convert_process_concentration_units(catchem::fp* values, int size, const char* from_units,
+                                                const char* to_units, catchem::fp mw, catchem::fp temp,
+                                                catchem::fp press);
+int catchem_convert_process_flux_units(catchem::fp* values, int size, const char* from_units, const char* to_units,
+                                       catchem::fp mw);
+
+// =========================================================================
+// Species Metadata and Property Query C-API
+// =========================================================================
+void catchem_state_get_species_name_at(void* state_ptr, int index, char* name_out);
+void catchem_state_get_species_long_name_at(void* state_ptr, int index, char* name_out);
+void catchem_state_get_species_desc_at(void* state_ptr, int index, char* desc_out);
+double catchem_state_get_species_density(void* state_ptr, int index);
+double catchem_state_get_species_radius(void* state_ptr, int index);
+double catchem_state_get_species_lower_radius(void* state_ptr, int index);
+double catchem_state_get_species_upper_radius(void* state_ptr, int index);
+double catchem_state_get_species_viscosity(void* state_ptr, int index);
+int catchem_state_get_species_is_tracer(void* state_ptr, int index);
+int catchem_state_get_species_is_advected(void* state_ptr, int index);
+int catchem_state_get_species_is_drydep(void* state_ptr, int index);
+int catchem_state_get_species_is_wetdep(void* state_ptr, int index);
+int catchem_state_get_species_is_photolysis(void* state_ptr, int index);
+int catchem_state_get_species_is_dust(void* state_ptr, int index);
+int catchem_state_get_species_is_seasalt(void* state_ptr, int index);
+
+double catchem_state_get_species_dd_f0(void* state_ptr, int index);
+double catchem_state_get_species_dd_hstar(void* state_ptr, int index);
+double catchem_state_get_species_dd_DvzAerSnow(void* state_ptr, int index);
+double catchem_state_get_species_dd_DvzMinVal_snow(void* state_ptr, int index);
+double catchem_state_get_species_dd_DvzMinVal_land(void* state_ptr, int index);
+
+double catchem_state_get_species_henry_k0(void* state_ptr, int index);
+double catchem_state_get_species_henry_cr(void* state_ptr, int index);
+double catchem_state_get_species_henry_pKa(void* state_ptr, int index);
+double catchem_state_get_species_wd_retfactor(void* state_ptr, int index);
+int catchem_state_get_species_wd_LiqAndGas(void* state_ptr, int index);
+double catchem_state_get_species_wd_convfacI2G(void* state_ptr, int index);
+void catchem_state_get_species_wd_rainouteff(void* state_ptr, int index, double* eff_out);
+double catchem_state_get_species_wd_reevap_frac(void* state_ptr, int index);
+double catchem_state_get_species_t_chem_loss(void* state_ptr, int index);
+double catchem_state_get_species_BackgroundVV(void* state_ptr, int index);
+void catchem_state_get_species_mie_name(void* state_ptr, int index, char* name_out);
+
+// =========================================================================
+// Meteorological Core Calculation C-API
+// =========================================================================
+double catchem_met_potential_temperature(double temp, double press, double sfc_press);
+double catchem_met_virtual_temperature(double temp, double qv);
+double catchem_met_dew_point(double temp, double rh);
+double catchem_met_relative_humidity(double temp, double qv, double press);
+double catchem_met_saturation_vapor_pressure(double temp);
+double catchem_met_monin_obukhov_length(double ustar, double t0, double hflux, double rho);
+double catchem_met_friction_velocity(double tau, double rho);
+double catchem_met_cunningham_correction_factor(double dp, double lambda);
+double catchem_met_mean_free_path_air(double temp, double press);
+void catchem_met_solar_zenith_angle(int doy, double hour, double lat_rad, double lon_rad, double* sza_deg,
+                                    double* cossza);
+double catchem_met_mixing_ratio(double q);
+double catchem_met_specific_humidity(double r);
+double catchem_met_dry_adiabatic_lapse_rate();
+double catchem_met_bulk_richardson_number(double t0, double tz, double u, double z);
+int catchem_met_stability_classification(double l);
+double catchem_met_saturation_mixing_ratio(double p, double t);
+double catchem_met_latent_heat_vaporization(double t);
+double catchem_met_psychrometric_constant(double p, double lv);
+double catchem_met_wind_profile_loglaw(double ustar, double z, double z0);
+double catchem_met_brunt_vaisala_frequency(double t0, double dtdz);
+double catchem_met_psi_m_businger(double zeta);
+double catchem_met_psi_h_businger(double zeta);
+double catchem_met_arrhenius_rate(double a, double ea, double t);
+double catchem_met_henrys_law_constant(double h0, double dh, double t, double t0);
+double catchem_met_photolysis_rate_scaling(double j0, double sza);
+double catchem_met_ppm_to_ugm3(double ppm, double m, double t, double p);
+double catchem_met_ugm3_to_ppm(double ugm3, double m, double t, double p);
+double catchem_met_stokes_settling_velocity(double dp, double rho_p, double rho_a, double mu, double cc);
+double catchem_met_stokes_number(double rho_p, double d_p, double u, double mu, double l);
+double catchem_met_nuclear_decay(double n0, double lambda, double t);
 
 #ifdef __cplusplus
 }
