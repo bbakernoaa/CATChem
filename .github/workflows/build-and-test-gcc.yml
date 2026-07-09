@@ -23,10 +23,10 @@ jobs:
 
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y
-          libnetcdf-dev libnetcdff-dev
+          libnetcdf-dev libnetcdff-dev libkokkos-dev libyaml-cpp-dev
 
       - name: Configure
-        run: cmake -B $BUILD_DIR -DCATCHEM_BUILD_NUOPC=OFF
+        run: cmake -B $BUILD_DIR -DCATCHEM_BUILD_NUOPC=OFF -DENABLE_KOKKOS=ON
         env:
           FC: gfortran-${{ matrix.gcc-version }}
           CC: gcc-${{ matrix.gcc-version }}

@@ -26,6 +26,10 @@ jobs:
           mpi-wrapper-setup: oneapi
           env-update: true
 
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y libkokkos-dev libyaml-cpp-dev
+
       - name: Configure
         run: |
           . /entrypoint.sh
@@ -34,6 +38,7 @@ jobs:
             -DCATCHEM_BUILD_TESTING=ON \
             -DCATCHEM_BUILD_NUOPC=ON \
             -DCATCHEM_BUILD_MUSICA=ON \
+            -DENABLE_KOKKOS=ON \
             -DCMAKE_INSTALL_PREFIX=../install \
             -DCMAKE_BUILD_TYPE=Debug
 
