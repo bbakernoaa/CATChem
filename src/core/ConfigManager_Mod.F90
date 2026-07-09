@@ -70,6 +70,10 @@ contains
       logical, intent(out) :: val
       integer, intent(out) :: rc
       logical, intent(in), optional :: default
+
+      associate(unused1 => this, unused2 => path)
+      end associate
+
       val = .false.
       if (present(default)) val = default
       rc = CC_SUCCESS
@@ -81,6 +85,10 @@ contains
       character(len=*), intent(out) :: val
       integer, intent(out) :: rc
       character(len=*), intent(in), optional :: default
+
+      associate(unused1 => this, unused2 => path)
+      end associate
+
       val = ""
       if (present(default)) val = default
       rc = CC_SUCCESS
@@ -92,6 +100,10 @@ contains
       real(fp), intent(out) :: val
       integer, intent(out) :: rc
       real(fp), intent(in), optional :: default
+
+      associate(unused1 => this, unused2 => path)
+      end associate
+
       val = 0.0_fp
       if (present(default)) val = default
       rc = CC_SUCCESS
@@ -103,6 +115,10 @@ contains
       character(len=*), allocatable, intent(out) :: val(:)
       integer, intent(out) :: rc
       character(len=*), intent(in), optional :: default_values(:)
+
+      associate(unused1 => this, unused2 => path)
+      end associate
+
       if (present(default_values)) then
          allocate(val(size(default_values)))
          val = default_values

@@ -27,6 +27,10 @@ contains
       character(len=*), allocatable, intent(out) :: process_list(:)
       integer, intent(out) :: num_processes
       integer, intent(out) :: rc
+
+      associate(unused => this)
+      end associate
+
       allocate(process_list(0))
       num_processes = 0
       rc = CC_SUCCESS
@@ -37,6 +41,10 @@ contains
       character(len=*), intent(in) :: process_name
       type(DiagnosticRegistryType), pointer, intent(out) :: registry
       integer, intent(out) :: rc
+
+      associate(unused1 => this, unused2 => process_name)
+      end associate
+
       nullify(registry)
       rc = CC_SUCCESS
    end subroutine diag_mgr_get_process_registry
@@ -55,6 +63,10 @@ contains
       character(len=*), intent(out) :: description
       character(len=*), intent(out) :: units
       integer, intent(out) :: rc
+
+      associate(unused1 => this, unused2 => process_name, unused3 => field_name)
+      end associate
+
       scalar_value = 0.0_fp
       nullify(array_1d_ptr, array_2d_ptr, array_3d_ptr)
       data_type = 0
@@ -67,6 +79,10 @@ contains
       class(DiagnosticManagerType), intent(inout) :: this
       character(len=*), intent(in) :: process_name
       integer, intent(out) :: rc
+
+      associate(unused1 => this, unused2 => process_name)
+      end associate
+
       rc = CC_SUCCESS
    end subroutine diag_mgr_register_process
 
