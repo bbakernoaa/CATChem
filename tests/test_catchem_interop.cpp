@@ -10,7 +10,6 @@
 #include <vector>
 
 extern "C" {
-    void run_settling_physics_fortran_bridge(void* state_ptr);
     void catchem_register_settling_cpp();
     void catchem_register_drydep_cpp();
     void catchem_register_seasalt_cpp();
@@ -150,42 +149,6 @@ int main(int argc, char* argv[]) {
             }
 
             catchem_core_destroy(core_ptr);
-        }
-
-        // ==========================================
-        // TEST 3: Phase 2 Sequenced Fortran Dynamic Bridge
-        // ==========================================
-        {
-            int n_cols = 4;
-            int n_levels = 5;
-            int n_species = 2;
-
-            // Allocate mock Fortran memory
-            std::vector<double> fortran_array(n_cols * n_levels, 1.0);
-
-            // 1. Create Core, StateManager and Dynamic Registry
-            void* core_ptr = catchem_core_create(n_cols, n_levels, n_species);
-            auto* core = static_cast<catchem::Core*>(core_ptr);
-            void* state = catchem_core_get_state_manager(core_ptr);
-
-            // Bind temperature array
-            catchem_state_bind_2d(state, "temperature", fortran_array.data());
-
-            // 2. Attach our newly created C++ FortranProcess bridge callback
-            core->add_process(std::make_shared<catchem::FortranProcess>(
-                "legacy_settling_physics", 
-                run_settling_physics_fortran_bridge
-            ));
-
-            // 3. Step forward (runs dynamic process, which syncs memory & calls bridge in order)
-            catchem_core_run_timestep(core_ptr, 3600.0);
-
-            // 4. Verify results
-            // Fortran bridge executes: temp = temp + 10.0D0
-            assert(fortran_array[0] == 11.0);
-
-            catchem_core_destroy(core_ptr);
-            std::cout << "SUCCESS: Sequenced Fortran Dynamic Bridge Validation Passed!\n";
         }
 
         // ==========================================
@@ -491,43 +454,6 @@ int main(int argc, char* argv[]) {
         }
 
         // ==========================================
-        // TEST 8: Standard C++20 mdspan Representation and Indexing
-        // ==========================================
-        {
-            int n_cols = 4;
-            int n_levels = 5;
-            int n_species = 2;
-
-            void* core = catchem_core_create(n_cols, n_levels, n_species);
-            auto* state_obj = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
-
-            // 1. Bind mock temperature 3D array (using layout left column-major)
-            std::vector<double> temp_array(n_cols * n_levels, 298.15);
-            temp_array[0 + 0 * n_cols] = 273.15; // Bottom-left level 0
-            temp_array[1 + 2 * n_cols] = 300.00; // Col 1, Level 2
-            
-            catchem_state_bind_met_3d(state_obj, "T", temp_array.data());
-            catchem_state_sync_to_device(state_obj);
-
-            // 2. Extract standard mdspan accessor
-            auto temp_mds = state_obj->met.T->mdspan();
-
-            // 3. Assert dimensions and layout access
-            assert(temp_mds.extent(0) == n_cols);
-            assert(temp_mds.extent(1) == n_levels);
-            assert(temp_mds(0, 0, 0) == 273.15);
-            assert(temp_mds(1, 2, 0) == 300.00);
-
-            std::cout << "INFO: mdspan dimension 0 (cols) = " << temp_mds.extent(0) << "\n";
-            std::cout << "INFO: mdspan dimension 1 (levels) = " << temp_mds.extent(1) << "\n";
-            std::cout << "INFO: Verified mdspan(0,0,0) = " << temp_mds(0, 0, 0) << " K\n";
-            std::cout << "INFO: Verified mdspan(1,2,0) = " << temp_mds(1, 2, 0) << " K\n";
-
-            catchem_core_destroy(core);
-            std::cout << "SUCCESS: C++20 Kokkos::mdspan Multidimensional Access Validation Passed!\n";
-        }
-
-        // ==========================================
         // TEST 9: Direct Flat-Science Interop Adapter for DryDep
         // ==========================================
         {
@@ -651,7 +577,13 @@ int main(int argc, char* argv[]) {
             std::vector<double> mock_ustar(n_cols, 0.5);
 
             // Bind them
+            
+            std::vector<double> mock_lat(n_cols, 40.0);
+            std::vector<double> mock_lon(n_cols, -80.0);
+            state->bind_met_field_2d("LAT", mock_lat.data());
+            state->bind_met_field_2d("LON", mock_lon.data());
             state->bind_met_field_2d("FROCEAN", mock_frocean.data());
+
             state->bind_met_field_2d("FRSEAICE", mock_frseaice.data());
             state->bind_met_field_2d("SST", mock_sst.data());
             state->bind_met_field_3d("DELP", mock_delp.data());

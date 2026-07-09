@@ -7,8 +7,7 @@
 set(
   SETTLING_PROCESS_SOURCES
   SettlingCommon_Mod.F90
-  ProcessSettlingInterface_Mod.F90
-  SettlingProcessCreator_Mod.F90
+  catchem_process_settling.cpp
 )
 
 # Define settling scheme sources

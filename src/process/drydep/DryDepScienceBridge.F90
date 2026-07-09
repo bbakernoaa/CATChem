@@ -246,7 +246,7 @@ contains
                f_airden, f_frlake, f_gwettop, f_hflux, &
                f_lwi, f_pblh, f_t_air, real(dt, fp), &
                f_u10m, f_ustar, f_v10m, f_z_edges, f_z0h, &
-               f_density, f_radius, f_is_seasalt, &
+               f_density, f_radius, f_is_dust, f_is_seasalt, &
                f_conc, col_tendencies, f_is_gas_arr, col_diag_con, col_diag_vel, &
                diagnostic_species_id)
          else if (trim(local_aero) == "zhang") then

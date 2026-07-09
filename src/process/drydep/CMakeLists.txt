@@ -5,10 +5,9 @@
 # Define drydep process sources
 set(
   DRYDEP_PROCESS_SOURCES
-  DryDepCommon_Mod.F90
-  ProcessDryDepInterface_Mod.F90
-  DryDepProcessCreator_Mod.F90
-  DryDepScienceBridge.F90
+  DrydepCommon_Mod.F90
+  catchem_process_drydep.cpp
+  DrydepScienceBridge.F90
 )
 
 # Define drydep scheme sources

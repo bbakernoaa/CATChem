@@ -14,7 +14,7 @@ contains
       c_airden_dry, c_mairden, c_pedge, c_pfilsan, c_pfllsan, c_reevapls, c_t_air, &
       ! Metadata
       species_is_aerosol, species_henry_cr, species_henry_k0, species_henry_pKa, &
-      species_wd_retfactor, species_wd_LiqAndGas, species_wd_convfacI2G, species_wd_rainouteff, &
+      species_wd_retfactor, species_wd_LiqAndGas, species_wd_convfacI2G, species_wd_rainouteff, species_wd_reevap_frac, &
       species_radius, species_mw_g, species_names, &
       ! Concentrations, Tendencies & Diagnostics
       c_conc, c_tendency, c_diag_mass, c_diag_flux, &
@@ -38,6 +38,7 @@ contains
       logical(c_bool), intent(in) :: species_wd_LiqAndGas(n_species)
       real(c_double), intent(in) :: species_wd_convfacI2G(n_species)
       real(c_double), intent(in) :: species_wd_rainouteff(n_species, 3) ! Exactly 3 elements matching GOCART/Jacob specifications
+      real(c_double), intent(in) :: species_wd_reevap_frac(n_species)
       real(c_double), intent(in) :: species_radius(n_species)
       real(c_double), intent(in) :: species_mw_g(n_species)
       character(kind=c_char), intent(in) :: species_names(32, n_species)
@@ -72,6 +73,7 @@ contains
       logical :: f_wd_LiqAndGas(n_species)
       real(fp) :: f_wd_convfacI2G(n_species)
       real(fp) :: f_wd_rainouteff(n_species, 3) ! Shaped with species as dimension 1, and 3 efficiency factors
+      real(fp) :: col_wd_reevap_frac(n_species)
       real(fp) :: f_radius(n_species)
       real(fp) :: f_mw_g(n_species)
 
@@ -106,6 +108,7 @@ contains
             dummy_sp_names(i)(j:j) = species_names(j, i)
          end do
          dummy_sp_names(i) = trim(adjustl(dummy_sp_names(i)))
+         print *, "DEBUG WETDEP: species ", i, " name = '", trim(dummy_sp_names(i)), "'"
       end do
 
       ! Copy to standard logical arrays & cast doubles once
@@ -142,7 +145,7 @@ contains
             f_reevapls, f_t_air, real(dt, fp), &
             f_is_aerosol, dummy_sp_names, f_henry_cr, f_henry_k0, f_henry_pKa, &
             f_wd_retfactor, f_wd_LiqAndGas, f_wd_convfacI2G, f_wd_rainouteff, &
-            f_radius, f_mw_g, &
+            col_wd_reevap_frac, f_radius, f_mw_g, &
             f_conc, col_tendencies, &
             wetdep_mass_per_species_per_level=col_diag_mass, &
             wetdep_flux_per_species_per_level=col_diag_flux, &

@@ -18,24 +18,7 @@ set(
   DiagnosticInterface_Mod.F90
 )
 
-set(
-  _core_srcs
-  ConfigManager_Mod.F90
-  VirtualColumn_Mod.F90
-  GridManager_Mod.F90
-  DiagnosticManager_Mod.F90
-  StateManager_Mod.F90
-  ChemSpeciesUtils_Mod.F90
-  EmissionConfigValidator_Mod.F90
-  ProcessInterface_Mod.F90
-  ProcessFactory_Mod.F90
-  ProcessRegistry_Mod.F90
-  ProcessManager_Mod.F90
-  CATChemCore_Mod.F90
-  FortranCoreBridge_Mod.F90
-)
-
-set(_srcs ${_base_srcs} ${_state_srcs} ${_core_srcs})
+set(_srcs ${_base_srcs} ${_state_srcs})
 # add Python3 package for generating Fortran module macros
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
@@ -649,14 +632,6 @@ set_source_files_properties(
     COMPILE_FLAGS "-cpp"
     OBJECT_DEPENDS
       "${METSTATE_ACCESSOR_INC};${METSTATE_ACCESSOR_INT_INC};${METSTATE_ACCESSOR_LOGICAL_INC};${METSTATE_ALLOCATE_INC};${METSTATE_DEALLOCATE_INC};${METSTATE_2D_SCALAR_ACCESSOR_INC};${METSTATE_2D_SCALAR_ACCESSOR_INT_INC};${METSTATE_2D_SCALAR_ACCESSOR_LOGICAL_INC};${METSTATE_SCALAR_ACCESSOR_INC};${METSTATE_SCALAR_ACCESSOR_INT_INC};${METSTATE_SCALAR_ACCESSOR_LOGICAL_INC};${METSTATE_SET_FIELD_INC};${METSTATE_SET_FIELD_2D_REAL_INC};${METSTATE_SET_FIELD_2D_INT_INC};${METSTATE_SET_FIELD_2D_LOGICAL_INC};${METSTATE_SET_FIELD_3D_REAL_INC};${METSTATE_SET_FIELD_3D_INT_INC};${METSTATE_SET_FIELD_3D_LOGICAL_INC};${METSTATE_SET_FIELD_SCALAR_REAL_INC};${METSTATE_SET_FIELD_SCALAR_INT_INC};${METSTATE_SET_FIELD_SCALAR_LOGICAL_INC};${METSTATE_MULTIPLE_FIELDS_INTERFACE_INC}"
-)
-
-set_source_files_properties(
-  VirtualColumn_Mod.F90
-  PROPERTIES
-    COMPILE_FLAGS "-cpp"
-    OBJECT_DEPENDS
-      "${VIRTUALMET_TYPE_INC};${VIRTUALMET_POPULATE_INC};${VIRTUALMET_CLEANUP_INC}"
 )
 
 target_include_directories(CATChem_core PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

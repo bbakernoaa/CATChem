@@ -7,8 +7,7 @@
 set(
   SO4CHEM_PROCESS_SOURCES
   SO4chemCommon_Mod.F90
-  ProcessSO4chemInterface_Mod.F90
-  SO4chemProcessCreator_Mod.F90
+  catchem_process_so4chem.cpp
   SO4chemScienceBridge.F90
 )
 

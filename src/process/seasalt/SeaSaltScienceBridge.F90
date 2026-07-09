@@ -1,7 +1,7 @@
 module SeaSaltScienceBridge_Mod
    use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_null_char, c_bool
    use Precision_Mod, only: fp
-   use Constants, only: g0, AIRMW
+   use Constants, only: g0, AIRMW, PI
    use SeaSaltCommon_Mod, only: SeaSaltSchemeGONG97Config, SeaSaltSchemeGONG03Config, SeaSaltSchemeGEOS12Config
    use SeaSaltScheme_GONG97_Mod, only: compute_gong97
    use SeaSaltScheme_GONG03_Mod, only: compute_gong03
@@ -13,7 +13,7 @@ contains
       n_cols, n_levels, n_species, dt, &
       active_scheme, diagnostics, &
       ! Met Pointers
-      c_frocean, c_frseaice, c_sst, c_u10m, c_v10m, c_ustar, c_delp, &
+      c_frocean, c_frseaice, c_lat, c_lon, c_sst, c_u10m, c_v10m, c_ustar, c_delp, &
       ! Species Metadata
       species_density, species_radius, species_lower_radius, species_upper_radius, is_gas_arr, species_mw_g, &
       ! Concentrations and Tendency
@@ -28,7 +28,7 @@ contains
       character(kind=c_char), intent(in) :: active_scheme(*)
       integer, value :: diagnostics
 
-      type(c_ptr), value :: c_frocean, c_frseaice, c_sst, c_u10m, c_v10m, c_ustar, c_delp
+      type(c_ptr), value :: c_frocean, c_frseaice, c_lat, c_lon, c_sst, c_u10m, c_v10m, c_ustar, c_delp
       type(c_ptr), value :: c_conc, c_tendency
       type(c_ptr), value :: c_diag_mass_total, c_diag_num_total, c_diag_mass_bin, c_diag_num_bin
 
@@ -43,7 +43,7 @@ contains
       integer, intent(in) :: diagnostic_species_id(n_diag_species)
 
       ! Slicing array pointers mapping directly to C++ 8-byte double views
-      real(c_double), pointer :: frocean(:), frseaice(:), sst(:), u10m(:), v10m(:), ustar(:), delp(:,:)
+      real(c_double), pointer :: frocean(:), frseaice(:), lat(:), lon(:), sst(:), u10m(:), v10m(:), ustar(:), delp(:,:)
       real(c_double), pointer :: conc(:,:,:), tendency(:,:,:)
       real(c_double), pointer :: diag_mass_total(:), diag_num_total(:), diag_mass_bin(:,:), diag_num_bin(:,:)
 
@@ -53,7 +53,7 @@ contains
       character(len=64) :: local_scheme
 
       ! Local physical variables in native precision (fp) to avoid double-float mismatches inside solvers
-      real(fp) :: f_frocean, f_frseaice, f_sst, f_ustar, f_u10m, f_v10m
+      real(fp) :: f_frocean, f_frseaice, f_lat, f_lon, f_sst, f_ustar, f_u10m, f_v10m
       real(fp) :: f_delp_layer1
       real(fp) :: f_density(n_species)
       real(fp) :: f_radius(n_species)
@@ -83,6 +83,8 @@ contains
       ! Associate pointers
       call c_f_pointer(c_frocean,  frocean,  [n_cols])
       call c_f_pointer(c_frseaice, frseaice, [n_cols])
+      call c_f_pointer(c_lat,      lat,      [n_cols])
+      call c_f_pointer(c_lon,      lon,      [n_cols])
       call c_f_pointer(c_sst,      sst,      [n_cols])
       call c_f_pointer(c_u10m,     u10m,     [n_cols])
       call c_f_pointer(c_v10m,     v10m,     [n_cols])
@@ -110,6 +112,8 @@ contains
       do icol = 1, n_cols
          f_frocean  = real(frocean(icol), fp)
          f_frseaice = real(frseaice(icol), fp)
+         f_lat      = real(lat(icol), fp)
+         f_lon      = real(lon(icol), fp)
          f_sst      = real(sst(icol), fp)
          f_u10m     = real(u10m(icol), fp)
          f_v10m     = real(v10m(icol), fp)
@@ -126,8 +130,8 @@ contains
 
          if (local_scheme == "gong97") then
             call compute_gong97( &
-               1, n_species, gong97_config, &
-               f_frocean, f_frseaice, f_sst, f_u10m, f_v10m, &
+               1, n_species, gong97_config, PI, &
+               f_frocean, f_frseaice, f_lat, f_lon, f_sst, f_u10m, f_v10m, &
                f_density, f_radius, f_lower_radius, f_upper_radius, &
                f_conc, f_tendency, &
                seasalt_mass_emission_total=col_mass_total, &
@@ -137,8 +141,8 @@ contains
                diagnostic_species_id=diagnostic_species_id)
          else if (local_scheme == "gong03") then
             call compute_gong03( &
-               1, n_species, gong03_config, &
-               f_frocean, f_frseaice, f_sst, f_u10m, f_v10m, &
+               1, n_species, gong03_config, PI, &
+               f_frocean, f_frseaice, f_lat, f_lon, f_sst, f_u10m, f_v10m, &
                f_density, f_radius, f_lower_radius, f_upper_radius, &
                f_conc, f_tendency, &
                seasalt_mass_emission_total=col_mass_total, &
@@ -148,8 +152,8 @@ contains
                diagnostic_species_id=diagnostic_species_id)
          else if (local_scheme == "geos12") then
             call compute_geos12( &
-               1, n_species, geos12_config, &
-               f_frocean, f_frseaice, f_sst, f_ustar, &
+               1, n_species, geos12_config, PI, &
+               f_frocean, f_frseaice, f_lat, f_lon, f_sst, f_u10m, f_ustar, f_v10m, &
                f_density, f_radius, f_lower_radius, f_upper_radius, &
                f_conc, f_tendency, &
                seasalt_mass_emission_total=col_mass_total, &

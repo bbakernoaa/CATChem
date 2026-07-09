@@ -6,9 +6,9 @@
 # Define carbchem process sources
 set(
   CARBCHEM_PROCESS_SOURCES
-  CarbChemCommon_Mod.F90
-  ProcessCarbChemInterface_Mod.F90
-  CarbChemProcessCreator_Mod.F90
+  CarbchemCommon_Mod.F90
+  catchem_process_carbchem.cpp
+  CarbchemScienceBridge.F90
 )
 
 # Define carbchem scheme sources
@@ -24,6 +24,13 @@ add_library(${_lib} ${CARBCHEM_ALL_SOURCES})
 # Link with required libraries
 target_link_libraries(${_lib} PUBLIC CATChem_core)
 
+# Conditional Kokkos linking
+if(ENABLE_KOKKOS)
+  target_link_libraries(${_lib} PUBLIC Kokkos::kokkos CATChem_core_cpp)
+  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
+endif()
+
+
 # Additional dependencies
 # Chemistry processes may need additional math libraries
 target_link_libraries(${_lib} PUBLIC ${LAPACK_LIBRARIES})
@@ -35,7 +42,7 @@ set_target_properties(
 )
 
 # Include directories
-target_include_directories(${_lib} PRIVATE ${CMAKE_BINARY_DIR}/include)
+target_include_directories(${_lib} PRIVATE ${CMAKE_BINARY_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/../../core)
 
 # Compiler-specific flags
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")

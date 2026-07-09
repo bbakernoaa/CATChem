@@ -48,45 +48,45 @@ struct ChemState {
 
         int index = 0;
         for (auto const& item : config) {
-            std::string key = item.first.as<std::string>();
-            YAML::Node val = item.second;
+            YAML::Node val = item;
+            std::string key = val["name"].as<std::string>();
 
             SpeciesMetadata meta;
             meta.short_name = key;
-            meta.long_name = val["name"] ? val["name"].as<std::string>() : key;
-            meta.description = val["description"] ? val["description"].as<std::string>() : "";
+            meta.long_name = key;
+            meta.description = val["__description"] ? val["__description"].as<std::string>() : "";
 
-            meta.is_gas = val["is_gas"] ? val["is_gas"].as<bool>() : false;
-            meta.is_aerosol = val["is_aerosol"] ? val["is_aerosol"].as<bool>() : false;
-            meta.is_tracer = val["is_tracer"] ? val["is_tracer"].as<bool>() : false;
-            meta.is_advected = val["is_advected"] ? val["is_advected"].as<bool>() : true;
-            meta.is_drydep = val["is_drydep"] ? val["is_drydep"].as<bool>() : false;
-            meta.is_wetdep = val["is_wetdep"] ? val["is_wetdep"].as<bool>() : false;
-            meta.is_photolysis = val["is_photolysis"] ? val["is_photolysis"].as<bool>() : false;
-            meta.is_dust = val["is_dust"] ? val["is_dust"].as<bool>() : false;
-            meta.is_seasalt = val["is_seasalt"] ? val["is_seasalt"].as<bool>() : false;
+            meta.is_gas = val["__is_gas"] ? val["__is_gas"].as<bool>() : false;
+            meta.is_aerosol = val["__is_aerosol"] ? val["__is_aerosol"].as<bool>() : false;
+            meta.is_tracer = val["__is_tracer"] ? val["__is_tracer"].as<bool>() : false;
+            meta.is_advected = val["__is_advected"] ? val["__is_advected"].as<bool>() : true;
+            meta.is_drydep = val["__is_drydep"] ? val["__is_drydep"].as<bool>() : false;
+            meta.is_wetdep = val["__is_wetdep"] ? val["__is_wetdep"].as<bool>() : false;
+            meta.is_photolysis = val["__is_photolysis"] ? val["__is_photolysis"].as<bool>() : false;
+            meta.is_dust = val["__is_dust"] ? val["__is_dust"].as<bool>() : false;
+            meta.is_seasalt = val["__is_seasalt"] ? val["__is_seasalt"].as<bool>() : false;
 
-            meta.mw_g = val["mw_g"] ? val["mw_g"].as<double>() : 0.0;
-            meta.density = val["density"] ? val["density"].as<double>() : 0.0;
-            meta.radius = val["radius"] ? val["radius"].as<double>() : 0.0;
-            meta.lower_radius = val["lower_radius"] ? val["lower_radius"].as<double>() : 0.0;
-            meta.upper_radius = val["upper_radius"] ? val["upper_radius"].as<double>() : 0.0;
-            meta.viscosity = val["viscosity"] ? val["viscosity"].as<double>() : 0.0;
+            meta.mw_g = val["molecular weight [kg mol-1]"] ? val["molecular weight [kg mol-1]"].as<double>() * 1000.0 : 0.0;
+            meta.density = val["__density"] ? val["__density"].as<double>() : 0.0;
+            meta.radius = val["__radius"] ? val["__radius"].as<double>() : 0.0;
+            meta.lower_radius = val["__lower_radius"] ? val["__lower_radius"].as<double>() : 0.0;
+            meta.upper_radius = val["__upper_radius"] ? val["__upper_radius"].as<double>() : 0.0;
+            meta.viscosity = val["__viscosity"] ? val["__viscosity"].as<double>() : 0.0;
 
-            meta.dd_f0 = val["dd_f0"] ? val["dd_f0"].as<double>() : 0.0;
-            meta.dd_hstar = val["dd_hstar"] ? val["dd_hstar"].as<double>() : 0.0;
-            meta.dd_DvzAerSnow = val["dd_DvzAerSnow"] ? val["dd_DvzAerSnow"].as<double>() : 0.0;
-            meta.dd_DvzMinVal_snow = val["dd_DvzMinVal_snow"] ? val["dd_DvzMinVal_snow"].as<double>() : 0.0;
-            meta.dd_DvzMinVal_land = val["dd_DvzMinVal_land"] ? val["dd_DvzMinVal_land"].as<double>() : 0.0;
+            meta.dd_f0 = val["__dd_f0"] ? val["__dd_f0"].as<double>() : 0.0;
+            meta.dd_hstar = val["__dd_hstar"] ? val["__dd_hstar"].as<double>() : 0.0;
+            meta.dd_DvzAerSnow = val["__dd_DvzAerSnow"] ? val["__dd_DvzAerSnow"].as<double>() : 0.0;
+            meta.dd_DvzMinVal_snow = val["__dd_DvzMinVal_snow"] ? val["__dd_DvzMinVal_snow"].as<double>() : 0.0;
+            meta.dd_DvzMinVal_land = val["__dd_DvzMinVal_land"] ? val["__dd_DvzMinVal_land"].as<double>() : 0.0;
 
-            meta.wd_retfactor = val["wd_retfactor"] ? val["wd_retfactor"].as<double>() : 0.0;
-            meta.wd_LiqAndGas = val["wd_LiqAndGas"] ? val["wd_LiqAndGas"].as<bool>() : false;
-            meta.wd_convfacI2G = val["wd_convfacI2G"] ? val["wd_convfacI2G"].as<double>() : 0.0;
+            meta.wd_retfactor = val["__wd_retfactor"] ? val["__wd_retfactor"].as<double>() : 0.0;
+            meta.wd_LiqAndGas = val["__wd_LiqAndGas"] ? val["__wd_LiqAndGas"].as<bool>() : false;
+            meta.wd_convfacI2G = val["__wd_convfacI2G"] ? val["__wd_convfacI2G"].as<double>() : 0.0;
             
-            if (val["wd_rainouteff"]) {
-                meta.wd_rainouteff = val["wd_rainouteff"].as<std::vector<double>>();
+            if (val["__wd_rainouteff"]) {
+                meta.wd_rainouteff = val["__wd_rainouteff"].as<std::vector<double>>();
             }
-            meta.mie_name = val["mie_name"] ? val["mie_name"].as<std::string>() : "";
+            meta.mie_name = val["__mie_name"] ? val["__mie_name"].as<std::string>() : "";
 
             species_list.push_back(meta);
             species_name_to_index[key] = index;
@@ -109,6 +109,7 @@ struct ChemState {
         species_names_c_arr.assign(species_list.size() * 32, ' ');
         for (size_t i = 0; i < species_list.size(); ++i) {
             std::string name = species_list[i].short_name;
+            for (auto& c : name) c = std::toupper(c);
             for (size_t j = 0; j < name.size() && j < 32; ++j) {
                 species_names_c_arr[i * 32 + j] = name[j];
             }

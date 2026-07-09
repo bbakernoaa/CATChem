@@ -9,7 +9,7 @@ extern "C" {
         int diagnostics,
         double* airden_dry, double* mairden, double* pedge, double* pfilsan, double* pfllsan, double* reevapls, double* t_air,
         bool* is_aerosol, double* henry_cr, double* henry_k0, double* henry_pKa,
-        double* wd_retfactor, bool* wd_LiqAndGas, double* wd_convfacI2G, double* wd_rainouteff,
+        double* wd_retfactor, bool* wd_LiqAndGas, double* wd_convfacI2G, double* wd_rainouteff, double* wd_reevap_frac,
         double* radius, double* mw_g, const char* species_names,
         double* conc, double* tendency, double* diag_mass, double* diag_flux,
         const int* diagnostic_species_id, int n_diag_species
@@ -75,6 +75,7 @@ void WetDepProcess::run(std::shared_ptr<StateManager> state) {
     std::vector<double> wd_retfactor(state->n_species, 0.0);
     std::vector<char> wd_LiqAndGas(state->n_species, 0);
     std::vector<double> wd_convfacI2G(state->n_species, 0.0);
+    std::vector<double> wd_reevap_frac(state->n_species, 0.0);
     std::vector<double> wd_rainouteff_storage(state->n_species * 3, 0.0);
     std::vector<double> radius(state->n_species, 1e-6);
     std::vector<double> mw_g(state->n_species, 29.0);
@@ -90,6 +91,7 @@ void WetDepProcess::run(std::shared_ptr<StateManager> state) {
         wd_retfactor[i] = meta.wd_retfactor;
         wd_LiqAndGas[i] = meta.wd_LiqAndGas ? 1 : 0;
         wd_convfacI2G[i] = meta.wd_convfacI2G;
+        wd_reevap_frac[i] = 1.0; // dummy default
         radius[i]     = meta.radius;
         mw_g[i]       = meta.mw_g;
 
@@ -109,7 +111,7 @@ void WetDepProcess::run(std::shared_ptr<StateManager> state) {
         diagnostics_enabled ? 1 : 0,
         airden_dry_ptr, mairden_ptr, pedge_ptr, pfilsan_ptr, pfllsan_ptr, reevapls_ptr, t_ptr,
         (bool*)is_aerosol.data(), henry_cr.data(), henry_k0.data(), henry_pKa.data(),
-        wd_retfactor.data(), (bool*)wd_LiqAndGas.data(), wd_convfacI2G.data(), wd_rainouteff.data_handle(),
+        wd_retfactor.data(), (bool*)wd_LiqAndGas.data(), wd_convfacI2G.data(), wd_rainouteff.data_handle(), wd_reevap_frac.data(),
         radius.data(), mw_g.data(), state->chem.species_names_c_arr.data(),
         conc_ptr, mock_tendency.data(), diag_mass_bin.data(), diag_flux_bin.data(),
         diagnostic_species_id.data(), diagnostic_species_id.size()
