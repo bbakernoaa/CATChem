@@ -1,5 +1,5 @@
 module DryDepScienceBridge_Mod
-   use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_null_char, c_bool
+   use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_null_char, c_bool, c_int
    use Precision_Mod, only: fp
    use DryDepCommon_Mod, only: DryDepSchemeWESELYConfig, DryDepSchemeGOCARTConfig, DryDepSchemeZHANGConfig
    use DryDepScheme_WESELY_Mod, only: compute_wesely
@@ -27,11 +27,11 @@ contains
       diagnostic_species_id, n_diag_species &
    ) bind(C, name="run_drydep_science_bridge")
 
-      integer, value :: n_cols, n_levels, n_species
+      integer(c_int), value :: n_cols, n_levels, n_species
       real(c_double), value :: dt
       character(kind=c_char), intent(in) :: gas_scheme(*)
       character(kind=c_char), intent(in) :: aero_scheme(*)
-      integer, value :: diagnostics
+      integer(c_int), value :: diagnostics
       
       ! C pointers
       type(c_ptr), value :: c_bxheight, c_airden, c_t_air, c_z_edges, c_rh
@@ -54,8 +54,8 @@ contains
       real(c_double), intent(in) :: species_lower_radius(n_species)
       real(c_double), intent(in) :: species_upper_radius(n_species)
       logical(c_bool), intent(in) :: is_gas_arr(n_species)
-      integer, value :: n_diag_species
-      integer, intent(in) :: diagnostic_species_id(n_diag_species)
+      integer(c_int), value :: n_diag_species
+      integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
 
       ! Slicing array pointers pointing directly to double precision (c_double) C++ views
       real(c_double), pointer :: bxheight(:,:), airden(:,:), t_air(:,:), z_edges(:,:), rh(:,:)

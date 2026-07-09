@@ -1,5 +1,5 @@
 module SO4chemScienceBridge_Mod
-   use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_bool
+   use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_bool, c_int
    use Precision_Mod, only: fp
    use Constants, only: g0, Cpd, AVO, VON_KARMAN, AIRMW, PI
    use SO4chemCommon_Mod, only: SO4chemSchemeGOCARTConfig
@@ -26,11 +26,11 @@ contains
       diagnostic_species_id, n_diag_species &
    ) bind(C, name="run_so4chem_science_bridge")
 
-      integer, value :: n_cols, n_levels, n_species
+      integer(c_int), value :: n_cols, n_levels, n_species
       real(c_double), value :: dt
-      integer, value :: diagnostics
+      integer(c_int), value :: diagnostics
 
-      integer, value :: year, month, day, hour, minute, second
+      integer(c_int), value :: year, month, day, hour, minute, second
 
       ! C pointers
       type(c_ptr), value :: c_airden, c_cldf, c_delp, c_pmid, c_t_air, c_z_edges
@@ -43,8 +43,8 @@ contains
       real(c_double), intent(in) :: species_mw_g(n_species)
       character(kind=c_char), intent(in) :: species_names(32, n_species)
 
-      integer, value :: n_diag_species
-      integer, intent(in) :: diagnostic_species_id(n_diag_species)
+      integer(c_int), value :: n_diag_species
+      integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
 
       ! Slicing array pointers pointing directly to double precision (c_double) C++ views
       real(c_double), pointer :: airden(:,:), cldf(:,:), delp(:,:), pmid(:,:), t_air(:,:), z_edges(:,:)

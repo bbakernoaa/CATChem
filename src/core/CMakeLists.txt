@@ -31,7 +31,9 @@ set_target_properties(
 set_property(TARGET CATChem_core PROPERTY JOB_POOLS compile=serial)
 set_property(TARGET CATChem_core PROPERTY JOB_POOL_COMPILE serial)
 
-target_compile_options(CATChem_core PRIVATE ${_catchem_compiler_options})
+foreach(opt IN LISTS _catchem_compiler_options)
+  target_compile_options(CATChem_core PRIVATE "$<$<COMPILE_LANGUAGE:Fortran>:${opt}>")
+endforeach()
 
 target_link_libraries(CATChem_core PRIVATE yaml_interface catchem_utilities)
 

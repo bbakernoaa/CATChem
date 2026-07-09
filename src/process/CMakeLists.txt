@@ -1,4 +1,6 @@
-add_compile_options(${_catchem_compiler_options})
+foreach(opt IN LISTS _catchem_compiler_options)
+  add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:${opt}>")
+endforeach()
 
 add_subdirectory(seasalt)
 add_subdirectory(dust)

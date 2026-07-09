@@ -1,4 +1,6 @@
-add_compile_options(${_catchem_compiler_options})
+foreach(opt IN LISTS _catchem_compiler_options)
+  add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:${opt}>")
+endforeach()
 
 if(ENABLE_KOKKOS)
     add_executable(test_catchem_interop test_catchem_interop.cpp)

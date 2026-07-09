@@ -1,5 +1,5 @@
 module SeaSaltScienceBridge_Mod
-   use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_null_char, c_bool
+   use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_null_char, c_bool, c_int
    use Precision_Mod, only: fp
    use Constants, only: g0, AIRMW, PI
    use SeaSaltCommon_Mod, only: SeaSaltSchemeGONG97Config, SeaSaltSchemeGONG03Config, SeaSaltSchemeGEOS12Config
@@ -23,15 +23,16 @@ contains
       diagnostic_species_id, n_diag_species &
    ) bind(C, name="run_seasalt_science_bridge")
 
-      integer, value :: n_cols, n_levels, n_species
+      integer(c_int), value :: n_cols, n_levels, n_species
       real(c_double), value :: dt
       character(kind=c_char), intent(in) :: active_scheme(*)
-      integer, value :: diagnostics
+      integer(c_int), value :: diagnostics
 
       type(c_ptr), value :: c_frocean, c_frseaice, c_lat, c_lon, c_sst, c_u10m, c_v10m, c_ustar, c_delp
       type(c_ptr), value :: c_conc, c_tendency
       type(c_ptr), value :: c_diag_mass_total, c_diag_num_total, c_diag_mass_bin, c_diag_num_bin
 
+      integer(c_int), value :: n_diag_species
       real(c_double), intent(in) :: species_density(n_species)
       real(c_double), intent(in) :: species_radius(n_species)
       real(c_double), intent(in) :: species_lower_radius(n_species)
@@ -39,8 +40,7 @@ contains
       logical(c_bool), intent(in) :: is_gas_arr(n_species)
       real(c_double), intent(in) :: species_mw_g(n_species)
 
-      integer, value :: n_diag_species
-      integer, intent(in) :: diagnostic_species_id(n_diag_species)
+      integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
 
       ! Slicing array pointers mapping directly to C++ 8-byte double views
       real(c_double), pointer :: frocean(:), frseaice(:), lat(:), lon(:), sst(:), u10m(:), v10m(:), ustar(:), delp(:,:)
