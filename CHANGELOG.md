@@ -1,5 +1,25 @@
 # CHANGELOG
 
+<!-- version list -->
+
+## v0.1.0-rc.1 (2026-07-09)
+
+### Features
+
+- GOCART-2G processes for GCAFS ([#159](https://github.com/ufs-community/CATChem/pull/159),
+  [`c1ecaf3`](https://github.com/ufs-community/CATChem/commit/c1ecaf3cbdbd0097d5949a491935493f4b061a65))
+
+- Link MUSICA ([#154](https://github.com/ufs-community/CATChem/pull/154),
+  [`5b50860`](https://github.com/ufs-community/CATChem/commit/5b50860ab50f390ce4bab4fb8f7a24f9537fd5a7))
+
+- **ci**: Add semantic release, docker build jobs & find yaml-cpp
+  ([#158](https://github.com/ufs-community/CATChem/pull/158),
+  [`a8ff444`](https://github.com/ufs-community/CATChem/commit/a8ff444744ff94981615785ebf595c53ea220824))
+
+- **ci**: Workaround for protected branch push & address semver upgrade issues
+  ([#166](https://github.com/ufs-community/CATChem/pull/166),
+  [`cd7851f`](https://github.com/ufs-community/CATChem/commit/cd7851f4a4135a33752df41a7f70c65ca9f1c261))
+
 
 ## v0.0.1 (2026-05-21)
 
