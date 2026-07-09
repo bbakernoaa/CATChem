@@ -199,8 +199,9 @@ int main(int argc, char* argv[]) {
                 for (int k = 0; k < n_levels; ++k) {
                     double delta = std::uniform_real_distribution<double>(5000.0, 12000.0)(gen);
                     current_p -= delta;
-                    if (current_p < 100.0)
-                        current_p = 100.0;
+                    double min_p = 100.0 - k * 5.0;
+                    if (current_p < min_p)
+                        current_p = min_p;
                     pedge[icol * (n_levels + 1) + k + 1] = current_p;
 
                     // Midpoint pressure is average of the edges
