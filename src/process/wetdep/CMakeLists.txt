@@ -9,6 +9,7 @@ set(
   WetDepCommon_Mod.F90
   ProcessWetDepInterface_Mod.F90
   WetDepProcessCreator_Mod.F90
+  WetDepScienceBridge.F90
 )
 
 # Define wetdep scheme sources
@@ -16,6 +17,10 @@ set(WETDEP_SCHEME_SOURCES schemes/WetDepScheme_JACOB_Mod.F90)
 
 # Combine all sources
 set(WETDEP_ALL_SOURCES ${WETDEP_PROCESS_SOURCES} ${WETDEP_SCHEME_SOURCES})
+
+if(ENABLE_KOKKOS)
+  list(APPEND WETDEP_ALL_SOURCES catchem_process_wetdep.cpp)
+endif()
 
 # Create the wetdep process library
 set(_lib CATChem_process_wetdep)
@@ -26,7 +31,7 @@ target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
 if(ENABLE_KOKKOS)
-  target_link_libraries(${_lib} PUBLIC CATChem_kokkos)
+  target_link_libraries(${_lib} PUBLIC Kokkos::kokkos)
   target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
 endif()
 

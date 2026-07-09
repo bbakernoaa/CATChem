@@ -9,6 +9,7 @@ set(
   SO4chemCommon_Mod.F90
   ProcessSO4chemInterface_Mod.F90
   SO4chemProcessCreator_Mod.F90
+  SO4chemScienceBridge.F90
 )
 
 # Define so4chem scheme sources
@@ -21,12 +22,22 @@ set(
 # Combine all sources
 set(SO4CHEM_ALL_SOURCES ${SO4CHEM_PROCESS_SOURCES} ${SO4CHEM_SCHEME_SOURCES})
 
+if(ENABLE_KOKKOS)
+  list(APPEND SO4CHEM_ALL_SOURCES catchem_process_so4chem.cpp)
+endif()
+
 # Create the so4chem process library
 set(_lib CATChem_process_so4chem)
 add_library(${_lib} ${SO4CHEM_ALL_SOURCES})
 
 # Link with required libraries
 target_link_libraries(${_lib} PUBLIC CATChem_core)
+
+# Conditional Kokkos linking
+if(ENABLE_KOKKOS)
+  target_link_libraries(${_lib} PUBLIC Kokkos::kokkos)
+  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
+endif()
 
 # Additional dependencies
 # Chemistry processes may need additional math libraries

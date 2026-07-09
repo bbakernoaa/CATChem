@@ -472,7 +472,16 @@ endforeach()
 
 if(ENABLE_KOKKOS)
   add_executable(test_catchem_interop test_catchem_interop.cpp)
-  target_link_libraries(test_catchem_interop PRIVATE CATChem_core_cpp CATChem_core Kokkos::kokkos)
+  target_link_libraries(test_catchem_interop PRIVATE 
+    CATChem_core_cpp 
+    CATChem_core 
+    Kokkos::kokkos
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+  )
   set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE Fortran)
   add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
 endif()

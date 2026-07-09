@@ -11,6 +11,7 @@ Core::Core(int nc, int nl, int ns) {
     grid_mgr = std::make_shared<GridManager>(nc, 1, nl);
     state_mgr = std::make_shared<StateManager>(nc, nl, ns);
     diag_mgr = std::make_shared<DiagnosticManager>();
+    state_mgr->diag_mgr = diag_mgr;
 }
 
 Core::Core(const std::string& config_file) {
@@ -24,6 +25,7 @@ Core::Core(const std::string& config_file) {
     grid_mgr = std::make_shared<GridManager>(nx, ny, nz);
     state_mgr = std::make_shared<StateManager>(nx * ny, nz, 50); 
     diag_mgr = std::make_shared<DiagnosticManager>();
+    state_mgr->diag_mgr = diag_mgr;
 }
 
 std::shared_ptr<ConfigManager> Core::get_config_manager() {

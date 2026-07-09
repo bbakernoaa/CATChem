@@ -101,6 +101,7 @@ module ChemState_Mod
       !---------------------------------------------------------------------
       type(SpeciesType), allocatable :: ChemSpecies(:)
       type(GridGeometryType), pointer :: Grid => null()  ! Pointer to grid geometry
+      real(fp), allocatable :: unified_conc(:,:,:,:) !< Contiguous concentrations array [nx, ny, nz, n_species]
 
    contains
       ! Type-bound procedures for modern initialization and cleanup
@@ -555,7 +556,7 @@ CONTAINS
       use error_mod, only: ErrorManagerType, CC_SUCCESS, ERROR_MEMORY_ALLOCATION
       use GridGeometry_Mod, only: GridGeometryType
       implicit none
-      class(ChemStateType), intent(inout) :: this
+      class(ChemStateType), intent(inout), target :: this
       integer, intent(in) :: max_species
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
@@ -720,21 +721,20 @@ CONTAINS
             ny = this%Grid%ny
             nz = this%Grid%nz
 
-            do s = 1, max_species
-               ! Always nullify and reallocate to ensure proper dimensions
-               ! Skip trying to deallocate potentially corrupted pointers
-               if (associated(this%ChemSpecies(s)%conc)) then
-                  nullify(this%ChemSpecies(s)%conc)
-               endif
+            ! Allocate the unified TARGET concentrations array
+            allocate(this%unified_conc(nx, ny, nz, max_species), stat=allocStat)
+            if (allocStat /= 0) then
+               call error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
+                  'Failed to allocate unified_conc', rc, thisLoc, 'Check available memory')
+               call error_mgr%pop_context()
+               return
+            endif
+            this%unified_conc = 0.0_fp
 
-               allocate(this%ChemSpecies(s)%conc(nx,ny,nz), stat=allocStat)
-               if (allocStat /= 0) then
-                  call error_mgr%report_error(ERROR_MEMORY_ALLOCATION, &
-                     'Failed to allocate ChemSpecies(s)%conc', rc, thisLoc, 'Check available memory')
-                  call error_mgr%pop_context()
-                  return
-               endif
-               this%ChemSpecies(s)%conc = 0.0_fp
+            do s = 1, max_species
+               ! Point each species concentration array to the appropriate contiguous slice!
+               this%ChemSpecies(s)%conc => this%unified_conc(:, :, :, s)
+               this%ChemSpecies(s)%is_valid = .true.
             end do
          else
             write(*,'(A)') 'DEBUG: Grid not associated, cannot allocate conc arrays'
@@ -750,6 +750,9 @@ CONTAINS
       integer, intent(out) :: rc
 
       rc = CC_SUCCESS
+
+      ! Deallocate unified TARGET array
+      if (allocated(this%unified_conc)) deallocate(this%unified_conc)
 
       ! Deallocate all allocatable arrays
       if (allocated(this%SpeciesIndex)) deallocate(this%SpeciesIndex)

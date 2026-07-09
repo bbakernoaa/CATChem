@@ -167,6 +167,16 @@ contains
          return
       end if
 
+#ifdef ENABLE_KOKKOS
+      block
+         interface
+            subroutine catchem_register_so4chem_cpp() bind(c, name="catchem_register_so4chem_cpp")
+            end subroutine catchem_register_so4chem_cpp
+         end interface
+         call catchem_register_so4chem_cpp()
+      end block
+#endif
+
       ! Mark process as initialized and active
       call this%activate()
 

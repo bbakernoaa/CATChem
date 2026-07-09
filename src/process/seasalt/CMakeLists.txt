@@ -9,6 +9,7 @@ set(
   SeaSaltCommon_Mod.F90
   ProcessSeaSaltInterface_Mod.F90
   SeaSaltProcessCreator_Mod.F90
+  SeaSaltScienceBridge.F90
 )
 
 # Define seasalt scheme sources
@@ -22,6 +23,10 @@ set(
 # Combine all sources
 set(SEASALT_ALL_SOURCES ${SEASALT_PROCESS_SOURCES} ${SEASALT_SCHEME_SOURCES})
 
+if(ENABLE_KOKKOS)
+  list(APPEND SEASALT_ALL_SOURCES catchem_process_seasalt.cpp)
+endif()
+
 # Create the seasalt process library
 set(_lib CATChem_process_seasalt)
 add_library(${_lib} ${SEASALT_ALL_SOURCES})
@@ -31,7 +36,7 @@ target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
 if(ENABLE_KOKKOS)
-  target_link_libraries(${_lib} PUBLIC CATChem_kokkos)
+  target_link_libraries(${_lib} PUBLIC Kokkos::kokkos)
   target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
 endif()
 

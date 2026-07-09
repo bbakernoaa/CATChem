@@ -21,6 +21,10 @@ set(
 # Combine all sources
 set(SETTLING_ALL_SOURCES ${SETTLING_PROCESS_SOURCES} ${SETTLING_SCHEME_SOURCES})
 
+if(ENABLE_KOKKOS)
+  list(APPEND SETTLING_ALL_SOURCES catchem_process_settling.cpp)
+endif()
+
 # Create the settling process library
 set(_lib CATChem_process_settling)
 add_library(${_lib} ${SETTLING_ALL_SOURCES})
@@ -30,7 +34,7 @@ target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
 if(ENABLE_KOKKOS)
-  target_link_libraries(${_lib} PUBLIC CATChem_kokkos)
+  target_link_libraries(${_lib} PUBLIC Kokkos::kokkos)
   target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
 endif()
 

@@ -43,6 +43,7 @@ module CATChem_API
       DIAG_REAL_SCALAR, DIAG_REAL_1D, DIAG_REAL_2D, DIAG_REAL_3D, &
       DIAG_INTEGER_SCALAR, DIAG_INTEGER_1D, DIAG_INTEGER_2D, DIAG_INTEGER_3D
    use ProcessInterface_Mod, only: ProcessInterface
+   use iso_c_binding, only: c_ptr, c_loc, c_null_ptr, c_null_char, c_char, c_double, c_associated
    ! Import process registration functions
    use SeaSaltProcessCreator_Mod, only: register_seasalt_process
    use DryDepProcessCreator_Mod, only: register_drydep_process
@@ -63,6 +64,7 @@ module CATChem_API
       private
       ! Core engine - uses existing CATChemCore infrastructure
       type(CATChemCoreType) :: core
+      type(c_ptr) :: cpp_core_ptr = c_null_ptr !< Modern C++ Core handle
 
       ! Configuration and status tracking
       logical :: initialized = .false.
@@ -119,6 +121,61 @@ module CATChem_API
       procedure :: get_diagnostic_manager => model_get_diagnostic_manager
    end type CATChem_Model
 
+   interface
+      function catchem_core_create_from_config(config_file) bind(C, name="catchem_core_create_from_config")
+         import :: c_ptr, c_char
+         character(kind=c_char), intent(in) :: config_file(*)
+         type(c_ptr) :: catchem_core_create_from_config
+      end function catchem_core_create_from_config
+
+      subroutine catchem_core_destroy(core_ptr) bind(C, name="catchem_core_destroy")
+         import :: c_ptr
+         type(c_ptr), value :: core_ptr
+      end subroutine catchem_core_destroy
+
+      function catchem_core_get_state_manager(core_ptr) bind(C, name="catchem_core_get_state_manager")
+         import :: c_ptr
+         type(c_ptr), value :: core_ptr
+         type(c_ptr) :: catchem_core_get_state_manager
+      end function catchem_core_get_state_manager
+
+      subroutine catchem_state_bind_met_3d(state_ptr, name, ptr) bind(C, name="catchem_state_bind_met_3d")
+         import :: c_ptr, c_char
+         type(c_ptr), value :: state_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         type(c_ptr), value :: ptr
+      end subroutine catchem_state_bind_met_3d
+
+      subroutine catchem_state_bind_met_2d(state_ptr, name, ptr) bind(C, name="catchem_state_bind_met_2d")
+         import :: c_ptr, c_char
+         type(c_ptr), value :: state_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         type(c_ptr), value :: ptr
+      end subroutine catchem_state_bind_met_2d
+
+      subroutine catchem_state_bind_unified_chemistry(state_ptr, ptr) bind(C, name="catchem_state_bind_unified_chemistry")
+         import :: c_ptr
+         type(c_ptr), value :: state_ptr
+         type(c_ptr), value :: ptr
+      end subroutine catchem_state_bind_unified_chemistry
+
+      subroutine catchem_core_run_timestep(core_ptr, dt) bind(C, name="catchem_core_run_timestep")
+         import :: c_ptr, c_double
+         type(c_ptr), value :: core_ptr
+         real(c_double), value :: dt
+      end subroutine catchem_core_run_timestep
+
+      subroutine catchem_state_sync_to_device(state_ptr) bind(C, name="catchem_state_sync_to_device")
+         import :: c_ptr
+         type(c_ptr), value :: state_ptr
+      end subroutine catchem_state_sync_to_device
+
+      subroutine catchem_state_sync_to_host(state_ptr) bind(C, name="catchem_state_sync_to_host")
+         import :: c_ptr
+         type(c_ptr), value :: state_ptr
+         end subroutine catchem_state_sync_to_host
+   end interface
+
 contains
 
    !> Initialize the CATChem model with configuration file and grid dimensions
@@ -133,6 +190,10 @@ contains
 
       type(CATChemBuilderType) :: builder
       type(ConfigDataType), pointer :: config_data => null()
+      type(StateManagerType), pointer :: state_mgr => null()
+      type(MetStateType), pointer :: met_state => null()
+      type(ChemStateType), pointer :: chem_state => null()
+      type(c_ptr) :: cpp_state
 
       rc = CC_SUCCESS
       call this%error_manager%init()
@@ -190,6 +251,85 @@ contains
       endif
       this%enable_run_phase = config_data%run_phases_enabled
 
+      ! Initialize C++ Core & Bind memory for high-performance Kokkos execution
+      ! 1. Create modern C++ Core from config file
+      this%cpp_core_ptr = catchem_core_create_from_config(trim(config_file) // c_null_char)
+      
+      if (.not. c_associated(this%cpp_core_ptr)) then
+         call this%error_manager%push_context('model_initialize', 'building C++ CATChem core')
+         call this%error_manager%report_error(1014, 'Failed to initialize C++ CATChem core', rc)
+         call this%error_manager%pop_context()
+         return
+      endif
+      
+      ! 2. Get C++ StateManager handle
+      cpp_state = catchem_core_get_state_manager(this%cpp_core_ptr)
+      
+      ! 3. Bind 3D volumetric meteorological arrays (zero-copy)
+      state_mgr => this%core%get_state_manager()
+      met_state => state_mgr%get_met_state_ptr()
+      chem_state => state_mgr%get_chem_state_ptr()
+      
+      if (associated(met_state)) then
+         if (allocated(met_state%T)) then
+            call catchem_state_bind_met_3d(cpp_state, "T" // c_null_char, c_loc(met_state%T(1,1,1)))
+         endif
+         if (allocated(met_state%QV)) then
+            call catchem_state_bind_met_3d(cpp_state, "QV" // c_null_char, c_loc(met_state%QV(1,1,1)))
+         endif
+         if (allocated(met_state%RH)) then
+            call catchem_state_bind_met_3d(cpp_state, "RH" // c_null_char, c_loc(met_state%RH(1,1,1)))
+         endif
+         if (allocated(met_state%PMID)) then
+            call catchem_state_bind_met_3d(cpp_state, "PMID" // c_null_char, c_loc(met_state%PMID(1,1,1)))
+         endif
+         if (allocated(met_state%PEDGE)) then
+            call catchem_state_bind_met_3d(cpp_state, "PEDGE" // c_null_char, c_loc(met_state%PEDGE(1,1,1)))
+         endif
+         if (allocated(met_state%AIRDEN)) then
+            call catchem_state_bind_met_3d(cpp_state, "AIRDEN" // c_null_char, c_loc(met_state%AIRDEN(1,1,1)))
+         endif
+         if (allocated(met_state%AIRDEN_DRY)) then
+            call catchem_state_bind_met_3d(cpp_state, "AIRDEN_DRY" // c_null_char, c_loc(met_state%AIRDEN_DRY(1,1,1)))
+         endif
+         if (allocated(met_state%BXHEIGHT)) then
+            call catchem_state_bind_met_3d(cpp_state, "BXHEIGHT" // c_null_char, c_loc(met_state%BXHEIGHT(1,1,1)))
+         endif
+         
+         ! 4. Bind 2D surface arrays
+         if (allocated(met_state%PS)) then
+            call catchem_state_bind_met_2d(cpp_state, "PS" // c_null_char, c_loc(met_state%PS(1,1)))
+         endif
+         if (allocated(met_state%TS)) then
+            call catchem_state_bind_met_2d(cpp_state, "TS" // c_null_char, c_loc(met_state%TS(1,1)))
+         endif
+         if (allocated(met_state%PBLH)) then
+            call catchem_state_bind_met_2d(cpp_state, "PBLH" // c_null_char, c_loc(met_state%PBLH(1,1)))
+         endif
+         if (allocated(met_state%USTAR)) then
+            call catchem_state_bind_met_2d(cpp_state, "USTAR" // c_null_char, c_loc(met_state%USTAR(1,1)))
+         endif
+         if (allocated(met_state%HFLUX)) then
+            call catchem_state_bind_met_2d(cpp_state, "HFLUX" // c_null_char, c_loc(met_state%HFLUX(1,1)))
+         endif
+         if (allocated(met_state%OBK)) then
+            call catchem_state_bind_met_2d(cpp_state, "OBK" // c_null_char, c_loc(met_state%OBK(1,1)))
+         endif
+         if (allocated(met_state%LAT)) then
+            call catchem_state_bind_met_2d(cpp_state, "LAT" // c_null_char, c_loc(met_state%LAT(1,1)))
+         endif
+         if (allocated(met_state%LON)) then
+            call catchem_state_bind_met_2d(cpp_state, "LON" // c_null_char, c_loc(met_state%LON(1,1)))
+         endif
+      endif
+      
+      ! 5. Bind unified contiguous chemistry target array
+      if (associated(chem_state)) then
+         if (allocated(chem_state%unified_conc)) then
+            call catchem_state_bind_unified_chemistry(cpp_state, c_loc(chem_state%unified_conc(1,1,1,1)))
+         endif
+      endif
+
    end subroutine model_initialize
 
    !> Finalize the CATChem model and clean up resources
@@ -202,6 +342,12 @@ contains
       if (.not. this%initialized) then
          rc = CC_SUCCESS  ! Already finalized
          return
+      endif
+
+      ! Finalize C++ Core
+      if (c_associated(this%cpp_core_ptr)) then
+         call catchem_core_destroy(this%cpp_core_ptr)
+         this%cpp_core_ptr = c_null_ptr
       endif
 
       ! Finalize core
@@ -480,7 +626,18 @@ contains
       endif
 
       if (this%enable_run_phase) then
+         ! Sync CPU memory to GPU device Views
+         if (c_associated(this%cpp_core_ptr)) then
+            call catchem_state_sync_to_device(catchem_core_get_state_manager(this%cpp_core_ptr))
+         endif
+
          call this%run_all_phases(rc)
+
+         ! Sync updated GPU Views back to CPU host heap
+         if (c_associated(this%cpp_core_ptr)) then
+            call catchem_state_sync_to_host(catchem_core_get_state_manager(this%cpp_core_ptr))
+         endif
+
          if (rc /= CC_SUCCESS) then
             call this%error_manager%push_context('model_run_timestep', 'running all phases')
             call this%error_manager%report_error(1015, 'Failed to run all phases during timestep', rc)
@@ -488,8 +645,19 @@ contains
             return
          endif
       else
+         ! Sync CPU memory to GPU device Views
+         if (c_associated(this%cpp_core_ptr)) then
+            call catchem_state_sync_to_device(catchem_core_get_state_manager(this%cpp_core_ptr))
+         endif
+
          ! Run the core timestep
          call this%core%run_timestep(timestep, dt, rc)
+
+         ! Sync updated GPU Views back to CPU host heap
+         if (c_associated(this%cpp_core_ptr)) then
+            call catchem_state_sync_to_host(catchem_core_get_state_manager(this%cpp_core_ptr))
+         endif
+
          if (rc /= CC_SUCCESS) then
             call this%error_manager%push_context('model_run_timestep', 'running core timestep')
             call this%error_manager%report_error(1015, 'Failed to run all processes during timestep', rc)

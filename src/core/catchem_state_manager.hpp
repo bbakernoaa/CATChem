@@ -13,11 +13,15 @@
 
 namespace catchem {
 
+class DiagnosticManager;
+
 class StateManager {
 public:
     int n_cols;
     int n_levels;
     int n_species;
+
+    std::shared_ptr<DiagnosticManager> diag_mgr;
 
     std::unordered_map<std::string, std::shared_ptr<InteropField<double, 1>>> fields_1d;
     std::unordered_map<std::string, std::shared_ptr<InteropField<double, 2>>> fields_2d;
@@ -48,7 +52,8 @@ public:
     }
 
     void bind_met_field_3d(const std::string& name, double* ptr) {
-        auto field = std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, n_levels, 1}); // Using 1 for single-field layout
+        int nl = (name == "PEDGE") ? n_levels + 1 : n_levels;
+        auto field = std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, nl, 1}); // Using 1 for single-field layout
         if (name == "T") met.T = field;
         else if (name == "QV") met.QV = field;
         else if (name == "RH") met.RH = field;

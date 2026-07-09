@@ -12,6 +12,10 @@
 extern "C" {
     void run_settling_physics_fortran_bridge(void* state_ptr);
     void catchem_register_settling_cpp();
+    void catchem_register_drydep_cpp();
+    void catchem_register_seasalt_cpp();
+    void catchem_register_wetdep_cpp();
+    void catchem_register_so4chem_cpp();
 }
 
 // Mock Fortran physics scheme working directly on host array
@@ -521,6 +525,282 @@ int main(int argc, char* argv[]) {
 
             catchem_core_destroy(core);
             std::cout << "SUCCESS: C++20 Kokkos::mdspan Multidimensional Access Validation Passed!\n";
+        }
+
+        // ==========================================
+        // TEST 9: Direct Flat-Science Interop Adapter for DryDep
+        // ==========================================
+        {
+            std::cout << "\n--- TEST 9: Direct Flat-Science Interop Adapter for DryDep ---\n";
+            int n_cols = 4;
+            int n_levels = 5;
+            int n_species = 22; // Must match CATChem_species.yml species list count
+
+            // Register drydep C++ process dynamically
+            catchem_register_drydep_cpp();
+
+            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
+
+            // Load species configuration first (otherwise species_list is empty)
+            std::vector<std::string> paths = {
+                "tests/CATChem_species.yml",
+                "../tests/CATChem_species.yml",
+                "../../tests/CATChem_species.yml"
+            };
+            for (const auto& path : paths) {
+                try {
+                    state->load_species_config(path);
+                    break;
+                } catch (...) {}
+            }
+
+            // Set up mock temperature and concentrations (so4 at index 4)
+            std::vector<double> mock_t(n_cols * n_levels, 288.15);
+            std::vector<double> mock_qv(n_cols * n_levels, 0.01);
+            std::vector<double> mock_pmid(n_cols * n_levels, 90000.0);
+            std::vector<double> mock_pedge(n_cols * (n_levels + 1), 100000.0);
+            std::vector<double> mock_bxheight(n_cols * n_levels, 100.0);
+            std::vector<double> mock_airden(n_cols * n_levels, 1.2);
+            std::vector<double> mock_rh(n_cols * n_levels, 0.5);
+
+            std::vector<double> mock_ps(n_cols, 101300.0);
+            std::vector<double> mock_ts(n_cols, 288.15);
+            std::vector<double> mock_pblh(n_cols, 1000.0);
+            std::vector<double> mock_ustar(n_cols, 0.3);
+            std::vector<double> mock_hflux(n_cols, 100.0);
+            std::vector<double> mock_obk(n_cols, -100.0);
+            std::vector<double> mock_lat(n_cols, 40.0);
+            std::vector<double> mock_lon(n_cols, -80.0);
+
+            std::vector<double> mock_chem_state(n_cols * n_levels * n_species, 1.0);
+            
+            // Bind 3D Met fields
+            catchem_state_bind_met_3d(state, "T", mock_t.data());
+            catchem_state_bind_met_3d(state, "QV", mock_qv.data());
+            catchem_state_bind_met_3d(state, "PMID", mock_pmid.data());
+            catchem_state_bind_met_3d(state, "PEDGE", mock_pedge.data());
+            catchem_state_bind_met_3d(state, "BXHEIGHT", mock_bxheight.data());
+            catchem_state_bind_met_3d(state, "AIRDEN", mock_airden.data());
+            catchem_state_bind_met_3d(state, "RH", mock_rh.data());
+
+            // Bind 2D Met fields
+            catchem_state_bind_met_2d(state, "PS", mock_ps.data());
+            catchem_state_bind_met_2d(state, "TS", mock_ts.data());
+            catchem_state_bind_met_2d(state, "PBLH", mock_pblh.data());
+            catchem_state_bind_met_2d(state, "USTAR", mock_ustar.data());
+            catchem_state_bind_met_2d(state, "HFLUX", mock_hflux.data());
+            catchem_state_bind_met_2d(state, "OBK", mock_obk.data());
+            catchem_state_bind_met_2d(state, "LAT", mock_lat.data());
+            catchem_state_bind_met_2d(state, "LON", mock_lon.data());
+
+            catchem_state_bind_unified_chemistry(state, mock_chem_state.data());
+            catchem_state_sync_to_device(state);
+
+            // Add the drydep process by name
+            catchem_core_add_process_by_name(core, "drydep");
+
+            // Execute the timestep which triggers drydep calculation
+            catchem_core_run_timestep(core, 3600.0);
+
+            // Fetch dynamic diagnostic pointer
+            double* host_diag_con = (double*)catchem_diag_get_pointer(core, "drydep_con_per_species");
+            double* host_diag_vel = (double*)catchem_diag_get_pointer(core, "drydep_velocity_per_species");
+
+            assert(host_diag_con != nullptr);
+            assert(host_diag_vel != nullptr);
+
+            std::cout << "INFO: Retrieved host diagnostic pointer: " << host_diag_con << "\n";
+            std::cout << "SUCCESS: DryDep Direct Adapter executed and populated diagnostics!\n";
+
+            catchem_core_destroy(core);
+        }
+
+        // ==========================================
+        // TEST 10: Direct Flat-Science Interop Adapter for SeaSalt
+        // ==========================================
+        {
+            std::cout << "\n--- TEST 10: Direct Flat-Science Interop Adapter for SeaSalt ---\n";
+            int n_cols = 4;
+            int n_levels = 5;
+            int n_species = 22;
+
+            catchem_register_seasalt_cpp();
+
+            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
+
+            // Load species
+            std::vector<std::string> paths = {
+                "tests/CATChem_species.yml",
+                "../tests/CATChem_species.yml",
+                "../../tests/CATChem_species.yml"
+            };
+            for (const auto& path : paths) {
+                try {
+                    state->load_species_config(path);
+                    break;
+                } catch (...) {}
+            }
+
+            // Allocate met fields dynamically (FROCEAN, FRSEAICE, SST, DELP)
+            std::vector<double> mock_frocean(n_cols, 1.0);
+            std::vector<double> mock_frseaice(n_cols, 0.0);
+            std::vector<double> mock_sst(n_cols, 290.0);
+            std::vector<double> mock_delp(n_cols * n_levels, 1000.0);
+            std::vector<double> mock_ustar(n_cols, 0.5);
+
+            // Bind them
+            state->bind_met_field_2d("FROCEAN", mock_frocean.data());
+            state->bind_met_field_2d("FRSEAICE", mock_frseaice.data());
+            state->bind_met_field_2d("SST", mock_sst.data());
+            state->bind_met_field_3d("DELP", mock_delp.data());
+            catchem_state_bind_met_2d(state, "USTAR", mock_ustar.data());
+
+            // Concentrations and Tendencies
+            std::vector<double> mock_chem_state(n_cols * n_levels * n_species, 1.0);
+            catchem_state_bind_unified_chemistry(state, mock_chem_state.data());
+            catchem_state_sync_to_device(state);
+
+            catchem_core_add_process_by_name(core, "seasalt");
+            catchem_core_run_timestep(core, 3600.0);
+
+            // Retrieve diagnostic total mass emission pointer
+            double* diag_total_mass = (double*)catchem_diag_get_pointer(core, "seasalt_mass_emission_total");
+            assert(diag_total_mass != nullptr);
+
+            std::cout << "SUCCESS: SeaSalt Direct Adapter executed and populated diagnostics!\n";
+            catchem_core_destroy(core);
+        }
+
+        // ==========================================
+        // TEST 11: Direct Flat-Science Interop Adapter for WetDep
+        // ==========================================
+        {
+            std::cout << "\n--- TEST 11: Direct Flat-Science Interop Adapter for WetDep ---\n";
+            int n_cols = 4;
+            int n_levels = 5;
+            int n_species = 22;
+
+            catchem_register_wetdep_cpp();
+
+            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
+
+            // Load species
+            std::vector<std::string> paths = {
+                "tests/CATChem_species.yml",
+                "../tests/CATChem_species.yml",
+                "../../tests/CATChem_species.yml"
+            };
+            for (const auto& path : paths) {
+                try {
+                    state->load_species_config(path);
+                    break;
+                } catch (...) {}
+            }
+
+            // Allocate met fields dynamically (AIRDEN_DRY, AIRDEN, MAIRDEN, PEDGE, PFILSAN, PFLLSAN, REEVAPLS, T)
+            std::vector<double> mock_airden_dry(n_cols * n_levels, 1.2);
+            std::vector<double> mock_airden(n_cols * n_levels, 1.2);
+            std::vector<double> mock_mairden(n_cols * n_levels, 1.2);
+            std::vector<double> mock_pedge(n_cols * (n_levels + 1), 100000.0);
+            std::vector<double> mock_pfilsan(n_cols * (n_levels + 1), 0.05);
+            std::vector<double> mock_pfllsan(n_cols * (n_levels + 1), 0.05);
+            std::vector<double> mock_reevapls(n_cols * n_levels, 0.0);
+            std::vector<double> mock_t(n_cols * n_levels, 288.15);
+
+            catchem_state_bind_met_3d(state, "AIRDEN_DRY", mock_airden_dry.data());
+            catchem_state_bind_met_3d(state, "AIRDEN", mock_airden.data());
+            state->bind_met_field_3d("MAIRDEN", mock_mairden.data());
+            catchem_state_bind_met_3d(state, "PEDGE", mock_pedge.data());
+            state->bind_met_field_3d("PFILSAN", mock_pfilsan.data());
+            state->bind_met_field_3d("PFLLSAN", mock_pfllsan.data());
+            state->bind_met_field_3d("REEVAPLS", mock_reevapls.data());
+            catchem_state_bind_met_3d(state, "T", mock_t.data());
+
+            // Concentrations and Tendencies
+            std::vector<double> mock_chem_state(n_cols * n_levels * n_species, 1.0);
+            catchem_state_bind_unified_chemistry(state, mock_chem_state.data());
+            catchem_state_sync_to_device(state);
+
+            catchem_core_add_process_by_name(core, "wetdep");
+            catchem_core_run_timestep(core, 3600.0);
+
+            std::cout << "SUCCESS: WetDep Direct Adapter executed successfully!\n";
+            catchem_core_destroy(core);
+        }
+
+        // ==========================================
+        // TEST 12: Direct Flat-Science Interop Adapter for SO4chem
+        // ==========================================
+        {
+            std::cout << "\n--- TEST 12: Direct Flat-Science Interop Adapter for SO4chem ---\n";
+            int n_cols = 4;
+            int n_levels = 5;
+            int n_species = 22;
+
+            catchem_register_so4chem_cpp();
+
+            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
+
+            // Load species
+            std::vector<std::string> paths = {
+                "tests/CATChem_species.yml",
+                "../tests/CATChem_species.yml",
+                "../../tests/CATChem_species.yml"
+            };
+            for (const auto& path : paths) {
+                try {
+                    state->load_species_config(path);
+                    break;
+                } catch (...) {}
+            }
+
+            // Allocate met fields dynamically (AIRDEN, CLDF, DELP, PMID, T, PEDGE, HFLUX, LAT, LON, PBLH, USTAR)
+            std::vector<double> mock_airden(n_cols * n_levels, 1.2);
+            std::vector<double> mock_cldf(n_cols * n_levels, 0.5);
+            std::vector<double> mock_delp(n_cols * n_levels, 1000.0);
+            std::vector<double> mock_pmid(n_cols * n_levels, 90000.0);
+            std::vector<double> mock_t(n_cols * n_levels, 288.15);
+            std::vector<double> mock_pedge(n_cols * (n_levels + 1), 100000.0);
+
+            std::vector<double> mock_hflux(n_cols, 100.0);
+            std::vector<double> mock_lat(n_cols, 40.0);
+            std::vector<double> mock_lon(n_cols, -80.0);
+            std::vector<double> mock_pblh(n_cols, 1000.0);
+            std::vector<double> mock_ustar(n_cols, 0.5);
+
+            std::vector<double> mock_chem_state(n_cols * n_levels * n_species, 1.0);
+
+            catchem_state_bind_met_3d(state, "AIRDEN", mock_airden.data());
+            state->bind_met_field_3d("CLDF", mock_cldf.data());
+            state->bind_met_field_3d("DELP", mock_delp.data());
+            catchem_state_bind_met_3d(state, "PMID", mock_pmid.data());
+            catchem_state_bind_met_3d(state, "T", mock_t.data());
+            catchem_state_bind_met_3d(state, "PEDGE", mock_pedge.data());
+
+            catchem_state_bind_met_2d(state, "HFLUX", mock_hflux.data());
+            catchem_state_bind_met_2d(state, "LAT", mock_lat.data());
+            catchem_state_bind_met_2d(state, "LON", mock_lon.data());
+            catchem_state_bind_met_2d(state, "PBLH", mock_pblh.data());
+            catchem_state_bind_met_2d(state, "USTAR", mock_ustar.data());
+
+            catchem_state_bind_unified_chemistry(state, mock_chem_state.data());
+            catchem_state_sync_to_device(state);
+
+            // Add the drydep process by name
+            catchem_core_add_process_by_name(core, "so4chem");
+
+            // Execute the timestep which triggers drydep calculation
+            catchem_core_run_timestep(core, 3600.0);
+
+            double* diag_gas_source = (double*)catchem_diag_get_pointer(core, "PSO4_from_gaseous_SO2_per_level");
+            assert(diag_gas_source != nullptr);
+
+            std::cout << "SUCCESS: SO4chem Direct Adapter executed and populated diagnostics!\n";
+            catchem_core_destroy(core);
         }
     }
     Kokkos::finalize();

@@ -28,6 +28,9 @@ struct ChemState {
     std::vector<int> dust_indices;
     std::vector<int> seasalt_indices;
 
+    // Cached flat C-character array of short names
+    std::vector<char> species_names_c_arr;
+
     void load_species_config(const std::string& filename) {
         YAML::Node config = YAML::LoadFile(filename);
         species_list.clear();
@@ -100,6 +103,15 @@ struct ChemState {
             if (meta.is_seasalt) seasalt_indices.push_back(index);
 
             index++;
+        }
+
+        // Pre-compute and cache flat C-linkable species name character array
+        species_names_c_arr.assign(species_list.size() * 32, ' ');
+        for (size_t i = 0; i < species_list.size(); ++i) {
+            std::string name = species_list[i].short_name;
+            for (size_t j = 0; j < name.size() && j < 32; ++j) {
+                species_names_c_arr[i * 32 + j] = name[j];
+            }
         }
     }
 };
