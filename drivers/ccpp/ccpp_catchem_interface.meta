@@ -32,7 +32,31 @@
   name = ccpp_catchem_interface_init
   type = scheme
 [im]
-  standard_name = horizontal_dimension
+  standard_name = horizontal_loop_extent
+  units = count
+  dimensions = ()
+  type = integer
+  intent = in
+[kte]
+  standard_name = vertical_layer_dimension
+  units = count
+  dimensions = ()
+  type = integer
+  intent = in
+[nsoil]
+  standard_name = vertical_dimension_of_soil
+  units = count
+  dimensions = ()
+  type = integer
+  intent = in
+[nlndcat]
+  standard_name = number_of_vegetation_categories
+  units = count
+  dimensions = ()
+  type = integer
+  intent = in
+[nsoilcat]
+  standard_name = number_of_soil_categories
   units = count
   dimensions = ()
   type = integer

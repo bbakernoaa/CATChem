@@ -92,8 +92,8 @@ contains
          config_path = "./tests/CATChem_config.yml"
       end if
 
-      ! 2. Lightweight core initialization to load species configuration
-      call cc_model%initialize(config_path, 1, 1, 127, 3, 5, 20, errflg)
+      ! 2. Lightweight core initialization to load species configuration (spatial bounds are dummy 1, 1, 1 during register)
+      call cc_model%initialize(config_path, 1, 1, 1, rc=errflg)
       if (errflg /= CC_SUCCESS) then
          errmsg = 'CATChem Register: Failed to load species configuration.'
          return
@@ -132,15 +132,23 @@ contains
          if (errflg /= 0) return
       end do
 
+      ! 4. Clean up lightweight setup so model can be fully initialized with real grid sizes during init phase
+      call cc_model%finalize(errflg)
+
    end subroutine ccpp_catchem_interface_register
 
    !> \brief Initialize the CATChem CCPP interface
-   subroutine ccpp_catchem_interface_init(im, do_catchem, catchem_configfile_in, &
+   subroutine ccpp_catchem_interface_init(im, kte, nsoil, nlndcat, nsoilcat, &
+                                          do_catchem, catchem_configfile_in, &
                                           constituent_props_ptr, errmsg, errflg)
       use ccpp_const_utils, only: ccpp_const_get_idx
       implicit none
 
       integer,                           intent(in)  :: im
+      integer,                           intent(in)  :: kte
+      integer,                           intent(in)  :: nsoil
+      integer,                           intent(in)  :: nlndcat
+      integer,                           intent(in)  :: nsoilcat
       logical,                           intent(in)  :: do_catchem
       character(len=*),                  intent(in)  :: catchem_configfile_in
       type(ccpp_constituent_prop_ptr_t), intent(in)  :: constituent_props_ptr(:)
@@ -157,8 +165,10 @@ contains
 
       if (.not. do_catchem) return
 
-      ! 1. Fully initialize C++ Core manager
-      call cc_model%initialize(catchem_configfile_in, im, 1, 127, 3, 5, 20, errflg)
+      ! 1. Fully initialize C++ Core manager dynamically with host grid and soil bounds
+      call cc_model%initialize(catchem_configfile_in, im, 1, kte, &
+                               nsoil=nsoil, nsoiltype=nsoilcat, nsurftype=nlndcat, &
+                               rc=errflg)
       if (errflg /= CC_SUCCESS) then
          errmsg = 'CATChem Init: Failed to initialize C++ Core via cc_model'
          return
