@@ -50,6 +50,26 @@ module ccpp_catchem_interface
         type(c_ptr), value :: state_ptr
         integer(c_int), value :: index
      end function
+
+     subroutine catchem_state_bind_met_3d(state_ptr, name, ptr) bind(C, name="catchem_state_bind_met_3d")
+        import :: c_ptr, c_char
+        type(c_ptr), value :: state_ptr
+        character(kind=c_char), intent(in) :: name(*)
+        type(c_ptr), value :: ptr
+     end subroutine
+
+     subroutine catchem_state_bind_met_2d(state_ptr, name, ptr) bind(C, name="catchem_state_bind_met_2d")
+        import :: c_ptr, c_char
+        type(c_ptr), value :: state_ptr
+        character(kind=c_char), intent(in) :: name(*)
+        type(c_ptr), value :: ptr
+     end subroutine
+
+     subroutine catchem_state_bind_unified_chemistry(state_ptr, ptr) bind(C, name="catchem_state_bind_unified_chemistry")
+        import :: c_ptr
+        type(c_ptr), value :: state_ptr
+        type(c_ptr), value :: ptr
+     end subroutine
   end interface
 
 contains
@@ -317,14 +337,27 @@ contains
 
      ! Local variables
      real(kind_phys), target, allocatable :: subset_constituents(:,:,:)
-     integer :: n_spec, i
+     integer :: n_spec, i, month_now
+     type(c_ptr) :: state_mgr
+
+     ! Target arrays for monthly dust climatology unpacking
+     real(kind_phys), target, allocatable :: clayfrac(:), rdrag(:), sandfrac(:), ssm(:), ustar_threshold(:)
 
      errmsg = ''
      errflg = 0
 
      if (.not. do_catchem) return
 
-     ! 1. Extract non-contiguous indices into a contiguous local subset array
+     ! 1. Unpack monthly dust climatology arrays for the current month
+     allocate(clayfrac(im), rdrag(im), sandfrac(im), ssm(im), ustar_threshold(im))
+     month_now = max(1, min(12, jdate(2)))
+     clayfrac(:)        = dust_in(:, month_now, 1)
+     rdrag(:)           = dust_in(:, month_now, 2)
+     sandfrac(:)        = dust_in(:, month_now, 3)
+     ssm(:)             = dust_in(:, month_now, 4)
+     ustar_threshold(:) = dust_in(:, month_now, 5)
+
+     ! 2. Extract non-contiguous indices into a contiguous local subset array
      n_spec = size(catchem_indices_constituent_props)
      allocate(subset_constituents(im, kte, n_spec))
 
@@ -332,41 +365,65 @@ contains
         subset_constituents(:,:,i) = constituents(:,:,catchem_indices_constituent_props(i))
      end do
 
-     ! 2. Meterological bindings (Direct unmanaged LayoutLeft C++ Views mappings)
-     call cc_model%bind_met_3d("T"//c_null_char, c_loc(tk3d(1,1)))
-     call cc_model%bind_met_3d("QV"//c_null_char, c_loc(q3d(1,1)))
-     call cc_model%bind_met_3d("RH"//c_null_char, c_loc(rh(1,1)))
-     call cc_model%bind_met_3d("PMID"//c_null_char, c_loc(prl3d(1,1)))
-     call cc_model%bind_met_3d("PEDGE"//c_null_char, c_loc(pr3d(1,1)))
-     call cc_model%bind_met_3d("DELP"//c_null_char, c_loc(delp(1,1)))
-     call cc_model%bind_met_3d("AIRDEN"//c_null_char, c_loc(airden(1,1)))
+     ! 3. Meterological pointer mapping (Direct Flat C-API bindings avoiding shape restrictions)
+     state_mgr = cc_model%get_state_manager()
 
-     call cc_model%bind_met_2d("PS"//c_null_char, c_loc(prsfc(1)))
-     call cc_model%bind_met_2d("TS"//c_null_char, c_loc(ts(1)))
-     call cc_model%bind_met_2d("LAT"//c_null_char, c_loc(lat(1)))
-     call cc_model%bind_met_2d("LON"//c_null_char, c_loc(lon(1)))
-     call cc_model%bind_met_2d("PBLH"//c_null_char, c_loc(pblh(1)))
-     call cc_model%bind_met_2d("USTAR"//c_null_char, c_loc(ustar(1)))
-     call cc_model%bind_met_2d("HFLUX"//c_null_char, c_loc(hf2d(1)))
-     call cc_model%bind_met_2d("AREA_M2"//c_null_char, c_loc(garea(1)))
+     ! 3D volumetric met fields
+     call catchem_state_bind_met_3d(state_mgr, "T"//c_null_char, c_loc(tk3d(1,1)))
+     call catchem_state_bind_met_3d(state_mgr, "QV"//c_null_char, c_loc(q3d(1,1)))
+     call catchem_state_bind_met_3d(state_mgr, "RH"//c_null_char, c_loc(rh(1,1)))
+     call catchem_state_bind_met_3d(state_mgr, "PMID"//c_null_char, c_loc(prl3d(1,1)))
+     call catchem_state_bind_met_3d(state_mgr, "PEDGE"//c_null_char, c_loc(pr3d(1,1)))
+     call catchem_state_bind_met_3d(state_mgr, "DELP"//c_null_char, c_loc(delp(1,1)))
+     call catchem_state_bind_met_3d(state_mgr, "AIRDEN"//c_null_char, c_loc(airden(1,1)))
+     call catchem_state_bind_met_3d(state_mgr, "soil_moisture"//c_null_char, c_loc(soilmoist(1,1)))
 
-     ! 3. Bind local unified chemistry concentrations subset
-     call cc_model%bind_unified_chemistry(c_loc(subset_constituents(1,1,1)))
+     ! 2D surface met fields
+     call catchem_state_bind_met_2d(state_mgr, "PS"//c_null_char, c_loc(prsfc(1)))
+     call catchem_state_bind_met_2d(state_mgr, "TS"//c_null_char, c_loc(ts(1)))
+     call catchem_state_bind_met_2d(state_mgr, "LAT"//c_null_char, c_loc(lat(1)))
+     call catchem_state_bind_met_2d(state_mgr, "LON"//c_null_char, c_loc(lon(1)))
+     call catchem_state_bind_met_2d(state_mgr, "PBLH"//c_null_char, c_loc(pblh(1)))
+     call catchem_state_bind_met_2d(state_mgr, "USTAR"//c_null_char, c_loc(ustar(1)))
+     call catchem_state_bind_met_2d(state_mgr, "HFLUX"//c_null_char, c_loc(hf2d(1)))
+     call catchem_state_bind_met_2d(state_mgr, "AREA_M2"//c_null_char, c_loc(garea(1)))
 
-     ! 4. Central C++ Core timestep solver execution
+     ! Auxiliary physics surface variables
+     call catchem_state_bind_met_2d(state_mgr, "u_10m"//c_null_char, c_loc(u10m(1)))
+     call catchem_state_bind_met_2d(state_mgr, "v_10m"//c_null_char, c_loc(v10m(1)))
+     call catchem_state_bind_met_2d(state_mgr, "skin_temperature"//c_null_char, c_loc(tskin(1)))
+     call catchem_state_bind_met_2d(state_mgr, "roughness_length"//c_null_char, c_loc(znt(1)))
+     call catchem_state_bind_met_2d(state_mgr, "vegetation_fraction"//c_null_char, c_loc(gvf(1)))
+     call catchem_state_bind_met_2d(state_mgr, "leaf_area_index"//c_null_char, c_loc(lai(1)))
+     call catchem_state_bind_met_2d(state_mgr, "lake_fraction"//c_null_char, c_loc(lakefrac(1)))
+     call catchem_state_bind_met_2d(state_mgr, "snow_fraction"//c_null_char, c_loc(frsnow(1)))
+
+     ! Month-specific climatological dust variables unpacked from dust_in
+     call catchem_state_bind_met_2d(state_mgr, "clay_fraction"//c_null_char, c_loc(clayfrac(1)))
+     call catchem_state_bind_met_2d(state_mgr, "drag_coefficient"//c_null_char, c_loc(rdrag(1)))
+     call catchem_state_bind_met_2d(state_mgr, "sand_fraction"//c_null_char, c_loc(sandfrac(1)))
+     call catchem_state_bind_met_2d(state_mgr, "surface_soil_moisture"//c_null_char, c_loc(ssm(1)))
+     call catchem_state_bind_met_2d(state_mgr, "threshold_friction_velocity"//c_null_char, c_loc(ustar_threshold(1)))
+
+     ! 4. Bind local unified chemistry concentrations subset
+     call catchem_state_bind_unified_chemistry(state_mgr, c_loc(subset_constituents(1,1,1)))
+
+     ! 5. Central C++ Core timestep solver execution
      call cc_model%run_timestep(real(dt, fp), errflg)
      if (errflg /= CC_SUCCESS) then
          errmsg = 'CATChem Run Error: Scheduled process execution failed inside C++ Core.'
          deallocate(subset_constituents)
+         deallocate(clayfrac, rdrag, sandfrac, ssm, ustar_threshold)
          return
      end if
 
-     ! 5. Dynamic synchronisation back to the global host tracer array
+     ! 6. Dynamic synchronisation back to the global host tracer array
      do i = 1, n_spec
         constituents(:,:,catchem_indices_constituent_props(i)) = subset_constituents(:,:,i)
      end do
 
      deallocate(subset_constituents)
+     deallocate(clayfrac, rdrag, sandfrac, ssm, ustar_threshold)
 
    end subroutine ccpp_catchem_interface_run
 
