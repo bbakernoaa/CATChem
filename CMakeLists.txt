@@ -211,6 +211,7 @@ if(CATCHEM_BUILD_TESTING)
 endif()
 
 if(CATCHEM_BUILD_NUOPC)
+  find_package(MPI COMPONENTS Fortran REQUIRED)
   add_subdirectory(drivers/nuopc)
 
   # Copy module files from include/ to mod/ for UFS integration during build
@@ -239,7 +240,7 @@ if(CATCHEM_BUILD_NUOPC)
   # Link only to external dependencies (not internal CATChem targets)
   target_link_libraries(
     cc_nuopc
-    PUBLIC ${CATCHEM_ESMF_TARGET} NetCDF::NetCDF_Fortran
+    PUBLIC ${CATCHEM_ESMF_TARGET} NetCDF::NetCDF_Fortran MPI::MPI_Fortran
   )
 
   # Manually handle the CATChem dependencies by linking to built libraries

@@ -36,7 +36,6 @@ module catchem_nuopc_interface
    use Constants, only: g0, Rd, Re
    use Error_Mod, only : CC_SUCCESS, CC_FAILURE
    use StateManager_Mod, only: StateManagerType
-   use ProcessManager_Mod, only: ProcessManagerType
    use ConfigManager_Mod, only: ConfigManagerType
    use error_mod, only: ErrorManagerType
    use MetState_Mod, only: MetStateType

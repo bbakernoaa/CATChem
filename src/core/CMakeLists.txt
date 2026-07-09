@@ -16,6 +16,10 @@ set(
   chemstate_mod.F90
   ExtEmisData_Mod.F90
   DiagnosticInterface_Mod.F90
+  ConfigManager_Mod.F90
+  StateManager_Mod.F90
+  DiagnosticManager_Mod.F90
+  ChemSpeciesUtils_Mod.F90
 )
 
 set(_srcs ${_base_srcs} ${_state_srcs})

@@ -148,6 +148,8 @@ module CATChem_API
       procedure :: bind_met_3d => model_bind_met_3d
       procedure :: bind_met_2d => model_bind_met_2d
       procedure :: bind_unified_chemistry => model_bind_unified_chemistry
+      procedure :: get_diagnostic_manager => model_get_diagnostic_manager
+      procedure :: get_state_manager => model_get_state_manager
    end type CATChem_Model
 
 contains
@@ -382,5 +384,24 @@ contains
 
       call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr))
    end subroutine model_bind_unified_chemistry
+
+   ! Get pointer to DiagnosticManager
+   function model_get_diagnostic_manager(this) result(ptr)
+      use DiagnosticManager_Mod, only: DiagnosticManagerType
+      class(CATChem_Model), intent(inout) :: this
+      type(DiagnosticManagerType), pointer :: ptr
+      type(DiagnosticManagerType), save, target :: static_diag_mgr
+      ptr => static_diag_mgr
+   end function model_get_diagnostic_manager
+
+   ! Get pointer to StateManager
+   function model_get_state_manager(this) result(ptr)
+      use StateManager_Mod, only: StateManagerType
+      class(CATChem_Model), intent(inout) :: this
+      type(StateManagerType), pointer :: ptr
+      type(StateManagerType), save, target :: static_state_mgr
+      static_state_mgr%cpp_ptr = this%state_mgr_ptr
+      ptr => static_state_mgr
+   end function model_get_state_manager
 
 end module CATChem_API
