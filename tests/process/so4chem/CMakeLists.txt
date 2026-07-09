@@ -6,7 +6,6 @@ set(
   TEST_SOURCES
   unit/test_so4chem_unit.F90
   integration/test_so4chem_integration.F90
-  test_SO4chemPhysics.F90
 )
 
 # Create test executables
@@ -23,17 +22,12 @@ foreach(test_source ${TEST_SOURCES})
     testing
   )
 
-  # The SO4chemPhysics equivalence test also needs GOCART2G for comparison
-  if(${test_name} STREQUAL "test_SO4chemPhysics")
-    if(TARGET GOCART2G)
-      target_link_libraries(${test_name} GOCART2G)
-    endif()
-  endif()
-
-  # Set Fortran module directory
+  # Set Fortran module directory and force Fortran linker
   set_target_properties(
     ${test_name}
-    PROPERTIES Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/modules"
+    PROPERTIES
+      Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/modules"
+      LINKER_LANGUAGE Fortran
   )
 
   # Add include directories for module files
@@ -54,13 +48,13 @@ endforeach()
 
 # Test data files
 configure_file(
-  "${CMAKE_SOURCE_DIR}/tests/Configs/Default/CATChem_new_config.yml"
+  "${CATCHEM_TESTS_CONFIG_DIR}/CATChem_new_config.yml"
   "${CMAKE_CURRENT_BINARY_DIR}/so4chem_config.yaml"
   COPYONLY
 )
 
 # Additional test data files - copy other config files that might be needed
-file(GLOB TEST_DATA_FILES "${CMAKE_SOURCE_DIR}/tests/Configs/Default/*.yml")
+file(GLOB TEST_DATA_FILES "${CATCHEM_TESTS_CONFIG_DIR}/*.yml")
 foreach(test_data_file ${TEST_DATA_FILES})
   get_filename_component(filename ${test_data_file} NAME)
   configure_file(
@@ -147,7 +141,7 @@ if(INSTALL_TESTS)
   install(TARGETS ${TEST_SOURCES} RUNTIME DESTINATION bin/tests)
 
   install(
-    FILES "${CMAKE_SOURCE_DIR}/tests/Configs/Default/CATChem_new_config.yml"
+    FILES "${CATCHEM_TESTS_CONFIG_DIR}/CATChem_new_config.yml"
     DESTINATION share/tests/so4chem
     RENAME so4chem_config.yaml
   )

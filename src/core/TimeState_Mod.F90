@@ -4,7 +4,7 @@
 !! Provides timekeeping, solar zenith angle, and calendar utilities for CATChem.
 !!
 module TimeState_Mod
-   use precision_mod, only: fp
+   use Precision_Mod, only: fp
    use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE
    use constants, only: PI, PI_180
    implicit none
@@ -25,7 +25,7 @@ module TimeState_Mod
       integer :: second = 0
       real(fp) :: timestep = 3600.0_fp !< seconds
       real(fp) :: julian_date = 0.0_fp
-      integer :: doy = 1
+      integer  :: doy = 1
    contains
       procedure :: get_sza
       procedure :: get_cos_sza
@@ -69,42 +69,42 @@ contains
       ! Calculate fractional hour of the day (UTC)
       if (present(mid_timestep)) then
          if (mid_timestep) then
-            fractional_hour = real(this%hour) + real(this%minute)/60.0 + real(this%second)/3600.0 + (this%timestep/2.0)/3600.0
+            fractional_hour = real(this%hour, fp) + real(this%minute, fp)/60.0_fp + real(this%second, fp)/3600.0_fp + (this%timestep/2.0_fp)/3600.0_fp
          end if
       else
-         fractional_hour = real(this%hour) + real(this%minute)/60.0 + real(this%second)/3600.0
+         fractional_hour = real(this%hour, fp) + real(this%minute, fp)/60.0_fp + real(this%second, fp)/3600.0_fp
       end if
 
       ! Calculate day angle (in radians)
-      gamma = 2.0 * PI * (real(this%doy) - 1.0) / 365.0
+      gamma = 2.0_fp * PI * (real(this%doy, fp) - 1.0_fp) / 365.0_fp
 
       ! Solar declination (in degrees, then radians)
-      !decl = 23.44 * sin(2.0 * PI * (real(this%doy) - 81.0) / 365.0)
+      !decl = 23.44 * sin(2.0 * PI * (real(this%doy, fp) - 81.0) / 365.0)
       !decl_rad = decl * PI_180
 
       !use a more accurate formula for declination
-      decl = 0.006918 - 0.399912*cos(gamma) + 0.070257*sin(gamma) &
-         - 0.006758*cos(2.0*gamma) + 0.000907*sin(2.0*gamma) &
-         - 0.002697*cos(3.0*gamma) + 0.00148*sin(3.0*gamma)
+      decl = 0.006918_fp - 0.399912_fp*cos(gamma) + 0.070257_fp*sin(gamma) &
+         - 0.006758_fp*cos(2.0_fp*gamma) + 0.000907_fp*sin(2.0_fp*gamma) &
+         - 0.002697_fp*cos(3.0_fp*gamma) + 0.00148_fp*sin(3.0_fp*gamma)
       decl_rad = decl
 
       ! Equation of time (in minutes).
-      eqtime = 229.18 * (0.000075 + 0.001868 * cos(gamma) - 0.032077 * sin(gamma) \
-      - 0.014615 * cos(2.0*gamma) - 0.040849 * sin(2.0*gamma))
+      eqtime = 229.18_fp * (0.000075_fp + 0.001868_fp * cos(gamma) - 0.032077_fp * sin(gamma) &
+         - 0.014615_fp * cos(2.0_fp*gamma) - 0.040849_fp * sin(2.0_fp*gamma))
 
       ! Time offset (in minutes). Note here we assume longitude between -180 and 180 degrees
-      time_offset = eqtime + 4.0 * lon
+      time_offset = eqtime + 4.0_fp * lon
 
       ! True solar time (in minutes)
-      tst = fractional_hour * 60.0 + time_offset
+      tst = fractional_hour * 60.0_fp + time_offset
 
       ! Hour angle (in degrees, then radians)
-      ha = (tst / 4.0) - 180.0
+      ha = (tst / 4.0_fp) - 180.0_fp
       ha_rad = ha * PI_180
 
       ! Solar zenith angle calculation
       cos_sza_val = sin(lat_rad) * sin(decl_rad) + cos(lat_rad) * cos(decl_rad) * cos(ha_rad)
-      cos_sza_val = max(-1.0, min(1.0, cos_sza_val)) ! Clamp for safety
+      cos_sza_val = max(-1.0_fp, min(1.0_fp, cos_sza_val)) ! Clamp for safety
    end function get_cos_sza
 
    !> \brief Compute cosine of solar zenith angle
@@ -148,7 +148,6 @@ contains
    !! Sets default values, calculates derived quantities (Julian date, DOY),
    !! and validates the initial time configuration.
    subroutine timestate_init(this, year, month, day, hour, minute, second, timestep, error_mgr, rc)
-      use error_mod, only: ERROR_INVALID_INPUT
 
       class(TimeStateType), intent(inout) :: this
       integer, optional, intent(in) :: year, month, day, hour, minute, second
@@ -170,7 +169,7 @@ contains
       this%hour = 0
       this%minute = 0
       this%second = 0
-      this%timestep = 3600.0  ! 1 hour default
+      this%timestep = 3600.0_fp  ! 1 hour default
 
       if (present(year)) this%year = year
       if (present(month)) this%month = month
@@ -309,8 +308,8 @@ contains
       this%hour = -1
       this%minute = -1
       this%second = -1
-      this%timestep = -1.0
-      this%julian_date = -1.0
+      this%timestep = -1.0_fp
+      this%julian_date = -1.0_fp
       this%doy = -1
 
       call error_mgr%pop_context()
@@ -338,7 +337,7 @@ contains
       this%hour = 0
       this%minute = 0
       this%second = 0
-      this%timestep = 3600.0  ! 1 hour
+      this%timestep = 3600.0_fp  ! 1 hour
 
       ! Recalculate derived quantities
       call this%calculate_derived_fields(error_mgr, rc)
@@ -445,7 +444,6 @@ contains
    !! \param[inout] error_mgr  Error manager
    !! \param[out]   rc         Return code
    subroutine calculate_derived_fields(this, error_mgr, rc)
-      use error_mod, only: ERROR_INVALID_INPUT
 
       class(TimeStateType), intent(inout) :: this
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
@@ -472,7 +470,7 @@ contains
       jdn = int(365.25 * (y + 4716)) + int(30.6001 * (m + 1)) + this%day - 1524 - a
 
       ! Julian Date (with fractional day)
-      this%julian_date = real(jdn, fp) + (real(this%hour, fp) + real(this%minute, fp)/60.0_fp + real(this%second, fp)/3600.0_fp) / 24.0_fp
+      this%julian_date = real(jdn, fp) + (this%hour + this%minute/60.0_fp + this%second/3600.0_fp) / 24.0_fp
 
       ! Calculate day of year
       this%doy = calculate_day_of_year(this%year, this%month, this%day)

@@ -21,7 +21,7 @@ module ProcessDryDepInterface_Mod
 
    ! Core CATChem infrastructure
    use precision_mod, only: fp
-   use ProcessInterface_Mod, only: ProcessInterface
+   use ProcessInterface_Mod, only: ProcessInterface, ColumnProcessInterface
    use StateManager_Mod, only: StateManagerType
    use GridManager_Mod, only: GridManagerType
    use error_mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType
@@ -48,12 +48,11 @@ module ProcessDryDepInterface_Mod
 
    public :: ProcessDryDepInterface
 
-   !> Main drydep process interface type - extends core ProcessInterface
-   !!
-   !! This type leverages CATChem's core ProcessInterface infrastructure for column
+   !> Main drydep process interface type - extends core ColumnProcessInterface   !!
+   !! This type leverages CATChem's core ColumnProcessInterface infrastructure for column
    !! virtualization, focusing only on process-specific configuration and scheme management.
    !! All boilerplate infrastructure and column processing is handled by the base class.
-   type, extends(ProcessInterface) :: ProcessDryDepInterface
+   type, extends(ColumnProcessInterface) :: ProcessDryDepInterface
       private
 
       ! Unified process configuration (bridges ConfigManager to process-specific config)
@@ -83,7 +82,7 @@ module ProcessDryDepInterface_Mod
       procedure :: finalize => process_finalize
       procedure :: parse_process_config => parse_drydep_config
 
-      ! Required column processing implementations
+      ! Required ColumnProcessInterface implementations
       procedure :: init_column_processing => init_column_processing
       procedure :: run_column => run_column
       procedure :: finalize_column_processing => finalize_column_processing
@@ -163,16 +162,6 @@ contains
          return
       end if
 
-#ifdef ENABLE_KOKKOS
-      block
-         interface
-            subroutine catchem_register_drydep_cpp() bind(c, name="catchem_register_drydep_cpp")
-            end subroutine catchem_register_drydep_cpp
-         end interface
-         call catchem_register_drydep_cpp()
-      end block
-#endif
-
       ! Mark process as initialized and active
       call this%activate()
 
@@ -181,7 +170,7 @@ contains
    !> Run the drydep process
    !!
    !! This method implements the main ProcessInterface run method.
-   !! For column-processing processes, the actual column iteration is handled
+   !! For ColumnProcessInterface processes, the actual column iteration is handled
    !! by ProcessManager, so this method serves as a placeholder for any 3D operations
    !! that might be needed before or after column processing.
    subroutine process_run(this, container, rc)
@@ -196,7 +185,7 @@ contains
          return
       end if
 
-      ! For column-processing processes, the ProcessManager handles column iteration
+      ! For ColumnProcessInterface processes, the ProcessManager handles column iteration
       ! and calls run_column() for each virtual column. This method is mainly a placeholder
       ! for any global 3D operations that need to happen before/after column processing.
 
@@ -262,7 +251,7 @@ contains
    !> Initialize column processing for drydep
    !!
    !! This method sets up the column processing infrastructure for the process.
-   !! The base class ProcessInterface handles the actual column virtualization.
+   !! The base class ColumnProcessInterface handles the actual column virtualization.
    subroutine init_column_processing(this, container, rc)
       class(ProcessDryDepInterface), intent(inout) :: this
       type(StateManagerType), intent(inout) :: container
@@ -339,7 +328,9 @@ contains
          call this%run_wesely_scheme_column(column, rc)
          if (rc /= CC_SUCCESS) return
        case default
-         rc = CC_FAILURE
+         call CC_Error('Unknown drydep gas scheme "' // &
+            trim(this%process_config%drydep_config%gas_scheme), rc, &
+            ThisLoc='run_active_scheme_column (in module ProcessDryDepInterface_Mod.F90)')
          return
       end select
 
@@ -350,7 +341,9 @@ contains
        case ('zhang')
          call this%run_zhang_scheme_column(column, rc)
        case default
-         rc = CC_FAILURE
+         call CC_Error('Unknown drydep aerosol scheme "' // &
+            trim(this%process_config%drydep_config%aero_scheme), rc, &
+            ThisLoc='run_active_scheme_column (in module ProcessDryDepInterface_Mod.F90)')
       end select
 
    end subroutine run_active_scheme_column
@@ -363,6 +356,28 @@ contains
 
       ! Local variables for scheme calculation
       type(VirtualMetType), pointer :: met => null()  ! Pointer to meteorological data
+      ! Meteorological fields
+      real(fp), allocatable :: bxheight(:)
+      real(fp), allocatable :: cldfrc(:)
+      real(fp), allocatable :: frlai(:)
+      real(fp), allocatable :: frlanduse(:)
+      integer, allocatable :: iland(:)
+      logical, allocatable :: isice(:)
+      logical, allocatable :: island(:)
+      logical, allocatable :: issnow(:)
+      real(fp), allocatable :: lat(:)
+      real(fp), allocatable :: lon(:)
+      character(len=255), allocatable :: lucname(:)
+      real(fp), allocatable :: obk(:)
+      real(fp), allocatable :: ps(:)
+      real(fp), allocatable :: salinity(:)
+      real(fp), allocatable :: suncosmid(:)
+      real(fp), allocatable :: swgdn(:)
+      real(fp), allocatable :: ts(:)
+      real(fp), allocatable :: tskin(:)
+      real(fp), allocatable :: tstep(:)
+      real(fp), allocatable :: ustar(:)
+      real(fp), allocatable :: z0(:)
       ! Species properties
       real(fp), allocatable :: species_mw_g(:)
       real(fp), allocatable :: species_dd_f0(:)
@@ -391,9 +406,31 @@ contains
       allocate(species_indices(n_species))
       species_indices(1:n_species) = this%process_config%drydep_config%species_indices(1:n_species)
 
-      ! Allocate arrays for species data
+      ! Allocate arrays
       allocate(species_conc(1, n_species))
       allocate(species_tendencies(1, n_species))
+      ! Allocate meteorological field arrays based on field type and process configuration
+      allocate(bxheight(n_levels))  ! Atmospheric field - always n_levels
+      allocate(cldfrc(1))  ! Surface field - always scalar
+
+
+
+      allocate(isice(1))  ! Surface field - always scalar
+      allocate(island(1))  ! Surface field - always scalar
+      allocate(issnow(1))  ! Surface field - always scalar
+      allocate(lat(1))  ! Surface field - always scalar
+      allocate(lon(1))  ! Surface field - always scalar
+      allocate(lucname(1))  ! Surface field - always scalar
+      allocate(obk(1))  ! Surface field - always scalar
+      allocate(ps(1))  ! Surface field - always scalar
+      allocate(salinity(1))  ! Surface field - always scalar
+      allocate(suncosmid(1))  ! Surface field - always scalar
+      allocate(swgdn(1))  ! Surface field - always scalar
+      allocate(ts(1))  ! Surface field - always scalar
+      allocate(tskin(1))  ! Surface field - always scalar
+      allocate(tstep(1))  ! Special timestep field - scalar
+      allocate(ustar(1))  ! Surface field - always scalar
+      allocate(z0(1))  ! Surface field - always scalar
       allocate(species_mw_g(n_species))
       allocate(species_dd_f0(n_species))
       allocate(species_dd_hstar(n_species))
@@ -403,8 +440,35 @@ contains
       species_tendencies = 0.0_fp
 
       ! Get meteorological data pointer from virtual column (VirtualMet pattern)
-      ! Met fields are passed directly to compute_wesely — no local copy needed
       met => column%get_met()
+
+      ! Now allocate categorical fields using the met pointer dimensions
+      allocate(frlai(size(met%FRLAI)))  ! Categorical field - get size from met pointer
+      allocate(frlanduse(size(met%FRLANDUSE)))  ! Categorical field - get size from met pointer
+      allocate(iland(size(met%ILAND)))  ! Categorical field - get size from met pointer
+
+      ! Extract required fields from met pointer based on field type and processing mode
+      bxheight(1:n_levels) = met%BXHEIGHT(1:n_levels)  ! Atmospheric field - always n_levels
+      cldfrc(1) = met%CLDFRC  ! Surface field - scalar access
+      frlai(:) = met%FRLAI(:)  ! Categorical field - full dimension
+      frlanduse(:) = met%FRLANDUSE(:)  ! Categorical field - full dimension
+      iland(:) = met%ILAND(:)  ! Categorical field - full dimension
+      isice(1) = met%IsIce  ! Surface field - scalar access
+      island(1) = met%IsLand  ! Surface field - scalar access
+      issnow(1) = met%IsSnow  ! Surface field - scalar access
+      lat(1) = met%LAT  ! Surface field - scalar access
+      lon(1) = met%LON  ! Surface field - scalar access
+      lucname(1) = met%LUCNAME  ! Surface field - scalar access
+      obk(1) = met%OBK  ! Surface field - scalar access
+      ps(1) = met%PS  ! Surface field - scalar access
+      salinity(1) = met%SALINITY  ! Surface field - scalar access
+      suncosmid(1) = met%SUNCOSmid  ! Surface field - scalar access
+      swgdn(1) = met%SWGDN  ! Surface field - scalar access
+      ts(1) = met%TS  ! Surface field - scalar access
+      tskin(1) = met%TSKIN  ! Surface field - scalar access
+      tstep(1) = this%get_timestep()  ! Special timestep field - retrieved from ProcessInterface
+      ustar(1) = met%USTAR  ! Surface field - scalar access
+      z0(1) = met%Z0  ! Surface field - scalar access
 
       ! Get species concentrations from virtual column
       ! Surface-only processing - get surface level concentrations
@@ -413,15 +477,20 @@ contains
       end do
 
       ! Get species properties from configuration (pre-loaded during initialization)
+      ! Use species properties from process configuration
       species_mw_g(1:n_species) = this%process_config%drydep_config%species_mw_g(1:n_species)
+      ! Use species properties from process configuration
       species_dd_f0(1:n_species) = this%process_config%drydep_config%species_dd_f0(1:n_species)
+      ! Use species properties from process configuration
       species_dd_hstar(1:n_species) = this%process_config%drydep_config%species_dd_hstar(1:n_species)
+      ! Use species properties from process configuration
       species_dd_DvzAerSnow(1:n_species) = this%process_config%drydep_config%species_dd_DvzAerSnow(1:n_species)
+      ! Use species properties from process configuration
       species_dd_DvzMinVal_snow(1:n_species) = this%process_config%drydep_config%species_dd_DvzMinVal_snow(1:n_species)
+      ! Use species properties from process configuration
       species_dd_DvzMinVal_land(1:n_species) = this%process_config%drydep_config%species_dd_DvzMinVal_land(1:n_species)
 
       ! Call the science scheme with optional diagnostic parameters
-      ! Met fields passed directly from VirtualMetType — no local copy
       ! Note: wesely uses the following diagnostic fields (if diagnostics enabled):
       ! - drydep_con_per_species (Dry deposition concentration per species)
       ! - drydep_velocity_per_species (Dry deposition velocity)
@@ -431,27 +500,27 @@ contains
             n_levels, &
             n_species, &
             this%process_config%wesely_config, &
-            met%BXHEIGHT(1:n_levels), &
-            met%CLDFRC, &
-            met%FRLAI, &
-            met%FRLANDUSE, &
-            met%ILAND, &
-            met%IsIce, &
-            met%IsLand, &
-            met%IsSnow, &
-            met%LAT, &
-            met%LON, &
-            met%LUCNAME, &
-            met%OBK, &
-            met%PS, &
-            met%SALINITY, &
-            met%SUNCOSmid, &
-            met%SWGDN, &
-            met%TS, &
-            met%TSKIN, &
-            this%get_timestep(), &
-            met%USTAR, &
-            met%Z0, &
+            bxheight, &
+            cldfrc(1), &
+            frlai, &
+            frlanduse, &
+            iland, &
+            isice(1), &
+            island(1), &
+            issnow(1), &
+            lat(1), &
+            lon(1), &
+            lucname(1), &
+            obk(1), &
+            ps(1), &
+            salinity(1), &
+            suncosmid(1), &
+            swgdn(1), &
+            ts(1), &
+            tskin(1), &
+            tstep(1), &
+            ustar(1), &
+            z0(1)            , &
             species_mw_g, &
             species_dd_f0, &
             this%process_config%drydep_config%species_names, &
@@ -464,34 +533,34 @@ contains
             this%process_config%drydep_config%is_gas, &
             this%column_drydep_con_per_species, &
             this%column_drydep_velocity_per_species, &
-            this%process_config%drydep_config%diagnostic_species_id)
+            this%process_config%drydep_config%diagnostic_species_id         )
       else
          ! Call without diagnostic outputs (optional parameters not passed)
          call compute_wesely( &
             n_levels, &
             n_species, &
             this%process_config%wesely_config, &
-            met%BXHEIGHT(1:n_levels), &
-            met%CLDFRC, &
-            met%FRLAI, &
-            met%FRLANDUSE, &
-            met%ILAND, &
-            met%IsIce, &
-            met%IsLand, &
-            met%IsSnow, &
-            met%LAT, &
-            met%LON, &
-            met%LUCNAME, &
-            met%OBK, &
-            met%PS, &
-            met%SALINITY, &
-            met%SUNCOSmid, &
-            met%SWGDN, &
-            met%TS, &
-            met%TSKIN, &
-            this%get_timestep(), &
-            met%USTAR, &
-            met%Z0, &
+            bxheight, &
+            cldfrc(1), &
+            frlai, &
+            frlanduse, &
+            iland, &
+            isice(1), &
+            island(1), &
+            issnow(1), &
+            lat(1), &
+            lon(1), &
+            lucname(1), &
+            obk(1), &
+            ps(1), &
+            salinity(1), &
+            suncosmid(1), &
+            swgdn(1), &
+            ts(1), &
+            tskin(1), &
+            tstep(1), &
+            ustar(1), &
+            z0(1)            , &
             species_mw_g, &
             species_dd_f0, &
             this%process_config%drydep_config%species_names, &
@@ -501,7 +570,8 @@ contains
             species_dd_DvzMinVal_land, &
             species_conc, &
             species_tendencies, &
-            this%process_config%drydep_config%is_gas)
+            this%process_config%drydep_config%is_gas &
+            )
       end if
 
       ! Apply tendencies back to virtual column based on tendency_mode
@@ -526,9 +596,24 @@ contains
 
       ! Local variables for scheme calculation
       type(VirtualMetType), pointer :: met => null()  ! Pointer to meteorological data
+      ! Meteorological fields
+      real(fp), allocatable :: airden(:)
+      real(fp), allocatable :: frlake(:)
+      real(fp), allocatable :: gwettop(:)
+      real(fp), allocatable :: hflux(:)
+      integer, allocatable :: lwi(:)
+      real(fp), allocatable :: pblh(:)
+      real(fp), allocatable :: t(:)
+      real(fp), allocatable :: tstep(:)
+      real(fp), allocatable :: u10m(:)
+      real(fp), allocatable :: ustar(:)
+      real(fp), allocatable :: v10m(:)
+      real(fp), allocatable :: z(:)
+      real(fp), allocatable :: z0h(:)
       ! Species properties
       real(fp), allocatable :: species_density(:)
       real(fp), allocatable :: species_radius(:)
+      logical, allocatable :: species_is_dust(:)
       logical, allocatable :: species_is_seasalt(:)
       real(fp), allocatable :: species_conc(:,:)
       real(fp), allocatable :: species_tendencies(:,:)
@@ -551,17 +636,48 @@ contains
       allocate(species_indices(n_species))
       species_indices(1:n_species) = this%process_config%drydep_config%species_indices(1:n_species)
 
-      ! Allocate arrays for species data
+      ! Allocate arrays
       allocate(species_conc(1, n_species))
       allocate(species_tendencies(1, n_species))
+      ! Allocate meteorological field arrays based on field type and process configuration
+      allocate(airden(n_levels))  ! Atmospheric field - always n_levels
+      allocate(frlake(1))  ! Surface field - always scalar
+      allocate(gwettop(1))  ! Surface field - always scalar
+      allocate(hflux(1))  ! Surface field - always scalar
+      allocate(lwi(1))  ! Surface field - always scalar
+      allocate(pblh(1))  ! Surface field - always scalar
+      allocate(t(n_levels))  ! Atmospheric field - always n_levels
+      allocate(tstep(1))  ! Special timestep field - scalar
+      allocate(u10m(1))  ! Surface field - always scalar
+      allocate(ustar(1))  ! Surface field - always scalar
+      allocate(v10m(1))  ! Surface field - always scalar
+      allocate(z(n_levels+1))  ! Edge field - always n_levels+1
+      allocate(z0h(1))  ! Surface field - always scalar
       allocate(species_density(n_species))
       allocate(species_radius(n_species))
+      allocate(species_is_dust(n_species))
       allocate(species_is_seasalt(n_species))
       species_tendencies = 0.0_fp
 
       ! Get meteorological data pointer from virtual column (VirtualMet pattern)
-      ! Met fields are passed directly to compute_gocart — no local copy needed
       met => column%get_met()
+
+      ! Now allocate categorical fields using the met pointer dimensions
+
+      ! Extract required fields from met pointer based on field type and processing mode
+      airden(1:n_levels) = met%AIRDEN(1:n_levels)  ! Atmospheric field - always n_levels
+      frlake(1) = met%FRLAKE  ! Surface field - scalar access
+      gwettop(1) = met%GWETTOP  ! Surface field - scalar access
+      hflux(1) = met%HFLUX  ! Surface field - scalar access
+      lwi(1) = met%LWI  ! Surface field - scalar access
+      pblh(1) = met%PBLH  ! Surface field - scalar access
+      t(1:n_levels) = met%T(1:n_levels)  ! Atmospheric field - always n_levels
+      tstep(1) = this%get_timestep()  ! Special timestep field - retrieved from ProcessInterface
+      u10m(1) = met%U10M  ! Surface field - scalar access
+      ustar(1) = met%USTAR  ! Surface field - scalar access
+      v10m(1) = met%V10M  ! Surface field - scalar access
+      z(1:n_levels+1) = met%Z(1:n_levels+1)  ! Edge field - always n_levels+1
+      z0h(1) = met%Z0H  ! Surface field - scalar access
 
       ! Get species concentrations from virtual column
       ! Surface-only processing - get surface level concentrations
@@ -570,12 +686,16 @@ contains
       end do
 
       ! Get species properties from configuration (pre-loaded during initialization)
+      ! Use species properties from process configuration
       species_density(1:n_species) = this%process_config%drydep_config%species_density(1:n_species)
+      ! Use species properties from process configuration
       species_radius(1:n_species) = this%process_config%drydep_config%species_radius(1:n_species)
+      ! Use species properties from process configuration
+      species_is_dust(1:n_species) = this%process_config%drydep_config%species_is_dust(1:n_species)
+      ! Use species properties from process configuration
       species_is_seasalt(1:n_species) = this%process_config%drydep_config%species_is_seasalt(1:n_species)
 
       ! Call the science scheme with optional diagnostic parameters
-      ! Met fields passed directly from VirtualMetType — no local copy
       ! Note: gocart uses the following diagnostic fields (if diagnostics enabled):
       ! - drydep_con_per_species (Dry deposition concentration per species)
       ! - drydep_velocity_per_species (Dry deposition velocity)
@@ -585,53 +705,56 @@ contains
             n_levels, &
             n_species, &
             this%process_config%gocart_config, &
-            met%AIRDEN(1:n_levels), &
-            met%FRLAKE, &
-            met%GWETTOP, &
-            met%HFLUX, &
-            met%LWI, &
-            met%PBLH, &
-            met%T(1:n_levels), &
-            this%get_timestep(), &
-            met%U10M, &
-            met%USTAR, &
-            met%V10M, &
-            met%Z(1:n_levels+1), &
-            met%Z0H, &
+            airden, &
+            frlake(1), &
+            gwettop(1), &
+            hflux(1), &
+            lwi(1), &
+            pblh(1), &
+            t, &
+            tstep(1), &
+            u10m(1), &
+            ustar(1), &
+            v10m(1), &
+            z, &
+            z0h(1)            , &
             species_density, &
             species_radius, &
+            species_is_dust, &
             species_is_seasalt, &
             species_conc, &
             species_tendencies, &
             this%process_config%drydep_config%is_gas, &
             this%column_drydep_con_per_species, &
             this%column_drydep_velocity_per_species, &
-            this%process_config%drydep_config%diagnostic_species_id)
+            this%process_config%drydep_config%diagnostic_species_id         )
       else
          ! Call without diagnostic outputs (optional parameters not passed)
          call compute_gocart( &
             n_levels, &
             n_species, &
             this%process_config%gocart_config, &
-            met%AIRDEN(1:n_levels), &
-            met%FRLAKE, &
-            met%GWETTOP, &
-            met%HFLUX, &
-            met%LWI, &
-            met%PBLH, &
-            met%T(1:n_levels), &
-            this%get_timestep(), &
-            met%U10M, &
-            met%USTAR, &
-            met%V10M, &
-            met%Z(1:n_levels+1), &
-            met%Z0H, &
+            airden, &
+            frlake(1), &
+            gwettop(1), &
+            hflux(1), &
+            lwi(1), &
+            pblh(1), &
+            t, &
+            tstep(1), &
+            u10m(1), &
+            ustar(1), &
+            v10m(1), &
+            z, &
+            z0h(1)            , &
             species_density, &
             species_radius, &
+            species_is_dust, &
             species_is_seasalt, &
             species_conc, &
             species_tendencies, &
-            this%process_config%drydep_config%is_gas)
+            this%process_config%drydep_config%is_gas &
+            )
       end if
 
       ! Apply tendencies back to virtual column based on tendency_mode
@@ -656,6 +779,22 @@ contains
 
       ! Local variables for scheme calculation
       type(VirtualMetType), pointer :: met => null()  ! Pointer to meteorological data
+      ! Meteorological fields
+      real(fp), allocatable :: bxheight(:)
+      real(fp), allocatable :: frlanduse(:)
+      integer, allocatable :: iland(:)
+      logical, allocatable :: isice(:)
+      logical, allocatable :: issnow(:)
+      character(len=255), allocatable :: lucname(:)
+      real(fp), allocatable :: obk(:)
+      real(fp), allocatable :: ps(:)
+      real(fp), allocatable :: rh(:)
+      real(fp), allocatable :: ts(:)
+      real(fp), allocatable :: tstep(:)
+      real(fp), allocatable :: u10m(:)
+      real(fp), allocatable :: ustar(:)
+      real(fp), allocatable :: v10m(:)
+      real(fp), allocatable :: z0(:)
       ! Species properties
       real(fp), allocatable :: species_mw_g(:)
       real(fp), allocatable :: species_radius(:)
@@ -689,9 +828,25 @@ contains
       allocate(species_indices(n_species))
       species_indices(1:n_species) = this%process_config%drydep_config%species_indices(1:n_species)
 
-      ! Allocate arrays for species data
+      ! Allocate arrays
       allocate(species_conc(1, n_species))
       allocate(species_tendencies(1, n_species))
+      ! Allocate meteorological field arrays based on field type and process configuration
+      allocate(bxheight(n_levels))  ! Atmospheric field - always n_levels
+
+
+      allocate(isice(1))  ! Surface field - always scalar
+      allocate(issnow(1))  ! Surface field - always scalar
+      allocate(lucname(1))  ! Surface field - always scalar
+      allocate(obk(1))  ! Surface field - always scalar
+      allocate(ps(1))  ! Surface field - always scalar
+      allocate(rh(n_levels))  ! Atmospheric field - always n_levels
+      allocate(ts(1))  ! Surface field - always scalar
+      allocate(tstep(1))  ! Special timestep field - scalar
+      allocate(u10m(1))  ! Surface field - always scalar
+      allocate(ustar(1))  ! Surface field - always scalar
+      allocate(v10m(1))  ! Surface field - always scalar
+      allocate(z0(1))  ! Surface field - always scalar
       allocate(species_mw_g(n_species))
       allocate(species_radius(n_species))
       allocate(species_density(n_species))
@@ -706,8 +861,28 @@ contains
       species_tendencies = 0.0_fp
 
       ! Get meteorological data pointer from virtual column (VirtualMet pattern)
-      ! Met fields are passed directly to compute_zhang — no local copy needed
       met => column%get_met()
+
+      ! Now allocate categorical fields using the met pointer dimensions
+      allocate(frlanduse(size(met%FRLANDUSE)))  ! Categorical field - get size from met pointer
+      allocate(iland(size(met%ILAND)))  ! Categorical field - get size from met pointer
+
+      ! Extract required fields from met pointer based on field type and processing mode
+      bxheight(1:n_levels) = met%BXHEIGHT(1:n_levels)  ! Atmospheric field - always n_levels
+      frlanduse(:) = met%FRLANDUSE(:)  ! Categorical field - full dimension
+      iland(:) = met%ILAND(:)  ! Categorical field - full dimension
+      isice(1) = met%IsIce  ! Surface field - scalar access
+      issnow(1) = met%IsSnow  ! Surface field - scalar access
+      lucname(1) = met%LUCNAME  ! Surface field - scalar access
+      obk(1) = met%OBK  ! Surface field - scalar access
+      ps(1) = met%PS  ! Surface field - scalar access
+      rh(1:n_levels) = met%RH(1:n_levels)  ! Atmospheric field - always n_levels
+      ts(1) = met%TS  ! Surface field - scalar access
+      tstep(1) = this%get_timestep()  ! Special timestep field - retrieved from ProcessInterface
+      u10m(1) = met%U10M  ! Surface field - scalar access
+      ustar(1) = met%USTAR  ! Surface field - scalar access
+      v10m(1) = met%V10M  ! Surface field - scalar access
+      z0(1) = met%Z0  ! Surface field - scalar access
 
       ! Get species concentrations from virtual column
       ! Surface-only processing - get surface level concentrations
@@ -716,20 +891,30 @@ contains
       end do
 
       ! Get species properties from configuration (pre-loaded during initialization)
+      ! Use species properties from process configuration
       species_mw_g(1:n_species) = this%process_config%drydep_config%species_mw_g(1:n_species)
+      ! Use species properties from process configuration
       species_radius(1:n_species) = this%process_config%drydep_config%species_radius(1:n_species)
+      ! Use species properties from process configuration
       species_density(1:n_species) = this%process_config%drydep_config%species_density(1:n_species)
+      ! Use species properties from process configuration
       species_dd_hstar(1:n_species) = this%process_config%drydep_config%species_dd_hstar(1:n_species)
+      ! Use species properties from process configuration
       species_dd_DvzAerSnow(1:n_species) = this%process_config%drydep_config%species_dd_DvzAerSnow(1:n_species)
+      ! Use species properties from process configuration
       species_dd_DvzMinVal_snow(1:n_species) = this%process_config%drydep_config%species_dd_DvzMinVal_snow(1:n_species)
+      ! Use species properties from process configuration
       species_dd_DvzMinVal_land(1:n_species) = this%process_config%drydep_config%species_dd_DvzMinVal_land(1:n_species)
+      ! Use species properties from process configuration
       species_lower_radius(1:n_species) = this%process_config%drydep_config%species_lower_radius(1:n_species)
+      ! Use species properties from process configuration
       species_upper_radius(1:n_species) = this%process_config%drydep_config%species_upper_radius(1:n_species)
+      ! Use species properties from process configuration
       species_is_dust(1:n_species) = this%process_config%drydep_config%species_is_dust(1:n_species)
+      ! Use species properties from process configuration
       species_is_seasalt(1:n_species) = this%process_config%drydep_config%species_is_seasalt(1:n_species)
 
       ! Call the science scheme with optional diagnostic parameters
-      ! Met fields passed directly from VirtualMetType — no local copy
       ! Note: zhang uses the following diagnostic fields (if diagnostics enabled):
       ! - drydep_con_per_species (Dry deposition concentration per species)
       ! - drydep_velocity_per_species (Dry deposition velocity)
@@ -739,21 +924,21 @@ contains
             n_levels, &
             n_species, &
             this%process_config%zhang_config, &
-            met%BXHEIGHT(1:n_levels), &
-            met%FRLANDUSE, &
-            met%ILAND, &
-            met%IsIce, &
-            met%IsSnow, &
-            met%LUCNAME, &
-            met%OBK, &
-            met%PS, &
-            met%RH(1:n_levels), &
-            met%TS, &
-            this%get_timestep(), &
-            met%U10M, &
-            met%USTAR, &
-            met%V10M, &
-            met%Z0, &
+            bxheight, &
+            frlanduse, &
+            iland, &
+            isice(1), &
+            issnow(1), &
+            lucname(1), &
+            obk(1), &
+            ps(1), &
+            rh, &
+            ts(1), &
+            tstep(1), &
+            u10m(1), &
+            ustar(1), &
+            v10m(1), &
+            z0(1)            , &
             species_mw_g, &
             species_radius, &
             species_density, &
@@ -771,28 +956,28 @@ contains
             this%process_config%drydep_config%is_gas, &
             this%column_drydep_con_per_species, &
             this%column_drydep_velocity_per_species, &
-            this%process_config%drydep_config%diagnostic_species_id)
+            this%process_config%drydep_config%diagnostic_species_id         )
       else
          ! Call without diagnostic outputs (optional parameters not passed)
          call compute_zhang( &
             n_levels, &
             n_species, &
             this%process_config%zhang_config, &
-            met%BXHEIGHT(1:n_levels), &
-            met%FRLANDUSE, &
-            met%ILAND, &
-            met%IsIce, &
-            met%IsSnow, &
-            met%LUCNAME, &
-            met%OBK, &
-            met%PS, &
-            met%RH(1:n_levels), &
-            met%TS, &
-            this%get_timestep(), &
-            met%U10M, &
-            met%USTAR, &
-            met%V10M, &
-            met%Z0, &
+            bxheight, &
+            frlanduse, &
+            iland, &
+            isice(1), &
+            issnow(1), &
+            lucname(1), &
+            obk(1), &
+            ps(1), &
+            rh, &
+            ts(1), &
+            tstep(1), &
+            u10m(1), &
+            ustar(1), &
+            v10m(1), &
+            z0(1)            , &
             species_mw_g, &
             species_radius, &
             species_density, &
@@ -807,7 +992,8 @@ contains
             species_is_seasalt, &
             species_conc, &
             species_tendencies, &
-            this%process_config%drydep_config%is_gas)
+            this%process_config%drydep_config%is_gas &
+            )
       end if
 
       ! Apply tendencies back to virtual column based on tendency_mode
@@ -830,12 +1016,11 @@ contains
    function get_required_met_fields(this) result(field_names)
       class(ProcessDryDepInterface), intent(in) :: this
       character(len=32), allocatable :: field_names(:)
-      character(len=32), allocatable :: scheme_fields(:)
       character(len=32), allocatable :: process_fields(:)
       character(len=32), allocatable :: gas_scheme_fields(:), aero_scheme_fields(:)
       integer :: gas_scheme_count, aero_scheme_count
       character(len=32), allocatable :: unique_fields(:)
-      integer :: total_fields, scheme_count, process_count, i, j, unique_count
+      integer :: total_fields, process_count, i, j, unique_count
       logical :: is_duplicate
 
       ! No process-level required fields
@@ -983,7 +1168,7 @@ contains
    !> Register diagnostic fields with the DiagnosticManager and allocate diagnostic storage
 
    subroutine register_and_allocate_diagnostics(this, container, rc)
-      use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DIAG_REAL_2D, DIAG_REAL_3D
+      use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DIAG_REAL_2D
 
       class(ProcessDryDepInterface), intent(inout) :: this
       type(StateManagerType), intent(inout) :: container
