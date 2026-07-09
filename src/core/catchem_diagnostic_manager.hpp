@@ -31,6 +31,7 @@ public:
     void* get_host_pointer(const std::string& name);
     void sync_to_host();
     void reset_all();
+    std::vector<std::string> get_registered_names() const;
 };
 
 } // namespace catchem

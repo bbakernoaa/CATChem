@@ -32,6 +32,8 @@ void catchem_diag_register(void* core_ptr, const char* name, const char* desc, c
 void* catchem_diag_get_pointer(void* core_ptr, const char* name);
 void catchem_diag_sync_to_host(void* core_ptr);
 void catchem_diag_reset(void* core_ptr);
+int catchem_diag_get_count(void* core_ptr);
+void catchem_diag_get_name_at(void* core_ptr, int index, char* name_out);
 
 void catchem_state_load_species_config(void* state_ptr, const char* filename);
 int catchem_state_get_species_count(void* state_ptr);

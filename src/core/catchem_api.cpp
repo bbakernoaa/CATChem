@@ -133,6 +133,21 @@ void catchem_diag_reset(void* core_ptr) {
     core->get_diagnostic_manager()->reset_all();
 }
 
+int catchem_diag_get_count(void* core_ptr) {
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return static_cast<int>(core->get_diagnostic_manager()->get_registered_names().size());
+}
+
+void catchem_diag_get_name_at(void* core_ptr, int index, char* name_out) {
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    auto names = core->get_diagnostic_manager()->get_registered_names();
+    if (index >= 0 && index < static_cast<int>(names.size())) {
+        std::strcpy(name_out, names[index].c_str());
+    } else {
+        name_out[0] = '\0';
+    }
+}
+
 void catchem_state_load_species_config(void* state_ptr, const char* filename) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     state->load_species_config(filename);

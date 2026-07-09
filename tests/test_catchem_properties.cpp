@@ -174,13 +174,41 @@ int main(int argc, char* argv[]) {
         std::cout << "Executing 100 high-fuzz property iterations over 7 synchronized processes..." << std::endl;
 
         for (int iter = 1; iter <= 100; ++iter) {
-            // Fuzz meteorological tensors across extreme, bounded physical bounds
+            // Fuzz temperature across extreme physical atmospheric ranges
             fill_random(t_air, 170.0, 330.0, gen);       // Stratosphere to boundary surface Temps
-            fill_random(pmid, 1000.0, 101325.0, gen);   // Dynamic horizontal atmospheric pressures
-            fill_random(pedge, 500.0, 110000.0, gen);   // dynamic pressure boundary edges
-            fill_random(airden_dry, 0.1, 1.8, gen);     // atmospheric densities
-            fill_random(mairden, 0.1, 1.8, gen);
-            fill_random(bxheight, 10.0, 2000.0, gen);   // physical dz layer thicknesses (meters)
+
+            // Construct monotonic, physically consistent pressure edges and midpoints per column
+            for (int icol = 0; icol < n_cols; ++icol) {
+                double current_p = std::uniform_real_distribution<double>(95000.0, 103000.0)(gen); // Surface pressure
+                pedge[icol * (n_levels + 1) + 0] = current_p;
+                for (int k = 0; k < n_levels; ++k) {
+                    double delta = std::uniform_real_distribution<double>(5000.0, 12000.0)(gen);
+                    current_p -= delta;
+                    if (current_p < 100.0) current_p = 100.0;
+                    pedge[icol * (n_levels + 1) + k + 1] = current_p;
+
+                    // Midpoint pressure is average of the edges
+                    double p1 = pedge[icol * (n_levels + 1) + k];
+                    double p2 = pedge[icol * (n_levels + 1) + k + 1];
+                    pmid[icol * n_levels + k] = 0.5 * (p1 + p2);
+                    delp[icol * n_levels + k] = std::abs(p1 - p2);
+
+                    // Derive dry air density using the Ideal Gas Law: rho = P / (R_dry * T)
+                    double t = t_air[icol * n_levels + k];
+                    double rho = pmid[icol * n_levels + k] / (287.05 * t);
+                    if (rho < 0.01) rho = 0.01;
+                    if (rho > 2.0) rho = 2.0;
+                    airden_dry[icol * n_levels + k] = rho;
+                    mairden[icol * n_levels + k] = rho;
+
+                    // Derive dz (layer thickness) using hydrostatic balance: dz = dp / (rho * g)
+                    double dz = delp[icol * n_levels + k] / (rho * 9.80665);
+                    if (dz < 1.0) dz = 1.0;
+                    if (dz > 5000.0) dz = 5000.0;
+                    bxheight[icol * n_levels + k] = dz;
+                }
+            }
+
             fill_random(cldf, 0.0, 1.0, gen);           // cloud fractions
             fill_random(pfilsan, 0.0, 0.1, gen);        // Dynamic fractions
             fill_random(pfllsan, 0.0, 0.1, gen);

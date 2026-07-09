@@ -111,4 +111,12 @@ void DiagnosticManager::reset_all() {
     }
 }
 
+std::vector<std::string> DiagnosticManager::get_registered_names() const {
+    std::vector<std::string> names;
+    for (const auto& [name, field] : fields) {
+        names.push_back(name);
+    }
+    return names;
+}
+
 } // namespace catchem
