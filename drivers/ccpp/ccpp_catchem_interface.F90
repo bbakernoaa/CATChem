@@ -252,7 +252,7 @@ contains
      soilmoist, pr3d, phl3d, prl3d, tk3d, q3d, us3d, vs3d, rh, &
      delp, airden, pfl_lsan, pfl_isan, &
      rain_cpl, cldf, &
-     dust_in, &
+     clayfrac, rdrag, sandfrac, ssm, ustar_threshold, &
      constituent_props, constituents, &
      errmsg, errflg)
 
@@ -291,6 +291,7 @@ contains
      real(kind_phys), dimension(im), intent(in), target        :: lai
 
      real(kind_phys), dimension(im, nsoil), intent(in), target :: soilmoist
+     real(kind_phys), dimension(im, snowdepth) :: snowdepth_not_used ! just matching names
      real(kind_phys), dimension(im), intent(in), target        :: snowdepth
      real(kind_phys), dimension(im), intent(in), target        :: prsfc
      real(kind_phys), dimension(im), intent(in), target        :: pblh
@@ -327,7 +328,11 @@ contains
 
      real(kind_phys), dimension(im), intent(in), target        :: rain_cpl
      real(kind_phys), dimension(im), intent(in), target        :: cldf
-     real(kind_phys), dimension(im, 12, 5), intent(in), target :: dust_in
+     real(kind_phys), dimension(im), intent(in), target        :: clayfrac
+     real(kind_phys), dimension(im), intent(in), target        :: rdrag
+     real(kind_phys), dimension(im), intent(in), target        :: sandfrac
+     real(kind_phys), dimension(im), intent(in), target        :: ssm
+     real(kind_phys), dimension(im), intent(in), target        :: ustar_threshold
 
      type(ccpp_constituent_prop_ptr_t), intent(in)    :: constituent_props(:)
      real(kind_phys), target,           intent(inout) :: constituents(:,:,:)
@@ -337,27 +342,15 @@ contains
 
      ! Local variables
      real(kind_phys), target, allocatable :: subset_constituents(:,:,:)
-     integer :: n_spec, i, month_now
+     integer :: n_spec, i
      type(c_ptr) :: state_mgr
-
-     ! Target arrays for monthly dust climatology unpacking
-     real(kind_phys), target, allocatable :: clayfrac(:), rdrag(:), sandfrac(:), ssm(:), ustar_threshold(:)
 
      errmsg = ''
      errflg = 0
 
      if (.not. do_catchem) return
 
-     ! 1. Unpack monthly dust climatology arrays for the current month
-     allocate(clayfrac(im), rdrag(im), sandfrac(im), ssm(im), ustar_threshold(im))
-     month_now = max(1, min(12, jdate(2)))
-     clayfrac(:)        = dust_in(:, month_now, 1)
-     rdrag(:)           = dust_in(:, month_now, 2)
-     sandfrac(:)        = dust_in(:, month_now, 3)
-     ssm(:)             = dust_in(:, month_now, 4)
-     ustar_threshold(:) = dust_in(:, month_now, 5)
-
-     ! 2. Extract non-contiguous indices into a contiguous local subset array
+     ! 1. Extract non-contiguous indices into a contiguous local subset array
      n_spec = size(catchem_indices_constituent_props)
      allocate(subset_constituents(im, kte, n_spec))
 
@@ -365,7 +358,7 @@ contains
         subset_constituents(:,:,i) = constituents(:,:,catchem_indices_constituent_props(i))
      end do
 
-     ! 3. Meterological pointer mapping (Direct Flat C-API bindings avoiding shape restrictions)
+     ! 2. Meterological pointer mapping (Direct Flat C-API bindings avoiding shape restrictions)
      state_mgr = cc_model%get_state_manager()
 
      ! 3D volumetric met fields
@@ -398,32 +391,30 @@ contains
      call catchem_state_bind_met_2d(state_mgr, "lake_fraction"//c_null_char, c_loc(lakefrac(1)))
      call catchem_state_bind_met_2d(state_mgr, "snow_fraction"//c_null_char, c_loc(frsnow(1)))
 
-     ! Month-specific climatological dust variables unpacked from dust_in
+     ! Dynamic climatological dust variables mapped individually
      call catchem_state_bind_met_2d(state_mgr, "clay_fraction"//c_null_char, c_loc(clayfrac(1)))
      call catchem_state_bind_met_2d(state_mgr, "drag_coefficient"//c_null_char, c_loc(rdrag(1)))
      call catchem_state_bind_met_2d(state_mgr, "sand_fraction"//c_null_char, c_loc(sandfrac(1)))
      call catchem_state_bind_met_2d(state_mgr, "surface_soil_moisture"//c_null_char, c_loc(ssm(1)))
      call catchem_state_bind_met_2d(state_mgr, "threshold_friction_velocity"//c_null_char, c_loc(ustar_threshold(1)))
 
-     ! 4. Bind local unified chemistry concentrations subset
+     ! 3. Bind local unified chemistry concentrations subset
      call catchem_state_bind_unified_chemistry(state_mgr, c_loc(subset_constituents(1,1,1)))
 
-     ! 5. Central C++ Core timestep solver execution
+     ! 4. Central C++ Core timestep solver execution
      call cc_model%run_timestep(real(dt, fp), errflg)
      if (errflg /= CC_SUCCESS) then
          errmsg = 'CATChem Run Error: Scheduled process execution failed inside C++ Core.'
          deallocate(subset_constituents)
-         deallocate(clayfrac, rdrag, sandfrac, ssm, ustar_threshold)
          return
      end if
 
-     ! 6. Dynamic synchronisation back to the global host tracer array
+     ! 5. Dynamic synchronisation back to the global host tracer array
      do i = 1, n_spec
         constituents(:,:,catchem_indices_constituent_props(i)) = subset_constituents(:,:,i)
      end do
 
      deallocate(subset_constituents)
-     deallocate(clayfrac, rdrag, sandfrac, ssm, ustar_threshold)
 
    end subroutine ccpp_catchem_interface_run
 

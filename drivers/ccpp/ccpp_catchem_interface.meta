@@ -491,10 +491,34 @@
   dimensions = (horizontal_loop_extent)
   type = real | kind = kind_phys
   intent = in
-[dust_in]
-  standard_name = dust_emission_flux
-  units = kg m-2 s-1
-  dimensions = (horizontal_loop_extent,12,5)
+[clayfrac]
+  standard_name = clay_fraction_in_soil
+  units = fraction
+  dimensions = (horizontal_loop_extent)
+  type = real | kind = kind_phys
+  intent = in
+[rdrag]
+  standard_name = drag_partitioning_parameter
+  units = none
+  dimensions = (horizontal_loop_extent)
+  type = real | kind = kind_phys
+  intent = in
+[sandfrac]
+  standard_name = sand_fraction_in_soil
+  units = fraction
+  dimensions = (horizontal_loop_extent)
+  type = real | kind = kind_phys
+  intent = in
+[ssm]
+  standard_name = sediment_supply_map_for_dust
+  units = none
+  dimensions = (horizontal_loop_extent)
+  type = real | kind = kind_phys
+  intent = in
+[ustar_threshold]
+  standard_name = threshold_friction_velocity_for_dust
+  units = m s-1
+  dimensions = (horizontal_loop_extent)
   type = real | kind = kind_phys
   intent = in
 [constituent_props]
