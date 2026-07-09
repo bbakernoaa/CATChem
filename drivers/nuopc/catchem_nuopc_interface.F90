@@ -1003,7 +1003,7 @@ contains
          chem_state => state_mgr%get_chem_state_ptr()
          if ( .not. associated(chem_state) ) then
             call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-               msg="chem_state is not associated in CATChem before transformation to NUOPC", &
+               msg="chem_state is not associated in CATChem before transformation from NUOPC", &
                line=__LINE__, file=__FILE__, rcToReturn=rc)
             return  ! bail out
          end if
@@ -1012,13 +1012,12 @@ contains
          nj = size(fptr4d, 2)
          nk = size(fptr4d, 3)
          nv = size(fptr4d, 4)
-         ! Reverse vertical layers
+
+         ! Zero-Copy Coupled Tracer export: Since the Cap previously bound the ESMF 4D tracer pointer
+         ! directly to standard C++ unmanaged LayoutLeft Views, the computed concentrations are already
+         ! updated in-place! No copying of individual tracers is needed. We only need to populate
+         ! computed diagnostic tracers (like pm25, pm10) that do not map directly to dynamic tracers.
          do v = 1, nv
-            ! PM2.5/PM10 are carried as slots inside the tracer mass-fraction
-            ! array (following GOCART), but they are diagnostics rather than
-            ! CATChem species, so they are not present in the tracer_map. Fill
-            ! these slots directly from the 'aerosol' PM diagnostics that were
-            ! computed and stored in the DiagnosticManager this timestep.
             if (trim(cc_wrap%tracer_map%names(v)) == 'pm25' .or. &
                trim(cc_wrap%tracer_map%names(v)) == 'pm10') then
                found_index = cc_wrap%catchem_model%get_diag_index_from_field(trim(cc_wrap%tracer_map%names(v)))
@@ -1031,40 +1030,8 @@ contains
                         line=__LINE__, file=__FILE__, rcToReturn=rc)
                      return
                   end if
-                  do k = 1, nk
-                     kk = k   ! no vertical reversal (CATChem and NUOPC share orientation)
-                     do j = 1, nj
-                        do i = 1, ni
-                           fptr4d(i,j,kk,v) = cc_diag_data(i,j,k)
-                        end do
-                     end do
-                  end do
+                  fptr4d(:,:,:,v) = cc_diag_data(:,:,:)
                end if
-               cycle   ! handled; move to next tracer
-            end if
-
-            v_cc = cc_wrap%tracer_map%nuopc_to_cc(v)
-            if (v_cc > 0) then
-               if (.not. chem_state%ChemSpecies(v_cc)%is_advected) cycle !if not advected, go to next cycle
-               cc_diag_data = chem_state%ChemSpecies(v_cc)%conc
-               if (chem_state%ChemSpecies(v_cc)%is_gas) then
-                  !unit_conv = 1.0e3 * chem_state%ChemSpecies(v_cc)%mw_g /28.9644  ! convert from ppm to ug/kg for gases
-                  unit_conv = 1.00  !keep it in ppmV
-               else
-                  unit_conv = 1.00  ! convert from ug/kg to ug/kg for aerosols
-               end if
-
-               do k = 1, nk
-                  !kk = nk - k + 1 !no need to reverse
-                  kk = k
-                  do j = 1, nj
-                     do i = 1, ni
-                        fptr4d(i,j,kk,v) = cc_diag_data(i,j,k) * unit_conv
-                     end do
-                  end do
-               end do
-            else
-               !fptr4d(:,:,:,v) = 0.0_ESMF_KIND_R8  ! Species not found; do nothing
             end if
          end do   !nv
 
