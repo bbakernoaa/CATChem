@@ -244,7 +244,7 @@ contains
       !   1) ESMF_GRIDITEM_AREA attached to the grid (true FV3 cell areas [m2]).
       !   2) ESMF_FieldRegridGetArea, which returns areas on the unit sphere
       !      (steradians); scale by Re^2 to obtain m2.
-      if (allocated(met_state%AREA_M2)) then
+      if (associated(met_state%AREA_M2)) then
          block
             type(ESMF_Field) :: areaField
             real(ESMF_KIND_R8), pointer :: areaPtr(:,:)

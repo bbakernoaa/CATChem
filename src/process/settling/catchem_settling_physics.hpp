@@ -116,7 +116,10 @@ namespace catchem {
                     for (int k = n_levels - 2; k >= 0; --k) {
                         double delp_k1 = pedge(icol, k + 1, 0) - pedge(icol, k + 2, 0);
                         double delp_k = pedge(icol, k, 0) - pedge(icol, k + 1, 0);
-                        double p_ratio = delp_k1 / delp_k;
+                        // Guard against non-positive layer pressure thickness
+                        // (which can occur for degenerate/clamped pressure
+                        // profiles) to avoid division by zero producing NaN/Inf.
+                        double p_ratio = (delp_k > 0.0) ? (delp_k1 / delp_k) : 0.0;
                         qa[k] = qa[k] + p_ratio * dt * tau[k + 1] * qa[k + 1] - dt * tau[k] * qa[k];
                     }
                 }
