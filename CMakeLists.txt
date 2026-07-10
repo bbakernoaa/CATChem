@@ -43,7 +43,86 @@ if(ENABLE_KOKKOS)
   endif()
   set(CMAKE_CXX_STANDARD 20)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
-  find_package(Kokkos REQUIRED)
+
+  # CATChem's C++ core depends on mdspan support (Kokkos::mdspan and the
+  # <mdspan/mdspan.hpp> headers), which is only available in modern Kokkos
+  # (5.x). Older distro packages (e.g. Ubuntu's Kokkos 3.7) are not usable.
+  # Prefer a sufficiently new system install and otherwise fetch and build a
+  # pinned release.
+  set(
+    CATCHEM_KOKKOS_MIN_VERSION
+    "5.0"
+    CACHE STRING
+    "Minimum acceptable Kokkos version"
+  )
+  set(
+    CATCHEM_KOKKOS_VERSION
+    "5.1.1"
+    CACHE STRING
+    "Kokkos release to fetch when a suitable system install is not found"
+  )
+
+  find_package(Kokkos ${CATCHEM_KOKKOS_MIN_VERSION} QUIET)
+
+  if(Kokkos_FOUND)
+    message(STATUS "Using system Kokkos ${Kokkos_VERSION}")
+
+    # Work around a packaging bug in some Kokkos installs where the exported
+    # Kokkos targets advertise a non-existent "/include" path in
+    # INTERFACE_INCLUDE_DIRECTORIES (its _IMPORT_PREFIX resolves to "/"). CMake
+    # treats this as a hard error at generate time, so strip any include
+    # directories that do not actually exist on disk. This must be applied to
+    # every imported Kokkos target because Kokkos::kokkos inherits include
+    # directories transitively from its component targets.
+    foreach(
+      _kokkos_target
+      Kokkos::kokkos
+      Kokkos::kokkoscore
+      Kokkos::kokkoscontainers
+      Kokkos::kokkosalgorithms
+      Kokkos::kokkossimd
+    )
+      if(TARGET ${_kokkos_target})
+        get_target_property(
+          _kokkos_include_dirs
+          ${_kokkos_target}
+          INTERFACE_INCLUDE_DIRECTORIES
+        )
+        if(_kokkos_include_dirs)
+          set(_kokkos_include_dirs_clean "")
+          foreach(_kokkos_inc IN LISTS _kokkos_include_dirs)
+            if(_kokkos_inc MATCHES "\\$<" OR EXISTS "${_kokkos_inc}")
+              list(APPEND _kokkos_include_dirs_clean "${_kokkos_inc}")
+            else()
+              message(
+                STATUS
+                "Dropping non-existent include directory '${_kokkos_inc}' from ${_kokkos_target}"
+              )
+            endif()
+          endforeach()
+          set_target_properties(
+            ${_kokkos_target}
+            PROPERTIES
+              INTERFACE_INCLUDE_DIRECTORIES "${_kokkos_include_dirs_clean}"
+          )
+        endif()
+      endif()
+    endforeach()
+  else()
+    message(
+      STATUS
+      "Suitable Kokkos (>= ${CATCHEM_KOKKOS_MIN_VERSION}) not found; fetching and building Kokkos ${CATCHEM_KOKKOS_VERSION}"
+    )
+    include(FetchContent)
+    # Enable the OpenMP host backend by default for the fetched build.
+    set(Kokkos_ENABLE_OPENMP ON CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+      kokkos
+      URL
+        "https://github.com/kokkos/kokkos/releases/download/${CATCHEM_KOKKOS_VERSION}/kokkos-${CATCHEM_KOKKOS_VERSION}.tar.gz"
+    )
+    FetchContent_MakeAvailable(kokkos)
+  endif()
 endif()
 # Option to build NUOPC cap (defaults to OFF)
 option(CATCHEM_BUILD_NUOPC "Build NUOPC cap and drivers" OFF)

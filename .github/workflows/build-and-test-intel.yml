@@ -28,7 +28,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apt-get update && apt-get install -y libkokkos-dev libyaml-cpp-dev
+          apt-get update && apt-get install -y libyaml-cpp-dev
 
       - name: Configure
         run: |
