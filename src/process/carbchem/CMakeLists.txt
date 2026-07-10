@@ -48,14 +48,17 @@ target_include_directories(
 
 # Compiler-specific flags
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-  target_compile_options(${_lib} PRIVATE -fdefault-real-8 -fdefault-double-8)
+  target_compile_options(
+    ${_lib}
+    PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-fdefault-real-8;-fdefault-double-8>
+  )
   # Chemistry processes may benefit from aggressive optimization
   target_compile_options(
     ${_lib}
     PRIVATE $<$<CONFIG:Release>:-O3;-funroll-loops>
   )
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  target_compile_options(${_lib} PRIVATE -r8)
+  target_compile_options(${_lib} PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-r8>)
   target_compile_options(${_lib} PRIVATE $<$<CONFIG:Release>:-O3;-unroll>)
 endif()
 

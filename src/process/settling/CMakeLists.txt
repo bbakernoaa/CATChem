@@ -48,9 +48,12 @@ target_include_directories(${_lib} PRIVATE ${CMAKE_BINARY_DIR}/include)
 
 # Compiler-specific flags
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-  target_compile_options(${_lib} PRIVATE -fdefault-real-8 -fdefault-double-8)
+  target_compile_options(
+    ${_lib}
+    PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-fdefault-real-8;-fdefault-double-8>
+  )
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  target_compile_options(${_lib} PRIVATE -r8)
+  target_compile_options(${_lib} PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-r8>)
 endif()
 
 # Add preprocessor definitions
