@@ -369,6 +369,9 @@ contains
      call catchem_state_bind_met_3d(state_mgr, "PEDGE"//c_null_char, c_loc(pr3d(1,1)))
      call catchem_state_bind_met_3d(state_mgr, "DELP"//c_null_char, c_loc(delp(1,1)))
      call catchem_state_bind_met_3d(state_mgr, "AIRDEN"//c_null_char, c_loc(airden(1,1)))
+     call catchem_state_bind_met_3d(state_mgr, "AIRDEN_DRY"//c_null_char, c_loc(airden(1,1)))
+     call catchem_state_bind_met_3d(state_mgr, "PFILSAN"//c_null_char, c_loc(pfl_isan(1,1)))
+     call catchem_state_bind_met_3d(state_mgr, "PFLLSAN"//c_null_char, c_loc(pfl_lsan(1,1)))
      call catchem_state_bind_met_3d(state_mgr, "soil_moisture"//c_null_char, c_loc(soilmoist(1,1)))
 
      ! 2D surface met fields
