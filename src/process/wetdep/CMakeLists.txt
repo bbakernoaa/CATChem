@@ -6,9 +6,9 @@
 # Define wetdep process sources
 set(
   WETDEP_PROCESS_SOURCES
-  WetdepCommon_Mod.F90
+  WetDepCommon_Mod.F90
   catchem_process_wetdep.cpp
-  WetdepScienceBridge.F90
+  WetDepScienceBridge.F90
 )
 
 # Define wetdep scheme sources

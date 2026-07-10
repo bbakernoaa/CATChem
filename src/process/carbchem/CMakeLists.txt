@@ -6,9 +6,9 @@
 # Define carbchem process sources
 set(
   CARBCHEM_PROCESS_SOURCES
-  CarbchemCommon_Mod.F90
+  CarbChemCommon_Mod.F90
   catchem_process_carbchem.cpp
-  CarbchemScienceBridge.F90
+  CarbChemScienceBridge.F90
 )
 
 # Define carbchem scheme sources

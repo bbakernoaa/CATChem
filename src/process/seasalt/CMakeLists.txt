@@ -6,9 +6,9 @@
 # Define seasalt process sources
 set(
   SEASALT_PROCESS_SOURCES
-  SeasaltCommon_Mod.F90
+  SeaSaltCommon_Mod.F90
   catchem_process_seasalt.cpp
-  SeasaltScienceBridge.F90
+  SeaSaltScienceBridge.F90
 )
 
 # Define seasalt scheme sources
