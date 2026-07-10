@@ -51,6 +51,12 @@ module ccpp_catchem_interface
         integer(c_int), value :: index
      end function
 
+     integer(c_int) function catchem_state_is_species_gas(state_ptr, index) bind(C, name="catchem_state_is_species_gas")
+        import :: c_ptr, c_int
+        type(c_ptr), value :: state_ptr
+        integer(c_int), value :: index
+     end function
+
      subroutine catchem_state_bind_met_3d(state_ptr, name, ptr) bind(C, name="catchem_state_bind_met_3d")
         import :: c_ptr, c_char
         type(c_ptr), value :: state_ptr
@@ -109,7 +115,7 @@ contains
       character(kind=c_char) :: c_buf(128)
       character(len=64)      :: f_name
       real(kind_phys)        :: molar_mass_g_mol, molar_mass_kg_mol
-      logical                :: is_advected
+      logical                :: is_advected, is_gas
       integer                :: n_spec, i
       type(c_ptr)            :: state_mgr
 
@@ -134,10 +140,10 @@ contains
 
       ! 3. Allocate and populate constituent_props
       allocate(constituent_props(n_spec), stat=errflg)
-      if (errflg /= 0) then
+      if (errflg /= 0) {
          errmsg = 'CATChem Register: Memory allocation failure.'
          return
-      end if
+      }
 
       do i = 1, n_spec
          call catchem_state_get_species_name_at(state_mgr, int(i, c_int), c_buf)
@@ -146,19 +152,35 @@ contains
          molar_mass_g_mol = real(catchem_state_get_species_mw(state_mgr, int(i, c_int)), kind_phys)
          molar_mass_kg_mol = molar_mass_g_mol * 1.0e-3_kind_phys
          is_advected = (catchem_state_get_species_is_advected(state_mgr, int(i, c_int)) == 1)
+         is_gas = (catchem_state_is_species_gas(state_mgr, int(i, c_int)) == 1)
 
-         call constituent_props(i)%instantiate( &
-            std_name      = trim(f_name), &
-            long_name     = trim(f_name), &
-            diag_name     = trim(f_name), &
-            units         = 'kg kg-1', &
-            vertical_dim  = 'vertical_layer_dimension', &
-            default_value = 0.0_kind_phys, &
-            min_value     = 0.0_kind_phys, &
-            molar_mass    = molar_mass_kg_mol, &
-            advected      = is_advected, &
-            errcode       = errflg, &
-            errmsg        = errmsg )
+         if (is_gas) then
+            call constituent_props(i)%instantiate( &
+               std_name      = trim(f_name), &
+               long_name     = trim(f_name), &
+               diag_name     = trim(f_name), &
+               units         = 'kg kg-1', &
+               vertical_dim  = 'vertical_layer_dimension', &
+               default_value = 0.0_kind_phys, &
+               min_value     = 0.0_kind_phys, &
+               molar_mass    = molar_mass_kg_mol, &
+               advected      = is_advected, &
+               errcode       = errflg, &
+               errmsg        = errmsg )
+         else
+            ! Aerosol species do not have a constant gas-phase molar mass, so we omit the molar_mass argument
+            call constituent_props(i)%instantiate( &
+               std_name      = trim(f_name), &
+               long_name     = trim(f_name), &
+               diag_name     = trim(f_name), &
+               units         = 'kg kg-1', &
+               vertical_dim  = 'vertical_layer_dimension', &
+               default_value = 0.0_kind_phys, &
+               min_value     = 0.0_kind_phys, &
+               advected      = is_advected, &
+               errcode       = errflg, &
+               errmsg        = errmsg )
+         end if
          if (errflg /= 0) return
       end do
 
