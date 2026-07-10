@@ -87,6 +87,16 @@ contains
    end subroutine c_to_f_string
 
    !> \brief Register dynamic constituent properties with CCPP
+   !!
+   !! \details This subroutine reads the chemical species configuration database using the path
+   !! retrieved from the `CATCHEM_CONFIG` environment variable (falling back to standard path),
+   !! queries the total species count from the modern C++ Core StateManager, and dynamically
+   !! instantiates the CCPP framework metadata registry (`ccpp_constituent_properties_t`) for
+   !! each active species (including name, molecular weight, and advection parameters).
+   !!
+   !! \param[out] constituent_props Array of dynamically registered CCPP constituent properties
+   !! \param[out] errmsg Error message string set if registration fails
+   !! \param[out] errflg Error code flag (0=success, non-zero=failure)
    subroutine ccpp_catchem_interface_register(constituent_props, errmsg, errflg)
       implicit none
 
@@ -157,7 +167,24 @@ contains
 
    end subroutine ccpp_catchem_interface_register
 
-   !> \brief Initialize the CATChem CCPP interface
+   !> \brief Initialize the CATChem CCPP interface and resolve host-mapped indices
+   !!
+   !! \details Fully configures the high-performance C++ Core manager dynamically using the
+   !! host-provided physical, meteorological, and land/soil grid dimensions (such as horizontal columns,
+   !! vertical layers, soil layers, soil categories, and vegetation categories). It then resolves the
+   !! global host-model runtime index mapping for each registered chemical species using CCPP's standard
+   !! index retrieval utility `ccpp_const_get_idx`.
+   !!
+   !! \param[in]  im Horizontal loop extent / dimension of the chunk
+   !! \param[in]  kte Vertical layer dimension / number of layers
+   !! \param[in]  nsoil Vertical dimension of soil layers
+   !! \param[in]  nlndcat Number of vegetation categories
+   !! \param[in]  nsoilcat Number of soil categories
+   !! \param[in]  do_catchem Logical coupling flag controlling activation of CATChem
+   !! \param[in]  catchem_configfile_in Path to the CATChem YAML configuration file
+   !! \param[in]  constituent_props_ptr CCPP constituent properties pointer array
+   !! \param[out] errmsg Error message string set if initialization fails
+   !! \param[out] errflg Error code flag (0=success, non-zero=failure)
    subroutine ccpp_catchem_interface_init(im, kte, nsoil, nlndcat, nsoilcat, &
                                           do_catchem, catchem_configfile_in, &
                                           constituent_props_ptr, errmsg, errflg)
@@ -215,8 +242,15 @@ contains
 
    end subroutine ccpp_catchem_interface_init
 
-  !> \brief Finalize the CATChem CCPP interface
-  subroutine ccpp_catchem_interface_finalize(do_catchem, errmsg, errflg)
+   !> \brief Finalize the CATChem CCPP interface and release allocated memory
+   !!
+   !! \details Shuts down the modern C++ Core orchestrator, releases all associated memory allocations
+   !! inside the unmanaged Kokkos and C++ Views, and deallocates the dynamic host-constituent index mapping arrays.
+   !!
+   !! \param[in]  do_catchem Logical coupling flag controlling activation of CATChem
+   !! \param[out] errmsg Error message string set if finalization fails
+   !! \param[out] errflg Error code flag (0=success, non-zero=failure)
+   subroutine ccpp_catchem_interface_finalize(do_catchem, errmsg, errflg)
      implicit none
 
      logical, intent(in) :: do_catchem
@@ -238,7 +272,86 @@ contains
 
   end subroutine ccpp_catchem_interface_finalize
 
-  !> \brief Execute CATChem chemistry calculations with dynamic tracer support
+  !> \brief Execute CATChem chemistry, deposition, and emission calculations
+  !!
+  !! \details This is the primary execution entry point of the CCPP driver. It dynamically extracts
+  !! the active chemical tracer mixing ratios from the non-contiguous global host array `constituents`
+  !! into a local contiguous buffer, binds it alongside standard meteorological, surface, vegetative,
+  !! soil, and climatological dust parameters directly to the C++ Core via zero-copy C-API pointers,
+  !! runs the thread-safe parallel Kokkos chemistry solvers, and synchronizes the updated tracer state
+  !! back to the host model in-place.
+  !!
+  !! \param[in]    im Horizontal loop extent / dimension of the chunk
+  !! \param[in]    kte Vertical layer dimension / number of layers
+  !! \param[in]    kme Vertical interface dimension / number of layer edges
+  !! \param[in]    garea Grid cell area (m2)
+  !! \param[in]    nsoil Vertical dimension of soil layers
+  !! \param[in]    nlndcat Number of vegetation categories
+  !! \param[in]    nsoilcat Number of soil categories
+  !! \param[in]    lat Grid cell latitude coordinates (degrees)
+  !! \param[in]    lon Grid cell longitude coordinates (degrees)
+  !! \param[in]    do_catchem Logical coupling flag controlling activation of CATChem
+  !! \param[in]    dt Physics timestep length (s)
+  !! \param[in]    jdate Forecast start date and time array
+  !! \param[in]    xcosz Cosine of solar zenith angle
+  !! \param[in]    lwi Land-water-ice mask index (0=water, 1=land, 2=ice)
+  !! \param[in]    frlanduse Fractional vegetation cover by category
+  !! \param[in]    gvf Green vegetation fraction (0-1)
+  !! \param[in]    seaicefrac Sea ice concentration fraction
+  !! \param[in]    oceanfrac Fraction of ocean
+  !! \param[in]    lakefrac Fraction of lake
+  !! \param[in]    landfrac Fraction of land
+  !! \param[in]    stype Soil type index
+  !! \param[in]    vtype Vegetation type index
+  !! \param[in]    snowdepth Physical snow depth (m)
+  !! \param[in]    frsnow Snow cover fraction
+  !! \param[in]    lai Leaf area index (m2 m-2)
+  !! \param[in]    frsoil Fractional soil type by category
+  !! \param[in]    pores Dry soil porosity constants
+  !! \param[in]    resid Residual soil moisture constants
+  !! \param[in]    ustar friction velocity (m s-1)
+  !! \param[in]    u10m 10m zonal wind velocity (m s-1)
+  !! \param[in]    v10m 10m meridional wind velocity (m s-1)
+  !! \param[in]    tskin Ground skin temperature (K)
+  !! \param[in]    ts Surface temperature for fluxes (K)
+  !! \param[in]    hf2d Sensible heat flux (W m-2)
+  !! \param[in]    lf2d Latent heat flux (W m-2)
+  !! \param[in]    znt Roughness length for momentum (m)
+  !! \param[in]    prsfc Surface air pressure (Pa)
+  !! \param[in]    pblh Planetary boundary layer height (m)
+  !! \param[in]    dswsfc Downward shortwave flux at surface (W m-2)
+  !! \param[in]    nirbmdi Downward near-infrared direct flux (W m-2)
+  !! \param[in]    nirdfdi Downward near-infrared diffuse flux (W m-2)
+  !! \param[in]    visbmdi Downward visible direct flux (W m-2)
+  !! \param[in]    visdfdi Downward visible diffuse flux (W m-2)
+  !! \param[in]    sfc_alb_nir_dir Surface albedo due to NIR direct
+  !! \param[in]    sfc_alb_nir_dif Surface albedo due to NIR diffuse
+  !! \param[in]    sfc_alb_uvvis_dir Surface albedo due to UV/VIS direct
+  !! \param[in]    sfc_alb_uvvis_dif Surface albedo due to UV/VIS diffuse
+  !! \param[in]    soilmoist Soil moisture fraction (m3 m-3)
+  !! \param[in]    pr3d Air pressure at interfaces (Pa)
+  !! \param[in]    phl3d Geopotential height at interfaces (m)
+  !! \param[in]    prl3d Mid-point air pressure (Pa)
+  !! \param[in]    tk3d Mid-point air temperature (K)
+  !! \param[in]    q3d Specific humidity / water vapor mixing ratio (kg kg-1)
+  !! \param[in]    us3d Eastward wind velocity (m s-1)
+  !! \param[in]    vs3d Northward wind velocity (m s-1)
+  !! \param[in]    rh Relative humidity (percent)
+  !! \param[in]    delp Pressure thickness (Pa)
+  !! \param[in]    airden Dry air density (kg m-3)
+  !! \param[in]    pfl_lsan Cloud liquid water mixing ratio (kg kg-1)
+  !! \param[in]    pfl_isan Cloud ice water mixing ratio (kg kg-1)
+  !! \param[in]    rain_cpl Precipitation rate (kg m-2 s-1)
+  !! \param[in]    cldf Cloud area fraction
+  !! \param[in]    clayfrac Soil clay fraction (0-1)
+  !! \param[in]    rdrag Wind drag partitioning parameter (unitless)
+  !! \param[in]    sandfrac Soil sand fraction (0-1)
+  !! \param[in]    ssm Sediment supply map parameter (unitless)
+  !! \param[in]    ustar_threshold Threshold friction velocity for erosion (m s-1)
+  !! \param[in]    constituent_props CCPP constituent properties pointer array
+  !! \param[inout] constituents Global 3D CCPP unified tracer array [cols, levels, species]
+  !! \param[out]   errmsg Error message string set if execution fails
+  !! \param[out]   errflg Error code flag (0=success, non-zero=failure)
   subroutine ccpp_catchem_interface_run(im, kte, kme, garea, nsoil, nlndcat, nsoilcat, &
      lat, lon, &
      do_catchem, &
