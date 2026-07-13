@@ -52,7 +52,7 @@ contains
       real(c_double), pointer :: diag_mass(:,:,:), diag_flux(:,:,:)
 
       ! Loop variables
-      integer :: icol, i, j
+      integer :: icol, i, j, ispec
       character(len=32) :: dummy_sp_names(n_species)
 
       ! Local arrays in native solver precision (fp) to avoid double-float mismatches
@@ -149,6 +149,15 @@ contains
             wetdep_mass_per_species_per_level=col_diag_mass, &
             wetdep_flux_per_species_per_level=col_diag_flux, &
             diagnostic_species_id=diagnostic_species_id)
+
+         ! Convert tendencies from process-specific units (ug/kg/s or ppm/s) to kg/kg/s
+         do ispec = 1, n_species
+            if ( f_is_aerosol(ispec) ) then
+               col_tendencies(:, ispec) = col_tendencies(:, ispec) * 1.0e-9_fp
+            else
+               col_tendencies(:, ispec) = col_tendencies(:, ispec) * 1.0e-6_fp * (f_mw_g(ispec) / AIRMW)
+            end if
+         end do
 
          ! Write tendencies and concentrations back in-place (casting to c_double)
          tendency(icol, :, :) = real(col_tendencies, c_double)

@@ -58,9 +58,9 @@ contains
       real(c_double), pointer :: xh2o2_init(:,:), pso4_so2(:,:), pso4_g_so2(:,:), pso4_aq_so2(:,:), pso2_dms(:,:), dms_flux(:)
 
       ! Loop variables
-      integer :: icol, i, j
+      integer :: icol, i, j, ispec
       character(len=32) :: dummy_sp_names(n_species)
-      logical :: f_firsttime
+      logical :: f_firsttime, is_aero
 
       ! Local arrays in native solver precision (fp) to avoid double-float mismatches
       real(fp) :: f_airden(n_levels)
@@ -78,6 +78,7 @@ contains
       ! Sliced concentration and tendencies in solver precision
       real(fp) :: f_conc(n_levels, n_species)
       real(fp) :: col_tendencies(n_levels, n_species)
+      real(fp) :: col_conc_new(n_levels)
 
       ! Local arrays to resolve Fortran BIND(C) allocatable constraints & rank matches
       real(fp), allocatable :: local_xh2o2_init(:)
@@ -178,6 +179,24 @@ contains
             f_firsttime, nymd_last(icol), nhms_last_recycle(icol), local_xh2o2_init, &
             col_prod_rate, col_pso4_g, col_pso4_aq, col_dms_flux, &
             diagnostic_species_id=diagnostic_species_id)
+
+         ! Convert updated GOCART concentrations (ppm or ug/kg) to actual tendencies in kg/kg/s
+         do ispec = 1, n_species
+            is_aero = .false.
+            if ( dummy_sp_names(ispec) == 'SO4' .or. dummy_sp_names(ispec) == 'so4' .or. &
+                 dummy_sp_names(ispec) == 'MSA' .or. dummy_sp_names(ispec) == 'msa' .or. &
+                 dummy_sp_names(ispec) == 'ASO4J' .or. dummy_sp_names(ispec) == 'aso4j' ) then
+               is_aero = .true.
+            end if
+
+            if ( is_aero ) then
+               col_conc_new(:) = col_tendencies(:, ispec) * 1.0e-9_fp
+            else
+               col_conc_new(:) = col_tendencies(:, ispec) * 1.0e-6_fp * (f_mw_g(ispec) / AIRMW)
+            end if
+
+            col_tendencies(:, ispec) = (col_conc_new(:) - real(conc(icol, :, ispec), fp)) / dt
+         end do
 
          ! Write tendencies and updated concentrations back in-place (casting to c_double)
          tendency(icol, :, :) = real(col_tendencies, c_double)
