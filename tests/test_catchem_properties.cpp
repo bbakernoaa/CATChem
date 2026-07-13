@@ -261,7 +261,7 @@ int main(int argc, char* argv[]) {
                     int lev_idx = col_lev_idx / n_cols;
                     std::cerr << "PROPERTY FAILURE: NaN detected at conc index " << i << " (Species=" << spec_idx
                               << ", Column=" << col_idx << ", Level=" << lev_idx << ") during iteration " << iter
-                              << std::endl;
+                              << ", VALUE=" << conc[i] << std::endl;
                 }
                 assert(std::isfinite(conc[i]) && "Concentration must remain finite!");
             }

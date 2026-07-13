@@ -932,7 +932,7 @@ contains
       real(fp), intent(in) :: radius_fine    !< fine particle radius threshold (um); using 1.0 um for now
 
       ! -- local variables
-      real(fp)          :: dth, pph
+      real(fp)          :: dth, pph, ratio
       ! -- local parameters
       real(fp), parameter :: k_wash = 1.06e-03_fp
       real(fp), parameter :: h2s = 3600.0_fp ! s-1
@@ -945,19 +945,22 @@ contains
          pph = 10.0_fp * pdwn * h2s
          dth = dt / h2s
 
+         ! Guard ratio against negative values before raising to fractional power (defense-in-depth)
+         ratio = max( zero, pph / f )
+
          if ( radius < radius_fine ) then  !for fine aerosol (simplified from WASHFRAC_FINE_AEROSOL)
             if ( tk >= 268e+0_fp  ) then
-               washfrac_aerosol = F * ( one  - EXP(-k_wash * tuning * (pph / f ) ** 0.61e+0_fp * dth))
+               washfrac_aerosol = F * ( one  - EXP(-k_wash * tuning * ratio ** 0.61e+0_fp * dth))
             else
-               washfrac_aerosol = F * ( one  - EXP(-2.6e+1_fp * k_wash * tuning  * (pph / f ) ** 0.96e+0_fp * dth))
+               washfrac_aerosol = F * ( one  - EXP(-2.6e+1_fp * k_wash * tuning  * ratio ** 0.96e+0_fp * dth))
             endif
          else  !for coarse aerosol (simplified from WASHFRAC_COARSE_AEROSOL)
             if ( tk >= 268e+0_fp  ) then
-               washfrac_aerosol = F * ( one  - EXP(-0.92e+0_fp * tuning * (pph / f ) ** 0.79e+0_fp * dth))
+               washfrac_aerosol = F * ( one  - EXP(-0.92e+0_fp * tuning * ratio ** 0.79e+0_fp * dth))
             else
                !TODO: GOCART applied a factor of 0.5 to the tuning factor for coarse aerosol????
-               !washfrac_aerosol = F * ( one  - EXP(-1.57e+0_fp / 0.5e+0_fp * tuning * (pph / f ) ** 0.96e+0_fp * dth))
-               washfrac_aerosol = F * ( one  - EXP(-1.57e+0_fp * tuning * (pph / f ) ** 0.96e+0_fp * dth))
+               !washfrac_aerosol = F * ( one  - EXP(-1.57e+0_fp / 0.5e+0_fp * tuning * ratio ** 0.96e+0_fp * dth))
+               washfrac_aerosol = F * ( one  - EXP(-1.57e+0_fp * tuning * ratio ** 0.96e+0_fp * dth))
             endif
          endif
       endif
