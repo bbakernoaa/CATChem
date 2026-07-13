@@ -836,7 +836,7 @@ contains
             call met_state%set_field(trim(field_map%catchem_var), real(fptr2d, fp)*0.01_fp, error_mgr, rc)
          else
             ! Standard direct zero-copy pointer mapping
-            call cc_wrap%catchem_model%bind_met_2d(trim(field_map%catchem_var) // c_null_char, c_loc(fptr2d(1,1)))
+            call cc_wrap%catchem_model%bind_met_2d(trim(field_map%catchem_var) // c_null_char, fptr2d)
          end if
 
          if (allocated(cc_wrap%catchem_model%required_fields)) then
@@ -854,7 +854,7 @@ contains
             line=__LINE__, file=__FILE__)) return
 
          ! Direct zero-copy 3D volumetric array pointer mapping to C++ core StateManager
-         call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var) // c_null_char, c_loc(fptr3d(1,1,1)))
+         call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var) // c_null_char, fptr3d)
 
          if (allocated(cc_wrap%catchem_model%required_fields)) then
             met_index = cc_wrap%catchem_model%get_required_met_index( trim(field_map%catchem_var) )
@@ -879,7 +879,7 @@ contains
          end if
 
          ! Direct zero-copy 4D chemistry concentration array mapping to C++ core StateManager
-         call cc_wrap%catchem_model%bind_unified_chemistry(c_loc(fptr4d(1,1,1,1)))
+         call cc_wrap%catchem_model%bind_unified_chemistry(fptr4d)
 
        case default
          call ESMF_LogWrite("Unknown field mapping dimension for: " // trim(field_map%catchem_var), &

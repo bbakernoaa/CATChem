@@ -147,7 +147,9 @@ module CATChem_API
       procedure :: is_initialized => model_is_initialized
       procedure :: bind_met_3d => model_bind_met_3d
       procedure :: bind_met_2d => model_bind_met_2d
-      procedure :: bind_unified_chemistry => model_bind_unified_chemistry
+      procedure :: bind_unified_chemistry_3d => model_bind_unified_chemistry_3d
+      procedure :: bind_unified_chemistry_4d => model_bind_unified_chemistry_4d
+      generic :: bind_unified_chemistry => bind_unified_chemistry_3d, bind_unified_chemistry_4d
       procedure :: get_diagnostic_manager => model_get_diagnostic_manager
       procedure :: get_state_manager => model_get_state_manager
    end type CATChem_Model
@@ -377,21 +379,29 @@ contains
       call catchem_state_bind_met_2d(this%state_mgr_ptr, c_name, c_loc(arr))
    end subroutine model_bind_met_2d
 
-   ! Bind unified chemical concentrations array
-   subroutine model_bind_unified_chemistry(this, arr)
+   ! Bind unified chemical concentrations 3D array
+   subroutine model_bind_unified_chemistry_3d(this, arr)
       class(CATChem_Model), intent(inout) :: this
       real(c_double), target, intent(in) :: arr(:,:,:)
 
       call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr))
-   end subroutine model_bind_unified_chemistry
+   end subroutine model_bind_unified_chemistry_3d
+
+   ! Bind unified chemical concentrations 4D array
+   subroutine model_bind_unified_chemistry_4d(this, arr)
+      class(CATChem_Model), intent(inout) :: this
+      real(c_double), target, intent(in) :: arr(:,:,:,:)
+
+      call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr))
+   end subroutine model_bind_unified_chemistry_4d
 
    ! Get pointer to DiagnosticManager
    function model_get_diagnostic_manager(this) result(ptr)
       use DiagnosticManager_Mod, only: DiagnosticManagerType
       class(CATChem_Model), intent(inout) :: this
       type(DiagnosticManagerType), pointer :: ptr
-      type(DiagnosticManagerType), save, target :: static_diag_mgr
-      ptr => static_diag_mgr
+      type(DiagnosticManagerType), save, target :: saved_diag_mgr
+      ptr => saved_diag_mgr
    end function model_get_diagnostic_manager
 
    ! Get pointer to StateManager
@@ -399,9 +409,9 @@ contains
       use StateManager_Mod, only: StateManagerType
       class(CATChem_Model), intent(inout) :: this
       type(StateManagerType), pointer :: ptr
-      type(StateManagerType), save, target :: static_state_mgr
-      static_state_mgr%cpp_ptr = this%state_mgr_ptr
-      ptr => static_state_mgr
+      type(StateManagerType), save, target :: saved_state_mgr
+      saved_state_mgr%cpp_ptr = this%state_mgr_ptr
+      ptr => saved_state_mgr
    end function model_get_state_manager
 
 end module CATChem_API
