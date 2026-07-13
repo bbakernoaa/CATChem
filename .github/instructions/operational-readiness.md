@@ -3,7 +3,7 @@ description: NCO HPC Environment Equivalence (EE2) Standards
 applyTo: "**/*"
 ---
 
-# NOAA NWS Office of Modeling and Development - EE2 Standards
+# UFS Community - Operational Readiness (NCO EE2) Standards
 
 ## 1. Core Principles & Error Handling
 * **Strict EE2 Compliance:** All code must strictly conform to the NCO HPC Environment Equivalence (EE2) Implementation Standards.

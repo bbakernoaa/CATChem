@@ -1,11 +1,11 @@
 ---
-description: NWS Office of Modeling and Development - HPC Scientific Libraries (ESMF, PIO, NetCDF, Zarr)
+description: UFS Community - HPC Scientific Libraries (ESMF, PIO, NetCDF, Zarr)
 applyTo: "**/*.{f90,F90,f,for,ftn,cpp,hpp,c,h,cc,hh,cxx,hxx,py}"
 ---
 
 # Scientific Library Standards: ESMF, PIO, NetCDF, and Zarr
 
-When generating code that interacts with Earth System data, strictly adhere to the following library-specific APIs, official documentation guidelines, and NOAA NWS operational standards.
+When generating code that interacts with Earth System data, strictly adhere to the following library-specific APIs, official documentation guidelines, and UFS Community operational standards.
 
 ## 1. Earth System Modeling Framework (ESMF)
 * **Official Documentation Reference:** [ESMF Reference Manual](https://earthsystemmodeling.org/docs/release/latest/ESMF_refdoc/)

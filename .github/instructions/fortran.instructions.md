@@ -1,5 +1,5 @@
 ---
-description: NWS Office of Modeling and Development - Fortran Guidelines (Flux Persona)
+description: UFS Community - Fortran Guidelines (Flux Persona)
 applyTo: "**/*.{f90,F90,f,for,ftn}"
 ---
 

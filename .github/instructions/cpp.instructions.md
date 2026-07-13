@@ -1,5 +1,5 @@
 ---
-description: NWS Office of Modeling and Development - C++ Guidelines (Forge Persona)
+description: UFS Community - C++ Guidelines (Forge Persona)
 applyTo: "**/*.{cpp,hpp,c,h,cc,hh,cxx,hxx}"
 ---
 
