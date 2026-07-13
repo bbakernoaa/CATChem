@@ -184,8 +184,8 @@ contains
          do ispec = 1, n_species
             is_aero = .false.
             if ( dummy_sp_names(ispec) == 'SO4' .or. dummy_sp_names(ispec) == 'so4' .or. &
-                 dummy_sp_names(ispec) == 'MSA' .or. dummy_sp_names(ispec) == 'msa' .or. &
-                 dummy_sp_names(ispec) == 'ASO4J' .or. dummy_sp_names(ispec) == 'aso4j' ) then
+               dummy_sp_names(ispec) == 'MSA' .or. dummy_sp_names(ispec) == 'msa' .or. &
+               dummy_sp_names(ispec) == 'ASO4J' .or. dummy_sp_names(ispec) == 'aso4j' ) then
                is_aero = .true.
             end if
 
