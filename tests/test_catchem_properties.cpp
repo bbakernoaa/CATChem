@@ -195,38 +195,38 @@ int main(int argc, char* argv[]) {
             // Construct monotonic, physically consistent pressure edges and midpoints per column
             for (int icol = 0; icol < n_cols; ++icol) {
                 double current_p = std::uniform_real_distribution<double>(95000.0, 103000.0)(gen); // Surface pressure
-                pedge[icol * (n_levels + 1) + 0] = current_p;
+                pedge[icol + 0 * n_cols] = current_p;
                 for (int k = 0; k < n_levels; ++k) {
                     double delta = std::uniform_real_distribution<double>(5000.0, 12000.0)(gen);
                     current_p -= delta;
                     double min_p = 100.0 - k * 5.0;
                     if (current_p < min_p)
                         current_p = min_p;
-                    pedge[icol * (n_levels + 1) + k + 1] = current_p;
+                    pedge[icol + (k + 1) * n_cols] = current_p;
 
                     // Midpoint pressure is average of the edges
-                    double p1 = pedge[icol * (n_levels + 1) + k];
-                    double p2 = pedge[icol * (n_levels + 1) + k + 1];
-                    pmid[icol * n_levels + k] = 0.5 * (p1 + p2);
-                    delp[icol * n_levels + k] = std::abs(p1 - p2);
+                    double p1 = pedge[icol + k * n_cols];
+                    double p2 = pedge[icol + (k + 1) * n_cols];
+                    pmid[icol + k * n_cols] = 0.5 * (p1 + p2);
+                    delp[icol + k * n_cols] = std::abs(p1 - p2);
 
                     // Derive dry air density using the Ideal Gas Law: rho = P / (R_dry * T)
-                    double t = t_air[icol * n_levels + k];
-                    double rho = pmid[icol * n_levels + k] / (287.05 * t);
+                    double t = t_air[icol + k * n_cols];
+                    double rho = pmid[icol + k * n_cols] / (287.05 * t);
                     if (rho < 0.01)
                         rho = 0.01;
                     if (rho > 2.0)
                         rho = 2.0;
-                    airden_dry[icol * n_levels + k] = rho;
-                    mairden[icol * n_levels + k] = rho;
+                    airden_dry[icol + k * n_cols] = rho;
+                    mairden[icol + k * n_cols] = rho;
 
                     // Derive dz (layer thickness) using hydrostatic balance: dz = dp / (rho * g)
-                    double dz = delp[icol * n_levels + k] / (rho * 9.80665);
+                    double dz = delp[icol + k * n_cols] / (rho * 9.80665);
                     if (dz < 1.0)
                         dz = 1.0;
                     if (dz > 5000.0)
                         dz = 5000.0;
-                    bxheight[icol * n_levels + k] = dz;
+                    bxheight[icol + k * n_cols] = dz;
                 }
             }
 
@@ -257,8 +257,8 @@ int main(int argc, char* argv[]) {
                 if (!std::isfinite(conc[i])) {
                     int spec_idx = i / size_3d;
                     int col_lev_idx = i % size_3d;
-                    int col_idx = col_lev_idx / n_levels;
-                    int lev_idx = col_lev_idx % n_levels;
+                    int col_idx = col_lev_idx % n_cols;
+                    int lev_idx = col_lev_idx / n_cols;
                     std::cerr << "PROPERTY FAILURE: NaN detected at conc index " << i << " (Species=" << spec_idx
                               << ", Column=" << col_idx << ", Level=" << lev_idx << ") during iteration " << iter
                               << std::endl;
