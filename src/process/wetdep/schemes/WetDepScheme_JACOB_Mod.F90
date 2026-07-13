@@ -677,10 +677,20 @@ contains
          !TODO: seems an error in GOCART version here
          l2g = liq_to_gas_ratio( k0, cr, pKa, tk, cldliq)
 
-         ! -- fraction of species in liquid and ice phases
+         ! -- fraction of species in liquid and ice phases (guarded against overflow/NaN)
          c_tot = one + l2g + i2g
-         f_l   = l2g / c_tot
-         f_i   = i2g / c_tot
+         if ( c_tot /= c_tot .or. c_tot >= 1.0e10_fp ) then
+            if ( l2g >= i2g ) then
+               f_l = one
+               f_i = zero
+            else
+               f_l = zero
+               f_i = one
+            endif
+         else
+            f_l   = l2g / c_tot
+            f_i   = i2g / c_tot
+         endif
 
          ! -- compute Ki for loss due to scavenging from convective updraft
          if ( tk >= 268.0_fp ) then
@@ -1037,8 +1047,12 @@ contains
          ! Compute liquid to gas ratio
          l2g = liq_to_gas_ratio( k0, cr, pKa, tk, qliq )
 
-         ! -- washout fraction from Henry's Law
-         washfrac = l2g / ( one + l2g )
+         ! -- washout fraction from Henry's Law (guarded against overflow/NaN)
+         if ( l2g /= l2g .or. l2g >= 1.0e10_fp ) then
+            washfrac = one
+         else
+            washfrac = l2g / ( one + l2g )
+         endif
 
          ! -- washout fraction from kinetic processes (HNO3)
          ! set f = one and call washfrac_hno3 function above

@@ -88,6 +88,9 @@ namespace catchem {
         for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
             auto& meta = state->chem.species_list[i];
             is_aerosol[i] = meta.is_aerosol ? 1 : 0;
+            henry_k0[i] = meta.henry_k0;
+            henry_cr[i] = meta.henry_cr;
+            henry_pKa[i] = meta.henry_pKa;
             wd_retfactor[i] = meta.wd_retfactor;
             wd_LiqAndGas[i] = meta.wd_LiqAndGas ? 1 : 0;
             wd_convfacI2G[i] = meta.wd_convfacI2G;
