@@ -10,8 +10,13 @@ namespace catchem {
     class PhotolysisProcess : public ProcessInterface {
     private:
         std::string config_path;
-        std::unique_ptr<musica::TUVX> tuvx_instance;
+        musica::TUVX* tuvx_instance = nullptr;
         musica::Mappings photo_mappings;
+
+        // Keep raw map pointers alive
+        musica::GridMap* grids = nullptr;
+        musica::ProfileMap* profiles = nullptr;
+        musica::RadiatorMap* radiators = nullptr;
 
     public:
         PhotolysisProcess();

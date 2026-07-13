@@ -10,8 +10,9 @@ target_include_directories(catchem_process_photolysis PUBLIC
 )
 
 target_link_libraries(catchem_process_photolysis PUBLIC
-  catchem_core
-  musica_tuvx
+  CATChem_core_cpp
+  CATChem_core
+  musica
   yaml-cpp
   Kokkos::kokkos
 )
