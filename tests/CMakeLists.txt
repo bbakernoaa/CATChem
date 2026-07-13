@@ -95,9 +95,6 @@ if(ENABLE_KOKKOS)
       CATChem_process_dust
       CATChem_process_carbchem
   )
-  set_target_properties(
-    test_catchem_properties
-    PROPERTIES LINKER_LANGUAGE CXX
-  )
+  set_target_properties(test_catchem_properties PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_properties COMMAND test_catchem_properties)
 endif()
