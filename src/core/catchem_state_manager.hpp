@@ -21,6 +21,8 @@ namespace catchem {
         int n_levels;
         int n_species;
 
+        std::string config_file_path;
+
         std::shared_ptr<DiagnosticManager> diag_mgr;
 
         std::unordered_map<std::string, std::shared_ptr<InteropField<double, 1>>> fields_1d;
