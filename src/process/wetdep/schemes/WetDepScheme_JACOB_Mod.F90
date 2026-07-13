@@ -435,11 +435,11 @@ contains
          ! calculate vertical met first
          do k = kbot, ktop
 
-            ! -- convert back to ug/kg or ppmv
+            ! -- convert back to ug/kg or ppmv and compute the TENDENCY (rate of change per second)
             if (species_is_aerosol(species_idx)) then
-               species_tendencies(k, species_idx) = max(0.0_fp, conc(k)) / dpog(k) * 1.0e9_fp
+               species_tendencies(k, species_idx) = ( (max(0.0_fp, conc(k)) / dpog(k) * 1.0e9_fp) - species_conc(k, species_idx) ) / dt
             else
-               species_tendencies(k, species_idx) = max(0.0_fp, conc(k)) / dpog(k) * AIRMW / species_mw_g(species_idx) * 1.0e6_fp
+               species_tendencies(k, species_idx) = ( (max(0.0_fp, conc(k)) / dpog(k) * AIRMW / species_mw_g(species_idx) * 1.0e6_fp) - species_conc(k, species_idx) ) / dt
             end if
 
             ! Update diagnostic fields here based on your scheme's requirements
@@ -483,9 +483,9 @@ contains
             ! sulfate produced from SO2 = current local SO4 minus its initial column value
             so4_prod = SO4(k) - species_conc(k, so4_id) * 1.e-09_fp * dpog(k)
             if (so4_prod > zero) then
-               ! convert the [kg/m2] production back to [ug/kg] and add to SO4
+               ! convert the [kg/m2] production back to [ug/kg] tendency (divided by dt) and add to SO4 tendency
                species_tendencies(k, so4_id) = species_tendencies(k, so4_id) &
-                  + so4_prod / dpog(k) * 1.0e9_fp
+                  + (so4_prod / dpog(k) * 1.0e9_fp) / dt
             end if
          end do
       end if
@@ -505,9 +505,9 @@ contains
             ! H2O2 consumed = initial - final local working value, in [kg/kg]
             h2o2_used = species_conc(k, h2o2_id) * species_mw_g(h2o2_id) * 1.0e-6_fp / AIRMW - H2O2(k)
             if (h2o2_used > zero) then
-               ! convert the consumed [kg/kg] back to [ppmv] and remove from H2O2
-               species_tendencies(k, h2o2_id) = max( 0.0_fp, species_tendencies(k, h2o2_id) &
-                  - h2o2_used * AIRMW / species_mw_g(h2o2_id) * 1.0e6_fp )
+               ! convert the consumed [kg/kg] back to [ppmv] tendency (divided by dt) and remove from H2O2 tendency
+               species_tendencies(k, h2o2_id) = species_tendencies(k, h2o2_id) &
+                  - (h2o2_used * AIRMW / species_mw_g(h2o2_id) * 1.0e6_fp) / dt
             end if
          end do
       end if
