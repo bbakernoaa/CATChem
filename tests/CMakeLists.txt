@@ -76,7 +76,7 @@ if(ENABLE_KOKKOS)
       CATChem_process_dust
       CATChem_process_carbchem
   )
-  set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE Fortran)
+  set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
 
   # Modern Randomized Property-Based Testing
@@ -97,7 +97,7 @@ if(ENABLE_KOKKOS)
   )
   set_target_properties(
     test_catchem_properties
-    PROPERTIES LINKER_LANGUAGE Fortran
+    PROPERTIES LINKER_LANGUAGE CXX
   )
   add_test(NAME test_catchem_properties COMMAND test_catchem_properties)
 endif()
