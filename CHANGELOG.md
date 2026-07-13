@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.0-rc.2 (2026-07-13)
+
+### Features
+
+- Support GFortran 12 ([#162](https://github.com/ufs-community/CATChem/pull/162),
+  [`06bf670`](https://github.com/ufs-community/CATChem/commit/06bf6700608d585a0ae8c45e94e8f77c6708fe73))
+
+
 ## v0.1.0-rc.1 (2026-07-09)
 
 ### Features
