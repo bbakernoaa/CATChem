@@ -1,0 +1,25 @@
+anthro:
+  NO:
+    long_name: "Nitrogen Oxide"
+    scale: [1.0]
+    map: ["NO"]
+    plumerise_opt: 0
+    emislayer: 3
+  CO:
+    long_name: "Carbon Monoxide"
+    map: ["CO"]
+    plumerise_opt: 1
+  ISOP:
+    long_name: "Isoprene"
+    scale: [1.0, 0.5]
+    map: [ISOP, TEST]
+    plumerise_opt: 2
+dust:
+  DU25:
+    long_name: "Dust Species Fine Mode"
+    scale: [0.7]
+    map: ["dust1"]
+  DU10:
+    long_name: "Dust Species Coarse Mode"
+    map: ["dust1", "dust2", "dust3"]
+    scale: [0.2, 0.8, 0.1]

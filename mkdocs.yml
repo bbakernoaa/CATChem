@@ -1,0 +1,275 @@
+site_name: CATChem Library and Modeling Component
+site_description: CATChem (Configurable Atmospheric Chemistry)
+site_author: CATChem Development Team
+site_url: https://catchem.readthedocs.io
+
+# Repository
+repo_name: UFS-Community/CATChem
+repo_url: https://github.com/UFS-Community/CATChem
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2025 CATChem Development Team - Open Source Community Project
+
+# Configuration
+theme:
+  name: material
+
+  # NOAA Color Palette
+  palette:
+    # Light mode (NOAA Blue theme)
+    - scheme: default
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Dark mode (NOAA Navy theme)
+    - scheme: slate
+      primary: blue grey
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+  # Features
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - content.tooltips
+    - header.autohide
+    - navigation.expand
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.prune
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+    - toc.integrate
+
+  # Logo and favicon
+  logo: "diagrams/CATChem_logo.png"
+
+  # Fonts
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+# Extra CSS
+extra_css:
+  - assets/stylesheets/extra.css
+  - assets/stylesheets/noaa-theme.css
+
+# Extra JavaScript
+extra_javascript:
+  - assets/javascripts/extra.js
+
+# Extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      title: On this page
+  - tables
+
+  # Code highlighting
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      auto_append:
+        - includes/abbreviations.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+  # Enhanced features
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      user: NOAA-GSL
+      repo: CATChem
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Plugins
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      cache_safe: true
+
+  # API Documentation with MkDoxy
+  - mkdoxy:
+      projects:
+        CATChem:
+          src-dirs: src
+          full-doc: true
+          doxy-cfg:
+            FILE_PATTERNS: "*.F90 *.f90 *.F *.f"
+            RECURSIVE: true
+            EXTRACT_ALL: true
+            EXTRACT_PRIVATE: false
+            EXTRACT_STATIC: true
+            GENERATE_HTML: false
+            GENERATE_XML: true
+            XML_OUTPUT: xml
+            JAVADOC_AUTOBRIEF: true
+            QT_AUTOBRIEF: true
+            MULTILINE_CPP_IS_BRIEF: true
+            TAB_SIZE: 2
+            ALIASES: |
+              "rst=\verbatim embed:rst:leading-asterisk"
+              "endrst=\endverbatim"
+            ENABLE_PREPROCESSING: true
+            MACRO_EXPANSION: true
+            EXPAND_ONLY_PREDEF: false
+            PREDEFINED: |
+              "DOXYGEN_SHOULD_SKIP_THIS"
+              "__DOXYGEN__"
+            EXCLUDE_PATTERNS: |
+              */test/*
+              */tests/*
+              */build/*
+              */external/*
+            USE_MDFILE_AS_MAINPAGE: README.md
+            OPTIMIZE_OUTPUT_FOR_C: false
+            OPTIMIZE_OUTPUT_JAVA: false
+            OPTIMIZE_FOR_FORTRAN: true
+            CASE_SENSE_NAMES: false
+            HIDE_SCOPE_NAMES: false
+            SHOW_INCLUDE_FILES: true
+            FORCE_LOCAL_INCLUDES: false
+            INLINE_INFO: true
+            SORT_MEMBER_DOCS: true
+            SORT_BRIEF_DOCS: false
+            SORT_MEMBERS_CTORS_1ST: false
+            SORT_GROUP_NAMES: false
+            SORT_BY_SCOPE_NAME: false
+            STRICT_PROTO_MATCHING: false
+            GENERATE_TODOLIST: true
+            GENERATE_TESTLIST: true
+            GENERATE_BUGLIST: true
+            GENERATE_DEPRECATEDLIST: true
+            ENABLED_SECTIONS: ""
+            MAX_INITIALIZER_LINES: 30
+            SHOW_USED_FILES: true
+            SHOW_FILES: true
+            SHOW_NAMESPACES: true
+
+# Extra configuration
+extra:
+  version:
+    provider: mike
+
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/UFS-Community/CATChem
+      name: CATChem on GitHub
+    - icon: fontawesome/solid/globe
+      link: https://ufs.epic.noaa.gov/
+      name: UFS - Unified Forecast System
+
+  analytics:
+    provider: google
+    property: G-XXXXXXXXXX  # Replace with actual Google Analytics ID
+
+# Navigation structure
+nav:
+  - Home:
+    - index.md
+    - What's New: whats-new.md
+    - License: license.md
+  - User Guide:
+    - user-guide/index.md
+    - Overview: user-guide/overview.md
+    - Build System: user-guide/build-system.md
+    - HPC Installation: user-guide/hpc-installation.md
+    - Configuration System: user-guide/configuration.md
+    - Input Files: user-guide/input-files.md
+  - Processes:
+    - Process Overview: processes/index.md
+    - Dust Process: processes/dust_process.md
+    - External Emission Process: processes/externalemission_process.md
+    - Settling Process: processes/settling_process.md
+    - Settling Velocity Process: processes/settlingvelocity_process.md
+    - Test Process: processes/testprocess_process.md
+    - Vertical Diffusion Process: processes/vertical_diffusion_process.md
+  - Developer Guide:
+    - developer-guide/index.md
+    - Contributing Guide: developer-guide/contributing.md
+    - Coding Standards: developer-guide/coding-standards.md
+    - Architecture Overview: developer-guide/architecture.md
+    - Process Development:
+      - developer-guide/processes/index.md
+      - Process Architecture: developer-guide/processes/architecture.md
+      - Process Generator: developer-guide/processes/process-generator.md
+      - Creating Custom Processes: developer-guide/processes/creating.md
+      - Templates and Patterns: developer-guide/processes/templates.md
+      - Testing Processes: developer-guide/processes/testing.md
+    - Integration:
+      - developer-guide/integration/index.md
+      - CCPP Integration: developer-guide/integration/ccpp.md
+      - NUOPC Integration: developer-guide/integration/nuopc.md
+    - Testing: developer-guide/testing.md
+    - Documentation Guide: developer-guide/documentation.md
+  - Core Concepts:
+    - core-concepts/index.md
+    - State Management: core-concepts/state-management.md
+    - Column Virtualization: core-concepts/column-virtualization.md
+    - Diagnostic System: core-concepts/diagnostics.md
+    - Error Handling: core-concepts/error-handling.md
+    - Configuration System: core-concepts/configuration.md
+  - API Reference:
+    - api/index.md
+    - Column Interface: api/column-interface.md
+    - Process Interface: api/process-interface.md
+    - State Management: api/state-management.md
+    - Configuration: api/configuration.md
+  - UFS-Chem:
+    - ufschem/index.md
+  - Community Engagement:
+    - community/index.md
+  # - Evaluation:
+  #   - evaluation/index.md

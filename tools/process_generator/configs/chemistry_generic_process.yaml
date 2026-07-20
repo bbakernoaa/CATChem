@@ -1,0 +1,114 @@
+name: "gas_chemistry"
+description: "Process for gas-phase chemical transformations"
+class_name: "GasChemistry"
+author: "CATChem Team"
+version: "1.0.0"
+license: "Apache 2.0"
+
+# Process behavior configuration - this makes it a chemistry process
+process_behavior:
+  # What does this process do?
+  type: "transformation"     # source, sink, transformation, transport
+
+  # How are tendencies applied?
+  tendency_mode: "replacement"  # additive, replacement, multiplicative
+
+  # What species does this process affect?
+  species_filter:
+    type: "by_metadata"        # by_metadata, by_list, all_species
+    metadata_flags: ["is_gas"] # Only act on gas-phase species
+
+  # How are tendencies calculated?
+  tendency_calculation: "concentrations"  # rates, concentrations, deltas
+
+  # Temporal behavior
+  timestep_dependency: "dependent"    # independent, dependent, adaptive
+
+  # Spatial behavior
+  spatial_scope: "column"      # column, global, regional
+
+  # Memory and performance
+  parallelization: "column"    # column, species, domain
+  memory_requirements: "medium" # low, medium, high
+
+# Required meteorological fields (process-level)
+required_met_fields:
+  - "temperature"
+  - "pressure"
+  - "humidity"
+
+# Process-level diagnostics
+diagnostics:
+  - name: "total_chemistry_rate"
+    description: "Total chemical transformation rate"
+    units: "molecules/cm³/s"
+
+# Scheme configurations
+schemes:
+  cb6r3:
+    name: "cb6r3"
+    class_name: "CB6R3"
+    description: "Carbon Bond 6 revision 3 chemical mechanism"
+    algorithm_type: "implicit"
+    reference: "Yarwood et al. 2010"
+    author: "CATChem Team"
+
+    # Scheme-specific behavior
+    scheme_behavior:
+      output_format: "concentrations_updated"  # Different from emission schemes
+      input_requirements:
+        - "vertical_profile"
+        - "temperature_profile"
+        - "photolysis_rates"
+
+    required_met_fields:
+      - name: "temperature"
+        description: "Air temperature"
+        units: "K"
+        dimensions: "1d"
+        variable_name: "air_temperature"
+
+      - name: "pressure"
+        description: "Air pressure"
+        units: "Pa"
+        dimensions: "1d"
+        variable_name: "air_pressure"
+
+      - name: "humidity"
+        description: "Specific humidity"
+        units: "kg/kg"
+        dimensions: "1d"
+        variable_name: "specific_humidity"
+
+    parameters:
+      solver_type:
+        default: "rosenbrock"
+        description: "ODE solver type"
+      rtol:
+        default: 1.0e-3
+        min: 1.0e-6
+        max: 1.0e-1
+        description: "Relative tolerance for solver"
+      atol:
+        default: 1.0e-6
+        min: 1.0e-9
+        max: 1.0e-3
+        description: "Absolute tolerance for solver"
+
+    diagnostics:
+      - name: "chemical_production_rate"
+        description: "Net chemical production rate"
+        units: "molecules/cm³/s"
+      - name: "chemical_loss_rate"
+        description: "Net chemical loss rate"
+        units: "molecules/cm³/s"
+
+# Default scheme
+default_scheme: "cb6r3"
+
+# Generation options
+generate_tests: true
+generate_docs: true
+generate_examples: true
+output_dir: ""
+src_base_dir: "src/process"

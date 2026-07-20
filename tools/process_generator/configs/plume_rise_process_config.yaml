@@ -1,0 +1,161 @@
+# Configuration for Plume Rise Process
+# This process computes effective emission heights for elevated sources
+# It works cooperatively with the external emission data process
+
+name: plume_rise
+class_name: PlumeRise
+description: >-
+  Plume rise process for computing effective emission heights of elevated sources.
+  Handles fire emissions, industrial stacks, and other elevated point sources.
+  Works cooperatively with external emission data process for source parameters.
+author: CATChem Development Team
+version: 1.0.0
+license: Apache 2.0
+
+# Process characteristics
+process_type: emission
+is_multiphase: false
+has_size_bins: false
+supports_vectorization: true
+
+# Species (plume rise affects all elevated emissions)
+species: []
+
+# Phases supported
+phases:
+  - gas
+  - aerosol
+
+# Plume rise schemes for different source types
+schemes:
+  - name: briggs_fires
+    class_name: BriggsFires
+    description: Briggs plume rise formulation for wildfire and prescribed burning
+    author: CATChem Development Team
+    algorithm_type: explicit
+    parameters:
+      fire_frp_threshold: 1.0  # MW - minimum FRP for plume rise calculation
+      buoyancy_efficiency: 0.9  # fraction of heat flux that contributes to buoyancy
+      entrainment_constant: 0.6  # entrainment coefficient
+      wind_speed_min: 1.0  # m/s - minimum wind speed to avoid division by zero
+      atmospheric_stability_method: "bulk_richardson"
+    required_met_fields:
+      - wind_speed
+      - temperature
+      - pressure
+      - boundary_layer_height
+    diagnostics:
+      - name: effective_height
+        units: "m"
+        description: Computed effective emission height
+      - name: plume_buoyancy_flux
+        units: "m4/s3"
+        description: Buoyancy flux at source
+      - name: stability_parameter
+        units: "s-2"
+        description: Atmospheric stability parameter
+
+  - name: briggs_stacks
+    class_name: BriggsStacks
+    description: Briggs plume rise formulation for industrial point sources
+    author: CATChem Development Team
+    algorithm_type: explicit
+    parameters:
+      momentum_efficiency: 1.0  # efficiency of momentum flux
+      buoyancy_efficiency: 0.8  # efficiency of buoyancy flux
+      building_downwash: true  # include building effects
+      terrain_following: true  # follow terrain elevation
+    required_met_fields:
+      - wind_speed
+      - temperature
+      - pressure
+      - atmospheric_stability
+    diagnostics:
+      - name: effective_height
+        units: "m"
+        description: Effective emission height including stack height
+      - name: momentum_flux
+        units: "m4/s2"
+        description: Momentum flux at stack exit
+      - name: buoyancy_flux
+        units: "m4/s3"
+        description: Buoyancy flux at stack exit
+
+  - name: freitas_fires
+    class_name: FreitasFires
+    description: Freitas 1D plume rise model for large fires
+    author: CATChem Development Team
+    algorithm_type: explicit
+    parameters:
+      vertical_resolution: 50.0  # m - vertical grid resolution for 1D model
+      max_height: 15000.0  # m - maximum allowed plume height
+      entrainment_alpha: 0.05  # entrainment constant
+      moisture_effects: true  # include water vapor effects
+    required_met_fields:
+      - wind_speed
+      - temperature
+      - pressure
+      - relative_humidity
+      - vertical_velocity
+    diagnostics:
+      - name: injection_height
+        units: "m"
+        description: Final injection height distribution
+      - name: plume_top_height
+        units: "m"
+        description: Maximum plume height reached
+      - name: water_vapor_flux
+        units: "kg/m2/s"
+        description: Water vapor emission flux
+
+# Default scheme
+default_scheme: briggs_fires
+
+# Required meteorological fields (common across schemes)
+required_met_fields:
+  - wind_speed
+  - temperature
+  - pressure
+
+# Optional meteorological fields
+optional_met_fields:
+  - boundary_layer_height
+  - atmospheric_stability
+  - relative_humidity
+  - vertical_velocity
+  - surface_roughness
+
+# Required chemistry fields - none for plume rise itself
+required_chem_fields: []
+
+# Process-level diagnostics
+diagnostics:
+  - name: total_elevated_sources
+    units: "count"
+    description: Number of active elevated emission sources
+  - name: avg_injection_height
+    units: "m"
+    description: Average injection height across all sources
+  - name: max_injection_height
+    units: "m"
+    description: Maximum injection height computed
+  - name: plume_rise_computation_time
+    units: "s"
+    description: CPU time for plume rise calculations
+  - name: unstable_atmosphere_fraction
+    units: "dimensionless"
+    description: Fraction of domain with unstable atmospheric conditions
+
+# Integration settings
+timestep_dependency: dependent  # Depends on meteorological conditions
+parallelization: column  # Can be parallelized by column
+memory_requirements: low  # Minimal memory footprint
+
+# Generate standard components
+generate_tests: true
+generate_docs: true
+generate_examples: true
+
+# Output configuration
+output_dir: ""
+src_base_dir: "src/process"

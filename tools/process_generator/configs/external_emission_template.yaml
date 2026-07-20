@@ -1,0 +1,34 @@
+name: my_emission
+class_name: MyEmission
+description: Description of my emission process
+author: Your Name
+version: 1.0.0
+process_type: emission
+is_multiphase: false
+has_size_bins: false
+species:
+- species1
+- species2
+schemes:
+- name: simple
+  class_name: Simple
+  description: Simple emission scheme
+  author: Your Name
+  required_met_fields:
+  - temperature
+  - wind_speed
+  diagnostics:
+  - name: emission_rate
+    units: kg/m2/s
+    description: Emission rate
+default_scheme: simple
+required_met_fields:
+- temperature
+- wind_speed
+diagnostics:
+- name: total_emissions
+  units: kg/m2/s
+  description: Total emission rate
+generate_tests: true
+generate_docs: true
+generate_examples: true

@@ -1,0 +1,161 @@
+# Configuration for Plume Rise Process
+# This process handles dynamic computation of effective emission heights
+# for elevated point sources based on meteorological conditions
+
+name: plume_rise
+class_name: PlumeRise
+description: >-
+  Plume rise process for CATChem. Computes effective emission heights for
+  elevated point sources based on stack parameters and meteorological
+  conditions. Supports multiple plume rise formulations and integrates
+  with 3D emission distribution calculations.
+author: CATChem Development Team
+version: 1.0.0
+license: Apache 2.0
+
+# Process characteristics
+process_type: emission
+is_multiphase: false
+has_size_bins: false
+supports_vectorization: true
+
+# This process affects vertical distribution but doesn't directly produce species
+species: []
+
+# Phases supported
+phases:
+  - gas
+  - aerosol
+
+# Plume rise computational schemes
+schemes:
+  - name: briggs
+    class_name: Briggs
+    description: Briggs plume rise formulation for various stability conditions
+    author: CATChem Development Team
+    algorithm_type: explicit
+    reference: "Briggs, G.A. (1984). Plume Rise and Buoyancy Effects"
+    parameters:
+      stability_method: bulk_richardson
+      momentum_factor: 1.0
+      buoyancy_factor: 1.0
+      wind_speed_threshold: 1.0
+      max_plume_height: 3000.0
+      stack_downwash: true
+    required_met_fields:
+      - wind_speed
+      - temperature
+      - pressure
+      - boundary_layer_height
+    diagnostics:
+      - name: plume_height
+        units: "m"
+        description: Computed plume rise height above stack
+      - name: effective_height
+        units: "m"
+        description: Total effective emission height (stack + rise)
+      - name: stability_parameter
+        units: "dimensionless"
+        description: Atmospheric stability parameter used
+
+  - name: holland
+    class_name: Holland
+    description: Holland plume rise formulation with enhanced buoyancy treatment
+    author: CATChem Development Team
+    algorithm_type: explicit
+    reference: "Holland, J.Z. (1953). A meteorological survey of the Oak Ridge area"
+    parameters:
+      buoyancy_flux_threshold: 55.0
+      momentum_factor: 1.5
+      stability_correction: true
+      building_downwash: true
+    required_met_fields:
+      - wind_speed
+      - temperature
+      - air_density
+      - atmospheric_stability
+    diagnostics:
+      - name: buoyancy_flux
+        units: "m4/s3"
+        description: Buoyancy flux parameter
+      - name: momentum_flux
+        units: "m4/s2"
+        description: Momentum flux parameter
+
+  - name: concawe
+    class_name: Concawe
+    description: CONCAWE plume rise model for industrial applications
+    author: CATChem Development Team
+    algorithm_type: explicit
+    reference: "CONCAWE (1994). Atmospheric emissions inventory guidebook"
+    parameters:
+      wind_speed_correction: true
+      stack_tip_downwash: true
+      fumigation_check: true
+    required_met_fields:
+      - wind_speed
+      - temperature
+      - mixing_height
+      - surface_roughness
+    diagnostics:
+      - name: fumigation_flag
+        units: "dimensionless"
+        description: Flag indicating fumigation conditions
+      - name: downwash_factor
+        units: "dimensionless"
+        description: Stack tip downwash correction factor
+
+# Default scheme
+default_scheme: briggs
+
+# Required meteorological fields (common across schemes)
+required_met_fields:
+  - wind_speed
+  - temperature
+  - pressure
+
+# Optional meteorological fields
+optional_met_fields:
+  - boundary_layer_height
+  - mixing_height
+  - surface_roughness
+  - atmospheric_stability
+  - air_density
+  - surface_heat_flux
+  - friction_velocity
+
+# Required chemistry/emission fields
+required_chem_fields:
+  - stack_parameters  # Stack height, diameter, exit velocity, exit temperature
+
+# Process-level diagnostics
+diagnostics:
+  - name: total_point_sources
+    units: "count"
+    description: Number of point sources processed
+  - name: avg_plume_height
+    units: "m"
+    description: Average plume rise height across all sources
+  - name: max_effective_height
+    units: "m"
+    description: Maximum effective emission height computed
+  - name: stability_distribution
+    units: "dimensionless"
+    description: Distribution of stability classes encountered
+  - name: downwash_frequency
+    units: "percent"
+    description: Percentage of sources affected by downwash
+
+# Integration settings
+timestep_dependency: dependent  # Meteorology changes each timestep
+parallelization: column  # Can be parallelized by grid column
+memory_requirements: low  # Minimal memory requirements
+
+# Generate standard components
+generate_tests: true
+generate_docs: true
+generate_examples: true
+
+# Output configuration
+output_dir: ""
+src_base_dir: "src/process"

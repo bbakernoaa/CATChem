@@ -1,0 +1,249 @@
+name: "dust"
+description: "Process for computing windblown dust emissions"
+class_name: "Dust"
+author: "Barry Baker"
+version: "1.0.0"
+
+# Process behavior configuration - this replaces hardcoded process_type
+process_behavior:
+  # What does this process do?
+  type: "source"           # source, sink, transformation, transport
+
+  # How are tendencies applied?
+  tendency_mode: "additive"    # additive, replacement, multiplicative
+
+  # What species does this process affect?
+  species_filter:
+    type: "by_metadata"        # by_metadata, by_list, all_species
+    metadata_flags: ["is_dust"] # Only act on species with is_dust=true
+
+  # How are tendencies calculated?
+  tendency_calculation: "rates"  # rates, concentrations, deltas
+
+  # Temporal behavior
+  timestep_dependency: "independent"  # independent, dependent, adaptive
+
+  # Spatial behavior
+  spatial_scope: "column"      # column, global, regional
+
+  # Memory and performance
+  parallelization: "column"    # column, species, domain
+  memory_requirements: "low"   # low, medium, high
+
+# Required meteorological fields (process-level)
+required_met_fields:
+  - "ustar"
+  - "solar_zenith_angle"
+  - "leaf_area_index"
+
+# Process-level diagnostics
+diagnostics:
+  - name: "total_dust_emission"
+    description: "Total dust emissions for all species"
+    units: "kg/m2/s"
+
+# Scheme configurations
+schemes:
+  fengsha:
+    name: "fengsha"
+    class_name: "FENGSHA"
+    description: "Fengsha Dust emission scheme developed at NOAA ARL for use at NOAA NWS"
+    algorithm_type: "explicit"
+    reference: "Zhang et al. 2022"
+    author: "Barry Baker"
+
+    # Scheme-specific behavior overrides
+    scheme_behavior:
+      output_format: "rates_2d"     # rates_2d, concentrations_1d, delta_concentrations
+      input_requirements:
+        - "vertical_profile"        # needs full vertical profile
+        - "surface_properties"      # needs surface met fields
+
+    required_met_fields:
+      - name: "IsLand"
+        description: "Land mask"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "is_land"
+
+      - name: "USTAR"
+        description: "Friction velocity"
+        units: "m/s"
+        dimensions: "scalar"
+        variable_name: "friction_velocity"
+
+      - name: "LWI"
+        description: "Land-water index"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "land_water_index"
+
+      - name: "GVF"
+        description: "Green vegetation fraction"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "green_veg_fraction"
+
+      - name: "LAI"
+        description: "Leaf area index"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "leaf_area_index"
+
+      - name: "FROCEAN"
+        description: "Ocean fraction"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "ocean_fraction"
+
+      - name: "CLAYFRAC"
+        description: "Clay fraction"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "clay_fraction"
+
+      - name: "SANDFRAC"
+        description: "Sand fraction"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "sand_fraction"
+
+      - name: "FRSNO"
+        description: "Snow fraction"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "snow_fraction"
+
+      - name: "RDRAG"
+        description: "Drag partition"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "drag_partition"
+
+      - name: "SSM"
+        description: "Surface soil moisture"
+        units: "m3/m3"
+        dimensions: "scalar"
+        variable_name: "soil_moisture"
+
+      - name: "USTAR_THRESHOLD"
+        description: "Threshold friction velocity"
+        units: "m/s"
+        dimensions: "scalar"
+        variable_name: "threshold_ustar"
+
+    parameters:
+      alpha:
+        default: 0.16
+        min: 0.001
+        max: 100.0
+        description: "linear scaling factor"
+      beta:
+        default: 1.0
+        min: 0.0
+        max: 10.0
+        description: "Exponential scaling factor on source parameter"
+      drylimit_factor:
+        default: 1.0
+        min: 0
+        max: 10
+        description: "Dry Limit factor modifying the Fecan dry limit following Zender 2003"
+      drag_option:
+        default: 1
+        min: 1
+        max: 4
+        description: "Drag Partition Option: 1 - use input drag, 2 - Darmenova, 3 - Leung 2022, 4 - MB95"
+      moist_option:
+        default: 1
+        min: 1
+        max: 3
+        description: "Moisture parameterization: 1 - Fecan, 2 - shao, 3 - modified shao"
+      distribution_option:
+        default: 1
+        min: 1
+        max: 2
+        description: "Dust Distribution option: 1 - Kok 2011, 2 - Meng 2022"
+
+    diagnostics:
+      - name: "dust_horizontal_flux"
+        description: "Total horizontal flux - Q"
+        units: "kg/m2/s"
+      - name: "dust_moisture_correction"
+        description: "Moisture Correction - H"
+        units: "dimensionless"
+      - name: "dust_effective_threshold"
+        description: "Effective Dust threshold friction velocity: u_thres * H / R"
+        units: "m/s"
+
+  ginoux:
+    name: "ginoux"
+    class_name: "GINOUX"
+    description: "Ginoux dust emission scheme"
+    algorithm_type: "explicit"
+    reference: "Ginoux et al. [2001]"
+    author: "Barry Baker"
+
+    # Scheme-specific behavior
+    scheme_behavior:
+      output_format: "rates_2d"
+      input_requirements:
+        - "surface_properties"
+
+    required_met_fields:
+      - name: "FRLAKE"
+        description: "Lake fraction"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "lake_fraction"
+
+      - name: "GWETTOP"
+        description: "Top soil wetness"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "top_soil_wetness"
+
+      - name: "U10M"
+        description: "10m U wind"
+        units: "m/s"
+        dimensions: "scalar"
+        variable_name: "u_wind_10m"
+
+      - name: "V10M"
+        description: "10m V wind"
+        units: "m/s"
+        dimensions: "scalar"
+        variable_name: "v_wind_10m"
+
+      - name: "SSM"
+        description: "Surface soil moisture"
+        units: "m3/m3"
+        dimensions: "scalar"
+        variable_name: "soil_moisture"
+
+    parameters:
+      Ch_DU:
+        default: [0.1, 0.1, 0.1, 0.1, 0.1]
+        min: 0.001
+        max: 100.0
+        description: "Dust tuning coefficient per species"
+
+    diagnostics:
+      - name: "dust_horizontal_flux"
+        description: "Total horizontal flux - Q"
+        units: "kg/m2/s"
+      - name: "dust_moisture_correction"
+        description: "Moisture Correction - H"
+        units: "dimensionless"
+      - name: "dust_effective_threshold"
+        description: "Effective Dust threshold friction velocity: u_thres * H / R"
+        units: "m/s"
+
+# Default scheme
+default_scheme: "fengsha"
+
+# Generation options
+generate_tests: true
+generate_docs: true
+generate_examples: true
+output_dir: ""
+src_base_dir: "src/process"

@@ -1,3 +1,10 @@
+build*/
+_build*/
+
+# Doxygen
+*:Zone.Identifier
+docs2/html/
+docs2/latex/
 
 # Mac
 .DS_Store
@@ -6,7 +13,11 @@
 # Possible non-default docs build dir
 docs/_build/
 
+# Fortran
+*.mod
 
+# CTest
+/Testing/
 
 # GitHub default gitignore for Python below:
 

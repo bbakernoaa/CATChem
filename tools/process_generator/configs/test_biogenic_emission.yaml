@@ -1,0 +1,58 @@
+name: "biogenic_emission"
+description: "Process for computing biogenic emissions from vegetation"
+class_name: "BiogenicEmission"
+process_type: "emission"
+author: "CATChem Process Generator"
+output_dir: "/Users/l22-n04127-res/Documents/GitHub/catchem_repos/cc_restructure"
+
+species:
+  - "ISOP"
+  - "TERP"
+  - "NO"
+
+required_met_fields:
+  - "temperature_2m"
+  - "solar_zenith_angle"
+  - "leaf_area_index"
+
+schemes:
+  megan:
+    name: "megan"
+    class_name: "MEGAN"
+    description: "Model of Emissions of Gases and Aerosols from Nature"
+    algorithm_type: "explicit"
+    reference: "Guenther et al. (2012)"
+    author: "Alex Guenther"
+
+    required_met_fields:
+      - "temperature_2m"
+      - "solar_zenith_angle"
+      - "leaf_area_index"
+
+    parameters:
+      emission_factor:
+        default: 1.0
+        min: 0.0
+        max: 100.0
+        description: "Emission factor scaling"
+      temperature_dependency:
+        default: 0.09
+        min: 0.0
+        max: 1.0
+        description: "Temperature dependency coefficient"
+
+    diagnostics:
+      - name: "total_emission_flux"
+        description: "Total biogenic emission flux"
+        units: "kg/m2/s"
+      - name: "temperature_correction"
+        description: "Temperature correction factor"
+        units: "dimensionless"
+
+diagnostics:
+  - name: "total_biogenic_emissions"
+    description: "Total biogenic emissions for all species"
+    units: "kg/m2/s"
+  - name: "emission_temperature_factor"
+    description: "Temperature correction applied to emissions"
+    units: "dimensionless"

@@ -1,0 +1,10 @@
+# CATChem Process Generator - Core Dependencies
+# For full development setup, use: pip install -e ".[dev]"
+
+# Core dependencies for running the process generator
+PyYAML>=6.0
+Jinja2>=3.1.0
+click>=8.0.0
+pathlib-mate>=1.0.0
+colorama>=0.4.4
+rich>=13.0.0

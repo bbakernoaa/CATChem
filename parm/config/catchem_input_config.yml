@@ -1,0 +1,408 @@
+# CATChem NUOPC CF Data Input Configuration
+# This file defines the CF-compliant input data settings and variables for CATChem
+
+input_settings:
+  # General input settings
+  enable_cf_input: true              # Enable CF data input system
+  input_directory: "./input_data"    # Base directory for input files
+  cache_directory: "./cache"         # Directory for cached/regridded data
+
+  # Error handling
+  strict_cf_compliance: true         # Require strict CF compliance
+  allow_missing_fields: false       # Allow missing optional fields
+  fill_missing_with_default: true   # Fill missing values with defaults
+
+  # Regridding settings
+  regrid_method: "bilinear"          # bilinear, conservative, nearest_neighbor
+  cache_regridded_data: true         # Cache regridded data for reuse
+  regrid_extrap_method: "nearest"    # nearest, creep, none
+
+  # Time interpolation
+  time_interp_method: "linear"       # linear, nearest, cubic
+  time_extrap_method: "constant"     # constant, linear, none
+
+# Input datasets configuration
+datasets:
+  n_datasets: 3
+
+  dataset_1:
+    name: "emissions"
+    description: "Anthropogenic emissions dataset"
+    file_template: "emissions_%Y%m%d.nc"
+    time_frequency: "daily"
+    refresh_template:
+      frequency: "daily"
+      offset_hours: 0
+      lookahead_days: 1
+      lookback_days: 0
+    coordinate_mapping:
+      longitude: "lon"
+      latitude: "lat"
+      time: "time"
+      level: "lev"
+    regrid_options:
+      method: "conservative"           # Emissions should preserve mass
+      pole_method: "none"
+      unmapped_action: "error"
+      conservative_order: 1
+      conservative_frac_area: true
+      check_conservation: true
+      conservation_tolerance: 1.0e-8   # Stricter for emissions
+      cache_weights: true
+      extrap_method: "nearest"
+      # Weight file options - use pre-computed weights for faster startup
+      weight_file: "./weights/emissions_conservative_weights.nc"  # Explicit weight file
+      # weight_file_template: "./weights/{DATASET}_{METHOD}_weights.nc"  # Alternative: template
+      save_weights: true               # Save weights if computing them
+
+  dataset_2:
+    name: "boundary_conditions"
+    description: "Chemical boundary conditions"
+    file_template: "bcon_%Y%m%d_%H.nc"
+    time_frequency: "6hourly"
+    refresh_template:
+      frequency: "6hourly"
+      offset_hours: 0
+      lookahead_hours: 12
+      lookback_hours: 6
+    coordinate_mapping:
+      longitude: "longitude"
+      latitude: "latitude"
+      time: "time"
+      level: "hybrid"
+    regrid_options:
+      method: "bilinear"               # Smooth interpolation for boundaries
+      pole_method: "avg"               # Better pole handling for global data
+      unmapped_action: "ignore"        # May have missing boundary points
+      extrap_method: "nearest"
+      cache_weights: true
+      check_conservation: false        # Not critical for boundary data
+      # Weight file options for boundary conditions
+      weight_file_template: "./weights/bcon_{METHOD}_{POLE_METHOD}_weights.nc"
+      save_weights: true               # Save computed weights for reuse
+
+  dataset_3:
+    name: "initial_conditions"
+    description: "Initial chemical conditions"
+    file_template: "ics_%Y%m%d_%H.nc"
+    time_frequency: "once"
+    refresh_template:
+      frequency: "simulation_start"
+      offset_hours: 0
+    coordinate_mapping:
+      longitude: "lon"
+      latitude: "lat"
+      time: "time"
+      level: "lev"
+    regrid_options:
+      method: "bilinear"               # Smooth interpolation for initial fields
+      pole_method: "avg"
+      unmapped_action: "error"         # Initial conditions must be complete
+      extrap_method: "creep"           # Allow some extrapolation for ICs
+      cache_weights: true
+      check_conservation: false        # Not critical for initial conditions
+      # Weight file options for initial conditions
+      weight_file_template: "./weights/ics_{METHOD}_{EXTRAP_METHOD}_weights.nc"
+      save_weights: true               # Save computed weights for reuse
+      special_handling:
+        enforce_positive: true         # Ensure positive concentrations
+        apply_floor_values: true       # Apply minimum concentration floors
+
+# Input fields configuration
+input_fields:
+  n_fields: 12
+
+  field_1:
+    variable_name: "NO_emis"
+    dataset: "emissions"
+    cf_standard_name: "tendency_of_atmosphere_mass_content_of_nitrogen_monoxide_due_to_emission"
+    cf_long_name: "Nitrogen monoxide emission flux"
+    cf_units: "kg m-2 s-1"
+    target_var: "EmisState%NOEmission"
+    dimensions: 2
+    required: true
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: true
+    unit_conversion:
+      from_units: "kg m-2 s-1"
+      to_units: "kg m-2 s-1"
+      scale_factor: 1.0
+
+  field_2:
+    variable_name: "NO2_emis"
+    dataset: "emissions"
+    cf_standard_name: "tendency_of_atmosphere_mass_content_of_nitrogen_dioxide_due_to_emission"
+    cf_long_name: "Nitrogen dioxide emission flux"
+    cf_units: "kg m-2 s-1"
+    target_var: "EmisState%NO2Emission"
+    dimensions: 2
+    required: true
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: true
+    unit_conversion:
+      from_units: "kg m-2 s-1"
+      to_units: "kg m-2 s-1"
+      scale_factor: 1.0
+
+  field_3:
+    variable_name: "CO_emis"
+    dataset: "emissions"
+    cf_standard_name: "tendency_of_atmosphere_mass_content_of_carbon_monoxide_due_to_emission"
+    cf_long_name: "Carbon monoxide emission flux"
+    cf_units: "kg m-2 s-1"
+    target_var: "EmisState%COEmission"
+    dimensions: 2
+    required: true
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: true
+    unit_conversion:
+      from_units: "kg m-2 s-1"
+      to_units: "kg m-2 s-1"
+      scale_factor: 1.0
+
+  field_4:
+    variable_name: "SO2_emis"
+    dataset: "emissions"
+    cf_standard_name: "tendency_of_atmosphere_mass_content_of_sulfur_dioxide_due_to_emission"
+    cf_long_name: "Sulfur dioxide emission flux"
+    cf_units: "kg m-2 s-1"
+    target_var: "EmisState%SO2Emission"
+    dimensions: 2
+    required: false
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: true
+    unit_conversion:
+      from_units: "kg m-2 s-1"
+      to_units: "kg m-2 s-1"
+      scale_factor: 1.0
+
+  field_5:
+    variable_name: "O3_bcon"
+    dataset: "boundary_conditions"
+    cf_standard_name: "mass_fraction_of_ozone_in_air"
+    cf_long_name: "Ozone mass fraction at boundary"
+    cf_units: "kg kg-1"
+    target_var: "ChemState%Species%O3"
+    dimensions: 3
+    required: true
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: true
+    boundary_only: true
+    unit_conversion:
+      from_units: "kg kg-1"
+      to_units: "kg kg-1"
+      scale_factor: 1.0
+
+  field_6:
+    variable_name: "NO2_bcon"
+    dataset: "boundary_conditions"
+    cf_standard_name: "mass_fraction_of_nitrogen_dioxide_in_air"
+    cf_long_name: "Nitrogen dioxide mass fraction at boundary"
+    cf_units: "kg kg-1"
+    target_var: "ChemState%Species%NO2"
+    dimensions: 3
+    required: true
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: true
+    boundary_only: true
+    unit_conversion:
+      from_units: "kg kg-1"
+      to_units: "kg kg-1"
+      scale_factor: 1.0
+
+  field_7:
+    variable_name: "CO_bcon"
+    dataset: "boundary_conditions"
+    cf_standard_name: "mass_fraction_of_carbon_monoxide_in_air"
+    cf_long_name: "Carbon monoxide mass fraction at boundary"
+    cf_units: "kg kg-1"
+    target_var: "ChemState%Species%CO"
+    dimensions: 3
+    required: true
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: true
+    boundary_only: true
+    unit_conversion:
+      from_units: "kg kg-1"
+      to_units: "kg kg-1"
+      scale_factor: 1.0
+
+  field_8:
+    variable_name: "O3_ic"
+    dataset: "initial_conditions"
+    cf_standard_name: "mass_fraction_of_ozone_in_air"
+    cf_long_name: "Initial ozone mass fraction"
+    cf_units: "kg kg-1"
+    target_var: "ChemState%Species%O3"
+    dimensions: 3
+    required: true
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: false
+    initial_only: true
+    unit_conversion:
+      from_units: "kg kg-1"
+      to_units: "kg kg-1"
+      scale_factor: 1.0
+
+  field_9:
+    variable_name: "NO2_ic"
+    dataset: "initial_conditions"
+    cf_standard_name: "mass_fraction_of_nitrogen_dioxide_in_air"
+    cf_long_name: "Initial nitrogen dioxide mass fraction"
+    cf_units: "kg kg-1"
+    target_var: "ChemState%Species%NO2"
+    dimensions: 3
+    required: true
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: false
+    initial_only: true
+    unit_conversion:
+      from_units: "kg kg-1"
+      to_units: "kg kg-1"
+      scale_factor: 1.0
+
+  field_10:
+    variable_name: "CO_ic"
+    dataset: "initial_conditions"
+    cf_standard_name: "mass_fraction_of_carbon_monoxide_in_air"
+    cf_long_name: "Initial carbon monoxide mass fraction"
+    cf_units: "kg kg-1"
+    target_var: "ChemState%Species%CO"
+    dimensions: 3
+    required: true
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: false
+    initial_only: true
+    unit_conversion:
+      from_units: "kg kg-1"
+      to_units: "kg kg-1"
+      scale_factor: 1.0
+
+  field_11:
+    variable_name: "DUST_ic"
+    dataset: "initial_conditions"
+    cf_standard_name: "mass_fraction_of_dust_dry_aerosol_particles_in_air"
+    cf_long_name: "Initial dust aerosol mass fraction"
+    cf_units: "kg kg-1"
+    target_var: "ChemState%Species%DUST"
+    dimensions: 3
+    required: false
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: false
+    initial_only: true
+    unit_conversion:
+      from_units: "kg kg-1"
+      to_units: "kg kg-1"
+      scale_factor: 1.0
+
+  field_12:
+    variable_name: "SEAS_ic"
+    dataset: "initial_conditions"
+    cf_standard_name: "mass_fraction_of_sea_salt_dry_aerosol_particles_in_air"
+    cf_long_name: "Initial sea salt aerosol mass fraction"
+    cf_units: "kg kg-1"
+    target_var: "ChemState%Species%SEAS"
+    dimensions: 3
+    required: false
+    regrid_method: "inherit"           # Use dataset regrid options
+    time_interpolation: false
+    initial_only: true
+    unit_conversion:
+      from_units: "kg kg-1"
+      to_units: "kg kg-1"
+      scale_factor: 1.0
+
+# Regridding configuration
+regrid_settings:
+  # Global defaults (used when dataset doesn't specify regrid_options)
+  default_method: "bilinear"         # Default regridding method
+  pole_method: "none"                # Pole treatment: none, teeth, avg
+  unmapped_action: "error"           # error, ignore
+
+  # Field-level override capability
+  # Fields can override dataset regrid settings by specifying explicit methods:
+  # - regrid_method: "inherit"     -> Use dataset regrid_options
+  # - regrid_method: "bilinear"    -> Override with bilinear
+  # - regrid_method: "conservative" -> Override with conservative
+  # - regrid_method: "nearest_neighbor" -> Override with nearest neighbor
+
+  # Conservative regridding options
+  conservative_order: 1              # 1 or 2
+  conservative_frac_area: true       # Use fractional areas
+
+  # Quality control
+  check_conservation: true           # Check mass conservation for conservative
+  conservation_tolerance: 1.0e-6     # Tolerance for conservation check
+
+  # Caching
+  cache_weights: true                # Cache regridding weights
+  weights_cache_dir: "./weights"     # Directory for cached weights
+
+# Time management
+time_management:
+  # Refresh scheduling
+  check_refresh_frequency: "hourly"  # How often to check for refresh
+  max_forecast_hours: 168            # Maximum forecast hours to keep
+  min_history_hours: 24              # Minimum history hours to keep
+
+  # File management
+  cleanup_old_files: true            # Clean up old cached files
+  max_cache_size_gb: 10              # Maximum cache size in GB
+
+  # Time coordinate handling
+  time_units_standard: "seconds since 1970-01-01 00:00:00 UTC"
+  calendar_standard: "gregorian"
+
+  # Leap year handling
+  handle_leap_years: true            # Handle leap years properly
+  leap_day_treatment: "interpolate"  # interpolate, skip, error
+
+# Quality control and validation
+validation:
+  # CF compliance checking
+  check_cf_compliance: true          # Check CF compliance
+  check_coordinate_vars: true        # Validate coordinate variables
+  check_bounds: true                 # Check coordinate bounds
+
+  # Data validation
+  check_data_ranges: true            # Check reasonable data ranges
+  check_missing_values: true         # Validate missing value handling
+  check_units: true                  # Validate unit consistency
+
+  # Physical constraints
+  enforce_positive_species: true     # Enforce positive species concentrations
+  enforce_positive_emissions: true   # Enforce positive emissions
+
+  # Data range validation (optional)
+  data_ranges:
+    emissions:
+      min_value: 0.0
+      max_value: 1.0e-6              # kg m-2 s-1
+    concentrations:
+      min_value: 0.0
+      max_value: 1.0e-3              # kg kg-1
+
+# Logging and diagnostics
+logging:
+  log_level: "INFO"                  # DEBUG, INFO, WARNING, ERROR
+  log_file: "catchem_input.log"      # Log file name
+  log_to_stdout: true                # Also log to standard output
+
+  # Diagnostic output
+  output_regrid_diagnostics: false   # Output regridding diagnostics
+  output_time_series: false          # Output time series of input data
+  diagnostics_directory: "./diagnostics"
+
+# Performance settings
+performance:
+  # Parallel I/O
+  use_parallel_io: true              # Use parallel NetCDF I/O
+  io_decomposition: "2d"             # 1d, 2d, or auto
+
+  # Memory management
+  preload_datasets: false            # Preload entire datasets into memory
+  memory_limit_gb: 4                 # Memory limit for input data
+
+  # Threading
+  use_openmp: true                   # Use OpenMP for regridding
+  max_threads: 4                     # Maximum OpenMP threads

@@ -1,0 +1,140 @@
+# Configuration for External Emission Data Process
+# This is a special process that handles external emission data management
+# rather than computing emissions. It provides data management capabilities
+# for external emission inventories.
+
+name: external_emission_data
+class_name: ExternalEmissionData
+description: >-
+  External emission data management process for CATChem. Handles loading,
+  validation, interpolation, and access to external emission inventories
+  from files. This process provides a standardized interface for external
+  emission data that can be used by emission processes and the driver.
+author: CATChem Development Team
+version: 1.0.0
+license: Apache 2.0
+
+# Process characteristics
+process_type: emission  # Use supported type
+is_multiphase: false
+has_size_bins: false
+supports_vectorization: true
+
+# This process doesn't produce species directly, but manages data for various species
+species: []
+
+# Size bins (not applicable for data management)
+size_bins: null
+
+# Phases supported
+phases:
+  - gas
+  - aerosol
+
+# Special: No computational schemes, but data management "schemes"
+# We'll create data handler schemes for different types of external data
+schemes:
+  - name: surface_2d
+    class_name: Surface2D
+    description: Handler for 2D surface emission data from external inventories
+    author: CATChem Development Team
+    algorithm_type: explicit
+    parameters:
+      interpolation_method: bilinear
+      time_interpolation: true
+      spatial_bounds_check: true
+      missing_value_handling: zero_fill
+    required_met_fields: []
+    diagnostics:
+      - name: data_load_status
+        units: "dimensionless"
+        description: Status of data loading (0=not loaded, 1=loaded, 2=error)
+      - name: memory_usage
+        units: "bytes"
+        description: Memory usage for emission data storage
+      - name: field_count
+        units: "count"
+        description: Number of emission fields loaded
+
+  - name: elevated_3d
+    class_name: Elevated3D
+    description: Handler for 3D elevated emission data with vertical distribution
+    author: CATChem Development Team
+    algorithm_type: explicit
+    parameters:
+      interpolation_method: trilinear
+      time_interpolation: true
+      vertical_interpolation: true
+      plume_rise_coupling: false
+    required_met_fields:
+      - pressure
+      - temperature
+    diagnostics:
+      - name: vertical_distribution
+        units: "kg/m3/s"
+        description: Vertical emission distribution
+      - name: plume_height
+        units: "m"
+        description: Effective emission height
+
+  - name: temporal_profiles
+    class_name: TemporalProfiles
+    description: Handler for time-varying emission profiles and scaling factors
+    author: CATChem Development Team
+    algorithm_type: explicit
+    parameters:
+      profile_resolution: hourly
+      seasonal_variation: true
+      diurnal_variation: true
+      weekly_variation: true
+    required_met_fields: []
+    diagnostics:
+      - name: temporal_scaling
+        units: "dimensionless"
+        description: Current temporal scaling factor
+
+# Default scheme for basic 2D surface emissions
+default_scheme: surface_2d
+
+# Required meteorological fields
+required_met_fields: []
+
+# Optional meteorological fields
+optional_met_fields:
+  - pressure
+  - temperature
+
+# Required chemistry fields
+required_chem_fields: []
+
+# Process-level diagnostics
+diagnostics:
+  - name: total_memory_usage
+    units: "MB"
+    description: Total memory usage for all emission data
+  - name: total_categories
+    units: "count"
+    description: Number of emission categories loaded
+  - name: total_fields
+    units: "count"
+    description: Total number of emission fields across all categories
+  - name: data_validation_status
+    units: "dimensionless"
+    description: Overall data validation status
+  - name: file_load_errors
+    units: "count"
+    description: Number of file loading errors encountered
+
+# Integration settings
+timestep_dependency: independent
+parallelization: column
+memory_requirements: medium
+
+# Generate standard components
+generate_tests: true
+generate_docs: true
+generate_examples: true
+
+# Output configuration
+output_dir: ""
+src_base_dir: "src/process"

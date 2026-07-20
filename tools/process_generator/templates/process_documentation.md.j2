@@ -1,0 +1,208 @@
+# {{ config.class_name }} Process
+
+**Process Type:** {{ config.process_type|title }}
+**Description:** {{ config.description }}
+**Author:** {{ config.author }}
+**Generated:** {{ timestamp }}
+
+## Overview
+
+The {{ config.class_name }} process implements {{ config.description }}. This process provides a modular, extensible framework for {{ config.process_type }} calculations within the CATChem chemical transport model.
+
+## Available Schemes
+
+{% for scheme in config.schemes %}
+### {{ scheme.class_name }} Scheme
+
+**Name:** `{{ scheme.name }}`
+**Description:** {{ scheme.description }}
+**Author:** {{ scheme.author }}
+{% if scheme.reference %}**Reference:** {{ scheme.reference }}{% endif %}
+
+{% if scheme.parameters and scheme.parameters|length > 0 %}
+#### Parameters
+
+| Parameter | Default | Range | Description |
+|-----------|---------|--------|-------------|
+{% for param_name, param in scheme.parameters.items() %}
+| `{{ param_name }}` | {{ param.default }} | {{ param.min }} - {{ param.max }} | {{ param.description }} |
+{% endfor %}
+{% endif %}
+
+{% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}
+#### Required Meteorological Fields
+
+{% for field in scheme.required_met_fields %}
+- `{{ field }}` - Meteorological field required for scheme computation
+{% endfor %}
+{% endif %}
+
+{% if scheme.diagnostics and scheme.diagnostics|length > 0 %}
+#### Available Diagnostics
+
+| Diagnostic | Units | Description |
+|------------|-------|-------------|
+{% for diag in scheme.diagnostics %}
+| `{{ diag.name }}` | {{ diag.units }} | {{ diag.description }} |
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+
+## Process Interface
+
+### Species
+
+The {{ config.name }} process operates on the following chemical species:
+
+{% for species in config.species %}
+- `{{ species }}`
+{% endfor %}
+
+### Required Inputs
+
+{% if config.required_met_fields and config.required_met_fields|length > 0 %}
+#### Meteorological Fields
+{% for field in config.required_met_fields %}
+- `{{ field }}` - Required meteorological input
+{% endfor %}
+{% endif %}
+
+{% if config.required_chem_fields and config.required_chem_fields|length > 0 %}
+#### Chemical Fields
+{% for field in config.required_chem_fields %}
+- `{{ field }}` - Required chemical field input
+{% endfor %}
+{% endif %}
+
+### Process Diagnostics
+
+{% if config.diagnostics and config.diagnostics|length > 0 %}
+| Diagnostic | Units | Description |
+|------------|-------|-------------|
+{% for diag in config.diagnostics %}
+| `{{ diag.name }}` | {{ diag.units }} | {{ diag.description }} |
+{% endfor %}
+{% endif %}
+
+## Usage
+
+### Basic Integration
+
+```fortran
+use {{ config.class_name }}ProcessCreator_Mod
+use {{ config.class_name }}Common_Mod
+
+! Create process instance
+type({{ config.class_name }}Process_t) :: process
+call create_{{ config.name }}_process(process, config_data)
+
+! Use process in model time step
+call process%run(state, dt)
+```
+
+### Scheme Selection
+
+The process supports multiple schemes. Select your desired scheme:
+
+{% for scheme in config.schemes %}
+```fortran
+! Use {{ scheme.class_name }} scheme
+process%scheme_name = "{{ scheme.name }}"
+```
+{% endfor %}
+
+## Implementation Details
+
+### Pure Science Kernels
+
+Each scheme is implemented as a pure science kernel with no infrastructure dependencies:
+
+{% for scheme in config.schemes %}
+```fortran
+! {{ scheme.class_name }} scheme
+pure subroutine compute_{{ scheme.name }}( &
+   num_layers, num_species, params{% if scheme.required_met_fields and scheme.required_met_fields|length > 0 %}, &
+{% for field in scheme.required_met_fields %}
+   {{ field }}{% if not loop.last %}, &{% endif %}
+{% endfor %}{% endif %}, &
+   species_conc, emission_flux)
+```
+{% endfor %}
+
+### Host Model Responsibilities
+
+The host model (CATChem infrastructure) handles:
+
+- Parameter initialization and validation
+- Input array validation and error handling
+- Memory management and array allocation
+- Integration with model time stepping
+- Diagnostic output management
+
+## Configuration
+
+### YAML Configuration Example
+
+```yaml
+processes:
+  {{ config.name }}:
+    enabled: true
+    scheme: "{{ config.schemes[0].name if config.schemes else 'default' }}"
+{% if config.schemes and config.schemes[0].parameters %}
+    parameters:
+{% for param_name, param in config.schemes[0].parameters.items() %}
+      {{ param_name }}: {{ param.default }}
+{% endfor %}
+{% endif %}
+    diagnostics:
+      enabled: true
+      output_frequency: "daily"
+```
+
+## Technical Specifications
+
+- **Parallelization:** {{ config.parallelization|title }}
+- **Memory Requirements:** {{ config.memory_requirements|title }}
+- **Timestep Dependency:** {{ config.timestep_dependency|title }}
+- **Multiphase Support:** {{ 'Yes' if config.is_multiphase else 'No' }}
+- **Size Bin Support:** {{ 'Yes' if config.has_size_bins else 'No' }}
+- **Vectorization:** {{ 'Supported' if config.supports_vectorization else 'Not supported' }}
+
+## Files Generated
+
+### Source Code
+- `src/process/{{ config.name }}/Process{{ config.class_name }}Interface_Mod.F90` - Main process interface
+- `src/process/{{ config.name }}/{{ config.class_name }}Common_Mod.F90` - Common types and parameters
+- `src/process/{{ config.name }}/{{ config.class_name }}ProcessCreator_Mod.F90` - Process factory
+{% for scheme in config.schemes %}
+- `src/process/{{ config.name }}/schemes/{{ config.class_name }}Scheme_{{ scheme.class_name }}_Mod.F90` - {{ scheme.description }}
+{% endfor %}
+
+### Tests
+- `tests/process/{{ config.name }}/unit/` - Unit tests
+- `tests/process/{{ config.name }}/integration/` - Integration tests
+
+### Documentation
+- `docs/processes/{{ config.name }}/{{ config.name }}.md` - This documentation
+
+## Contributing
+
+When modifying or extending this process:
+
+1. **Science Changes:** Modify the scheme modules in `schemes/`
+2. **Interface Changes:** Update the main interface module
+3. **New Schemes:** Add new scheme modules and update the creator
+4. **Tests:** Add corresponding unit and integration tests
+5. **Documentation:** Update this documentation file
+
+## References
+
+{% for scheme in config.schemes %}
+{% if scheme.reference %}
+- {{ scheme.class_name }}: {{ scheme.reference }}
+{% endif %}
+{% endfor %}
+
+---
+*This documentation was automatically generated by the CATChem Process Generator on {{ timestamp }}*

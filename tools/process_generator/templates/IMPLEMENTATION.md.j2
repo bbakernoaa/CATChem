@@ -1,0 +1,480 @@
+# {{ config.class_name }} Process Implementation Guide
+
+{{ config.description }}
+
+**Generated on:** {{ timestamp }}
+**Author:** {{ config.author }}
+
+## Overview
+
+This document provides detailed implementation guidance for the {{ config.class_name }} process, including algorithm details, code structure, and integration patterns.
+
+## Architecture Overview
+
+The {{ config.name }} process follows the CATChem Process Infrastructure pattern with clear separation between:
+
+1. **Process Interface** (`Process{{ config.class_name }}Interface_Mod`): Standardized external interface
+2. **Common Module** (`{{ config.class_name }}Common_Mod`): Shared utilities and types
+3. **Scheme Modules** (`{{ config.class_name }}Scheme_*_Mod`): Science kernel implementations
+4. **Process Creator** (`{{ config.class_name }}ProcessCreator_Mod`): Factory for process instantiation
+
+### Design Principles
+
+- **Pure Science Kernels**: Schemes use only basic Fortran types for inputs/outputs
+- **No Infrastructure Dependencies**: Schemes are independent of CATChem infrastructure
+- **Modular Design**: Easy to add new schemes or modify existing ones
+- **Configuration-Driven**: Behavior controlled through YAML configuration
+- **Comprehensive Testing**: Unit, integration, and scheme-specific tests
+
+## Code Structure
+
+```
+src/process/{{ config.name }}/
+├── ProcessBiogenicEmissionInterface_Mod.F90  # Main interface
+├── BiogenicEmissionCommon_Mod.F90           # Shared utilities
+├── BiogenicEmissionProcessCreator_Mod.F90   # Factory module
+├── schemes/                                 # Science kernels
+{% for scheme in config.schemes %}│   ├── {{ config.class_name }}Scheme_{{ scheme.class_name }}_Mod.F90
+{% endfor %}│   └── CMakeLists.txt
+├── tests/                                   # Test suite
+├── docs/                                    # Documentation
+└── CMakeLists.txt                          # Build configuration
+```
+
+## Implementation Details
+
+### Process Interface Implementation
+
+The main interface handles:
+
+1. **State Management**: Integration with CATChem StateManager
+2. **Configuration**: YAML-based parameter control
+3. **Scheme Selection**: Dynamic scheme switching
+4. **Diagnostics**: Comprehensive diagnostic output
+5. **Error Handling**: Robust error checking and reporting
+
+#### Key Implementation Patterns
+
+```fortran
+! Configuration handling
+type :: {{ config.class_name }}Config_t
+   character(len=:), allocatable :: scheme_name
+   type({{ config.class_name }}SchemeParams_t) :: scheme_params
+   logical :: enable_diagnostics
+end type
+
+! Scheme interface pattern
+type :: {{ config.class_name }}SchemeInterface_t
+   procedure(compute_interface), pointer :: compute => null()
+   procedure(initialize_interface), pointer :: initialize => null()
+   procedure(finalize_interface), pointer :: finalize => null()
+end type
+```
+
+### Scheme Implementation Guidelines
+
+Each scheme module implements pure science kernels following these patterns:
+
+#### 1. **Module Structure**
+
+```fortran
+module {{ config.class_name }}Scheme_SchemeNAME_Mod
+
+   use precision_mod, only: fp
+
+   implicit none
+   private
+
+   public :: compute_scheme_name
+   public :: initialize_scheme_name_params
+
+contains
+
+   ! Core science computation
+   subroutine compute_scheme_name(...)
+
+   ! Parameter initialization
+   subroutine initialize_scheme_name_params(...)
+
+end module
+```
+
+#### 2. **Input/Output Convention**
+
+- **Pure Fortran Types**: Only use basic Fortran types (real, integer, logical, arrays)
+- **Explicit Interfaces**: Clear input/output parameter specifications
+- **No Module Dependencies**: Avoid infrastructure module dependencies
+- **Dimensional Consistency**: Consistent array dimensioning patterns
+
+```fortran
+subroutine compute_scheme_name( &
+   ! Input meteorological fields
+   temperature,           & ! (num_layers) - Temperature [K]
+   pressure,             & ! (num_layers) - Pressure [Pa]
+   ! Input species concentrations
+   species_concentrations, & ! (num_layers, num_species) - [mol/mol]
+   ! Output emission fluxes
+   emission_fluxes,       & ! (num_layers, num_species) - [kg/m2/s]
+   ! Optional diagnostic outputs
+   diagnostic_outputs     & ! (num_layers, num_diagnostics) - various units
+)
+```
+
+{% for scheme in config.schemes %}
+### {{ scheme.class_name }} Scheme Implementation
+
+**File:** `{{ config.class_name }}Scheme_{{ scheme.class_name }}_Mod.F90`
+**Description:** {{ scheme.description }}
+**Algorithm Type:** {{ scheme.algorithm_type }}
+
+#### Algorithm Overview
+
+{% if scheme.name == "megan" %}
+The MEGAN (Model of Emissions of Gases and Aerosols from Nature) scheme computes biogenic emissions using:
+
+1. **Base Emission Factors**: Species-specific emission potentials
+2. **Environmental Controls**: Temperature, light, and phenology dependencies
+3. **Canopy Environment**: Leaf area index and canopy effects
+4. **Activity Factors**: Dynamic environmental response functions
+
+#### Mathematical Formulation
+
+```
+Emission_flux = Base_EF × γ_T × γ_P × γ_age × γ_LAI × ρ_canopy
+```
+
+Where:
+- `Base_EF`: Base emission factor [μg/m²/h]
+- `γ_T`: Temperature response function
+- `γ_P`: Light response function
+- `γ_age`: Leaf age factor
+- `γ_LAI`: Leaf area index factor
+- `ρ_canopy`: Canopy density factor
+
+#### Temperature Response Function
+
+```fortran
+gamma_T = EXP(beta * (T - T_standard) / (R * T_standard * T))
+```
+
+#### Light Response Function
+
+```fortran
+gamma_P = (C_L1 * α * PPFD) / SQRT(1 + α² * PPFD²)
+```
+
+{% endif %}
+
+#### Required Input Fields
+
+{% for field in scheme.required_met_fields %}
+- **{{ field }}**: {% if field == "temperature_2m" %}2-meter temperature [K]{% elif field == "solar_zenith_angle" %}Solar zenith angle [degrees]{% elif field == "leaf_area_index" %}Leaf area index [m²/m²]{% else %}{{ field }} (see documentation){% endif %}
+{% endfor %}
+
+#### Configurable Parameters
+
+{% for param_name, param in scheme.parameters.items() %}
+##### {{ param_name }}
+- **Type**: {{ param.get('type', 'real') }}
+- **Default**: {{ param.default }}
+- **Valid Range**: {{ param.min }} to {{ param.max }}
+- **Description**: {{ param.description }}
+- **Units**: {% if param_name == "emission_factor" %}[dimensionless]{% elif param_name == "temperature_dependency" %}[1/K]{% else %}[see docs]{% endif %}
+
+{% endfor %}
+
+#### Implementation Notes
+
+{% if scheme.algorithm_type == "explicit" %}
+- Uses explicit time stepping for stable integration
+- Minimal computational overhead
+- Suitable for most applications
+{% elif scheme.algorithm_type == "implicit" %}
+- Uses implicit time stepping for numerical stability
+- Higher computational cost but better stability
+- Recommended for stiff systems
+{% endif %}
+
+#### Diagnostic Outputs
+
+{% for diagnostic in scheme.diagnostics %}
+##### {{ diagnostic.name }}
+- **Description**: {{ diagnostic.description }}
+- **Units**: {{ diagnostic.units }}
+- **Usage**: {{ "Process monitoring and validation" if "total" in diagnostic.name else "Scheme-specific diagnostic" }}
+
+{% endfor %}
+
+{% endfor %}
+
+## Integration Patterns
+
+### Host Model Integration
+
+#### 1. **Initialization Phase**
+
+```fortran
+! Create process from configuration
+call creator%create_from_config(config_file, process, status)
+
+! Initialize with state manager
+call process%initialize(config, state_manager, status)
+```
+
+#### 2. **Runtime Phase**
+
+```fortran
+! Pre-chemistry setup
+call process%pre_chemistry(column_state, status)
+
+! Main computation
+call process%compute(column_state, status)
+
+! Post-chemistry processing
+call process%post_chemistry(column_state, status)
+```
+
+#### 3. **Finalization Phase**
+
+```fortran
+call process%finalize()
+```
+
+### Configuration Management
+
+#### YAML Configuration Structure
+
+```yaml
+# Process identification
+process_type: "{{ config.process_type }}"
+name: "{{ config.name }}"
+
+# Active scheme selection
+active_scheme: "{{ config.schemes[0].name if config.schemes else "default" }}"
+
+# Scheme-specific parameters
+schemes:
+{% for scheme in config.schemes %}
+  {{ scheme.name }}:
+    parameters:
+{% for param_name, param in scheme.parameters.items() %}
+      {{ param_name }}: {{ param.default }}
+{% endfor %}
+    diagnostics:
+{% for diagnostic in scheme.diagnostics %}
+      {{ diagnostic.name }}: true
+{% endfor %}
+{% endfor %}
+
+# Output configuration
+output:
+  diagnostics: true
+  frequency: "every_step"
+  format: "netcdf"
+```
+
+#### Runtime Parameter Modification
+
+```fortran
+! Change active scheme
+call process%set_active_scheme("alternative_scheme", status)
+
+! Modify parameters
+call process%set_parameter("emission_factor", new_value, status)
+
+! Toggle diagnostics
+call process%enable_diagnostic("diagnostic_name", status)
+```
+
+## Performance Optimization
+
+### Vectorization Support
+
+{% if config.supports_vectorization %}
+The implementation supports vectorization through:
+
+1. **Array Operations**: Vectorized array computations
+2. **Loop Structures**: Compiler-friendly loop patterns
+3. **Memory Layout**: Cache-efficient data access patterns
+
+#### Vectorization Guidelines
+
+```fortran
+! Vectorized computation pattern
+do concurrent (k = 1:num_layers)
+   emission_flux(k) = base_emission(k) * temperature_factor(k) * light_factor(k)
+end do
+```
+{% else %}
+**Note**: This implementation does not currently support vectorization. Consider:
+
+1. Adding `do concurrent` constructs
+2. Implementing array operations where possible
+3. Restructuring loops for better vectorization
+{% endif %}
+
+### Memory Optimization
+
+1. **Temporary Arrays**: Minimize temporary array allocations
+2. **Data Locality**: Arrange computations for cache efficiency
+3. **Memory Reuse**: Reuse arrays where possible
+
+### Computational Efficiency
+
+{% for scheme in config.schemes %}
+#### {{ scheme.class_name }} Scheme Performance
+
+- **Computational Complexity**: {% if scheme.algorithm_type == "explicit" %}O(num_layers × num_species){% else %}O(num_layers × num_species × iterations){% endif %}
+- **Memory Usage**: {% if scheme.algorithm_type == "explicit" %}Low{% else %}Moderate{% endif %}
+- **Parallelization**: {% if config.supports_vectorization %}Vectorizable{% else %}Limited{% endif %}
+
+{% endfor %}
+
+## Testing Strategy
+
+### Unit Testing
+
+Unit tests validate individual components:
+
+```fortran
+! Test parameter validation
+call test_parameter_validation()
+
+! Test scheme initialization
+call test_scheme_initialization()
+
+! Test computation with known inputs
+call test_computation_accuracy()
+```
+
+### Integration Testing
+
+Integration tests validate end-to-end functionality:
+
+```fortran
+! Test complete process workflow
+call test_full_process_workflow()
+
+! Test configuration loading
+call test_configuration_handling()
+
+! Test diagnostic output
+call test_diagnostic_generation()
+```
+
+### Scheme-Specific Testing
+
+{% for scheme in config.schemes %}
+#### {{ scheme.class_name }} Scheme Tests
+
+```fortran
+! Test {{ scheme.name }} algorithm accuracy
+call test_{{ scheme.name }}_accuracy()
+
+! Test parameter sensitivity
+call test_{{ scheme.name }}_parameter_sensitivity()
+
+! Test boundary conditions
+call test_{{ scheme.name }}_boundary_conditions()
+```
+
+{% endfor %}
+
+### Validation Data
+
+Test cases include:
+
+1. **Synthetic Data**: Known input/output pairs for validation
+2. **Benchmark Cases**: Standard atmospheric chemistry test cases
+3. **Regression Tests**: Prevent unintended changes
+4. **Performance Tests**: Monitor computational efficiency
+
+## Error Handling and Debugging
+
+### Error Categories
+
+1. **Configuration Errors**: Invalid parameters, missing fields
+2. **Runtime Errors**: Numerical issues, convergence failures
+3. **Data Errors**: Invalid input values, missing meteorological data
+4. **System Errors**: Memory allocation, I/O failures
+
+### Debugging Tools
+
+```fortran
+! Enable debug output
+call process%set_debug_level(DEBUG_VERBOSE)
+
+! Validate input data
+call process%validate_inputs(column_state, status)
+
+! Check intermediate results
+call process%dump_intermediate_state("debug_output.nc")
+```
+
+### Common Issues and Solutions
+
+#### 1. **Convergence Issues**
+- Check input data ranges
+- Adjust numerical parameters
+- Consider alternative schemes
+
+#### 2. **Performance Issues**
+- Enable compiler optimizations
+- Check for memory bottlenecks
+- Consider vectorization improvements
+
+#### 3. **Accuracy Issues**
+- Validate input meteorological data
+- Check parameter values
+- Compare with reference implementations
+
+## Extension Guidelines
+
+### Adding New Schemes
+
+1. **Create Scheme Module**: Follow naming convention `{{ config.class_name }}Scheme_NewScheme_Mod.F90`
+2. **Implement Interface**: Use standard compute/initialize/finalize pattern
+3. **Add Configuration**: Update YAML schema and parameter handling
+4. **Create Tests**: Unit and integration tests for new scheme
+5. **Update Documentation**: Add algorithm description and usage notes
+
+### Modifying Existing Schemes
+
+1. **Maintain Interface**: Preserve existing subroutine signatures
+2. **Version Control**: Document changes and maintain backward compatibility
+3. **Test Thoroughly**: Ensure changes don't break existing functionality
+4. **Update Documentation**: Reflect algorithm or parameter changes
+
+### Adding Diagnostics
+
+1. **Define Diagnostic**: Add to scheme diagnostic list
+2. **Implement Computation**: Add calculation in scheme module
+3. **Update Output**: Modify output routines to handle new diagnostic
+4. **Test Output**: Validate diagnostic values and units
+
+## Best Practices
+
+### Code Quality
+
+1. **Documentation**: Comment all public interfaces and complex algorithms
+2. **Naming**: Use descriptive variable and subroutine names
+3. **Modularity**: Keep subroutines focused and modular
+4. **Error Handling**: Check all return codes and handle errors gracefully
+
+### Scientific Accuracy
+
+1. **Algorithm Validation**: Compare with published implementations
+2. **Unit Consistency**: Maintain consistent unit systems
+3. **Physical Bounds**: Implement realistic physical constraints
+4. **Numerical Stability**: Use appropriate numerical methods
+
+### Maintainability
+
+1. **Version Control**: Use git with descriptive commit messages
+2. **Testing**: Maintain comprehensive test coverage
+3. **Documentation**: Keep documentation current with code changes
+4. **Refactoring**: Regularly review and improve code structure
+
+---
+
+*This implementation guide was automatically generated by the CATChem Process Generator.*

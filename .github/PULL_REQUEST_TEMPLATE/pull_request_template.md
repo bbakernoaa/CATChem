@@ -9,7 +9,7 @@
     - Each PR should address ONE topic and have an associated issue.
     - No hard-coded paths or personal directories.
     - No temporary or backup files should be committed (including logs).
-    - Any code that you disabled by being commented out should be removed or reenabled.
+    - Any code that you disabled by being commented out should be removed or re-enabled.
 
     Note that these HTML comments don't show up, so needn't be deleted.
 -->

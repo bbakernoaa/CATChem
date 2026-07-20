@@ -1,0 +1,204 @@
+# CATChem NUOPC Component Metadata
+# This file describes the CATChem NUOPC component for use in coupled modeling systems
+
+component:
+  name: "CATChem"
+  version: "1.0.0"
+  description: "Configurable Atmospheric Chemistry Model"
+  author: "Barry Baker, NOAA/OAR/ARL"
+  contact: "barry.baker@noaa.gov"
+
+# Component type and framework compliance
+nuopc:
+  version: "1.0"
+  compliant: true
+  component_type: "model"
+
+# Grid requirements
+grid:
+  type: "structured"
+  coordinate_system: "spherical"
+  dimensions: ["lon", "lat", "lev"]
+  stagger_locations: ["center"]
+
+# Time stepping
+time:
+  supports_subcycling: true
+  min_timestep: 60    # seconds
+  max_timestep: 3600  # seconds
+  default_timestep: 1800  # seconds
+
+# Standard names for import fields (CF convention where possible)
+import_fields:
+  meteorology:
+    - standard_name: "air_temperature"
+      units: "K"
+      dimensions: ["lon", "lat", "lev"]
+      required: true
+      description: "3D atmospheric temperature"
+
+    - standard_name: "specific_humidity"
+      units: "kg kg-1"
+      dimensions: ["lon", "lat", "lev"]
+      required: true
+      description: "3D water vapor specific humidity"
+
+    - standard_name: "air_pressure"
+      units: "Pa"
+      dimensions: ["lon", "lat", "lev"]
+      required: true
+      description: "3D atmospheric pressure"
+
+    - standard_name: "surface_air_pressure"
+      units: "Pa"
+      dimensions: ["lon", "lat"]
+      required: true
+      description: "Surface pressure"
+
+    - standard_name: "eastward_wind"
+      units: "m s-1"
+      dimensions: ["lon", "lat", "lev"]
+      required: true
+      description: "3D zonal wind component"
+
+    - standard_name: "northward_wind"
+      units: "m s-1"
+      dimensions: ["lon", "lat", "lev"]
+      required: true
+      description: "3D meridional wind component"
+
+    - standard_name: "surface_skin_temperature"
+      units: "K"
+      dimensions: ["lon", "lat"]
+      required: true
+      description: "Surface skin temperature"
+
+    - standard_name: "land_sea_mask"
+      units: "1"
+      dimensions: ["lon", "lat"]
+      required: true
+      description: "Land-sea-ice mask (0=ocean, 1=land, 2=ice)"
+
+  radiation:
+    - standard_name: "surface_downwelling_shortwave_flux"
+      units: "W m-2"
+      dimensions: ["lon", "lat"]
+      required: false
+      description: "Downward shortwave radiation at surface"
+
+    - standard_name: "surface_downwelling_longwave_flux"
+      units: "W m-2"
+      dimensions: ["lon", "lat"]
+      required: false
+      description: "Downward longwave radiation at surface"
+
+  boundary_layer:
+    - standard_name: "planetary_boundary_layer_height"
+      units: "m"
+      dimensions: ["lon", "lat"]
+      required: false
+      description: "Height of planetary boundary layer"
+
+    - standard_name: "surface_friction_velocity"
+      units: "m s-1"
+      dimensions: ["lon", "lat"]
+      required: false
+      description: "Surface friction velocity"
+
+# Standard names for export fields
+export_fields:
+  chemistry:
+    - standard_name: "mass_fraction_of_ozone_in_air"
+      units: "kg kg-1"
+      dimensions: ["lon", "lat", "lev"]
+      description: "3D ozone mass mixing ratio"
+
+    - standard_name: "mass_fraction_of_nitrogen_dioxide_in_air"
+      units: "kg kg-1"
+      dimensions: ["lon", "lat", "lev"]
+      description: "3D nitrogen dioxide mass mixing ratio"
+
+    - standard_name: "mass_fraction_of_carbon_monoxide_in_air"
+      units: "kg kg-1"
+      dimensions: ["lon", "lat", "lev"]
+      description: "3D carbon monoxide mass mixing ratio"
+
+    - standard_name: "mass_fraction_of_sulfur_dioxide_in_air"
+      units: "kg kg-1"
+      dimensions: ["lon", "lat", "lev"]
+      description: "3D sulfur dioxide mass mixing ratio"
+
+  aerosols:
+    - standard_name: "dust_dry_deposition_flux"
+      units: "kg m-2 s-1"
+      dimensions: ["lon", "lat"]
+      description: "Dust dry deposition flux to surface"
+
+    - standard_name: "sea_salt_aerosol_dry_deposition_flux"
+      units: "kg m-2 s-1"
+      dimensions: ["lon", "lat"]
+      description: "Sea salt dry deposition flux to surface"
+
+    - standard_name: "atmosphere_mass_content_of_dust_dry_aerosol_particles"
+      units: "kg m-2"
+      dimensions: ["lon", "lat"]
+      description: "Column-integrated dust loading"
+
+  diagnostics:
+    - standard_name: "chemistry_timestep"
+      units: "s"
+      dimensions: ["scalar"]
+      description: "Chemistry integration time step"
+
+    - standard_name: "number_of_chemistry_species"
+      units: "1"
+      dimensions: ["scalar"]
+      description: "Number of chemical species being tracked"
+
+# Configuration options
+configuration:
+  chemistry_mechanism:
+    type: "string"
+    default: "simple"
+    options: ["simple", "cb6r3", "racm2"]
+    description: "Chemical mechanism to use"
+
+  enable_dust:
+    type: "logical"
+    default: true
+    description: "Enable dust emission and transport"
+
+  enable_seasalt:
+    type: "logical"
+    default: true
+    description: "Enable sea salt emission and transport"
+
+  enable_drydep:
+    type: "logical"
+    default: true
+    description: "Enable dry deposition"
+
+  config_file:
+    type: "string"
+    default: "CATChem_config.yml"
+    description: "Path to CATChem configuration file"
+
+# Performance characteristics
+performance:
+  computational_cost: "medium"
+  memory_usage: "medium"
+  scales_with_species: true
+  parallel_efficiency: "good"
+
+# Dependencies
+dependencies:
+  esmf_version: ">= 8.0"
+  mpi: "required"
+  netcdf: "optional"
+
+# Testing information
+testing:
+  unit_tests: true
+  integration_tests: true
+  standalone_driver: true
+  test_data_required: false

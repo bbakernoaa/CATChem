@@ -1,0 +1,60 @@
+# CATChem NUOPC Configuration Example
+# This file demonstrates how to configure CATChem when running with NUOPC
+
+# Basic model settings
+Model:
+  name: "CATChem"
+  version: "1.0"
+  description: "Configurable Atmospheric Chemistry Model"
+
+# Grid configuration
+Grid:
+  type: "lonlat"
+  resolution: "1.0deg"  # Can be overridden by NUOPC driver
+
+# Time settings (can be overridden by NUOPC)
+Time:
+  start_time: "2024-01-01T00:00:00"
+  end_time: "2024-01-01T24:00:00"
+  chemistry_timestep: 3600  # seconds
+
+# Chemistry configuration
+Chemistry:
+  mechanism: "simple"  # Options: simple, cb6r3, racm2
+  species:
+    - "O3"
+    - "NO"
+    - "NO2"
+    - "CO"
+    - "SO2"
+    - "NH3"
+
+# Process configuration
+Processes:
+  dust:
+    enabled: true
+    scheme: "ginoux"
+  seasalt:
+    enabled: true
+    scheme: "gong"
+  drydep:
+    enabled: true
+    scheme: "wesely"
+  plumerise:
+    enabled: false
+
+# I/O configuration
+IO:
+  output_frequency: 3600  # seconds
+  output_fields:
+    - "O3"
+    - "NO2"
+    - "dust_concentration"
+    - "seasalt_concentration"
+
+# NUOPC-specific settings
+NUOPC:
+  component_name: "CATChem"
+  use_esmf_time: true
+  export_diagnostics: true
+  import_validation: true

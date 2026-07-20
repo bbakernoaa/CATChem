@@ -1,0 +1,123 @@
+name: "dry_deposition"
+description: "Process for dry deposition removal of atmospheric species"
+class_name: "DryDeposition"
+author: "CATChem Team"
+version: "1.0.0"
+license: "Apache 2.0"
+
+# Process behavior configuration - this makes it a deposition (sink) process
+process_behavior:
+  # What does this process do?
+  type: "sink"               # source, sink, transformation, transport
+
+  # How are tendencies applied?
+  tendency_mode: "additive"  # additive, replacement, multiplicative (negative rates)
+
+  # What species does this process affect?
+  species_filter:
+    type: "by_metadata"        # by_metadata, by_list, all_species
+    metadata_flags: ["is_drydep"] # Only act on species that can dry deposit
+
+  # How are tendencies calculated?
+  tendency_calculation: "rates"  # rates, concentrations, deltas
+
+  # Temporal behavior
+  timestep_dependency: "independent"  # independent, dependent, adaptive
+
+  # Spatial behavior
+  spatial_scope: "column"      # column, global, regional
+
+  # Memory and performance
+  parallelization: "column"    # column, species, domain
+  memory_requirements: "low"   # low, medium, high
+
+# Required meteorological fields (process-level)
+required_met_fields:
+  - "surface_friction_velocity"
+  - "boundary_layer_height"
+  - "surface_roughness"
+
+# Process-level diagnostics
+diagnostics:
+  - name: "total_deposition_flux"
+    description: "Total dry deposition flux for all species"
+    units: "kg/m²/s"
+
+# Scheme configurations
+schemes:
+  wesely89:
+    name: "wesely89"
+    class_name: "WESELY89"
+    description: "Wesely 1989 dry deposition scheme"
+    algorithm_type: "explicit"
+    reference: "Wesely 1989"
+    author: "CATChem Team"
+
+    # Scheme-specific behavior
+    scheme_behavior:
+      output_format: "deposition_velocities"  # Different output format
+      input_requirements:
+        - "surface_properties"
+        - "canopy_properties"
+        - "species_properties"
+
+    required_met_fields:
+      - name: "USTAR"
+        description: "Surface friction velocity"
+        units: "m/s"
+        dimensions: "scalar"
+        variable_name: "friction_velocity"
+
+      - name: "PBL_HEIGHT"
+        description: "Planetary boundary layer height"
+        units: "m"
+        dimensions: "scalar"
+        variable_name: "pbl_height"
+
+      - name: "Z0"
+        description: "Surface roughness length"
+        units: "m"
+        dimensions: "scalar"
+        variable_name: "roughness_length"
+
+      - name: "LAI"
+        description: "Leaf area index"
+        units: "dimensionless"
+        dimensions: "scalar"
+        variable_name: "leaf_area_index"
+
+      - name: "SOLAR_RAD"
+        description: "Solar radiation"
+        units: "W/m²"
+        dimensions: "scalar"
+        variable_name: "solar_radiation"
+
+    parameters:
+      ri_cutoff:
+        default: 0.1
+        min: 0.01
+        max: 1.0
+        description: "Richardson number cutoff for stable conditions"
+      min_deposition_velocity:
+        default: 1.0e-5
+        min: 1.0e-6
+        max: 1.0e-3
+        description: "Minimum deposition velocity (m/s)"
+
+    diagnostics:
+      - name: "deposition_velocity"
+        description: "Species-specific deposition velocity"
+        units: "m/s"
+      - name: "aerodynamic_resistance"
+        description: "Aerodynamic resistance"
+        units: "s/m"
+
+# Default scheme
+default_scheme: "wesely89"
+
+# Generation options
+generate_tests: true
+generate_docs: true
+generate_examples: true
+output_dir: ""
+src_base_dir: "src/process"

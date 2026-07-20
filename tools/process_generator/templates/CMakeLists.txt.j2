@@ -1,0 +1,169 @@
+# {{ config.class_name }} Process CMakeLists.txt
+# Generated on: {{ timestamp }}
+# Author: {{ config.author }}
+# Description: {{ config.description }}
+
+# Define {{ config.name }} process sources
+set({{ config.name | upper_snake }}_PROCESS_SOURCES
+    {{ config.class_name }}Common_Mod.F90
+    Process{{ config.class_name }}Interface_Mod.F90
+    {{ config.class_name }}ProcessCreator_Mod.F90
+)
+
+# Define {{ config.name }} scheme sources
+set({{ config.name | upper_snake }}_SCHEME_SOURCES
+{% for scheme in config.schemes %}
+    schemes/{{ config.class_name }}Scheme_{{ scheme.class_name }}_Mod.F90
+{% endfor %}
+)
+
+# Combine all sources
+set({{ config.name | upper_snake }}_ALL_SOURCES
+    ${{ "{" }}{{ config.name | upper_snake }}_PROCESS_SOURCES}
+    ${{ "{" }}{{ config.name | upper_snake }}_SCHEME_SOURCES}
+)
+
+# Create the {{ config.name }} process library
+set(_lib CATChem_process_{{ config.name }})
+add_library(${_lib} ${{ "{" }}{{ config.name | upper_snake }}_ALL_SOURCES})
+
+# Link with required libraries
+target_link_libraries(${_lib} PUBLIC CATChem_core)
+
+# Additional dependencies
+{% if config.process_type == "chemistry" %}
+# Chemistry processes may need additional math libraries
+target_link_libraries(${_lib} PUBLIC ${LAPACK_LIBRARIES})
+{% endif %}
+
+{% if config.is_multiphase %}
+# Multiphase processes may need thermodynamic libraries
+# target_link_libraries(${_lib} PUBLIC CATChem_thermodynamics)
+{% endif %}
+
+# Set module directory
+set_target_properties(${_lib} PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+)
+
+# Include directories
+target_include_directories(${_lib} PRIVATE ${CMAKE_BINARY_DIR}/include)
+
+# Compiler-specific flags
+if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+    target_compile_options(${_lib} PRIVATE -fdefault-real-8 -fdefault-double-8)
+    {% if config.process_type == "chemistry" %}
+    # Chemistry processes may benefit from aggressive optimization
+    target_compile_options(${_lib} PRIVATE $<$<CONFIG:Release>:-O3;-funroll-loops>)
+    {% endif %}
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    target_compile_options(${_lib} PRIVATE -r8)
+    {% if config.process_type == "chemistry" %}
+    target_compile_options(${_lib} PRIVATE $<$<CONFIG:Release>:-O3;-unroll>)
+    {% endif %}
+endif()
+
+# Add preprocessor definitions
+target_compile_definitions(${_lib} PRIVATE
+    PROCESS_NAME="{{ config.name }}"
+    PROCESS_VERSION="{{ config.version }}"
+{% if config.has_size_bins %}
+    HAS_SIZE_BINS
+{% endif %}
+{% if config.is_multiphase %}
+    IS_MULTIPHASE
+{% endif %}
+)
+
+# Install targets
+install(TARGETS ${_lib}
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+# Install module files
+install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
+    DESTINATION include
+    FILES_MATCHING PATTERN "*.mod"
+)
+
+# Add subdirectories
+# Note: tests are registered via tests/CMakeLists.txt (tests/process/{{ config.name }}/)
+{% if config.generate_examples %}
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+{% endif %}
+
+# Documentation
+{% if config.generate_docs %}
+if(BUILD_DOCUMENTATION)
+    find_package(Doxygen QUIET)
+    if(DOXYGEN_FOUND)
+        set(DOXYGEN_PROJECT_NAME "{{ config.class_name }} Process")
+        set(DOXYGEN_PROJECT_BRIEF "{{ config.description }}")
+        set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/docs")
+        set(DOXYGEN_INPUT "${CMAKE_CURRENT_SOURCE_DIR}")
+        set(DOXYGEN_RECURSIVE YES)
+        set(DOXYGEN_FILE_PATTERNS "*.F90 *.md")
+        set(DOXYGEN_EXCLUDE_PATTERNS "*/build/* */tests/*")
+
+        doxygen_add_docs({{ config.name }}_docs
+            ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMENT "Generating {{ config.name }} process documentation"
+        )
+
+        install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/docs/
+            DESTINATION share/doc/{{ config.name }}
+            OPTIONAL
+        )
+    endif()
+endif()
+{% endif %}
+
+# Performance testing
+{% if config.process_type == "chemistry" or config.process_type == "emission" %}
+if(BUILD_BENCHMARKS)
+    find_package(benchmark QUIET)
+    if(benchmark_FOUND)
+        add_executable({{ config.name }}_benchmark
+            benchmarks/benchmark_{{ config.name }}.F90
+        )
+        target_link_libraries({{ config.name }}_benchmark
+            PRIVATE ${_lib} benchmark::benchmark
+        )
+    endif()
+endif()
+{% endif %}
+
+# Process-specific targets
+{% if config.process_type == "emission" %}
+# Emission inventory preprocessing (if needed)
+# add_custom_target({{ config.name }}_preprocess_inventory
+#     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/preprocess_inventory.py
+#     COMMENT "Preprocessing emission inventory for {{ config.name }}"
+# )
+{% endif %}
+
+# Print configuration summary
+message(STATUS "Configured {{ config.class_name }} process:")
+message(STATUS "  Process type: {{ config.process_type }}")
+message(STATUS "  Number of schemes: {{ config.schemes | length }}")
+message(STATUS "  Default scheme: {{ config.default_scheme }}")
+{% if config.species %}
+message(STATUS "  Number of species: {{ config.species | length }}")
+{% endif %}
+{% if config.has_size_bins %}
+message(STATUS "  Has size bins: Yes ({{ config.size_bins.n_bins if config.size_bins else 0 }} bins)")
+{% else %}
+message(STATUS "  Has size bins: No")
+{% endif %}
+{% if config.is_multiphase %}
+message(STATUS "  Multiphase: Yes")
+{% else %}
+message(STATUS "  Multiphase: No")
+{% endif %}
+message(STATUS "  Generate tests: {{ 'Yes' if config.generate_tests else 'No' }}")
+message(STATUS "  Generate docs: {{ 'Yes' if config.generate_docs else 'No' }}")
+message(STATUS "  Generate examples: {{ 'Yes' if config.generate_examples else 'No' }}")
