@@ -1,9 +1,9 @@
 // tests/test_catchem_photolysis.cpp
 #include "catchem_api.hpp"
 #include "catchem_core.hpp"
+#include "catchem_diagnostic_manager.hpp"
 #include "catchem_process_registry.hpp"
 #include "catchem_state_manager.hpp"
-#include "catchem_diagnostic_manager.hpp"
 #include <Kokkos_Core.hpp>
 #include <cassert>
 #include <cmath>
@@ -85,7 +85,8 @@ int main(int argc, char* argv[]) {
         }
 
         std::cout << "DEBUG: Using TUV-x config path: " << config_path << std::endl;
-        assert(file_exists(config_path) && "Error: TUV-x configuration file could not be located relative to test runner!");
+        assert(file_exists(config_path) &&
+               "Error: TUV-x configuration file could not be located relative to test runner!");
 
         // Write a temp main config for propagation test
         std::string temp_main_config = "test_main_config.yml";

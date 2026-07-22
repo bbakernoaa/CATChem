@@ -1,18 +1,18 @@
 // src/process/photolysis/catchem_process_photolysis.cpp
 #include "catchem_process_photolysis.hpp"
-#include "catchem_process_registry.hpp"
 #include "catchem_diagnostic_manager.hpp"
-#include <musica/tuvx/tuvx_c_interface.hpp>
+#include "catchem_process_registry.hpp"
+#include <algorithm>
+#include <cmath>
+#include <iostream>
+#include <musica/tuvx/grid.hpp>
 #include <musica/tuvx/grid_map.hpp>
+#include <musica/tuvx/profile.hpp>
 #include <musica/tuvx/profile_map.hpp>
 #include <musica/tuvx/radiator_map.hpp>
-#include <musica/tuvx/grid.hpp>
-#include <musica/tuvx/profile.hpp>
-#include <yaml-cpp/yaml.h>
-#include <cmath>
-#include <algorithm>
-#include <iostream>
+#include <musica/tuvx/tuvx_c_interface.hpp>
 #include <unordered_set>
+#include <yaml-cpp/yaml.h>
 
 namespace catchem {
 
@@ -72,7 +72,7 @@ namespace catchem {
         }
         musica::SetGridEdges(height_grid, dummy_edges.data(), dummy_edges.size(), &err);
         musica::SetGridMidpoints(height_grid, dummy_mids.data(), dummy_mids.size(), &err);
-        
+
         std::cout << "DEBUG: Adding height grid to GridMap" << std::endl;
         musica::AddGrid(grids, height_grid, &err);
 
@@ -80,9 +80,10 @@ namespace catchem {
         int wl_sections = 156;
         std::vector<double> wl_edges;
 
-        if (config_path.find("from_host") != std::string::npos || config_path.find("config.json") != std::string::npos) {
+        if (config_path.find("from_host") != std::string::npos ||
+            config_path.find("config.json") != std::string::npos) {
             wl_sections = 5;
-            wl_edges = { 300.0, 400.0, 500.0, 600.0, 700.0, 800.0 };
+            wl_edges = {300.0, 400.0, 500.0, 600.0, 700.0, 800.0};
         } else {
             wl_sections = 156;
             wl_edges = {
@@ -101,24 +102,24 @@ namespace catchem {
                 512.5000, 517.5000, 522.5000, 527.5000, 532.5000, 537.5000, 542.5000, 547.5000, 552.5000, 557.5000,
                 562.5000, 567.5000, 572.5000, 577.5000, 582.5000, 587.5000, 592.5000, 597.5000, 602.5000, 607.5000,
                 612.5000, 617.5000, 622.5000, 627.5000, 632.5000, 637.5000, 642.5000, 647.1000, 655.0000, 665.0000,
-                675.0000, 685.0000, 695.0000, 705.0000, 715.0000, 725.0000, 735.0000
-            };
+                675.0000, 685.0000, 695.0000, 705.0000, 715.0000, 725.0000, 735.0000};
         }
 
         std::cout << "DEBUG: Creating wavelength grid with " << wl_sections << " sections" << std::endl;
         musica::Grid* wl_grid = musica::CreateGrid("wavelength", "nm", wl_sections, &err);
         std::vector<double> wl_mids(wl_sections, 0.0);
         for (int i = 0; i < wl_sections; ++i) {
-            wl_mids[i] = 0.5 * (wl_edges[i] + wl_edges[i+1]);
+            wl_mids[i] = 0.5 * (wl_edges[i] + wl_edges[i + 1]);
         }
         musica::SetGridEdges(wl_grid, wl_edges.data(), wl_edges.size(), &err);
         musica::SetGridMidpoints(wl_grid, wl_mids.data(), wl_mids.size(), &err);
-        
+
         std::cout << "DEBUG: Adding wavelength grid to GridMap" << std::endl;
         musica::AddGrid(grids, wl_grid, &err);
 
         // 3. Helper to register profiles safely only if missing from the config file definition
-        auto register_profile_if_missing = [&](const char* name, const char* units, musica::Grid* grid, double default_val, std::size_t num_vals) {
+        auto register_profile_if_missing = [&](const char* name, const char* units, musica::Grid* grid,
+                                               double default_val, std::size_t num_vals) {
             if (config_defined_profiles.find(name) == config_defined_profiles.end()) {
                 std::cout << "DEBUG: Pre-registering missing profile: " << name << " (" << units << ")" << std::endl;
                 musica::Profile* new_prof = musica::CreateProfile(name, units, grid, &err);
@@ -146,7 +147,8 @@ namespace catchem {
         tuvx_instance = musica::CreateTuvx(config_path.c_str(), grids, profiles, radiators, &err);
 
         if (err.code_ != 0) {
-            std::cerr << "PhotolysisProcess: Error: Failed to initialize TUV-x! " << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
+            std::cerr << "PhotolysisProcess: Error: Failed to initialize TUV-x! "
+                      << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
             return;
         }
 
@@ -157,10 +159,10 @@ namespace catchem {
         if (state->diag_mgr) {
             std::vector<int> dims_2d = {state->n_cols, state->n_levels};
             for (size_t i = 0; i < photo_mappings.size_; ++i) {
-                std::string rx_name = photo_mappings.mappings_[i].name_.value_ ? photo_mappings.mappings_[i].name_.value_ : "";
-                state->diag_mgr->register_field("photolysis_rate_" + rx_name, 
-                                                "Photolysis rate for " + rx_name, 
-                                                "s-1", DiagType::FIELD_2D, dims_2d);
+                std::string rx_name =
+                    photo_mappings.mappings_[i].name_.value_ ? photo_mappings.mappings_[i].name_.value_ : "";
+                state->diag_mgr->register_field("photolysis_rate_" + rx_name, "Photolysis rate for " + rx_name, "s-1",
+                                                DiagType::FIELD_2D, dims_2d);
             }
         }
         std::cout << "DEBUG: PhotolysisProcess::init complete" << std::endl;
@@ -189,24 +191,23 @@ namespace catchem {
         musica::Error err;
         int num_reactions = photo_mappings.size_;
         std::cout << "DEBUG: Number of photolysis reactions mapped = " << num_reactions << std::endl;
-        
+
         std::cout << "DEBUG: Fetching ProfileMap from TUVX instance" << std::endl;
         musica::ProfileMap* loaded_profiles = musica::GetProfileMap(tuvx_instance, &err);
         if (err.code_ != 0) {
-            std::cerr << "PhotolysisProcess: Error getting ProfileMap: " << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
+            std::cerr << "PhotolysisProcess: Error getting ProfileMap: "
+                      << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
             return;
         }
-        
+
         std::cout << "DEBUG: Retrieving individual Profile pointers" << std::endl;
-        musica::Profile* profile_air  = musica::GetProfile(loaded_profiles, "air", "molecule cm-3", &err);
-        musica::Profile* profile_o2   = musica::GetProfile(loaded_profiles, "O2", "molecule cm-3", &err);
-        musica::Profile* profile_o3   = musica::GetProfile(loaded_profiles, "O3", "molecule cm-3", &err);
+        musica::Profile* profile_air = musica::GetProfile(loaded_profiles, "air", "molecule cm-3", &err);
+        musica::Profile* profile_o2 = musica::GetProfile(loaded_profiles, "O2", "molecule cm-3", &err);
+        musica::Profile* profile_o3 = musica::GetProfile(loaded_profiles, "O3", "molecule cm-3", &err);
         musica::Profile* profile_temp = musica::GetProfile(loaded_profiles, "temperature", "K", &err);
 
-        std::cout << "DEBUG: profile_air = " << profile_air
-                  << ", profile_o2 = " << profile_o2
-                  << ", profile_o3 = " << profile_o3
-                  << ", profile_temp = " << profile_temp << std::endl;
+        std::cout << "DEBUG: profile_air = " << profile_air << ", profile_o2 = " << profile_o2
+                  << ", profile_o3 = " << profile_o3 << ", profile_temp = " << profile_temp << std::endl;
 
         if (profile_air) {
             std::cout << "DEBUG: profile_air name = " << profile_air->GetName(&err) << std::endl;
@@ -280,26 +281,22 @@ namespace catchem {
             std::vector<double> edge_heating_rates((state->n_levels + 1) * tuvx_instance->GetHeatingRateCount(), 0.0);
 
             std::cout << "DEBUG: Column " << i_col << ": calling musica::RunTuvx" << std::endl;
-            musica::RunTuvx(
-                tuvx_instance,
-                sza_rad, 
-                1.0, 
-                edge_photolysis_rates.data(),
-                edge_heating_rates.data(),
-                nullptr, 
-                nullptr, 
-                nullptr, 
-                &err);
+            musica::RunTuvx(tuvx_instance, sza_rad, 1.0, edge_photolysis_rates.data(), edge_heating_rates.data(),
+                            nullptr, nullptr, nullptr, &err);
 
             if (err.code_ != 0) {
-                std::cerr << "PhotolysisProcess: Solver error in column " << i_col << ": " << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
+                std::cerr << "PhotolysisProcess: Solver error in column " << i_col << ": "
+                          << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
                 continue;
             }
 
-            std::cout << "DEBUG: Column " << i_col << ": copying midpoint-interpolated J-rates to diagnostics" << std::endl;
+            std::cout << "DEBUG: Column " << i_col << ": copying midpoint-interpolated J-rates to diagnostics"
+                      << std::endl;
             if (state->diag_mgr) {
                 for (size_t rx_idx = 0; rx_idx < photo_mappings.size_; ++rx_idx) {
-                    std::string rx_name = photo_mappings.mappings_[rx_idx].name_.value_ ? photo_mappings.mappings_[rx_idx].name_.value_ : "";
+                    std::string rx_name = photo_mappings.mappings_[rx_idx].name_.value_
+                                              ? photo_mappings.mappings_[rx_idx].name_.value_
+                                              : "";
                     std::string diag_name = "photolysis_rate_" + rx_name;
                     double* diag_ptr = static_cast<double*>(state->diag_mgr->get_host_pointer(diag_name));
 
@@ -308,7 +305,8 @@ namespace catchem {
                             int idx_edge1 = rx_idx * (state->n_levels + 1) + i_lvl;
                             int idx_edge2 = rx_idx * (state->n_levels + 1) + (i_lvl + 1);
 
-                            double rate_midpoint = 0.5 * (edge_photolysis_rates[idx_edge1] + edge_photolysis_rates[idx_edge2]);
+                            double rate_midpoint =
+                                0.5 * (edge_photolysis_rates[idx_edge1] + edge_photolysis_rates[idx_edge2]);
 
                             int diag_idx = i_lvl * state->n_cols + i_col;
                             diag_ptr[diag_idx] = rate_midpoint;

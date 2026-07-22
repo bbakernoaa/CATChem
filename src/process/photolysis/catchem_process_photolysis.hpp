@@ -1,8 +1,8 @@
 // src/process/photolysis/catchem_process_photolysis.hpp
 #pragma once
 #include "catchem_process_interface.hpp"
-#include <musica/tuvx/tuvx.hpp>
 #include <memory>
+#include <musica/tuvx/tuvx.hpp>
 #include <string>
 
 namespace catchem {
