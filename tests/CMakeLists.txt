@@ -112,3 +112,6 @@ if(ENABLE_KOKKOS)
   set_target_properties(test_catchem_photolysis PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_photolysis COMMAND test_catchem_photolysis)
 endif()
+
+add_executable(test_catchem_gaschem_units test_catchem_gaschem_units.cpp)
+add_test(NAME test_catchem_gaschem_units COMMAND test_catchem_gaschem_units)
