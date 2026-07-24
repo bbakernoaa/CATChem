@@ -6,6 +6,8 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/src/core
     ${PROJECT_SOURCE_DIR}/src/external/musica/include
+    ${CMAKE_BINARY_DIR}/_deps/micm-src/include
+    ${CMAKE_BINARY_DIR}/_deps/mechanism_configuration-src/include
 )
 
 target_link_libraries(
