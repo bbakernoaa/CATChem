@@ -28,7 +28,8 @@ namespace catchem {
                     this->config_path = photo_node["config_file"].as<std::string>();
                 }
             } catch (const std::exception& e) {
-                std::cerr << "PhotolysisProcess: Warning: failed to parse config from ConfigManager: " << e.what() << std::endl;
+                std::cerr << "PhotolysisProcess: Warning: failed to parse config from ConfigManager: " << e.what()
+                          << std::endl;
             }
         } else if (!state->config_file_path.empty()) {
             try {

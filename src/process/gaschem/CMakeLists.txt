@@ -23,7 +23,10 @@ elseif(TARGET micm)
 endif()
 
 if(TARGET musica::mechanism_configuration)
-  target_link_libraries(catchem_process_gaschem PUBLIC musica::mechanism_configuration)
+  target_link_libraries(
+    catchem_process_gaschem
+    PUBLIC musica::mechanism_configuration
+  )
 elseif(TARGET mechanism_configuration)
   target_link_libraries(catchem_process_gaschem PUBLIC mechanism_configuration)
 endif()

@@ -23,7 +23,8 @@ namespace catchem {
                     this->config_dir = gas_node["config_dir"].as<std::string>();
                 }
             } catch (const std::exception& e) {
-                std::cerr << "GasChemProcess: Warning: failed to parse config from ConfigManager: " << e.what() << std::endl;
+                std::cerr << "GasChemProcess: Warning: failed to parse config from ConfigManager: " << e.what()
+                          << std::endl;
             }
         } else if (!state->config_file_path.empty()) {
             try {
