@@ -160,7 +160,12 @@ namespace catchem {
         // 4. Run standard CPU solver
         double tstep = state->time.timestep;
         if (tstep <= 0.0) tstep = 3600.0; // fallback default
-        [[maybe_unused]] auto solver_result = micm_instance->Solve(micm_state.get(), tstep);
+        auto solver_result = micm_instance->Solve(micm_state.get(), tstep);
+        if (solver_result.state_ != micm::SolverState::Converged &&
+            solver_result.state_ != micm::SolverState::AcceptingUnconvergedIntegration) {
+            std::cerr << "GasChemProcess: Warning: MICM Solver did not reach convergence! Final state: " 
+                      << micm::SolverStateToString(solver_result.state_) << std::endl;
+        }
 
         // 5. Convert output concentrations back: mol/m3 -> ppmv
         for (int ilev = 0; ilev < nl; ++ilev) {

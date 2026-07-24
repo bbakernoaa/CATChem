@@ -104,10 +104,16 @@ int main(int argc, char* argv[]) {
         if (!file_exists(photolysis_config)) {
             photolysis_config = "../src/external/musica/configs/tuvx/from_host/config.json";
         }
+        if (!file_exists(photolysis_config)) {
+            photolysis_config = "../../src/external/musica/configs/tuvx/from_host/config.json";
+        }
 
         std::string gaschem_config_dir = "src/external/musica/configs/v0/chapman/";
         if (!file_exists(gaschem_config_dir + "config.json") && !file_exists(gaschem_config_dir + "config.yaml")) {
             gaschem_config_dir = "../src/external/musica/configs/v0/chapman/";
+        }
+        if (!file_exists(gaschem_config_dir + "config.json") && !file_exists(gaschem_config_dir + "config.yaml")) {
+            gaschem_config_dir = "../../src/external/musica/configs/v0/chapman/";
         }
 
         std::string temp_main_coupled_config = "test_main_coupled_config.yml";
