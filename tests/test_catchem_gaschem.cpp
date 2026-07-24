@@ -78,16 +78,14 @@ int main(int argc, char* argv[]) {
 
         // Load species metadata
         std::string species_config = "";
-        std::vector<std::string> candidates = {
-            "tests/Configs/Default/CATChem_species.yml",
-            "../tests/Configs/Default/CATChem_species.yml",
-            "../../tests/Configs/Default/CATChem_species.yml",
-            "Configs/Default/CATChem_species.yml",
-            "tests/CATChem_species.yml",
-            "../tests/CATChem_species.yml",
-            "../../tests/CATChem_species.yml",
-            "CATChem_species.yml"
-        };
+        std::vector<std::string> candidates = {"tests/Configs/Default/CATChem_species.yml",
+                                               "../tests/Configs/Default/CATChem_species.yml",
+                                               "../../tests/Configs/Default/CATChem_species.yml",
+                                               "Configs/Default/CATChem_species.yml",
+                                               "tests/CATChem_species.yml",
+                                               "../tests/CATChem_species.yml",
+                                               "../../tests/CATChem_species.yml",
+                                               "CATChem_species.yml"};
         for (const auto& path : candidates) {
             if (file_exists(path)) {
                 species_config = path;
@@ -145,7 +143,7 @@ int main(int argc, char* argv[]) {
         // 6. Verify photolysis rate diagnostics calculation
         auto diag_mgr = core->get_diagnostic_manager();
         assert(diag_mgr->has_field("photolysis_rate_jfoo") && "TUV-x jfoo diagnostic must exist!");
-        
+
         double* jfoo_rates = static_cast<double*>(diag_mgr->get_host_pointer("photolysis_rate_jfoo"));
         assert(jfoo_rates != nullptr);
         assert(jfoo_rates[0] > 0.0 && "Photolysis rates must be non-zero at noon!");
