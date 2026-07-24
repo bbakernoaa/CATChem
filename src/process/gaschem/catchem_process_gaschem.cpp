@@ -17,15 +17,31 @@ namespace catchem {
         
         // 1. Resolve configuration directory path dynamically
         if (!state->config_file_path.empty()) {
-            std::string path = state->config_file_path;
-            size_t last_slash = path.find_last_of("/\\");
-            if (last_slash != std::string::npos) {
-                this->config_dir = path.substr(0, last_slash + 1);
-            } else {
-                this->config_dir = "./";
+            try {
+                YAML::Node main_config = YAML::LoadFile(state->config_file_path);
+                if (main_config["process"] && main_config["process"]["gaschem"]) {
+                    auto gas_node = main_config["process"]["gaschem"];
+                    if (gas_node["config_dir"]) {
+                        this->config_dir = gas_node["config_dir"].as<std::string>();
+                    }
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "GasChemProcess: Warning: failed to parse main config for gaschem: " << e.what() << std::endl;
             }
-        } else {
-            this->config_dir = "tests/Configs/Default/";
+        }
+
+        if (this->config_dir.empty()) {
+            if (!state->config_file_path.empty()) {
+                std::string path = state->config_file_path;
+                size_t last_slash = path.find_last_of("/\\");
+                if (last_slash != std::string::npos) {
+                    this->config_dir = path.substr(0, last_slash + 1);
+                } else {
+                    this->config_dir = "./";
+                }
+            } else {
+                this->config_dir = "tests/Configs/Default/";
+            }
         }
 
         std::cout << "DEBUG: GasChemProcess config directory resolved: " << config_dir << std::endl;

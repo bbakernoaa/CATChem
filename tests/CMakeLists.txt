@@ -111,6 +111,20 @@ if(ENABLE_KOKKOS)
   )
   set_target_properties(test_catchem_photolysis PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_photolysis COMMAND test_catchem_photolysis)
+
+  # Coupled Process Integration Test
+  add_executable(test_catchem_gaschem test_catchem_gaschem.cpp)
+  target_link_libraries(
+    test_catchem_gaschem
+    PUBLIC
+      CATChem_core_cpp
+      CATChem_core
+      catchem_process_photolysis
+      catchem_process_gaschem
+      Kokkos::kokkos
+  )
+  set_target_properties(test_catchem_gaschem PROPERTIES LINKER_LANGUAGE CXX)
+  add_test(NAME test_catchem_gaschem COMMAND test_catchem_gaschem)
 endif()
 
 add_executable(test_catchem_gaschem_units test_catchem_gaschem_units.cpp)
