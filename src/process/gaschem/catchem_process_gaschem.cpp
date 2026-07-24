@@ -19,7 +19,7 @@ namespace catchem {
         if (state->config_mgr) {
             try {
                 YAML::Node gas_node = state->config_mgr->get_process_config("gaschem");
-                if (gas_node && gas_node["config_dir"]) {
+                if (gas_node.IsDefined() && gas_node["config_dir"]) {
                     this->config_dir = gas_node["config_dir"].as<std::string>();
                 }
             } catch (const std::exception& e) {

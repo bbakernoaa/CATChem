@@ -24,7 +24,7 @@ namespace catchem {
         if (state->config_mgr) {
             try {
                 YAML::Node photo_node = state->config_mgr->get_process_config("photolysis");
-                if (photo_node && photo_node["config_file"]) {
+                if (photo_node.IsDefined() && photo_node["config_file"]) {
                     this->config_path = photo_node["config_file"].as<std::string>();
                 }
             } catch (const std::exception& e) {
