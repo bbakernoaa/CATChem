@@ -21,7 +21,16 @@ namespace catchem {
 
     void PhotolysisProcess::init(std::shared_ptr<StateManager> state) {
         std::cout << "DEBUG: PhotolysisProcess::init started" << std::endl;
-        if (!state->config_file_path.empty()) {
+        if (state->config_mgr) {
+            try {
+                YAML::Node photo_node = state->config_mgr->get_process_config("photolysis");
+                if (photo_node && photo_node["config_file"]) {
+                    this->config_path = photo_node["config_file"].as<std::string>();
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "PhotolysisProcess: Warning: failed to parse config from ConfigManager: " << e.what() << std::endl;
+            }
+        } else if (!state->config_file_path.empty()) {
             try {
                 YAML::Node main_config = YAML::LoadFile(state->config_file_path);
                 if (main_config["process"] && main_config["process"]["photolysis"]) {

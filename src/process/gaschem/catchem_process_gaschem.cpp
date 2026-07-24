@@ -16,7 +16,16 @@ namespace catchem {
         std::cout << "DEBUG: GasChemProcess::init started" << std::endl;
 
         // 1. Resolve configuration directory path dynamically
-        if (!state->config_file_path.empty()) {
+        if (state->config_mgr) {
+            try {
+                YAML::Node gas_node = state->config_mgr->get_process_config("gaschem");
+                if (gas_node && gas_node["config_dir"]) {
+                    this->config_dir = gas_node["config_dir"].as<std::string>();
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "GasChemProcess: Warning: failed to parse config from ConfigManager: " << e.what() << std::endl;
+            }
+        } else if (!state->config_file_path.empty()) {
             try {
                 YAML::Node main_config = YAML::LoadFile(state->config_file_path);
                 if (main_config["process"] && main_config["process"]["gaschem"]) {

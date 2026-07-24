@@ -99,6 +99,9 @@ int main(int argc, char* argv[]) {
 
         // Propagate config file path
         state->config_file_path = temp_main_config;
+        if (state->config_mgr) {
+            state->config_mgr->load_from_file(temp_main_config);
+        }
 
         // 5. Create and initialize the photolysis process
         auto process = catchem::ProcessRegistry::get_instance().create("photolysis");

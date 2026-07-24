@@ -126,6 +126,9 @@ int main(int argc, char* argv[]) {
         main_conf_writer.close();
 
         state->config_file_path = temp_main_coupled_config;
+        if (state->config_mgr) {
+            state->config_mgr->load_from_file(temp_main_coupled_config);
+        }
 
         // 4. Create and add processes to core pipeline
         auto photolysis_proc = catchem::ProcessRegistry::get_instance().create("photolysis");

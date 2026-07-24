@@ -21,10 +21,18 @@ namespace catchem {
     class ConfigManager {
     public:
         ConfigData data;
+        YAML::Node root_node;
         bool is_loaded = false;
 
         ConfigManager() = default;
         void load_from_file(const std::string& filename);
+
+        YAML::Node get_process_config(const std::string& process_name) const {
+            if (is_loaded && root_node["process"] && root_node["process"][process_name]) {
+                return root_node["process"][process_name];
+            }
+            return YAML::Node();
+        }
     };
 
 } // namespace catchem

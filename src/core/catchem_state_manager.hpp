@@ -1,5 +1,6 @@
 #pragma once
 #include "catchem_chem_state.hpp"
+#include "catchem_config_manager.hpp"
 #include "catchem_constants.hpp"
 #include "catchem_interop_field.hpp"
 #include "catchem_met_state.hpp"
@@ -23,6 +24,7 @@ namespace catchem {
 
         std::string config_file_path;
 
+        std::shared_ptr<ConfigManager> config_mgr;
         std::shared_ptr<DiagnosticManager> diag_mgr;
 
         std::unordered_map<std::string, std::shared_ptr<InteropField<double, 1>>> fields_1d;

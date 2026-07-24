@@ -7,6 +7,7 @@ namespace catchem {
     void ConfigManager::load_from_file(const std::string& filename) {
         try {
             YAML::Node config = YAML::LoadFile(filename);
+            root_node = config;
             if (config["simulation"]) {
                 auto sim = config["simulation"];
                 if (sim["nx"]) {

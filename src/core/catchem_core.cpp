@@ -11,6 +11,7 @@ namespace catchem {
 
         grid_mgr = std::make_shared<GridManager>(nc, 1, nl);
         state_mgr = std::make_shared<StateManager>(nc, nl, ns);
+        state_mgr->config_mgr = config_mgr;
         diag_mgr = std::make_shared<DiagnosticManager>();
         state_mgr->diag_mgr = diag_mgr;
     }
@@ -25,6 +26,7 @@ namespace catchem {
 
         grid_mgr = std::make_shared<GridManager>(nx, ny, nz);
         state_mgr = std::make_shared<StateManager>(nx * ny, nz, 50);
+        state_mgr->config_mgr = config_mgr;
         state_mgr->config_file_path = config_file;
         diag_mgr = std::make_shared<DiagnosticManager>();
         state_mgr->diag_mgr = diag_mgr;
