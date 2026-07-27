@@ -2,6 +2,15 @@ foreach(opt IN LISTS _catchem_compiler_options)
   add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:${opt}>")
 endforeach()
 
+# Automatically link the musica configs folder so that CTest can find relative NetCDF files on GHA CI
+if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/configs")
+  file(CREATE_LINK
+    "${PROJECT_SOURCE_DIR}/src/external/musica/configs"
+    "${CMAKE_CURRENT_BINARY_DIR}/configs"
+    SYMBOLIC
+  )
+endif()
+
 # Restore compilation of foundational Fortran testing helper library
 add_library(testing testing_mod.f90)
 target_link_libraries(testing PRIVATE CATChem_core)
