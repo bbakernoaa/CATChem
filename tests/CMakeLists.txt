@@ -4,9 +4,10 @@ endforeach()
 
 # Automatically link the musica configs folder so that CTest can find relative NetCDF files on GHA CI
 if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/configs")
-  file(CREATE_LINK
-    "${PROJECT_SOURCE_DIR}/src/external/musica/configs"
-    "${CMAKE_CURRENT_BINARY_DIR}/configs"
+  file(
+    CREATE_LINK
+      "${PROJECT_SOURCE_DIR}/src/external/musica/configs"
+      "${CMAKE_CURRENT_BINARY_DIR}/configs"
     SYMBOLIC
   )
 endif()
