@@ -141,25 +141,13 @@ namespace catchem {
         Logger::debug(state.get(), "Adding wavelength grid to GridMap");
         musica::AddGrid(grids, wl_grid, &err);
 
-        // 3. Helper to register profiles safely only if missing from the config file definition
-        auto register_profile_if_missing = [&](const char* name, const char* units, musica::Grid* grid,
-                                               double default_val, std::size_t num_vals) {
-            if (config_defined_profiles.find(name) == config_defined_profiles.end()) {
-                Logger::debug(state.get(), "Pre-registering missing profile", {{"name", name}, {"units", units}});
-                musica::Profile* new_prof = musica::CreateProfile(name, units, grid, &err);
-                std::vector<double> dummy(num_vals, default_val);
-                musica::SetProfileMidpointValues(new_prof, dummy.data(), num_vals, &err);
-                musica::AddProfile(profiles, new_prof, &err);
-                musica::DeleteProfile(new_prof, &err);
-            }
-        };
-
-        register_profile_if_missing("temperature", "K", height_grid, 280.0, state->n_levels);
-        register_profile_if_missing("air", "molecule cm-3", height_grid, 1e12, state->n_levels);
-        register_profile_if_missing("O2", "molecule cm-3", height_grid, 1e12, state->n_levels);
-        register_profile_if_missing("O3", "molecule cm-3", height_grid, 1e12, state->n_levels);
-        register_profile_if_missing("surface albedo", "none", wl_grid, 0.1, wl_sections);
-        register_profile_if_missing("extraterrestrial flux", "photon cm-2 s-1", wl_grid, 1.5e14, wl_sections);
+        // 3. Register profiles safely only if missing from the config file definition
+        register_profile_if_missing(state.get(), config_defined_profiles, "temperature", "K", height_grid, 280.0, state->n_levels, &err);
+        register_profile_if_missing(state.get(), config_defined_profiles, "air", "molecule cm-3", height_grid, 1e12, state->n_levels, &err);
+        register_profile_if_missing(state.get(), config_defined_profiles, "O2", "molecule cm-3", height_grid, 1e12, state->n_levels, &err);
+        register_profile_if_missing(state.get(), config_defined_profiles, "O3", "molecule cm-3", height_grid, 1e12, state->n_levels, &err);
+        register_profile_if_missing(state.get(), config_defined_profiles, "surface albedo", "none", wl_grid, 0.1, wl_sections, &err);
+        register_profile_if_missing(state.get(), config_defined_profiles, "extraterrestrial flux", "photon cm-2 s-1", wl_grid, 1.5e14, wl_sections, &err);
 
         // 4. Safely delete local grids as they are cloned/owned inside the GridMap
         Logger::debug(state.get(), "Deleting local height and wavelength grid pointers");
@@ -371,6 +359,26 @@ namespace catchem {
         if (radiators) {
             musica::DeleteRadiatorMap(radiators, &err);
             radiators = nullptr;
+        }
+    }
+
+    void PhotolysisProcess::register_profile_if_missing(
+        const StateManager* state,
+        const std::unordered_set<std::string>& config_defined_profiles,
+        const char* name,
+        const char* units,
+        musica::Grid* grid,
+        double default_val,
+        std::size_t num_vals,
+        musica::Error* err
+    ) {
+        if (config_defined_profiles.find(name) == config_defined_profiles.end()) {
+            Logger::debug(state, "Pre-registering missing profile", {{"name", name}, {"units", units}});
+            musica::Profile* new_prof = musica::CreateProfile(name, units, grid, err);
+            std::vector<double> dummy(num_vals, default_val);
+            musica::SetProfileMidpointValues(new_prof, dummy.data(), num_vals, err);
+            musica::AddProfile(profiles, new_prof, err);
+            musica::DeleteProfile(new_prof, err);
         }
     }
 
