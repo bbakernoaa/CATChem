@@ -1,9 +1,9 @@
 #include "catchem_api.hpp"
-#include "catchem_test_config.hpp"
 #include "catchem_core.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_process_registry.hpp"
 #include "catchem_state_manager.hpp"
+#include "catchem_test_config.hpp"
 #include <Kokkos_Core.hpp>
 #include <cassert>
 #include <cmath>
@@ -89,7 +89,8 @@ int main(int argc, char* argv[]) {
             std::string(catchem::test::SOURCE_DIR) + "/src/external/musica/configs/tuvx/from_host/config.json";
         assert(file_exists(photolysis_config) && "ERROR: Could not find photolysis config explicitly!");
 
-        std::string gaschem_config_dir = std::string(catchem::test::SOURCE_DIR) + "/src/external/musica/configs/v0/chapman/";
+        std::string gaschem_config_dir =
+            std::string(catchem::test::SOURCE_DIR) + "/src/external/musica/configs/v0/chapman/";
         assert((file_exists(gaschem_config_dir + "config.json") || file_exists(gaschem_config_dir + "config.yaml")) &&
                "ERROR: Could not find gaschem config dir explicitly!");
 
