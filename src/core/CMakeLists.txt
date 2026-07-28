@@ -56,6 +56,8 @@ if(ENABLE_KOKKOS)
     catchem_diagnostic.cpp
     catchem_config_manager.cpp
     catchem_grid_manager.cpp
+    catchem_state_manager.cpp
+    catchem_logger.cpp
   )
   add_library(CATChem_core_cpp STATIC ${_cpp_core_srcs})
   target_link_libraries(CATChem_core_cpp PUBLIC Kokkos::kokkos yaml-cpp)
