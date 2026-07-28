@@ -180,8 +180,10 @@ namespace catchem {
 
         // 4. Run standard CPU solver
         double tstep = state->time.timestep;
-        if (tstep <= 0.0)
-            tstep = 3600.0; // fallback default
+        if (tstep <= 0.0) {
+            std::cerr << "GasChemProcess: Error: invalid timestep: " << tstep << std::endl;
+            throw std::runtime_error("GasChemProcess: timestep must be greater than zero.");
+        }
         auto solver_result = micm_instance->Solve(micm_state.get(), tstep);
         if (solver_result.state_ != micm::SolverState::Converged &&
             solver_result.state_ != micm::SolverState::AcceptingUnconvergedIntegration) {
