@@ -76,43 +76,20 @@ int main(int argc, char* argv[]) {
         state->bind_met_field_3d("PMID", pedge.data()); // PMID maps to PMID in tests
         state->bind_met_field_3d("BXHEIGHT", bxheight.data());
 
-        // Load species metadata
-        std::string species_config = "";
-        std::vector<std::string> candidates = {"tests/Configs/Default/CATChem_species.yml",
-                                               "../tests/Configs/Default/CATChem_species.yml",
-                                               "../../tests/Configs/Default/CATChem_species.yml",
-                                               "Configs/Default/CATChem_species.yml",
-                                               "tests/CATChem_species.yml",
-                                               "../tests/CATChem_species.yml",
-                                               "../../tests/CATChem_species.yml",
-                                               "CATChem_species.yml"};
-        for (const auto& path : candidates) {
-            if (file_exists(path)) {
-                species_config = path;
-                break;
-            }
-        }
-        assert(!species_config.empty() && "ERROR: Could not find CATChem_species.yml");
+        // Load species metadata explicitly using compile definition
+        std::string species_config = std::string(CATCHEM_TEST_DIR) + "/Configs/Default/CATChem_species.yml";
+        assert(file_exists(species_config) && "ERROR: Could not find CATChem_species.yml at the explicit test directory location!");
         state->load_species_config(species_config);
         std::vector<double> conc_data(n_cols * n_levels * n_species, 1.0); // 1.0 ppmv initially
         state->bind_unified_chemistry(conc_data.data());
 
-        // 3. Resolve configs robustly
-        std::string photolysis_config = "src/external/musica/configs/tuvx/from_host/config.json";
-        if (!file_exists(photolysis_config)) {
-            photolysis_config = "../src/external/musica/configs/tuvx/from_host/config.json";
-        }
-        if (!file_exists(photolysis_config)) {
-            photolysis_config = "../../src/external/musica/configs/tuvx/from_host/config.json";
-        }
+        // 3. Resolve configs explicitly using compile definitions
+        std::string photolysis_config = std::string(CATCHEM_SOURCE_DIR) + "/src/external/musica/configs/tuvx/from_host/config.json";
+        assert(file_exists(photolysis_config) && "ERROR: Could not find photolysis config explicitly!");
 
-        std::string gaschem_config_dir = "src/external/musica/configs/v0/chapman/";
-        if (!file_exists(gaschem_config_dir + "config.json") && !file_exists(gaschem_config_dir + "config.yaml")) {
-            gaschem_config_dir = "../src/external/musica/configs/v0/chapman/";
-        }
-        if (!file_exists(gaschem_config_dir + "config.json") && !file_exists(gaschem_config_dir + "config.yaml")) {
-            gaschem_config_dir = "../../src/external/musica/configs/v0/chapman/";
-        }
+        std::string gaschem_config_dir = std::string(CATCHEM_SOURCE_DIR) + "/src/external/musica/configs/v0/chapman/";
+        assert((file_exists(gaschem_config_dir + "config.json") || file_exists(gaschem_config_dir + "config.yaml")) && 
+               "ERROR: Could not find gaschem config dir explicitly!");
 
         std::string temp_main_coupled_config = "test_main_coupled_config.yml";
         std::ofstream main_conf_writer(temp_main_coupled_config);

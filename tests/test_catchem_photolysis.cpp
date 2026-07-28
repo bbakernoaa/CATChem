@@ -75,14 +75,8 @@ int main(int argc, char* argv[]) {
         state->bind_met_field_3d("PEDGE", pedge.data());
         state->bind_met_field_3d("BXHEIGHT", bxheight.data());
 
-        // 4. Resolve the relative TUV-x configuration file path robustly
-        std::string config_path = "src/external/musica/configs/tuvx/from_host/config.json";
-        if (!file_exists(config_path)) {
-            config_path = "../src/external/musica/configs/tuvx/from_host/config.json";
-        }
-        if (!file_exists(config_path)) {
-            config_path = "../../src/external/musica/configs/tuvx/from_host/config.json";
-        }
+        // 4. Resolve the TUV-x configuration file path explicitly using compile definition
+        std::string config_path = std::string(CATCHEM_SOURCE_DIR) + "/src/external/musica/configs/tuvx/from_host/config.json";
 
         std::cout << "DEBUG: Using TUV-x config path: " << config_path << std::endl;
         assert(file_exists(config_path) &&
