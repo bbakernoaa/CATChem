@@ -1,4 +1,5 @@
 #include "catchem_api.hpp"
+#include "catchem_test_config.hpp"
 #include "catchem_core.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_process_registry.hpp"
@@ -74,9 +75,9 @@ int main(int argc, char* argv[]) {
         state->bind_met_field_3d("PEDGE", pedge.data());
         state->bind_met_field_3d("BXHEIGHT", bxheight.data());
 
-        // 4. Resolve the TUV-x configuration file path explicitly using compile definition
+        // 4. Resolve the TUV-x configuration file path explicitly using configured header
         std::string config_path =
-            std::string(CATCHEM_SOURCE_DIR) + "/src/external/musica/configs/tuvx/from_host/config.json";
+            std::string(catchem::test::SOURCE_DIR) + "/src/external/musica/configs/tuvx/from_host/config.json";
 
         std::cout << "DEBUG: Using TUV-x config path: " << config_path << std::endl;
         assert(file_exists(config_path) &&
