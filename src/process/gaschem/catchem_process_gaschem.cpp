@@ -187,8 +187,10 @@ namespace catchem {
         auto solver_result = micm_instance->Solve(micm_state.get(), tstep);
         if (solver_result.state_ != micm::SolverState::Converged &&
             solver_result.state_ != micm::SolverState::AcceptingUnconvergedIntegration) {
-            std::cerr << "GasChemProcess: Warning: MICM Solver did not reach convergence! Final state: "
+            std::cerr << "GasChemProcess: Error: MICM Solver did not reach convergence! Final state: "
                       << micm::SolverStateToString(solver_result.state_) << std::endl;
+            throw std::runtime_error("GasChemProcess: MICM Solver failed to reach convergence or acceptable state: " +
+                                     micm::SolverStateToString(solver_result.state_));
         }
 
         // 5. Convert output concentrations back: mol/m3 -> ppmv
