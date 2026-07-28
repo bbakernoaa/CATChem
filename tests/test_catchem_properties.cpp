@@ -51,6 +51,13 @@ int main(int argc, char* argv[]) {
         std::cout << "=== RUNNING RANDOMIZED PROPERTY TESTS ===" << std::endl;
         std::cout << "==========================================\n" << std::endl;
 
+        // Verify Trace ID Generation
+        {
+            auto test_state = std::make_shared<catchem::StateManager>(4, 10, 50);
+            assert(test_state->trace_id.length() == 8);
+            assert(!test_state->trace_id.empty());
+        }
+
         // Register All C++ Modern Process Handlers
         catchem_register_seasalt_cpp();
         catchem_register_drydep_cpp();

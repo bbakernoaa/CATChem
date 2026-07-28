@@ -23,6 +23,7 @@ namespace catchem {
         int n_species;
 
         std::string config_file_path;
+        std::string trace_id;
 
         std::shared_ptr<ConfigManager> config_mgr;
         std::shared_ptr<DiagnosticManager> diag_mgr;
@@ -36,7 +37,7 @@ namespace catchem {
         ChemState chem;
         TimeState time;
 
-        StateManager(int nc, int nl, int ns) : n_cols(nc), n_levels(nl), n_species(ns) {}
+        StateManager(int nc, int nl, int ns);
 
         void load_species_config(const std::string& filename) { chem.load_species_config(filename); }
 
