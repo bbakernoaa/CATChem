@@ -95,10 +95,10 @@ int main(int argc, char* argv[]) {
         std::ofstream main_conf_writer(temp_main_coupled_config);
         main_conf_writer << "process:\n";
         main_conf_writer << "  photolysis:\n";
-        main_conf_writer << "    activate: true\n";
+        main_conf_writer << "    active: true\n";
         main_conf_writer << "    config_file: \"" << photolysis_config << "\"\n";
         main_conf_writer << "  gaschem:\n";
-        main_conf_writer << "    activate: true\n";
+        main_conf_writer << "    active: true\n";
         main_conf_writer << "    config_dir: \"" << gaschem_config_dir << "\"\n";
         main_conf_writer.close();
 
