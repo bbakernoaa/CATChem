@@ -3,8 +3,7 @@
 
 namespace catchem {
 
-    StateManager::StateManager(int nc, int nl, int ns)
-        : n_cols(nc), n_levels(nl), n_species(ns) {
+    StateManager::StateManager(int nc, int nl, int ns) : n_cols(nc), n_levels(nl), n_species(ns) {
         // Generate standard 8-character trace id (alphanumeric random)
         static const char alphanum[] = "0123456789abcdefghijklmnopqrstuvwxyz";
         trace_id = "";

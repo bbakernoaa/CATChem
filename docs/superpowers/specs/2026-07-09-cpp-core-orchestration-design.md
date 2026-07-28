@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary & Goals
 
-The CATChem core is undergoing modernization to transition all memory management, physical calculations, configuration loading, and process scheduling from a legacy Fortran structure to a modern, high-performance C++20 standard using Kokkos. 
+The CATChem core is undergoing modernization to transition all memory management, physical calculations, configuration loading, and process scheduling from a legacy Fortran structure to a modern, high-performance C++20 standard using Kokkos.
 
 To maintain binary and source-level compatibility with FV3 host models and the ESMF/NUOPC Cap drivers, we are implementing a **C++ Delegate Wrapper Pattern**. This pattern strips the remaining Fortran modules of physical calculations, state storage, and custom allocations, converting them into zero-overhead compatibility proxies.
 
@@ -54,8 +54,8 @@ namespace catchem {
             int y = year + 4800 - a;
             int m = month + 12 * a - 3;
             int jdn = day + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045;
-            
-            julian_date = static_cast<double>(jdn) - 0.5 + 
+
+            julian_date = static_cast<double>(jdn) - 0.5 +
                           (hour + minute / 60.0 + second / 3600.0) / 24.0;
 
             const int days_per_month[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
@@ -125,7 +125,7 @@ namespace catchem {
 
             double time_offset = eqtime + 4.0 * lon_deg;
             double true_solar_time = frac_hour * 60.0 + time_offset;
-            double cos_sza = std::sin(lat_rad) * std::sin(dec) + 
+            double cos_sza = std::sin(lat_rad) * std::sin(dec) +
                              std::cos(lat_rad) * std::cos(dec) * std::cos(((true_solar_time / 4.0) - 180.0) * constants::PI_180);
             return std::max(-1.0, std::min(1.0, cos_sza));
         }

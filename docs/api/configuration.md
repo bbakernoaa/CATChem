@@ -98,7 +98,7 @@ Developers fetch parameters directly inside process initialization blocks using 
 ```cpp
 void DryDepProcess::init(std::shared_ptr<StateManager> state) {
     auto config_mgr = state->get_config_manager();
-    
+
     // Type-safe parameter retrieval with default value
     double scale_factor = config_mgr->get_parameter<double>("processes.dry_dep.scale_factor", 1.0);
     bool check_mass = config_mgr->get_parameter<bool>("processes.dry_dep.check_mass_conservation", false);

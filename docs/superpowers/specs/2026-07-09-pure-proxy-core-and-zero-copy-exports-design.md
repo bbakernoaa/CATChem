@@ -21,7 +21,7 @@ call get_cpp_field(this%cpp_ptr, "T", ptr%T, [nx, ny, nz], rc)
 In standard Fortran 2003/2008, re-associating an active pointer to another address via `c_f_pointer` or pointer assignment silently orphans the previously allocated heap segment, causing **massive memory leaks on every execution block**.
 
 ### The Solution: The Pure Proxy Core
-We will transition both `MetStateType` and `ChemStateType` to **Perfect Stateless Proxies**. 
+We will transition both `MetStateType` and `ChemStateType` to **Perfect Stateless Proxies**.
 1. **0% Fortran Allocations:** Fortran will allocate exactly zero bytes of local memory for physical variables. All pointer-member arrays remain null until bound dynamically to C++ host views.
 2. **Zero-Copy Coupled Exports:** Because the ESMF/NUOPC Cap now binds the framework's output fields directly to the C++ core StateManager and chemical concentration views, we completely bypass the need to copy tracer outputs or final tendencies back and forth at the end of coupling steps. C++ writes outputs **directly to ESMF/CCPP export buffers in-place**.
 
@@ -53,7 +53,7 @@ Similarly, we will purge local allocations for species descriptors inside the co
 subroutine chemstate_init(this, max_species, error_mgr, rc, grid)
    class(ChemStateType), intent(inout) :: this
    type(GridGeometryType), pointer, optional, intent(in) :: grid
-   
+
    this%State = 'Chem'
    this%nSpecies = 0
    if (present(grid)) this%Grid => grid
@@ -65,7 +65,7 @@ end subroutine chemstate_init
 
 ## 3. Zero-Copy Coupled Exports Specification
 
-Since `chem_state%ChemSpecies(s)%conc` slices point directly to C++ unified chemistry layout views, which the ESMF Cap binds directly to ESMF standard array addresses at startup, **no copying of final concentration outputs is required**. 
+Since `chem_state%ChemSpecies(s)%conc` slices point directly to C++ unified chemistry layout views, which the ESMF Cap binds directly to ESMF standard array addresses at startup, **no copying of final concentration outputs is required**.
 
 Inside `transform_catchem_to_field` inside `catchem_nuopc_interface.F90`:
 * Standard trace-gas concentrations (`fptr4d`) are **automatically updated in-place** inside ESMF buffers.

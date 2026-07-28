@@ -1,8 +1,9 @@
 // src/process/gaschem/catchem_process_gaschem.cpp
 #include "catchem_process_gaschem.hpp"
 #include "catchem_diagnostic_manager.hpp"
-#include "catchem_process_registry.hpp"
 #include "catchem_logger.hpp"
+#include "catchem_constants.hpp"
+#include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <cctype>
 #include <iostream>
@@ -26,7 +27,8 @@ namespace catchem {
             } catch (const std::exception& e) {
                 std::cerr << "GasChemProcess: Error: failed to parse config from ConfigManager: " << e.what()
                           << std::endl;
-                throw std::runtime_error(std::string("GasChemProcess: failed to parse config from ConfigManager: ") + e.what());
+                throw std::runtime_error(std::string("GasChemProcess: failed to parse config from ConfigManager: ") +
+                                         e.what());
             }
         } else if (!state->config_file_path.empty()) {
             try {
@@ -75,9 +77,8 @@ namespace catchem {
                 for (auto& c : name)
                     c = std::toupper(c);
                 if (variable_map.find(name) == variable_map.end()) {
-                    Logger::warn(state.get(), "Active species not found in MICM solver variable map", {
-                        {"species", name}
-                    });
+                    Logger::warn(state.get(), "Active species not found in MICM solver variable map",
+                                 {{"species", name}});
                 }
             }
         } catch (const std::exception& e) {
@@ -116,8 +117,8 @@ namespace catchem {
         auto rate_param_map = micm_state->GetRateParameterMap();
         size_t n_rate_params = rate_param_map.size();
 
-        // Dry air molecular weight in kg/mol
-        const double air_mw_kg = 0.0289644;
+        // Dry air molecular weight in kg/mol (sourced from catchem::constants)
+        constexpr double air_mw_kg = catchem::constants::AIR_MW * 1.0e-3;
 
         // 2. Map environmental variables and input concentrations to state
         for (int ilev = 0; ilev < nl; ++ilev) {
@@ -194,17 +195,14 @@ namespace catchem {
         // 4. Run standard CPU solver
         double tstep = state->time.timestep;
         if (tstep <= 0.0) {
-            Logger::error(state.get(), "Invalid timestep encountered", {
-                {"timestep", std::to_string(tstep)}
-            });
+            Logger::error(state.get(), "Invalid timestep encountered", {{"timestep", std::to_string(tstep)}});
             throw std::runtime_error("GasChemProcess: timestep must be greater than zero.");
         }
         auto solver_result = micm_instance->Solve(micm_state.get(), tstep);
         if (solver_result.state_ != micm::SolverState::Converged &&
             solver_result.state_ != micm::SolverState::AcceptingUnconvergedIntegration) {
-            Logger::error(state.get(), "MICM Solver did not reach convergence!", {
-                {"final_state", micm::SolverStateToString(solver_result.state_)}
-            });
+            Logger::error(state.get(), "MICM Solver did not reach convergence!",
+                          {{"final_state", micm::SolverStateToString(solver_result.state_)}});
             throw std::runtime_error("GasChemProcess: MICM Solver failed to reach convergence or acceptable state: " +
                                      micm::SolverStateToString(solver_result.state_));
         }

@@ -42,16 +42,16 @@ namespace catchem {
     class ProcessInterface {
     public:
         virtual ~ProcessInterface() = default;
-        
+
         // Returns the lowercase string identifier of the process (using catchem::ProcessNames)
         virtual std::string get_name() const = 0;
-        
+
         // Allocates local resources and binds config parameters
         virtual void init(std::shared_ptr<StateManager> state) = 0;
-        
+
         // Executes physical/chemical calculations
         virtual void run(std::shared_ptr<StateManager> state) = 0;
-        
+
         // Cleans up heap memory and releases resources
         virtual void finalize() = 0;
     };
@@ -69,11 +69,11 @@ void MyProcess::run(std::shared_ptr<StateManager> state) {
     auto n_levels = state->n_levels;
 
     // Parallel-for over 1D columns using Kokkos
-    Kokkos::parallel_for("MyProcessLoop", Kokkos::RangePolicy<Kokkos::HostSpace>(0, n_cols), 
+    Kokkos::parallel_for("MyProcessLoop", Kokkos::RangePolicy<Kokkos::HostSpace>(0, n_cols),
         [=](const int icol) {
             // Slice 3D fields to 1D columns with zero copy
             auto col_temp = Kokkos::subview(state->met.temp, icol, Kokkos::ALL(), 0);
-            
+
             for (int k = 0; k < n_levels; ++k) {
                 // Perform levels calculations
                 process_level(col_temp(k));
@@ -188,7 +188,7 @@ namespace catchem {
         std::string name;
         void (*fortran_run_callback)(void*); // Pointer to raw Fortran subroutine
     public:
-        FortranProcess(const std::string& n, void (*cb)(void*)) 
+        FortranProcess(const std::string& n, void (*cb)(void*))
             : name(n), fortran_run_callback(cb) {}
 
         std::string get_name() const override { return name; }
@@ -223,7 +223,7 @@ Processes load configuration settings in their `init` method by querying the thr
 void GasChemProcess::init(std::shared_ptr<StateManager> state) {
     // Obtain configuration path
     std::string config_dir = state->config_dir;
-    
+
     // Parse using yaml-cpp
     YAML::Node config = YAML::LoadFile(config_dir + "/micm_config.yaml");
     double absolute_tolerance = config["absolute_tolerance"].as<double>(1e-12);
@@ -236,10 +236,10 @@ Processes write diagnostics directly into pre-allocated memory buffers in the `D
 ```cpp
 void PhotolysisProcess::run(std::shared_ptr<StateManager> state) {
     auto diag_mgr = state->get_diagnostic_manager();
-    
+
     // Retrieve direct pointer address of registered diagnostic field
     double* jrate_ptr = diag_mgr->get_field_pointer("photolysis_rate_jfoo");
-    
+
     // Write directly into diagnostic buffer
     jrate_ptr[cell_idx] = calculated_jrate;
 }
@@ -267,4 +267,3 @@ void PhotolysisProcess::run(std::shared_ptr<StateManager> state) {
 - [Configuration API](configuration.md) - C++ YAML Configuration Manager
 - [GasChem Process Documentation](../processes/gaschem/index.md) - Details on C++ MICM solver integration
 - [Photolysis Process Documentation](../processes/photolysis/index.md) - Details on C++ TUV-x engine integration
-

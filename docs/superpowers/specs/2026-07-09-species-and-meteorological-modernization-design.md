@@ -86,14 +86,14 @@ extern "C" {
     void catchem_state_get_species_name_at(void* state_ptr, int index, char* name_out);
     void catchem_state_get_species_long_name_at(void* state_ptr, int index, char* name_out);
     void catchem_state_get_species_desc_at(void* state_ptr, int index, char* desc_out);
-    
+
     double catchem_state_get_species_mw(void* state_ptr, int index);
     double catchem_state_get_species_density(void* state_ptr, int index);
     double catchem_state_get_species_radius(void* state_ptr, int index);
     double catchem_state_get_species_lower_radius(void* state_ptr, int index);
     double catchem_state_get_species_upper_radius(void* state_ptr, int index);
     double catchem_state_get_species_viscosity(void* state_ptr, int index);
-    
+
     int catchem_state_is_species_gas(void* state_ptr, int index);
     int catchem_state_is_species_aerosol(void* state_ptr, int index);
     int catchem_state_get_species_is_tracer(void* state_ptr, int index);

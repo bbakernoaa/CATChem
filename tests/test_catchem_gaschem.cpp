@@ -6,10 +6,10 @@
 #include <Kokkos_Core.hpp>
 #include <cassert>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <vector>
-#include <filesystem>
 
 extern "C" {
 void catchem_register_photolysis_cpp();
@@ -77,17 +77,19 @@ int main(int argc, char* argv[]) {
 
         // Load species metadata explicitly using compile definition
         std::string species_config = std::string(CATCHEM_TEST_DIR) + "/Configs/Default/CATChem_species.yml";
-        assert(file_exists(species_config) && "ERROR: Could not find CATChem_species.yml at the explicit test directory location!");
+        assert(file_exists(species_config) &&
+               "ERROR: Could not find CATChem_species.yml at the explicit test directory location!");
         state->load_species_config(species_config);
         std::vector<double> conc_data(n_cols * n_levels * n_species, 1.0); // 1.0 ppmv initially
         state->bind_unified_chemistry(conc_data.data());
 
         // 3. Resolve configs explicitly using compile definitions
-        std::string photolysis_config = std::string(CATCHEM_SOURCE_DIR) + "/src/external/musica/configs/tuvx/from_host/config.json";
+        std::string photolysis_config =
+            std::string(CATCHEM_SOURCE_DIR) + "/src/external/musica/configs/tuvx/from_host/config.json";
         assert(file_exists(photolysis_config) && "ERROR: Could not find photolysis config explicitly!");
 
         std::string gaschem_config_dir = std::string(CATCHEM_SOURCE_DIR) + "/src/external/musica/configs/v0/chapman/";
-        assert((file_exists(gaschem_config_dir + "config.json") || file_exists(gaschem_config_dir + "config.yaml")) && 
+        assert((file_exists(gaschem_config_dir + "config.json") || file_exists(gaschem_config_dir + "config.yaml")) &&
                "ERROR: Could not find gaschem config dir explicitly!");
 
         std::string temp_main_coupled_config = "test_main_coupled_config.yml";

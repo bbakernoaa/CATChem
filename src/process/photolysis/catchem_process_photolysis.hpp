@@ -19,16 +19,10 @@ namespace catchem {
         musica::ProfileMap* profiles = nullptr;
         musica::RadiatorMap* radiators = nullptr;
 
-        void register_profile_if_missing(
-            const StateManager* state,
-            const std::unordered_set<std::string>& config_defined_profiles,
-            const char* name,
-            const char* units,
-            musica::Grid* grid,
-            double default_val,
-            std::size_t num_vals,
-            musica::Error* err
-        );
+        void register_profile_if_missing(const StateManager* state,
+                                         const std::unordered_set<std::string>& config_defined_profiles,
+                                         const char* name, const char* units, musica::Grid* grid, double default_val,
+                                         std::size_t num_vals, musica::Error* err);
 
     public:
         PhotolysisProcess();

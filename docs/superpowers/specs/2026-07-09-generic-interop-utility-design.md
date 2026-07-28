@@ -1,7 +1,7 @@
 # Design Spec: Generic Fortran-C-C++ Interop Pointer Utility
 
 ## 1. Executive Summary
-This design replaces the complex Python-driven macro generators (`generate_metstate_macros.py`) and verbose static accessors with a generic runtime pointer-association utility (`Interop_Mod.F90`). 
+This design replaces the complex Python-driven macro generators (`generate_metstate_macros.py`) and verbose static accessors with a generic runtime pointer-association utility (`Interop_Mod.F90`).
 
 Leveraging standard Fortran `iso_c_binding` and `c_f_pointer`, we dynamically map raw C++ host-allocated heap addresses to Fortran pointer slices at runtime based on string-name lookups. This achieves 100% core C++ single-source-of-truth orchestration while preserving backward-compatible type-bound procedure signatures expected by upstream unported ESMF and NUOPC Caps.
 
@@ -167,7 +167,7 @@ By routing through `Interop_Mod`, we rewrite type-bound getters in `metstate_mod
 
       ! Determine grid bounds
       call this%geometry%get_dimensions(nx, ny, nz)
-      
+
       ! Handles PEDGE fields with nz + 1 levels
       nl = nz
       if (trim(field_name) == "PEDGE" .or. trim(field_name) == "PFILSAN" .or. trim(field_name) == "PFLLSAN") then

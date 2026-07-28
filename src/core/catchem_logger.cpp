@@ -1,9 +1,9 @@
 #include "catchem_logger.hpp"
-#include <iostream>
 #include <chrono>
-#include <iomanip>
-#include <sstream>
 #include <cstdlib>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 #include <unistd.h>
 
 namespace catchem {
@@ -48,10 +48,14 @@ namespace catchem {
 
         std::string colored_level(level);
         if (color) {
-            if (level == "DEBUG") colored_level = "\033[36mDEBUG\033[0m"; // Cyan
-            else if (level == "INFO ") colored_level = "\033[32mINFO \033[0m"; // Green
-            else if (level == "WARN ") colored_level = "\033[33mWARN \033[0m"; // Yellow
-            else if (level == "ERROR") colored_level = "\033[31mERROR\033[0m"; // Red
+            if (level == "DEBUG")
+                colored_level = "\033[36mDEBUG\033[0m"; // Cyan
+            else if (level == "INFO ")
+                colored_level = "\033[32mINFO \033[0m"; // Green
+            else if (level == "WARN ")
+                colored_level = "\033[33mWARN \033[0m"; // Yellow
+            else if (level == "ERROR")
+                colored_level = "\033[31mERROR\033[0m"; // Red
         }
 
         // 3. Assemble Service Name (exactly 15 chars, left-justified)
@@ -60,7 +64,8 @@ namespace catchem {
 
         // 4. Assemble Trace ID (exactly 8 chars)
         std::string trace = (state && !state->trace_id.empty()) ? state->trace_id : "global  ";
-        if (trace.length() < 8) trace.append(8 - trace.length(), ' ');
+        if (trace.length() < 8)
+            trace.append(8 - trace.length(), ' ');
 
         // 5. Build full golden prefix
         std::ostringstream out;

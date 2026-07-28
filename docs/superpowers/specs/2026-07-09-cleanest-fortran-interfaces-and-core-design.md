@@ -23,7 +23,7 @@ Previously, standard Fortran allocated millions of redundant array elements on t
     ```fortran
     if (.not. associated(this%T)) allocate(this%T(nx, ny, nz))
     ```
-*   **The Result:** 
+*   **The Result:**
     *   **In Standalone Tests:** Pointers are null, so Fortran safely allocates heap memory to keep unit tests compilable.
     *   **In Unified Production Runs:** Pointers are already mapped to C++, so Fortran bypasses heap allocations entirely. Pointers remain 100% mapped to C++ unmanaged layout-left views, completely plugging the silent memory leak and saving massive memory overhead.
     *   **Purged 11 Unused Arrays:** Completely deleted all duplicate index-mapping arrays inside `ChemStateType` (such as `SpeciesIndex`, `TracerIndex`, etc.), reducing `chemstate_mod.F90` to a thin metadata delegate.
@@ -41,7 +41,7 @@ call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var) // c_null_cha
 ```
 
 ### B. Zero-Copy Exports
-Since the Cap previously bound ESMF's 4D chemical tracers array (`fptr4d`) directly to C++ unified concentration views, **C++ writes updated concentrations directly into ESMF's active buffers in-place!** 
+Since the Cap previously bound ESMF's 4D chemical tracers array (`fptr4d`) directly to C++ unified concentration views, **C++ writes updated concentrations directly into ESMF's active buffers in-place!**
 *   We completely deleted the redundant copying loops and temporary arrays (`cc_conc` / `fptr4d_rev`). The Cap now performs **exactly 0 element copies for all chemical tracers during coupled exporting**, only copying the diagnostic aerosol slots (PM2.5/PM10) computed in C++.
 
 ---

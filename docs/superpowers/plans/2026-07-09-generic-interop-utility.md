@@ -201,12 +201,12 @@ In `StateManager_Mod.F90`, update `state_mgr_get_met_state_ptr` to automatically
       class(StateManagerType), intent(in) :: this
       type(MetStateType), pointer :: ptr
       integer :: rc, nx, ny, nz, nl
-      
+
       ptr => this%met_state
       if (associated(ptr) .and. c_associated(this%cpp_ptr)) then
          ptr%cpp_ptr = this%cpp_ptr
          call ptr%geometry%get_dimensions(nx, ny, nz)
-         
+
          ! Associate key meteorological pointers dynamically!
          call get_cpp_field(this%cpp_ptr, "T", ptr%T, [nx, ny, nz], rc)
          call get_cpp_field(this%cpp_ptr, "QV", ptr%QV, [nx, ny, nz], rc)
@@ -216,7 +216,7 @@ In `StateManager_Mod.F90`, update `state_mgr_get_met_state_ptr` to automatically
          call get_cpp_field(this%cpp_ptr, "AIRDEN", ptr%AIRDEN, [nx, ny, nz], rc)
          call get_cpp_field(this%cpp_ptr, "AIRDEN_DRY", ptr%AIRDEN_DRY, [nx, ny, nz], rc)
          call get_cpp_field(this%cpp_ptr, "BXHEIGHT", ptr%BXHEIGHT, [nx, ny, nz], rc)
-         
+
          ! Associate 2D pointers
          call get_cpp_field(this%cpp_ptr, "PS", ptr%PS, [nx, ny], rc)
          call get_cpp_field(this%cpp_ptr, "TS", ptr%TS, [nx, ny], rc)
@@ -262,7 +262,7 @@ Refactor `metstate_get_column_ptr_subroutine` to dynamically retrieve pointers o
       nullify(col_ptr)
 
       call this%geometry%get_dimensions(nx, ny, nz)
-      
+
       nl = nz
       if (trim(field_name) == "PEDGE" .or. trim(field_name) == "PFILSAN" .or. trim(field_name) == "PFLLSAN") then
          nl = nz + 1

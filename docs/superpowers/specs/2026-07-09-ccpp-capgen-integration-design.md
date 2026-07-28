@@ -125,13 +125,13 @@ The driver queries and stores the dynamic index mapping of each registered speci
 
     ! 2. Parse and map each registered species to host tracer index
     n_spec = int(catchem_state_get_species_count(cc_model%get_state_manager()))
-    
+
     if (allocated(catchem_indices_constituent_props)) deallocate(catchem_indices_constituent_props)
     allocate(catchem_indices_constituent_props(n_spec))
 
     do i = 1, n_spec
        call catchem_state_get_species_name_at(cc_model%get_state_manager(), i, c_name)
-       
+
        call ccpp_const_get_idx(constituent_props_ptr, trim(c_name), &
                                catchem_indices_constituent_props(i), errmsg, errflg)
        if (errflg /= 0) then

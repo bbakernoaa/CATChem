@@ -6,10 +6,10 @@
 #include <Kokkos_Core.hpp>
 #include <cassert>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <vector>
-#include <filesystem>
 
 extern "C" {
 void catchem_register_photolysis_cpp();
@@ -75,7 +75,8 @@ int main(int argc, char* argv[]) {
         state->bind_met_field_3d("BXHEIGHT", bxheight.data());
 
         // 4. Resolve the TUV-x configuration file path explicitly using compile definition
-        std::string config_path = std::string(CATCHEM_SOURCE_DIR) + "/src/external/musica/configs/tuvx/from_host/config.json";
+        std::string config_path =
+            std::string(CATCHEM_SOURCE_DIR) + "/src/external/musica/configs/tuvx/from_host/config.json";
 
         std::cout << "DEBUG: Using TUV-x config path: " << config_path << std::endl;
         assert(file_exists(config_path) &&

@@ -75,7 +75,10 @@ add_test(
 # New C++ Interop and Integration Suite
 if(ENABLE_KOKKOS)
   add_executable(test_catchem_logger test_catchem_logger.cpp)
-  target_link_libraries(test_catchem_logger PRIVATE CATChem_core_cpp Kokkos::kokkos)
+  target_link_libraries(
+    test_catchem_logger
+    PRIVATE CATChem_core_cpp Kokkos::kokkos
+  )
   add_test(NAME test_catchem_logger COMMAND test_catchem_logger)
 
   add_executable(test_catchem_interop test_catchem_interop.cpp)

@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-This design specification details the porting and modernization of the GasChem (Model Independent Chemistry Module - MICM) process from its legacy Fortran wrapper framework (referencing PR #160) into a native C++ implementation within CATChem's modern core. 
+This design specification details the porting and modernization of the GasChem (Model Independent Chemistry Module - MICM) process from its legacy Fortran wrapper framework (referencing PR #160) into a native C++ implementation within CATChem's modern core.
 
 A primary objective of this integration is the creation of a direct, dynamic coupling channel between the newly-modernized **TUV-x Photolysis Process** and the **GasChem MICM solver**. Under this architecture, the C++ GasChem process dynamically maps MICM's `"PHOTO.<label>"` rate parameters to the photolysis midpoint $J$-rate diagnostics computed and stored in the global `DiagnosticManager` as `"photolysis_rate_<label>"`. This achieves a zero-hardcoding, fully dynamic, low-overhead coupling that supports any photolysis reactions defined in the chemistry mechanism.
 
@@ -80,7 +80,7 @@ Species concentrations are mapped bidirectionally:
 
 ## 4. Automatic Photolysis Coupling
 
-Dynamic coupling between the photolysis and gaschem processes is handled automatically. 
+Dynamic coupling between the photolysis and gaschem processes is handled automatically.
 
 During the run phase, the `GasChemProcess` iterates through the MICM rate parameter map (`state_->GetRateParameterMap()`). If a rate parameter matches the pattern `"PHOTO.<label>"`:
 1. It extracts the reaction `label` (e.g. `PHOTO.jfoo` $\rightarrow$ `jfoo`).

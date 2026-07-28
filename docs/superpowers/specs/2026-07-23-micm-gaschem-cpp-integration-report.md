@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-We have successfully completed the implementation and verification of the modernized, native C++ `GasChemProcess` inside the CATChem core. This native C++ process wraps the C++ Model Independent Chemistry Module (MICM) solver using the `musica` library and establishes a dynamic, zero-overhead photolysis-rate coupling channel with the TUV-x photolysis solver. 
+We have successfully completed the implementation and verification of the modernized, native C++ `GasChemProcess` inside the CATChem core. This native C++ process wraps the C++ Model Independent Chemistry Module (MICM) solver using the `musica` library and establishes a dynamic, zero-overhead photolysis-rate coupling channel with the TUV-x photolysis solver.
 
 All implementations are fully complete, compile with 100% success, and pass both property-based unit tests and coupled integration tests under CTest.
 

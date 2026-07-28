@@ -145,7 +145,7 @@ Implement the initialization lifecycle and boilerplate shell of `GasChemProcess`
 
       void GasChemProcess::init(std::shared_ptr<StateManager> state) {
           std::cout << "DEBUG: GasChemProcess::init started" << std::endl;
-          
+
           // 1. Resolve configuration directory path dynamically
           if (!state->config_file_path.empty()) {
               std::string path = state->config_file_path;
@@ -369,7 +369,7 @@ Add property-based mathematical invariants and unit tests verifying the correctn
   // Molar conversions test (VMR to molar density and reverse)
   void test_vmr_conversion_properties() {
       std::cout << "DEBUG: Running property-based mixing ratio tests" << std::endl;
-      
+
       const double air_mw_kg = 0.0289644;
       double test_densities[] = {1.2, 1.0, 0.8, 0.5}; // dry air density, kg/m3
       double test_vmrs[] = {100.0, 1.0, 1.0e-3, 1.0e-6}; // ppmv values
@@ -394,7 +394,7 @@ Add property-based mathematical invariants and unit tests verifying the correctn
   // Bounds & safe guards checks
   void test_value_safeguards() {
       std::cout << "DEBUG: Running boundary value tests" << std::endl;
-      
+
       double negative_val = -10.0;
       double bounded = (negative_val < 0.0) ? 1.0e-20 : negative_val;
       assert(bounded == 1.0e-20 && "Negative values must be safely bounded to prevent NaN.");
@@ -558,7 +558,7 @@ Build the final end-to-end integration test coupling TUV-x photolysis midpoint r
           // 6. Verify photolysis rate diagnostics calculation
           auto diag_mgr = core->get_diagnostic_manager();
           assert(diag_mgr->has_field("photolysis_rate_jfoo") && "TUV-x jfoo diagnostic must exist!");
-          
+
           double* jfoo_rates = static_cast<double*>(diag_mgr->get_host_pointer("photolysis_rate_jfoo"));
           assert(jfoo_rates != nullptr);
           assert(jfoo_rates[0] > 0.0 && "Photolysis rates must be non-zero at noon!");

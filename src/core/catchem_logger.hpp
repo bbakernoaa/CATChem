@@ -1,7 +1,7 @@
 #pragma once
 #include "catchem_state_manager.hpp"
-#include <string_view>
 #include <initializer_list>
+#include <string_view>
 #include <utility>
 
 namespace catchem {
@@ -16,7 +16,8 @@ namespace catchem {
         static void error(const StateManager* state, std::string_view message, ContextList context = {});
 
     private:
-        static void log(const StateManager* state, std::string_view level, std::string_view message, ContextList context);
+        static void log(const StateManager* state, std::string_view level, std::string_view message,
+                        ContextList context);
         static bool should_color(int fd);
     };
 

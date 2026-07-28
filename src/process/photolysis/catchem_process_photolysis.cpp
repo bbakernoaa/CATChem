@@ -1,19 +1,19 @@
 // src/process/photolysis/catchem_process_photolysis.cpp
 #include "catchem_process_photolysis.hpp"
 #include "catchem_diagnostic_manager.hpp"
-#include "catchem_process_registry.hpp"
 #include "catchem_logger.hpp"
+#include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <iostream>
-#include <sstream>
 #include <musica/tuvx/grid.hpp>
 #include <musica/tuvx/grid_map.hpp>
 #include <musica/tuvx/profile.hpp>
 #include <musica/tuvx/profile_map.hpp>
 #include <musica/tuvx/radiator_map.hpp>
 #include <musica/tuvx/tuvx_c_interface.hpp>
+#include <sstream>
 #include <unordered_set>
 #include <yaml-cpp/yaml.h>
 
@@ -33,7 +33,8 @@ namespace catchem {
             } catch (const std::exception& e) {
                 std::cerr << "PhotolysisProcess: Error: failed to parse config from ConfigManager: " << e.what()
                           << std::endl;
-                throw std::runtime_error(std::string("PhotolysisProcess: failed to parse config from ConfigManager: ") + e.what());
+                throw std::runtime_error(std::string("PhotolysisProcess: failed to parse config from ConfigManager: ") +
+                                         e.what());
             }
         } else if (!state->config_file_path.empty()) {
             try {
@@ -93,10 +94,8 @@ namespace catchem {
         musica::AddGrid(grids, height_grid, &err);
 
         Logger::debug(state.get(), "Selecting and configuring wavelength grid");
-        
-        static constexpr std::array<double, 6> edges_from_host = {
-            300.0, 400.0, 500.0, 600.0, 700.0, 800.0
-        };
+
+        static constexpr std::array<double, 6> edges_from_host = {300.0, 400.0, 500.0, 600.0, 700.0, 800.0};
 
         static constexpr std::array<double, 157> edges_standard = {
             120.0000, 121.4000, 121.9000, 122.3000, 123.1000, 123.8000, 124.6000, 125.4000, 126.2000, 127.0000,
@@ -114,8 +113,7 @@ namespace catchem {
             512.5000, 517.5000, 522.5000, 527.5000, 532.5000, 537.5000, 542.5000, 547.5000, 552.5000, 557.5000,
             562.5000, 567.5000, 572.5000, 577.5000, 582.5000, 587.5000, 592.5000, 597.5000, 602.5000, 607.5000,
             612.5000, 617.5000, 622.5000, 627.5000, 632.5000, 637.5000, 642.5000, 647.1000, 655.0000, 665.0000,
-            675.0000, 685.0000, 695.0000, 705.0000, 715.0000, 725.0000, 735.0000
-        };
+            675.0000, 685.0000, 695.0000, 705.0000, 715.0000, 725.0000, 735.0000};
 
         int wl_sections = 156;
         std::vector<double> wl_edges;
@@ -129,7 +127,8 @@ namespace catchem {
             wl_edges.assign(edges_standard.begin(), edges_standard.end());
         }
 
-        Logger::debug(state.get(), "Creating wavelength grid with specified sections", {{"sections", std::to_string(wl_sections)}});
+        Logger::debug(state.get(), "Creating wavelength grid with specified sections",
+                      {{"sections", std::to_string(wl_sections)}});
         musica::Grid* wl_grid = musica::CreateGrid("wavelength", "nm", wl_sections, &err);
         std::vector<double> wl_mids(wl_sections, 0.0);
         for (int i = 0; i < wl_sections; ++i) {
@@ -142,12 +141,18 @@ namespace catchem {
         musica::AddGrid(grids, wl_grid, &err);
 
         // 3. Register profiles safely only if missing from the config file definition
-        register_profile_if_missing(state.get(), config_defined_profiles, "temperature", "K", height_grid, 280.0, state->n_levels, &err);
-        register_profile_if_missing(state.get(), config_defined_profiles, "air", "molecule cm-3", height_grid, 1e12, state->n_levels, &err);
-        register_profile_if_missing(state.get(), config_defined_profiles, "O2", "molecule cm-3", height_grid, 1e12, state->n_levels, &err);
-        register_profile_if_missing(state.get(), config_defined_profiles, "O3", "molecule cm-3", height_grid, 1e12, state->n_levels, &err);
-        register_profile_if_missing(state.get(), config_defined_profiles, "surface albedo", "none", wl_grid, 0.1, wl_sections, &err);
-        register_profile_if_missing(state.get(), config_defined_profiles, "extraterrestrial flux", "photon cm-2 s-1", wl_grid, 1.5e14, wl_sections, &err);
+        register_profile_if_missing(state.get(), config_defined_profiles, "temperature", "K", height_grid, 280.0,
+                                    state->n_levels, &err);
+        register_profile_if_missing(state.get(), config_defined_profiles, "air", "molecule cm-3", height_grid, 1e12,
+                                    state->n_levels, &err);
+        register_profile_if_missing(state.get(), config_defined_profiles, "O2", "molecule cm-3", height_grid, 1e12,
+                                    state->n_levels, &err);
+        register_profile_if_missing(state.get(), config_defined_profiles, "O3", "molecule cm-3", height_grid, 1e12,
+                                    state->n_levels, &err);
+        register_profile_if_missing(state.get(), config_defined_profiles, "surface albedo", "none", wl_grid, 0.1,
+                                    wl_sections, &err);
+        register_profile_if_missing(state.get(), config_defined_profiles, "extraterrestrial flux", "photon cm-2 s-1",
+                                    wl_grid, 1.5e14, wl_sections, &err);
 
         // 4. Safely delete local grids as they are cloned/owned inside the GridMap
         Logger::debug(state.get(), "Deleting local height and wavelength grid pointers");
@@ -204,7 +209,8 @@ namespace catchem {
 
         musica::Error err;
         int num_reactions = photo_mappings.size_;
-        Logger::debug(state.get(), "Number of photolysis reactions mapped", {{"reactions", std::to_string(num_reactions)}});
+        Logger::debug(state.get(), "Number of photolysis reactions mapped",
+                      {{"reactions", std::to_string(num_reactions)}});
 
         Logger::debug(state.get(), "Fetching ProfileMap from TUVX instance");
         musica::ProfileMap* loaded_profiles = musica::GetProfileMap(tuvx_instance, &err);
@@ -234,7 +240,7 @@ namespace catchem {
         Logger::debug(state.get(), "Retrieving GridMap from TUVX instance");
         musica::GridMap* loaded_grids = musica::GetGridMap(tuvx_instance, &err);
         musica::Grid* height_grid = musica::GetGrid(loaded_grids, "height", "km", &err);
-        
+
         std::ostringstream grid_ss;
         grid_ss << height_grid;
         Logger::debug(state.get(), "height_grid retrieved", {{"ptr", grid_ss.str()}});
@@ -309,7 +315,8 @@ namespace catchem {
                 continue;
             }
 
-            Logger::debug(state.get(), "Copying midpoint-interpolated J-rates to diagnostics for column", {{"col", col_str}});
+            Logger::debug(state.get(), "Copying midpoint-interpolated J-rates to diagnostics for column",
+                          {{"col", col_str}});
             if (state->diag_mgr) {
                 for (size_t rx_idx = 0; rx_idx < photo_mappings.size_; ++rx_idx) {
                     std::string rx_name = photo_mappings.mappings_[rx_idx].name_.value_
@@ -362,16 +369,10 @@ namespace catchem {
         }
     }
 
-    void PhotolysisProcess::register_profile_if_missing(
-        const StateManager* state,
-        const std::unordered_set<std::string>& config_defined_profiles,
-        const char* name,
-        const char* units,
-        musica::Grid* grid,
-        double default_val,
-        std::size_t num_vals,
-        musica::Error* err
-    ) {
+    void PhotolysisProcess::register_profile_if_missing(const StateManager* state,
+                                                        const std::unordered_set<std::string>& config_defined_profiles,
+                                                        const char* name, const char* units, musica::Grid* grid,
+                                                        double default_val, std::size_t num_vals, musica::Error* err) {
         if (config_defined_profiles.find(name) == config_defined_profiles.end()) {
             Logger::debug(state, "Pre-registering missing profile", {{"name", name}, {"units", units}});
             musica::Profile* new_prof = musica::CreateProfile(name, units, grid, err);
@@ -386,7 +387,8 @@ namespace catchem {
 
 extern "C" {
 void catchem_register_photolysis_cpp() {
-    catchem::ProcessRegistry::get_instance().register_process(
-        std::string(catchem::ProcessNames::Photolysis), []() { return std::make_shared<catchem::PhotolysisProcess>(); });
+    catchem::ProcessRegistry::get_instance().register_process(std::string(catchem::ProcessNames::Photolysis), []() {
+        return std::make_shared<catchem::PhotolysisProcess>();
+    });
 }
 }

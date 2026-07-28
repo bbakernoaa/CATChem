@@ -1,6 +1,6 @@
 # Design Specification: Standardized Columnar Logging Architecture
 
-This document specifies the design, implementation, and integration of a standardized, human-readable logging architecture across CATChem. 
+This document specifies the design, implementation, and integration of a standardized, human-readable logging architecture across CATChem.
 
 ---
 

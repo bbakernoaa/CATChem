@@ -26,7 +26,7 @@
 
 - [ ] **Step 1: Modify catchem_state_manager.hpp**
   Add a `config_file_path` public string member variable to the `StateManager` class declaration to hold the main YAML config file path.
-  
+
   ```cpp
   // Add this inside the public section of class StateManager in src/core/catchem_state_manager.hpp
   std::string config_file_path;
@@ -34,7 +34,7 @@
 
 - [ ] **Step 2: Modify catchem_core.cpp**
   Propagate the `config_file` parameter to `state_mgr->config_file_path` inside the `Core` constructor.
-  
+
   ```cpp
   // Inside Core::Core(const std::string& config_file) in src/core/catchem_core.cpp, set:
   state_mgr->config_file_path = config_file;
@@ -42,7 +42,7 @@
 
 - [ ] **Step 3: Verification**
   Run CMake configure to verify the changes don't break existing compilation.
-  
+
   Run: `docker run --rm -v $(pwd):/opt/catchem/src ufschem-spack-base-ubuntu-gcc-13-dev:latest /bin/bash -c "source /opt/ufschem/spack-stack/setup.sh && spack env activate ufschem && cd /opt/catchem/src && mkdir -p build-test && cd build-test && cmake .. -DCATCHEM_BUILD_TESTING=ON && make -j2 catchem_core"`
   Expected: Successful compilation of the CATChem core library.
 
@@ -66,7 +66,7 @@
 
 - [ ] **Step 1: Write catchem_process_photolysis.hpp**
   Declare the photolysis process interface class with its standard lifecycle hooks.
-  
+
   ```cpp
   // src/process/photolysis/catchem_process_photolysis.hpp
   #pragma once
@@ -99,7 +99,7 @@
 
 - [ ] **Step 2: Write stub catchem_process_photolysis.cpp**
   Define constructor, destructor, stub hooks, and the `extern "C"` registration entry.
-  
+
   ```cpp
   // src/process/photolysis/catchem_process_photolysis.cpp
   #include "catchem_process_photolysis.hpp"
@@ -135,7 +135,7 @@
 
 - [ ] **Step 3: Verification**
   Verify the syntax of newly created header and source files.
-  
+
   Run: `g++ -std=c++20 -Isrc/core -Isrc/external/musica/include -c src/process/photolysis/catchem_process_photolysis.cpp -o /tmp/photo_stub.o && rm /tmp/photo_stub.o`
   Expected: Successful compilation without syntax errors.
 
@@ -158,7 +158,7 @@
 
 - [ ] **Step 1: Add yaml-cpp parsing & TUV-x creation to catchem_process_photolysis.cpp**
   Update the `init` method to read `state->config_file_path` and construct the `musica::TUVX` instance.
-  
+
   Replace `init` block in `src/process/photolysis/catchem_process_photolysis.cpp` with:
   ```cpp
   #include "catchem_diagnostic_manager.hpp"
@@ -202,8 +202,8 @@
           std::vector<int> dims_2d = {state->n_cols, state->n_levels};
           for (size_t i = 0; i < photo_mappings.size_; ++i) {
               std::string rx_name = photo_mappings.mappings_[i].name_;
-              state->diag_mgr->register_field("photolysis_rate_" + rx_name, 
-                                              "Photolysis rate for " + rx_name, 
+              state->diag_mgr->register_field("photolysis_rate_" + rx_name,
+                                              "Photolysis rate for " + rx_name,
                                               "s-1", DiagType::FIELD_2D, dims_2d);
           }
       }
@@ -229,7 +229,7 @@
 
 - [ ] **Step 1: Write solver run loop inside catchem_process_photolysis.cpp**
   Populate the `run` method to execute TUV-x column-by-column, map heights and densities, execute the solver, interpolate edge rates to midpoints, and populate diagnostic arrays.
-  
+
   Replace the `run` block in `src/process/photolysis/catchem_process_photolysis.cpp` with:
   ```cpp
   #include <cmath>
@@ -250,13 +250,13 @@
 
       musica::Error err;
       int num_reactions = tuvx_instance->GetPhotolysisRateConstantCount();
-      
+
       std::unique_ptr<musica::ProfileMap> profiles(tuvx_instance->GetProfileMap(&err));
       if (err.status_ != 0) {
           std::cerr << "PhotolysisProcess: Error getting ProfileMap: " << err.message_ << std::endl;
           return;
       }
-      
+
       musica::Profile* profile_air = profiles->GetProfile("air", "molecule cm-3", &err);
       musica::Profile* profile_o2  = profiles->GetProfile("O2", "molecule cm-3", &err);
       musica::Profile* profile_o3  = profiles->GetProfile("O3", "molecule cm-3", &err);
@@ -291,13 +291,13 @@
           std::vector<double> edge_heating_rates((state->n_levels + 1) * tuvx_instance->GetHeatingRateCount(), 0.0);
 
           tuvx_instance->Run(
-              sza_rad, 
-              1.0, 
+              sza_rad,
+              1.0,
               edge_photolysis_rates.data(),
               edge_heating_rates.data(),
-              nullptr, 
-              nullptr, 
-              nullptr, 
+              nullptr,
+              nullptr,
+              nullptr,
               &err);
 
           if (err.status_ != 0) {
@@ -353,7 +353,7 @@
 
 - [ ] **Step 1: Create src/process/photolysis/CMakeLists.txt**
   Configure the build targets.
-  
+
   ```cmake
   # src/process/photolysis/CMakeLists.txt
   add_library(catchem_process_photolysis STATIC
@@ -375,7 +375,7 @@
 
 - [ ] **Step 2: Modify src/process/CMakeLists.txt**
   Include the new photolysis folder in CMake.
-  
+
   ```cmake
   # Add this to src/process/CMakeLists.txt
   add_subdirectory(photolysis)
@@ -383,7 +383,7 @@
 
 - [ ] **Step 3: Verification**
   Reconfigure CMake and run target compilation using Docker.
-  
+
   Run: `docker run --rm -v $(pwd):/opt/catchem/src ufschem-spack-base-ubuntu-gcc-13-dev:latest /bin/bash -c "source /opt/ufschem/spack-stack/setup.sh && spack env activate ufschem && cd /opt/catchem/src && mkdir -p build-test && cd build-test && cmake .. -DCATCHEM_BUILD_TESTING=ON && make -j2 catchem_process_photolysis"`
   Expected: Successful compilation of `catchem_process_photolysis` library without errors.
 
@@ -407,7 +407,7 @@
 
 - [ ] **Step 1: Create test_catchem_photolysis.cpp**
   Set up the C++ integration and unit test.
-  
+
   ```cpp
   // tests/test_catchem_photolysis.cpp
   #include <gtest/gtest.h>
@@ -428,10 +428,10 @@
 
   TEST(PhotolysisTest, InitAndRun) {
       catchem_register_photolysis_cpp();
-      
+
       // Instantiate Core
       auto core = std::make_shared<catchem::Core>(1, 64, 5); // 1 column, 64 levels, 5 species
-      
+
       // Load standard Met State
       double temperature[64];
       double airden[64];
@@ -439,7 +439,7 @@
       double bxheight[64];
       double lat[1] = {40.0};
       double lon[1] = {-105.0};
-      
+
       for (int i = 0; i < 64; ++i) {
           temperature[i] = 280.0 - 0.5 * i;
           airden[i] = 1.2 * std::exp(-i / 10.0);
@@ -447,7 +447,7 @@
           pedge[i] = 101300.0 * std::exp(-i / 10.0);
       }
       pedge[64] = 101300.0 * std::exp(-64 / 10.0);
-      
+
       auto state = core->get_state_manager();
       state->bind_met_field_2d("LAT", lat);
       state->bind_met_field_2d("LON", lon);
@@ -455,19 +455,19 @@
       state->bind_met_field_3d("AIRDEN", airden);
       state->bind_met_field_3d("PEDGE", pedge);
       state->bind_met_field_3d("BXHEIGHT", bxheight);
-      
+
       // Add and run photolysis process
       auto process = catchem::ProcessRegistry::get_instance().create("photolysis");
       process->init(state);
       core->add_process(process);
-      
+
       // Run timestep
       core->run_timestep(60.0);
-      
+
       // Validate that photolysis diagnostic rates are initialized and populated (non-zero)
       double* o3_photo_rate = static_cast<double*>(core->get_diagnostic_manager()->get_host_pointer("photolysis_rate_O3+hv->O2+O(1D)"));
       EXPECT_NE(o3_photo_rate, nullptr);
-      
+
       // Ensure we have non-zero solar photolysis rates
       double sum_rates = 0.0;
       for (int i = 0; i < 64; ++i) {
@@ -484,7 +484,7 @@
 
 - [ ] **Step 2: Modify tests/CMakeLists.txt**
   Add our new test suite to CMake.
-  
+
   ```cmake
   # Add this to tests/CMakeLists.txt
   add_executable(test_catchem_photolysis test_catchem_photolysis.cpp)
@@ -499,7 +499,7 @@
 
 - [ ] **Step 3: Verification**
   Run our compilation and execution tests.
-  
+
   Run: `docker run --rm -v $(pwd):/opt/catchem/src ufschem-spack-base-ubuntu-gcc-13-dev:latest /bin/bash -c "source /opt/ufschem/spack-stack/setup.sh && spack env activate ufschem && cd /opt/catchem/src && mkdir -p build-test && cd build-test && cmake .. -DCATCHEM_BUILD_TESTING=ON && make -j2 test_catchem_photolysis && ctest -R test_catchem_photolysis --output-on-failure"`
   Expected: Compiled and passed the `test_catchem_photolysis` test.
 

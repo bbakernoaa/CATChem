@@ -21,7 +21,7 @@ graph TB
     C --> G["Diagnostic Manager (catchem::DiagnosticManager)"]
 
     D --> H["yaml-cpp Parser"]
-    
+
     E --> I["Unified Chem Concentrations (Kokkos Views)"]
     E --> J["Dynamic Met Registers (InteropField)"]
 
