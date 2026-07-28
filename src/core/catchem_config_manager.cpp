@@ -1,12 +1,13 @@
-// src/core/catchem_config_manager.cpp
 #include "catchem_config_manager.hpp"
 #include <iostream>
 
 namespace catchem {
 
     void ConfigManager::load_from_file(const std::string& filename) {
+        config_file_path = filename;
         try {
             YAML::Node config = YAML::LoadFile(filename);
+            root_node = config;
             if (config["simulation"]) {
                 auto sim = config["simulation"];
                 if (sim["nx"]) {

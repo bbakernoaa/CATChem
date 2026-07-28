@@ -1,5 +1,6 @@
 #pragma once
 #include "catchem_chem_state.hpp"
+#include "catchem_config_manager.hpp"
 #include "catchem_constants.hpp"
 #include "catchem_interop_field.hpp"
 #include "catchem_met_state.hpp"
@@ -21,6 +22,10 @@ namespace catchem {
         int n_levels;
         int n_species;
 
+        std::string config_file_path;
+        std::string trace_id;
+
+        std::shared_ptr<ConfigManager> config_mgr;
         std::shared_ptr<DiagnosticManager> diag_mgr;
 
         std::unordered_map<std::string, std::shared_ptr<InteropField<double, 1>>> fields_1d;
@@ -32,7 +37,7 @@ namespace catchem {
         ChemState chem;
         TimeState time;
 
-        StateManager(int nc, int nl, int ns) : n_cols(nc), n_levels(nl), n_species(ns) {}
+        StateManager(int nc, int nl, int ns);
 
         void load_species_config(const std::string& filename) { chem.load_species_config(filename); }
 

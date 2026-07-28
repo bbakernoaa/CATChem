@@ -989,6 +989,7 @@ CONTAINS
       integer :: nx, ny, nlev, col_i, col_j, rc
       real(fp), pointer :: full_3d(:,:,:)
       column_ptr => null()
+      full_3d => null()
       call this%get_dimensions(nx, ny, nlev)
       col_i = 1; col_j = 1
       if (present(i)) col_i = max(1, min(i, nx))
@@ -1004,34 +1005,38 @@ CONTAINS
 
       select case (to_upper(trim(field_name)))
        case ('T')
-         if (associated(this%T)) column_ptr => this%T(col_i, col_j, :)
+         if (associated(this%T)) full_3d => this%T
        case ('QV')
-         if (associated(this%QV)) column_ptr => this%QV(col_i, col_j, :)
+         if (associated(this%QV)) full_3d => this%QV
        case ('RH')
-         if (associated(this%RH)) column_ptr => this%RH(col_i, col_j, :)
+         if (associated(this%RH)) full_3d => this%RH
        case ('PMID')
-         if (associated(this%PMID)) column_ptr => this%PMID(col_i, col_j, :)
+         if (associated(this%PMID)) full_3d => this%PMID
        case ('PEDGE')
-         if (associated(this%PEDGE)) column_ptr => this%PEDGE(col_i, col_j, :)
+         if (associated(this%PEDGE)) full_3d => this%PEDGE
        case ('AIRDEN')
-         if (associated(this%AIRDEN)) column_ptr => this%AIRDEN(col_i, col_j, :)
+         if (associated(this%AIRDEN)) full_3d => this%AIRDEN
        case ('AIRDEN_DRY')
-         if (associated(this%AIRDEN_DRY)) column_ptr => this%AIRDEN_DRY(col_i, col_j, :)
+         if (associated(this%AIRDEN_DRY)) full_3d => this%AIRDEN_DRY
        case ('BXHEIGHT')
-         if (associated(this%BXHEIGHT)) column_ptr => this%BXHEIGHT(col_i, col_j, :)
+         if (associated(this%BXHEIGHT)) full_3d => this%BXHEIGHT
        case ('DELP')
-         if (associated(this%DELP)) column_ptr => this%DELP(col_i, col_j, :)
+         if (associated(this%DELP)) full_3d => this%DELP
        case ('DELP_DRY')
-         if (associated(this%DELP_DRY)) column_ptr => this%DELP_DRY(col_i, col_j, :)
+         if (associated(this%DELP_DRY)) full_3d => this%DELP_DRY
        case ('U')
-         if (associated(this%U)) column_ptr => this%U(col_i, col_j, :)
+         if (associated(this%U)) full_3d => this%U
        case ('V')
-         if (associated(this%V)) column_ptr => this%V(col_i, col_j, :)
+         if (associated(this%V)) full_3d => this%V
        case ('PFILSAN')
-         if (associated(this%PFILSAN)) column_ptr => this%PFILSAN(col_i, col_j, :)
+         if (associated(this%PFILSAN)) full_3d => this%PFILSAN
        case ('PFLLSAN')
-         if (associated(this%PFLLSAN)) column_ptr => this%PFLLSAN(col_i, col_j, :)
+         if (associated(this%PFLLSAN)) full_3d => this%PFLLSAN
       end select
+
+      if (associated(full_3d)) then
+         column_ptr => full_3d(col_i, col_j, :)
+      endif
    end function metstate_get_column_ptr_func
 
    !> Get a scalar value from a 2D field at (i,j)
@@ -1102,7 +1107,9 @@ CONTAINS
       integer, intent(in), optional :: i, j
       integer, pointer :: column_ptr(:)
       integer :: nx, ny, nlev, col_i, col_j
+      integer, pointer :: full_3d(:,:,:)
       column_ptr => null()
+      full_3d => null()
       call this%get_dimensions(nx, ny, nlev)
       col_i = 1; col_j = 1
       if (present(i)) col_i = max(1, min(i, nx))
@@ -1110,8 +1117,12 @@ CONTAINS
 
       select case (to_upper(trim(field_name)))
        case ('ILAND')
-         if (associated(this%ILAND)) column_ptr => this%ILAND(col_i, col_j, :)
+         if (associated(this%ILAND)) full_3d => this%ILAND
       end select
+
+      if (associated(full_3d)) then
+         column_ptr => full_3d(col_i, col_j, :)
+      endif
    end function metstate_get_column_ptr_func_int
 
    function metstate_get_2Dto0D_value_int(this, field_name, i, j) result(scalar_val)
@@ -1160,7 +1171,9 @@ CONTAINS
       integer, intent(in), optional :: i, j
       logical, pointer :: column_ptr(:)
       integer :: nx, ny, nlev, col_i, col_j
+      logical, pointer :: full_3d(:,:,:)
       column_ptr => null()
+      full_3d => null()
       call this%get_dimensions(nx, ny, nlev)
       col_i = 1; col_j = 1
       if (present(i)) col_i = max(1, min(i, nx))
@@ -1168,14 +1181,18 @@ CONTAINS
 
       select case (to_upper(trim(field_name)))
        case ('INSTRATMESO')
-         if (associated(this%InStratMeso)) column_ptr => this%InStratMeso(col_i, col_j, :)
+         if (associated(this%InStratMeso)) full_3d => this%InStratMeso
        case ('INSTRATOSPHERE')
-         if (associated(this%InStratosphere)) column_ptr => this%InStratosphere(col_i, col_j, :)
+         if (associated(this%InStratosphere)) full_3d => this%InStratosphere
        case ('INTROPOSPHERE')
-         if (associated(this%InTroposphere)) column_ptr => this%InTroposphere(col_i, col_j, :)
+         if (associated(this%InTroposphere)) full_3d => this%InTroposphere
        case ('INPBL')
-         if (associated(this%InPbl)) column_ptr => this%InPbl(col_i, col_j, :)
+         if (associated(this%InPbl)) full_3d => this%InPbl
       end select
+
+      if (associated(full_3d)) then
+         column_ptr => full_3d(col_i, col_j, :)
+      endif
    end function metstate_get_column_ptr_func_logical
 
    function metstate_get_2Dto0D_value_logical(this, field_name, i, j) result(scalar_val)

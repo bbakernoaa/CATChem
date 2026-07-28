@@ -107,6 +107,12 @@ namespace catchem {
         }
     }
 
+    void DiagnosticManager::sync_to_device() {
+        for (auto& [key, field] : fields) {
+            field->sync_to_device();
+        }
+    }
+
     void DiagnosticManager::reset_all() {
         for (auto& [key, field] : fields) {
             field->reset();
