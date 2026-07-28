@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <filesystem>
 
 extern "C" {
 void catchem_register_photolysis_cpp();
@@ -17,8 +18,7 @@ void catchem_register_gaschem_cpp();
 }
 
 bool file_exists(const std::string& name) {
-    std::ifstream f(name.c_str());
-    return f.good();
+    return std::filesystem::exists(name);
 }
 
 int main(int argc, char* argv[]) {
