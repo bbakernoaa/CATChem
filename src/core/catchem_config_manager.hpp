@@ -1,4 +1,3 @@
-// src/core/catchem_config_manager.hpp
 #pragma once
 #include <string>
 #include <string_view>

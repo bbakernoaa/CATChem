@@ -1,4 +1,3 @@
-// tests/test_catchem_gaschem.cpp
 #include "catchem_api.hpp"
 #include "catchem_core.hpp"
 #include "catchem_diagnostic_manager.hpp"

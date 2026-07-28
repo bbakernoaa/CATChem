@@ -1,4 +1,3 @@
-// src/core/catchem_config_manager.cpp
 #include "catchem_config_manager.hpp"
 #include <iostream>
 
