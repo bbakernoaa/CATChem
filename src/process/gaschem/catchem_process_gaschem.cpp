@@ -1,8 +1,8 @@
 // src/process/gaschem/catchem_process_gaschem.cpp
 #include "catchem_process_gaschem.hpp"
+#include "catchem_constants.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_logger.hpp"
-#include "catchem_constants.hpp"
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <cctype>
