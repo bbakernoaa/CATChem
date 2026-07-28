@@ -19,7 +19,7 @@ namespace catchem {
         GasChemProcess();
         ~GasChemProcess() override;
 
-        std::string get_name() const override { return "gaschem"; }
+        std::string get_name() const override { return std::string(ProcessNames::GasChem); }
 
         void init(std::shared_ptr<StateManager> state) override;
         void run(std::shared_ptr<StateManager> state) override;

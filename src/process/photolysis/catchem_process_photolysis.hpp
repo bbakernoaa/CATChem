@@ -22,7 +22,7 @@ namespace catchem {
         PhotolysisProcess();
         ~PhotolysisProcess() override;
 
-        std::string get_name() const override { return "photolysis"; }
+        std::string get_name() const override { return std::string(ProcessNames::Photolysis); }
 
         void init(std::shared_ptr<StateManager> state) override;
         void run(std::shared_ptr<StateManager> state) override;

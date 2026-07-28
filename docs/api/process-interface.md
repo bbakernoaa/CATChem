@@ -17,21 +17,33 @@ Under the modernized C++20 architecture, the Process Interface system provides:
 
 ### catchem::ProcessInterface
 
-The abstract C++ virtual base class that all native processes must implement:
+The abstract C++ virtual base class and unified process name identifiers that all native processes implement:
 
 ```cpp
 #pragma once
 #include "catchem_state_manager.hpp"
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace catchem {
+
+    // Centralized process identifier constants
+    struct ProcessNames {
+        static constexpr std::string_view GasChem = "gaschem";
+        static constexpr std::string_view Photolysis = "photolysis";
+        static constexpr std::string_view Settling = "settling";
+        static constexpr std::string_view Dust = "dust";
+        static constexpr std::string_view SeaSalt = "seasalt";
+        static constexpr std::string_view CarbChem = "carbchem";
+        static constexpr std::string_view SO4Chem = "so4chem";
+    };
 
     class ProcessInterface {
     public:
         virtual ~ProcessInterface() = default;
         
-        // Returns the lowercase string identifier of the process (e.g. "gaschem")
+        // Returns the lowercase string identifier of the process (using catchem::ProcessNames)
         virtual std::string get_name() const = 0;
         
         // Allocates local resources and binds config parameters

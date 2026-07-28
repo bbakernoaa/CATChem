@@ -38,6 +38,7 @@ When writing standard meteorological data pipelines, enforce these four competin
 * **High-Performance Vectorization:** Native Python loops are strictly forbidden for numerical operations. Use `xarray.apply_ufunc` with `dask='parallelized'` capability to natively support both eager and lazy backends simultaneously.
 
 ### B. Scientific Hygiene & Documentation
+* **Logging Over Print:** Always use the standard Python `logging` module (with appropriate log levels like `INFO`, `DEBUG`, or `ERROR`) instead of bare `print()` statements to support clean operational logs and robust stdout/stderr filtering.
 * **Documentation Standard:** Every function must feature a strict **NumPy-style docstring** detailing `Parameters`, `Returns`, and `Examples`.
 * **Type Hinting:** Use explicit modern type hints (e.g., `xarray.DataArray`, `xarray.Dataset`). Do not use specific internal backend types like `dask.array`.
 * **Provenance Tracking:** Always update metadata attributes (e.g., `ds.attrs['history']`) when modifying or transforming a dataset. Never drop coordinate variables or critical spatial dimensions during processing.

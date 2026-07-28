@@ -21,30 +21,24 @@ The C++ class responsible for parsing the main configuration file:
 ```cpp
 #pragma once
 #include <string>
+#include <string_view>
 #include <yaml-cpp/yaml.h>
 
 namespace catchem {
 
     class ConfigManager {
-    private:
-        YAML::Node root_node;
-        std::string file_path;
     public:
-        ConfigManager(const std::string& path) : file_path(path) {
-            root_node = YAML::LoadFile(path);
-        }
+        ConfigData data;
+        YAML::Node root_node;
+        bool is_loaded = false;
+        std::string config_file_path;
 
-        template<typename T>
-        T get_parameter(const std::string& key, const T& default_val = T()) const {
-            // Parses nested keys separating by dot notation (e.g. "model.timestep")
-            YAML::Node node = root_node;
-            // ... parsing logic ...
-            return node ? node.as<T>() : default_val;
-        }
+        ConfigManager() = default;
+        void load_from_file(const std::string& filename);
 
-        bool has_key(const std::string& key) const;
+        YAML::Node get_process_config(std::string_view process_name) const;
     };
-
+```
 } // namespace catchem
 ```
 

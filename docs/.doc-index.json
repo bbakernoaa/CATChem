@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "generated_by": "doc-superpowers",
-  "generated_at": "2026-07-27T18:46:05Z",
+  "generated_at": "2026-07-28T13:50:22Z",
   "build_commit": "c83df338e61b28b2e2f8f34c207af63f7777aa3f",
   "docs": {
     "docs/index.md": {
@@ -32,7 +32,7 @@
       "implementation": []
     },
     "docs/api/process-interface.md": {
-      "content_hash": "sha256:02ce6452e7176c069c793e4e76a3901c44d9791493345d1d221dc9711aebcbe8",
+      "content_hash": "sha256:7a209155b60c80d268871dad5a23eaa1a656d1cf563f7dcde869465fd862316c",
       "code_refs": [
         "src/core/catchem_process_interface.hpp",
         "src/core/catchem_process_registry.hpp"
@@ -42,7 +42,7 @@
       "status": "current",
       "replaces": null,
       "superseded_by": null,
-      "last_verified": "2026-07-27T18:46:05Z",
+      "last_verified": "2026-07-28T13:50:22Z",
       "implementation": []
     },
     "docs/api/state-management.md": {
@@ -61,7 +61,7 @@
       "implementation": []
     },
     "docs/api/configuration.md": {
-      "content_hash": "sha256:b048fd0797376fe9b18cc2eb16db36f52f7a8a14dbdc5dec74d74f456c0abee6",
+      "content_hash": "sha256:aecd99b182c74c3ece7bb03f6eab03d64e660ea885163577a0ce92ff3d0fecfa",
       "code_refs": [
         "src/core/catchem_config_manager.hpp",
         "src/core/catchem_config_manager.cpp"
@@ -71,7 +71,7 @@
       "status": "current",
       "replaces": null,
       "superseded_by": null,
-      "last_verified": "2026-07-27T18:46:05Z",
+      "last_verified": "2026-07-28T13:43:44Z",
       "implementation": []
     },
     "docs/api/column-interface.md": {
