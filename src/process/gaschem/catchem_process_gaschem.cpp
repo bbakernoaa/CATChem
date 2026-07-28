@@ -66,7 +66,20 @@ namespace catchem {
             micm_instance = std::make_unique<musica::MICM>(config_dir, musica::RosenbrockStandardOrder);
             micm_state = std::make_unique<musica::State>(*micm_instance, state->n_cols * state->n_levels);
             initialized = true;
-            Logger::info(state.get(), "GasChemProcess: initialized MICM successfully!");
+            std::clog << "[INFO] GasChemProcess: initialized MICM successfully!" << std::endl;
+
+            // Validate that all active CATChem species are mapped inside the MICM solver
+            auto variable_map = micm_state->GetVariableMap();
+            for (int ispec = 0; ispec < state->n_species; ++ispec) {
+                std::string name = state->chem.species_list[ispec].short_name;
+                for (auto& c : name)
+                    c = std::toupper(c);
+                if (variable_map.find(name) == variable_map.end()) {
+                    Logger::warn(state.get(), "Active species not found in MICM solver variable map", {
+                        {"species", name}
+                    });
+                }
+            }
         } catch (const std::exception& e) {
             std::cerr << "GasChemProcess: Error: failed to initialize MICM: " << e.what() << std::endl;
             initialized = false;
