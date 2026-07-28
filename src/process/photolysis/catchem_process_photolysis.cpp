@@ -2,9 +2,11 @@
 #include "catchem_process_photolysis.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_process_registry.hpp"
+#include "catchem_logger.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <sstream>
 #include <musica/tuvx/grid.hpp>
 #include <musica/tuvx/grid_map.hpp>
 #include <musica/tuvx/profile.hpp>
@@ -20,28 +22,31 @@ namespace catchem {
     PhotolysisProcess::~PhotolysisProcess() = default;
 
     void PhotolysisProcess::init(std::shared_ptr<StateManager> state) {
-        std::cout << "DEBUG: PhotolysisProcess::init started" << std::endl;
+        Logger::debug(state.get(), "PhotolysisProcess::init started");
         if (state->config_mgr) {
             try {
-                YAML::Node photo_node = state->config_mgr->get_process_config("photolysis");
+                YAML::Node photo_node = state->config_mgr->get_process_config(ProcessNames::Photolysis);
                 if (photo_node.IsDefined() && photo_node["config_file"]) {
                     this->config_path = photo_node["config_file"].as<std::string>();
                 }
             } catch (const std::exception& e) {
-                std::cerr << "PhotolysisProcess: Warning: failed to parse config from ConfigManager: " << e.what()
+                std::cerr << "PhotolysisProcess: Error: failed to parse config from ConfigManager: " << e.what()
                           << std::endl;
+                throw std::runtime_error(std::string("PhotolysisProcess: failed to parse config from ConfigManager: ") + e.what());
             }
         } else if (!state->config_file_path.empty()) {
             try {
                 YAML::Node main_config = YAML::LoadFile(state->config_file_path);
-                if (main_config["process"] && main_config["process"]["photolysis"]) {
-                    auto photo_node = main_config["process"]["photolysis"];
+                std::string photolysis_key(ProcessNames::Photolysis);
+                if (main_config["process"] && main_config["process"][photolysis_key]) {
+                    auto photo_node = main_config["process"][photolysis_key];
                     if (photo_node["config_file"]) {
                         this->config_path = photo_node["config_file"].as<std::string>();
                     }
                 }
             } catch (const std::exception& e) {
-                std::cerr << "PhotolysisProcess: Warning: failed to parse main config: " << e.what() << std::endl;
+                std::cerr << "PhotolysisProcess: Error: failed to parse main config: " << e.what() << std::endl;
+                throw std::runtime_error(std::string("PhotolysisProcess: failed to parse main config: ") + e.what());
             }
         }
 
@@ -49,7 +54,7 @@ namespace catchem {
             this->config_path = "src/external/musica/configs/tuvx/tuv_5_4.yml";
         }
 
-        std::cout << "DEBUG: Parsing TUV-x config file to check pre-defined profiles: " << config_path << std::endl;
+        Logger::debug(state.get(), "Parsing TUV-x config file to check profiles", {{"config", config_path}});
         std::unordered_set<std::string> config_defined_profiles;
         try {
             YAML::Node tuvx_config = YAML::LoadFile(config_path);
@@ -61,16 +66,16 @@ namespace catchem {
                 }
             }
         } catch (const std::exception& e) {
-            std::cout << "DEBUG: YAML parse warning: " << e.what() << std::endl;
+            Logger::debug(state.get(), "YAML parse warning", {{"error", e.what()}});
         }
 
-        std::cout << "DEBUG: Creating GridMap, ProfileMap, and RadiatorMap" << std::endl;
+        Logger::debug(state.get(), "Creating GridMap, ProfileMap, and RadiatorMap");
         musica::Error err;
         grids = musica::CreateGridMap(&err);
         profiles = musica::CreateProfileMap(&err);
         radiators = musica::CreateRadiatorMap(&err);
 
-        std::cout << "DEBUG: Creating height grid" << std::endl;
+        Logger::debug(state.get(), "Creating height grid");
         musica::Grid* height_grid = musica::CreateGrid("height", "km", state->n_levels, &err);
         std::vector<double> dummy_edges(state->n_levels + 1, 0.0);
         std::vector<double> dummy_mids(state->n_levels, 0.0);
@@ -83,10 +88,10 @@ namespace catchem {
         musica::SetGridEdges(height_grid, dummy_edges.data(), dummy_edges.size(), &err);
         musica::SetGridMidpoints(height_grid, dummy_mids.data(), dummy_mids.size(), &err);
 
-        std::cout << "DEBUG: Adding height grid to GridMap" << std::endl;
+        Logger::debug(state.get(), "Adding height grid to GridMap");
         musica::AddGrid(grids, height_grid, &err);
 
-        std::cout << "DEBUG: Selecting and configuring wavelength grid" << std::endl;
+        Logger::debug(state.get(), "Selecting and configuring wavelength grid");
         int wl_sections = 156;
         std::vector<double> wl_edges;
 
@@ -115,7 +120,7 @@ namespace catchem {
                 675.0000, 685.0000, 695.0000, 705.0000, 715.0000, 725.0000, 735.0000};
         }
 
-        std::cout << "DEBUG: Creating wavelength grid with " << wl_sections << " sections" << std::endl;
+        Logger::debug(state.get(), "Creating wavelength grid with specified sections", {{"sections", std::to_string(wl_sections)}});
         musica::Grid* wl_grid = musica::CreateGrid("wavelength", "nm", wl_sections, &err);
         std::vector<double> wl_mids(wl_sections, 0.0);
         for (int i = 0; i < wl_sections; ++i) {
@@ -124,14 +129,14 @@ namespace catchem {
         musica::SetGridEdges(wl_grid, wl_edges.data(), wl_edges.size(), &err);
         musica::SetGridMidpoints(wl_grid, wl_mids.data(), wl_mids.size(), &err);
 
-        std::cout << "DEBUG: Adding wavelength grid to GridMap" << std::endl;
+        Logger::debug(state.get(), "Adding wavelength grid to GridMap");
         musica::AddGrid(grids, wl_grid, &err);
 
         // 3. Helper to register profiles safely only if missing from the config file definition
         auto register_profile_if_missing = [&](const char* name, const char* units, musica::Grid* grid,
                                                double default_val, std::size_t num_vals) {
             if (config_defined_profiles.find(name) == config_defined_profiles.end()) {
-                std::cout << "DEBUG: Pre-registering missing profile: " << name << " (" << units << ")" << std::endl;
+                Logger::debug(state.get(), "Pre-registering missing profile", {{"name", name}, {"units", units}});
                 musica::Profile* new_prof = musica::CreateProfile(name, units, grid, &err);
                 std::vector<double> dummy(num_vals, default_val);
                 musica::SetProfileMidpointValues(new_prof, dummy.data(), num_vals, &err);
@@ -148,12 +153,12 @@ namespace catchem {
         register_profile_if_missing("extraterrestrial flux", "photon cm-2 s-1", wl_grid, 1.5e14, wl_sections);
 
         // 4. Safely delete local grids as they are cloned/owned inside the GridMap
-        std::cout << "DEBUG: Deleting local height and wavelength grid pointers" << std::endl;
+        Logger::debug(state.get(), "Deleting local height and wavelength grid pointers");
         musica::DeleteGrid(height_grid, &err);
         musica::DeleteGrid(wl_grid, &err);
 
         // 5. Create TUVX instance using C API
-        std::cout << "DEBUG: Calling musica::CreateTuvx with config_path: " << config_path << std::endl;
+        Logger::debug(state.get(), "Calling musica::CreateTuvx", {{"config", config_path}});
         tuvx_instance = musica::CreateTuvx(config_path.c_str(), grids, profiles, radiators, &err);
 
         if (err.code_ != 0) {
@@ -162,10 +167,12 @@ namespace catchem {
             return;
         }
 
-        std::cout << "DEBUG: Getting Photolysis rate constants ordering" << std::endl;
+        Logger::info(state.get(), "PhotolysisProcess: initialized TUV-x successfully!");
+
+        Logger::debug(state.get(), "Getting Photolysis rate constants ordering");
         musica::GetPhotolysisRateConstantsOrdering(tuvx_instance, &photo_mappings, &err);
 
-        std::cout << "DEBUG: Dynamic diagnostic field registration" << std::endl;
+        Logger::debug(state.get(), "Dynamic diagnostic field registration");
         if (state->diag_mgr) {
             std::vector<int> dims_2d = {state->n_cols, state->n_levels};
             for (size_t i = 0; i < photo_mappings.size_; ++i) {
@@ -175,20 +182,20 @@ namespace catchem {
                                                 DiagType::FIELD_2D, dims_2d);
             }
         }
-        std::cout << "DEBUG: PhotolysisProcess::init complete" << std::endl;
+        Logger::debug(state.get(), "PhotolysisProcess::init complete");
     }
 
     void PhotolysisProcess::run(std::shared_ptr<StateManager> state) {
-        std::cout << "DEBUG: PhotolysisProcess::run started" << std::endl;
+        Logger::debug(state.get(), "PhotolysisProcess::run started");
         if (!tuvx_instance) {
-            std::cout << "DEBUG: tuvx_instance is NULL, returning" << std::endl;
+            Logger::debug(state.get(), "tuvx_instance is NULL, returning");
             return;
         }
 
-        std::cout << "DEBUG: Syncing state to host" << std::endl;
+        Logger::debug(state.get(), "Syncing state to host");
         state->sync_to_host();
 
-        std::cout << "DEBUG: Locating Ozone index" << std::endl;
+        Logger::debug(state.get(), "Locating Ozone index");
         int i_o3 = -1;
         for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
             if (state->chem.species_list[i].short_name == "O3") {
@@ -196,13 +203,13 @@ namespace catchem {
                 break;
             }
         }
-        std::cout << "DEBUG: Ozone index = " << i_o3 << std::endl;
+        Logger::debug(state.get(), "Ozone index resolved", {{"index", std::to_string(i_o3)}});
 
         musica::Error err;
         int num_reactions = photo_mappings.size_;
-        std::cout << "DEBUG: Number of photolysis reactions mapped = " << num_reactions << std::endl;
+        Logger::debug(state.get(), "Number of photolysis reactions mapped", {{"reactions", std::to_string(num_reactions)}});
 
-        std::cout << "DEBUG: Fetching ProfileMap from TUVX instance" << std::endl;
+        Logger::debug(state.get(), "Fetching ProfileMap from TUVX instance");
         musica::ProfileMap* loaded_profiles = musica::GetProfileMap(tuvx_instance, &err);
         if (err.code_ != 0) {
             std::cerr << "PhotolysisProcess: Error getting ProfileMap: "
@@ -210,26 +217,30 @@ namespace catchem {
             return;
         }
 
-        std::cout << "DEBUG: Retrieving individual Profile pointers" << std::endl;
+        Logger::debug(state.get(), "Retrieving individual Profile pointers");
         musica::Profile* profile_air = musica::GetProfile(loaded_profiles, "air", "molecule cm-3", &err);
         musica::Profile* profile_o2 = musica::GetProfile(loaded_profiles, "O2", "molecule cm-3", &err);
         musica::Profile* profile_o3 = musica::GetProfile(loaded_profiles, "O3", "molecule cm-3", &err);
         musica::Profile* profile_temp = musica::GetProfile(loaded_profiles, "temperature", "K", &err);
 
-        std::cout << "DEBUG: profile_air = " << profile_air << ", profile_o2 = " << profile_o2
-                  << ", profile_o3 = " << profile_o3 << ", profile_temp = " << profile_temp << std::endl;
+        std::ostringstream ptr_ss;
+        ptr_ss << "air=" << profile_air << ", o2=" << profile_o2 << ", o3=" << profile_o3 << ", temp=" << profile_temp;
+        Logger::debug(state.get(), "Profile pointers retrieved", {{"profiles", ptr_ss.str()}});
 
         if (profile_air) {
-            std::cout << "DEBUG: profile_air name = " << profile_air->GetName(&err) << std::endl;
+            Logger::debug(state.get(), "profile_air name", {{"name", profile_air->GetName(&err)}});
         }
         if (profile_o2) {
-            std::cout << "DEBUG: profile_o2 name = " << profile_o2->GetName(&err) << std::endl;
+            Logger::debug(state.get(), "profile_o2 name", {{"name", profile_o2->GetName(&err)}});
         }
 
-        std::cout << "DEBUG: Retrieving GridMap from TUVX instance" << std::endl;
+        Logger::debug(state.get(), "Retrieving GridMap from TUVX instance");
         musica::GridMap* loaded_grids = musica::GetGridMap(tuvx_instance, &err);
         musica::Grid* height_grid = musica::GetGrid(loaded_grids, "height", "km", &err);
-        std::cout << "DEBUG: height_grid = " << height_grid << std::endl;
+        
+        std::ostringstream grid_ss;
+        grid_ss << height_grid;
+        Logger::debug(state.get(), "height_grid retrieved", {{"ptr", grid_ss.str()}});
 
         std::vector<double> height_edges(state->n_levels + 1, 0.0);
         std::vector<double> air_profile(state->n_levels, 0.0);
@@ -237,15 +248,16 @@ namespace catchem {
         std::vector<double> o3_profile(state->n_levels, 0.0);
         std::vector<double> temp_profile(state->n_levels, 0.0);
 
-        std::cout << "DEBUG: Starting column-wise calculation loop" << std::endl;
+        Logger::debug(state.get(), "Starting column-wise calculation loop");
         for (int i_col = 0; i_col < state->n_cols; ++i_col) {
-            std::cout << "DEBUG: Column " << i_col << ": calculating SZA" << std::endl;
+            std::string col_str = std::to_string(i_col);
+            Logger::debug(state.get(), "Calculating SZA for column", {{"col", col_str}});
             double lat_deg = state->met.LAT ? state->met.LAT->host_view(i_col, 0) : 40.0;
             double lon_deg = state->met.LON ? state->met.LON->host_view(i_col, 0) : -105.0;
             double cos_sza = state->time.get_cos_sza(lat_deg, lon_deg, true);
             double sza_rad = std::acos(std::max(-1.0, std::min(1.0, cos_sza)));
 
-            std::cout << "DEBUG: Column " << i_col << ": updating grid height edges" << std::endl;
+            Logger::debug(state.get(), "Updating grid height edges for column", {{"col", col_str}});
             height_edges[0] = 0.0;
             for (int i_lvl = 0; i_lvl < state->n_levels; ++i_lvl) {
                 double dz_m = state->met.BXHEIGHT ? state->met.BXHEIGHT->host_view(i_col, i_lvl, 0) : 100.0;
@@ -255,7 +267,7 @@ namespace catchem {
                 musica::SetGridEdges(height_grid, height_edges.data(), height_edges.size(), &err);
             }
 
-            std::cout << "DEBUG: Column " << i_col << ": populating profile midpoint vectors" << std::endl;
+            Logger::debug(state.get(), "Populating profile midpoint vectors for column", {{"col", col_str}});
             for (int i_lvl = 0; i_lvl < state->n_levels; ++i_lvl) {
                 double airden_kg_m3 = state->met.AIRDEN ? state->met.AIRDEN->host_view(i_col, i_lvl, 0) : 1.2;
                 air_profile[i_lvl] = airden_kg_m3 * 2.079153e19;
@@ -269,28 +281,28 @@ namespace catchem {
                 }
             }
 
-            std::cout << "DEBUG: Column " << i_col << ": updating profiles in TUVX" << std::endl;
+            Logger::debug(state.get(), "Updating profiles in TUVX for column", {{"col", col_str}});
             if (profile_air) {
-                std::cout << "DEBUG: SetProfileMidpointValues for air" << std::endl;
+                Logger::debug(state.get(), "SetProfileMidpointValues for air in column", {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_air, air_profile.data(), state->n_levels, &err);
             }
             if (profile_o2) {
-                std::cout << "DEBUG: SetProfileMidpointValues for O2" << std::endl;
+                Logger::debug(state.get(), "SetProfileMidpointValues for O2 in column", {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_o2, o2_profile.data(), state->n_levels, &err);
             }
             if (profile_o3) {
-                std::cout << "DEBUG: SetProfileMidpointValues for O3" << std::endl;
+                Logger::debug(state.get(), "SetProfileMidpointValues for O3 in column", {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_o3, o3_profile.data(), state->n_levels, &err);
             }
             if (profile_temp) {
-                std::cout << "DEBUG: SetProfileMidpointValues for temperature" << std::endl;
+                Logger::debug(state.get(), "SetProfileMidpointValues for temperature in column", {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_temp, temp_profile.data(), state->n_levels, &err);
             }
 
             std::vector<double> edge_photolysis_rates((state->n_levels + 1) * num_reactions, 0.0);
             std::vector<double> edge_heating_rates((state->n_levels + 1) * tuvx_instance->GetHeatingRateCount(), 0.0);
 
-            std::cout << "DEBUG: Column " << i_col << ": calling musica::RunTuvx" << std::endl;
+            Logger::debug(state.get(), "Calling musica::RunTuvx for column", {{"col", col_str}});
             musica::RunTuvx(tuvx_instance, sza_rad, 1.0, edge_photolysis_rates.data(), edge_heating_rates.data(),
                             nullptr, nullptr, nullptr, &err);
 
@@ -300,8 +312,7 @@ namespace catchem {
                 continue;
             }
 
-            std::cout << "DEBUG: Column " << i_col << ": copying midpoint-interpolated J-rates to diagnostics"
-                      << std::endl;
+            Logger::debug(state.get(), "Copying midpoint-interpolated J-rates to diagnostics for column", {{"col", col_str}});
             if (state->diag_mgr) {
                 for (size_t rx_idx = 0; rx_idx < photo_mappings.size_; ++rx_idx) {
                     std::string rx_name = photo_mappings.mappings_[rx_idx].name_.value_
@@ -326,12 +337,12 @@ namespace catchem {
             }
         }
 
-        std::cout << "DEBUG: Syncing diagnostics and state to device" << std::endl;
+        Logger::debug(state.get(), "Syncing diagnostics and state to device");
         state->sync_to_device();
         if (state->diag_mgr) {
             state->diag_mgr->sync_to_device();
         }
-        std::cout << "DEBUG: PhotolysisProcess::run complete" << std::endl;
+        Logger::debug(state.get(), "PhotolysisProcess::run complete");
     }
 
     void PhotolysisProcess::finalize() {
@@ -359,6 +370,6 @@ namespace catchem {
 extern "C" {
 void catchem_register_photolysis_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
-        "photolysis", []() { return std::make_shared<catchem::PhotolysisProcess>(); });
+        std::string(catchem::ProcessNames::Photolysis), []() { return std::make_shared<catchem::PhotolysisProcess>(); });
 }
 }

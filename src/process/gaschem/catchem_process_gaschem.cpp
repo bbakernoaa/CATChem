@@ -2,6 +2,7 @@
 #include "catchem_process_gaschem.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_process_registry.hpp"
+#include "catchem_logger.hpp"
 #include <algorithm>
 #include <cctype>
 #include <iostream>
@@ -13,31 +14,34 @@ namespace catchem {
     GasChemProcess::~GasChemProcess() = default;
 
     void GasChemProcess::init(std::shared_ptr<StateManager> state) {
-        std::cout << "DEBUG: GasChemProcess::init started" << std::endl;
+        Logger::debug(state.get(), "GasChemProcess::init started");
 
         // 1. Resolve configuration directory path dynamically
         if (state->config_mgr) {
             try {
-                YAML::Node gas_node = state->config_mgr->get_process_config("gaschem");
+                YAML::Node gas_node = state->config_mgr->get_process_config(ProcessNames::GasChem);
                 if (gas_node.IsDefined() && gas_node["config_dir"]) {
                     this->config_dir = gas_node["config_dir"].as<std::string>();
                 }
             } catch (const std::exception& e) {
-                std::cerr << "GasChemProcess: Warning: failed to parse config from ConfigManager: " << e.what()
+                std::cerr << "GasChemProcess: Error: failed to parse config from ConfigManager: " << e.what()
                           << std::endl;
+                throw std::runtime_error(std::string("GasChemProcess: failed to parse config from ConfigManager: ") + e.what());
             }
         } else if (!state->config_file_path.empty()) {
             try {
                 YAML::Node main_config = YAML::LoadFile(state->config_file_path);
-                if (main_config["process"] && main_config["process"]["gaschem"]) {
-                    auto gas_node = main_config["process"]["gaschem"];
+                std::string gaschem_key(ProcessNames::GasChem);
+                if (main_config["process"] && main_config["process"][gaschem_key]) {
+                    auto gas_node = main_config["process"][gaschem_key];
                     if (gas_node["config_dir"]) {
                         this->config_dir = gas_node["config_dir"].as<std::string>();
                     }
                 }
             } catch (const std::exception& e) {
-                std::cerr << "GasChemProcess: Warning: failed to parse main config for gaschem: " << e.what()
+                std::cerr << "GasChemProcess: Error: failed to parse main config for gaschem: " << e.what()
                           << std::endl;
+                throw std::runtime_error(std::string("GasChemProcess: failed to parse main config: ") + e.what());
             }
         }
 
@@ -55,17 +59,18 @@ namespace catchem {
             }
         }
 
-        std::cout << "DEBUG: GasChemProcess config directory resolved: " << config_dir << std::endl;
+        Logger::info(state.get(), "GasChemProcess: resolved config directory", {{"dir", config_dir}});
 
         // 2. Initialize MICM and State using musica library
         try {
             micm_instance = std::make_unique<musica::MICM>(config_dir, musica::RosenbrockStandardOrder);
             micm_state = std::make_unique<musica::State>(*micm_instance, state->n_cols * state->n_levels);
             initialized = true;
-            std::cout << "DEBUG: GasChemProcess initialized MICM successfully!" << std::endl;
+            Logger::info(state.get(), "GasChemProcess: initialized MICM successfully!");
         } catch (const std::exception& e) {
             std::cerr << "GasChemProcess: Error: failed to initialize MICM: " << e.what() << std::endl;
             initialized = false;
+            throw std::runtime_error(std::string("GasChemProcess: failed to initialize MICM: ") + e.what());
         }
     }
 
@@ -223,5 +228,5 @@ namespace catchem {
 
 void catchem_register_gaschem_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
-        "gaschem", []() { return std::make_shared<catchem::GasChemProcess>(); });
+        std::string(catchem::ProcessNames::GasChem), []() { return std::make_shared<catchem::GasChemProcess>(); });
 }
