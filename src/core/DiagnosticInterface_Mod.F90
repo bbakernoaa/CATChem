@@ -877,6 +877,7 @@ contains
       character(len=*), intent(in) :: name
       type(DiagnosticFieldType) :: field
       integer :: i
+      field = DiagnosticFieldType()
       do i = 1, this%n_fields
          if (trim(this%fields(i)%field_name) == trim(name)) then
             field = this%fields(i)
