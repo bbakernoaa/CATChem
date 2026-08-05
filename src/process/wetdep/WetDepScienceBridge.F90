@@ -119,6 +119,7 @@ contains
       f_wd_LiqAndGas    = species_wd_LiqAndGas
       f_wd_convfacI2G   = real(species_wd_convfacI2G, fp)
       f_wd_rainouteff   = real(species_wd_rainouteff, fp)
+      col_wd_reevap_frac = real(species_wd_reevap_frac, fp)
       f_radius          = real(species_radius, fp)
       f_mw_g            = real(species_mw_g, fp)
 
