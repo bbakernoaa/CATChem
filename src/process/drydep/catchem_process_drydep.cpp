@@ -42,21 +42,21 @@ namespace catchem {
         state->sync_to_host();
 
         // 1. Fetch raw pointers to Met Views
-        double* bxheight_ptr = state->met.BXHEIGHT ? state->met.BXHEIGHT->host_view.data() : nullptr;
-        double* airden_ptr = state->met.AIRDEN ? state->met.AIRDEN->host_view.data() : nullptr;
-        double* t_ptr = state->met.T ? state->met.T->host_view.data() : nullptr;
-        double* pedge_ptr = state->met.PEDGE ? state->met.PEDGE->host_view.data() : nullptr;
-        double* rh_ptr = state->met.RH ? state->met.RH->host_view.data() : nullptr;
+        double* bxheight_ptr = state->met.BXHEIGHT ? state->met.BXHEIGHT->host_data() : nullptr;
+        double* airden_ptr = state->met.AIRDEN ? state->met.AIRDEN->host_data() : nullptr;
+        double* t_ptr = state->met.T ? state->met.T->host_data() : nullptr;
+        double* pedge_ptr = state->met.PEDGE ? state->met.PEDGE->host_data() : nullptr;
+        double* rh_ptr = state->met.RH ? state->met.RH->host_data() : nullptr;
 
         // 2. Retrieve surface met and grid positions
-        double* ps_ptr = state->met.PS ? state->met.PS->host_view.data() : nullptr;
-        double* ts_ptr = state->met.TS ? state->met.TS->host_view.data() : nullptr;
-        double* lat_ptr = state->met.LAT ? state->met.LAT->host_view.data() : nullptr;
-        double* lon_ptr = state->met.LON ? state->met.LON->host_view.data() : nullptr;
-        double* ustar_ptr = state->met.USTAR ? state->met.USTAR->host_view.data() : nullptr;
-        double* hflux_ptr = state->met.HFLUX ? state->met.HFLUX->host_view.data() : nullptr;
-        double* obk_ptr = state->met.OBK ? state->met.OBK->host_view.data() : nullptr;
-        double* pblh_ptr = state->met.PBLH ? state->met.PBLH->host_view.data() : nullptr;
+        double* ps_ptr = state->met.PS ? state->met.PS->host_data() : nullptr;
+        double* ts_ptr = state->met.TS ? state->met.TS->host_data() : nullptr;
+        double* lat_ptr = state->met.LAT ? state->met.LAT->host_data() : nullptr;
+        double* lon_ptr = state->met.LON ? state->met.LON->host_data() : nullptr;
+        double* ustar_ptr = state->met.USTAR ? state->met.USTAR->host_data() : nullptr;
+        double* hflux_ptr = state->met.HFLUX ? state->met.HFLUX->host_data() : nullptr;
+        double* obk_ptr = state->met.OBK ? state->met.OBK->host_data() : nullptr;
+        double* pblh_ptr = state->met.PBLH ? state->met.PBLH->host_data() : nullptr;
 
         // Mock/Fallbacks for remaining metadata arrays - Using char for bool to support standard .data()
         std::vector<double> cldfrc(state->n_cols, 0.1);
@@ -89,7 +89,7 @@ namespace catchem {
         std::vector<double> z0h(state->n_cols, 0.01);
 
         // 3. Extract chemical arrays & C++ allocated diagnostics
-        double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
+        double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);

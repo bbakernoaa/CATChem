@@ -62,24 +62,24 @@ namespace catchem {
         state->sync_to_host();
 
         // 1. Retrieve 3D Meteorological variables
-        double* airden_ptr = state->met.AIRDEN ? state->met.AIRDEN->host_view.data() : nullptr;
-        double* pmid_ptr = state->met.PMID ? state->met.PMID->host_view.data() : nullptr;
-        double* t_ptr = state->met.T ? state->met.T->host_view.data() : nullptr;
+        double* airden_ptr = state->met.AIRDEN ? state->met.AIRDEN->host_data() : nullptr;
+        double* pmid_ptr = state->met.PMID ? state->met.PMID->host_data() : nullptr;
+        double* t_ptr = state->met.T ? state->met.T->host_data() : nullptr;
         double* z_ptr =
-            state->met.PEDGE ? state->met.PEDGE->host_view.data() : nullptr; // Maps to vertical height at edges (Z)
+            state->met.PEDGE ? state->met.PEDGE->host_data() : nullptr; // Maps to vertical height at edges (Z)
 
         auto cldf_it = state->met.fields_3d.find("CLDF");
-        double* cldf_ptr = (cldf_it != state->met.fields_3d.end()) ? cldf_it->second->host_view.data() : nullptr;
+        double* cldf_ptr = (cldf_it != state->met.fields_3d.end()) ? cldf_it->second->host_data() : nullptr;
 
         auto delp_it = state->met.fields_3d.find("DELP");
-        double* delp_ptr = (delp_it != state->met.fields_3d.end()) ? delp_it->second->host_view.data() : nullptr;
+        double* delp_ptr = (delp_it != state->met.fields_3d.end()) ? delp_it->second->host_data() : nullptr;
 
         // 2. Retrieve 2D Surface Met variables
-        double* hflux_ptr = state->met.HFLUX ? state->met.HFLUX->host_view.data() : nullptr;
-        double* lat_ptr = state->met.LAT ? state->met.LAT->host_view.data() : nullptr;
-        double* lon_ptr = state->met.LON ? state->met.LON->host_view.data() : nullptr;
-        double* pblh_ptr = state->met.PBLH ? state->met.PBLH->host_view.data() : nullptr;
-        double* ustar_ptr = state->met.USTAR ? state->met.USTAR->host_view.data() : nullptr;
+        double* hflux_ptr = state->met.HFLUX ? state->met.HFLUX->host_data() : nullptr;
+        double* lat_ptr = state->met.LAT ? state->met.LAT->host_data() : nullptr;
+        double* lon_ptr = state->met.LON ? state->met.LON->host_data() : nullptr;
+        double* pblh_ptr = state->met.PBLH ? state->met.PBLH->host_data() : nullptr;
+        double* ustar_ptr = state->met.USTAR ? state->met.USTAR->host_data() : nullptr;
 
         std::vector<int> lwi(state->n_cols, 1);
         std::vector<double> u10m(state->n_cols, 5.0);
@@ -87,7 +87,7 @@ namespace catchem {
         std::vector<double> z0h(state->n_cols, 0.01);
 
         // 3. Chemical and Tendency Views
-        double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
+        double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);

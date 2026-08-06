@@ -10,6 +10,7 @@ namespace catchem {
     void SettlingProcess::init(std::shared_ptr<StateManager> state) {
         int num_aerosols = state->chem.aerosol_indices.size();
         if (num_aerosols > 0) {
+#ifdef CATCHEM_ENABLE_KOKKOS
             dev_aero_indices =
                 Kokkos::View<int*, Kokkos::DefaultExecutionSpace::memory_space>("dev_aero_indices", num_aerosols);
             dev_radius_dry =
@@ -20,20 +21,27 @@ namespace catchem {
             auto host_aero_indices = Kokkos::create_mirror_view(dev_aero_indices);
             auto host_radius_dry = Kokkos::create_mirror_view(dev_radius_dry);
             auto host_rhop_dry = Kokkos::create_mirror_view(dev_rhop_dry);
+#else
+            host_aero_indices.assign(num_aerosols, 0);
+            host_radius_dry.assign(num_aerosols, 0.0);
+            host_rhop_dry.assign(num_aerosols, 0.0);
+#endif
 
             for (int i = 0; i < num_aerosols; ++i) {
                 int ispec = state->chem.aerosol_indices[i];
-                host_aero_indices(i) = ispec;
-                host_radius_dry(i) = state->chem.species_list[ispec].radius * 1e-6; // Convert microns to meters
-                host_rhop_dry(i) = state->chem.species_list[ispec].density;
+                host_aero_indices[i] = ispec;
+                host_radius_dry[i] = state->chem.species_list[ispec].radius * 1e-6; // Convert microns to meters
+                host_rhop_dry[i] = state->chem.species_list[ispec].density;
                 std::cout << "DEBUG INIT: Aerosol " << i << ": species index=" << ispec
                           << ", name=" << state->chem.species_list[ispec].short_name
-                          << ", radius_dry=" << host_radius_dry(i) << ", density=" << host_rhop_dry(i) << std::endl;
+                          << ", radius_dry=" << host_radius_dry[i] << ", density=" << host_rhop_dry[i] << std::endl;
             }
 
+#ifdef CATCHEM_ENABLE_KOKKOS
             Kokkos::deep_copy(dev_aero_indices, host_aero_indices);
             Kokkos::deep_copy(dev_radius_dry, host_radius_dry);
             Kokkos::deep_copy(dev_rhop_dry, host_rhop_dry);
+#endif
         }
     }
 
@@ -68,18 +76,33 @@ namespace catchem {
         functor.pedge = state->met.PEDGE->view();
         functor.dz = state->met.BXHEIGHT->view();
 
+#ifdef CATCHEM_ENABLE_KOKKOS
         functor.aerosol_indices = dev_aero_indices;
         functor.aerosol_radius = dev_radius_dry;
         functor.aerosol_density = dev_rhop_dry;
+#else
+        functor.aerosol_indices =
+            MdspanTypeHelper<int, 1>::type(host_aero_indices.data(), static_cast<int>(host_aero_indices.size()));
+        functor.aerosol_radius =
+            MdspanTypeHelper<double, 1>::type(host_radius_dry.data(), static_cast<int>(host_radius_dry.size()));
+        functor.aerosol_density =
+            MdspanTypeHelper<double, 1>::type(host_rhop_dry.data(), static_cast<int>(host_rhop_dry.size()));
+#endif
 
         functor.cdt = state->time.timestep;
         functor.n_levels = state->n_levels;
 
+#ifdef CATCHEM_ENABLE_KOKKOS
         Kokkos::parallel_for("settling_compute_c++",
                              Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>(
                                  {0, 0}, {state->n_cols, num_aerosols}),
                              functor);
         Kokkos::fence();
+#else
+        for (int icol = 0; icol < state->n_cols; ++icol)
+            for (int iaero = 0; iaero < num_aerosols; ++iaero)
+                functor(icol, iaero);
+#endif
         std::cout << "SettlingProcess: Kernel complete.\n";
     }
 

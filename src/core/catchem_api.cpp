@@ -4,6 +4,7 @@
 #include "catchem_process_registry.hpp"
 #include "catchem_state_manager.hpp"
 #include "catchem_unit_conversion.hpp"
+#include <cstring>
 #include <iostream>
 
 extern "C" {

@@ -113,10 +113,15 @@ namespace catchem {
             auto qv = met.QV->view();
             auto bxheight = met.BXHEIGHT->view();
 
+#ifdef CATCHEM_ENABLE_KOKKOS
             Kokkos::parallel_for(
                 "derive_bxheight_kernel",
                 Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({0, 0}, {nc, nl}),
                 KOKKOS_LAMBDA(int icol, int ilev) {
+#else
+            for (int icol = 0; icol < nc; ++icol)
+                for (int ilev = 0; ilev < nl; ++ilev) {
+#endif
                     double p_lower = pedge(icol, ilev, 0);
                     double p_upper = pedge(icol, ilev + 1, 0);
 
@@ -127,7 +132,11 @@ namespace catchem {
                     } else {
                         bxheight(icol, ilev, 0) = 0.0;
                     }
+#ifdef CATCHEM_ENABLE_KOKKOS
                 });
+#else
+                }
+#endif
         }
 
         /**
@@ -154,17 +163,26 @@ namespace catchem {
             auto qv = met.QV->view();
             auto airden_dry = met.AIRDEN_DRY->view();
 
+#ifdef CATCHEM_ENABLE_KOKKOS
             Kokkos::parallel_for(
                 "derive_airden_dry_kernel",
                 Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({0, 0}, {nc, nl}),
                 KOKKOS_LAMBDA(int icol, int ilev) {
+#else
+            for (int icol = 0; icol < nc; ++icol)
+                for (int ilev = 0; ilev < nl; ++ilev) {
+#endif
                     double q = qv(icol, ilev, 0);
                     double avgw = (constants::AIR_MW / constants::H2O_MW) * q / (1.0 - q);
                     double xh2o = avgw / (1.0 + avgw);
 
                     double p_dry = pmid(icol, ilev, 0) * (1.0 - xh2o);
                     airden_dry(icol, ilev, 0) = p_dry / (constants::RD * temp(icol, ilev, 0));
+#ifdef CATCHEM_ENABLE_KOKKOS
                 });
+#else
+                }
+#endif
         }
 
         void sync_to_device() {
@@ -213,22 +231,22 @@ namespace catchem {
         double* get_host_pointer_1d(const std::string& name) {
             if (fields_1d.find(name) == fields_1d.end())
                 return nullptr;
-            return fields_1d.at(name)->host_view.data();
+            return fields_1d.at(name)->host_data();
         }
 
         double* get_host_pointer_2d(const std::string& name) {
             if (fields_2d.find(name) != fields_2d.end())
-                return fields_2d.at(name)->host_view.data();
+                return fields_2d.at(name)->host_data();
             if (met.fields_2d.find(name) != met.fields_2d.end())
-                return met.fields_2d.at(name)->host_view.data();
+                return met.fields_2d.at(name)->host_data();
             return nullptr;
         }
 
         double* get_host_pointer_3d(const std::string& name) {
             if (fields_3d.find(name) != fields_3d.end())
-                return fields_3d.at(name)->host_view.data();
+                return fields_3d.at(name)->host_data();
             if (met.fields_3d.find(name) != met.fields_3d.end())
-                return met.fields_3d.at(name)->host_view.data();
+                return met.fields_3d.at(name)->host_data();
             return nullptr;
         }
     };

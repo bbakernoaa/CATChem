@@ -76,62 +76,53 @@ add_test(
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# New C++ Interop and Integration Suite
-if(ENABLE_KOKKOS)
-  add_executable(test_catchem_logger test_catchem_logger.cpp)
-  target_link_libraries(
-    test_catchem_logger
-    PRIVATE CATChem_core_cpp Kokkos::kokkos
-  )
-  add_test(NAME test_catchem_logger COMMAND test_catchem_logger)
+# C++ Interop and Integration Suite — runs in both build flavors; the
+# CATChem_core_cpp link carries Kokkos (or standalone mdspan) transitively.
+add_executable(test_catchem_logger test_catchem_logger.cpp)
+target_link_libraries(test_catchem_logger PRIVATE CATChem_core_cpp)
+add_test(NAME test_catchem_logger COMMAND test_catchem_logger)
 
-  add_executable(test_catchem_interop test_catchem_interop.cpp)
-  target_link_libraries(
-    test_catchem_interop
-    PRIVATE
-      CATChem_core_cpp
-      CATChem_core
-      Kokkos::kokkos
-      CATChem_process_settling
-      CATChem_process_seasalt
-      CATChem_process_drydep
-      CATChem_process_wetdep
-      CATChem_process_so4chem
-      CATChem_process_dust
-      CATChem_process_carbchem
-  )
-  set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE CXX)
-  add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
+add_executable(test_catchem_interop test_catchem_interop.cpp)
+target_link_libraries(
+  test_catchem_interop
+  PRIVATE
+    CATChem_core_cpp
+    CATChem_core
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+    CATChem_process_dust
+    CATChem_process_carbchem
+)
+set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE CXX)
+add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
 
-  # Modern Randomized Property-Based Testing
-  add_executable(test_catchem_properties test_catchem_properties.cpp)
-  target_link_libraries(
-    test_catchem_properties
-    PRIVATE
-      CATChem_core_cpp
-      CATChem_core
-      Kokkos::kokkos
-      CATChem_process_settling
-      CATChem_process_seasalt
-      CATChem_process_drydep
-      CATChem_process_wetdep
-      CATChem_process_so4chem
-      CATChem_process_dust
-      CATChem_process_carbchem
-  )
-  set_target_properties(test_catchem_properties PROPERTIES LINKER_LANGUAGE CXX)
-  add_test(NAME test_catchem_properties COMMAND test_catchem_properties)
+# Modern Randomized Property-Based Testing
+add_executable(test_catchem_properties test_catchem_properties.cpp)
+target_link_libraries(
+  test_catchem_properties
+  PRIVATE
+    CATChem_core_cpp
+    CATChem_core
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+    CATChem_process_dust
+    CATChem_process_carbchem
+)
+set_target_properties(test_catchem_properties PROPERTIES LINKER_LANGUAGE CXX)
+add_test(NAME test_catchem_properties COMMAND test_catchem_properties)
 
+if(CATCHEM_BUILD_MUSICA)
   # Photolysis Process Unit/Integration Test
   add_executable(test_catchem_photolysis test_catchem_photolysis.cpp)
   target_link_libraries(
     test_catchem_photolysis
-    PRIVATE
-      CATChem_core_cpp
-      CATChem_core
-      Kokkos::kokkos
-      catchem_process_photolysis
-      yaml-cpp
+    PRIVATE CATChem_core_cpp CATChem_core catchem_process_photolysis yaml-cpp
   )
   set_target_properties(test_catchem_photolysis PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_photolysis COMMAND test_catchem_photolysis)
@@ -145,7 +136,6 @@ if(ENABLE_KOKKOS)
       CATChem_core
       catchem_process_photolysis
       catchem_process_gaschem
-      Kokkos::kokkos
   )
   set_target_properties(test_catchem_gaschem PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_gaschem COMMAND test_catchem_gaschem)

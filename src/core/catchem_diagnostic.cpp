@@ -1,8 +1,11 @@
 // src/core/catchem_diagnostic.cpp
 #include "catchem_diagnostic_manager.hpp"
+#include <algorithm>
 #include <stdexcept>
 
 namespace catchem {
+
+#ifdef CATCHEM_ENABLE_KOKKOS
 
     DiagnosticField::DiagnosticField(const std::string& name_val, const std::string& desc_val,
                                      const std::string& units_val, DiagType type_val, const std::vector<int>& dims)
@@ -60,21 +63,6 @@ namespace catchem {
         }
     }
 
-    void DiagnosticManager::register_field(const std::string& name, const std::string& desc, const std::string& units,
-                                           DiagType type, const std::vector<int>& dims) {
-        fields[name] = std::make_shared<DiagnosticField>(name, desc, units, type, dims);
-    }
-
-    bool DiagnosticManager::has_field(const std::string& name) const {
-        return fields.find(name) != fields.end();
-    }
-
-    std::shared_ptr<DiagnosticField> DiagnosticManager::get_field(const std::string& name) {
-        if (!has_field(name))
-            throw std::invalid_argument("Field not found: " + name);
-        return fields.at(name);
-    }
-
     Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
     DiagnosticManager::get_device_view_2d(const std::string& name) {
         auto field = get_field(name);
@@ -99,6 +87,73 @@ namespace catchem {
             return static_cast<void*>(field->host_view_3d.data());
         }
         return nullptr;
+    }
+
+#else // host-only build
+
+    DiagnosticField::DiagnosticField(const std::string& name_val, const std::string& desc_val,
+                                     const std::string& units_val, DiagType type_val, const std::vector<int>& dims)
+        : name(name_val), description(desc_val), units(units_val), type(type_val), dimensions(dims) {
+        is_gpu_target = false;
+
+        if (type == DiagType::FIELD_2D) {
+            if (dims.size() != 2)
+                throw std::invalid_argument("2D field requires 2 dimensions");
+            storage.assign(static_cast<size_t>(dims[0]) * dims[1], 0.0);
+        } else if (type == DiagType::FIELD_3D) {
+            if (dims.size() != 3)
+                throw std::invalid_argument("3D field requires 3 dimensions");
+            storage.assign(static_cast<size_t>(dims[0]) * dims[1] * dims[2], 0.0);
+        } else {
+            throw std::invalid_argument("Unsupported DiagType");
+        }
+    }
+
+    void DiagnosticField::sync_to_host() {}
+    void DiagnosticField::sync_to_device() {}
+
+    void DiagnosticField::reset() {
+        std::fill(storage.begin(), storage.end(), 0.0);
+    }
+
+    DiagnosticField::Mdspan2D DiagnosticManager::get_device_view_2d(const std::string& name) {
+        auto field = get_field(name);
+        if (field->type != DiagType::FIELD_2D)
+            throw std::invalid_argument("Field is not 2D: " + name);
+        return DiagnosticField::Mdspan2D(field->storage.data(), field->dimensions[0], field->dimensions[1]);
+    }
+
+    DiagnosticField::Mdspan3D DiagnosticManager::get_device_view_3d(const std::string& name) {
+        auto field = get_field(name);
+        if (field->type != DiagType::FIELD_3D)
+            throw std::invalid_argument("Field is not 3D: " + name);
+        return DiagnosticField::Mdspan3D(field->storage.data(), field->dimensions[0], field->dimensions[1],
+                                         field->dimensions[2]);
+    }
+
+    void* DiagnosticManager::get_host_pointer(const std::string& name) {
+        auto field = get_field(name);
+        if (field->type == DiagType::FIELD_2D || field->type == DiagType::FIELD_3D) {
+            return static_cast<void*>(field->storage.data());
+        }
+        return nullptr;
+    }
+
+#endif
+
+    void DiagnosticManager::register_field(const std::string& name, const std::string& desc, const std::string& units,
+                                           DiagType type, const std::vector<int>& dims) {
+        fields[name] = std::make_shared<DiagnosticField>(name, desc, units, type, dims);
+    }
+
+    bool DiagnosticManager::has_field(const std::string& name) const {
+        return fields.find(name) != fields.end();
+    }
+
+    std::shared_ptr<DiagnosticField> DiagnosticManager::get_field(const std::string& name) {
+        if (!has_field(name))
+            throw std::invalid_argument("Field not found: " + name);
+        return fields.at(name);
     }
 
     void DiagnosticManager::sync_to_host() {

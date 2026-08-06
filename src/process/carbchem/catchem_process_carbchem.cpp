@@ -44,13 +44,11 @@ namespace catchem {
         // 1. Retrieve 3D Meteorological state pointers
         auto airden_ptr_it = state->met.fields_3d.find("AIRDEN_DRY");
         double* airden_ptr =
-            (airden_ptr_it != state->met.fields_3d.end()) ? airden_ptr_it->second->host_view.data() : nullptr;
+            (airden_ptr_it != state->met.fields_3d.end()) ? airden_ptr_it->second->host_data() : nullptr;
         auto delp_ptr_it = state->met.fields_3d.find("DELP");
-        double* delp_ptr =
-            (delp_ptr_it != state->met.fields_3d.end()) ? delp_ptr_it->second->host_view.data() : nullptr;
+        double* delp_ptr = (delp_ptr_it != state->met.fields_3d.end()) ? delp_ptr_it->second->host_data() : nullptr;
         auto pmid_ptr_it = state->met.fields_3d.find("PMID");
-        double* pmid_ptr =
-            (pmid_ptr_it != state->met.fields_3d.end()) ? pmid_ptr_it->second->host_view.data() : nullptr;
+        double* pmid_ptr = (pmid_ptr_it != state->met.fields_3d.end()) ? pmid_ptr_it->second->host_data() : nullptr;
 
         if (!airden_ptr || !delp_ptr || !pmid_ptr) {
             std::cerr << "CarbChemProcess: Missing required meteorological fields." << std::endl;
@@ -70,7 +68,7 @@ namespace catchem {
             diag_phobic_flux = (double*)state->diag_mgr->get_host_pointer("carbchem_phobic_flux");
         }
 
-        double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
+        double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);

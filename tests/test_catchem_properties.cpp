@@ -1,8 +1,8 @@
 #include "catchem_api.hpp"
 #include "catchem_core.hpp"
+#include "catchem_kokkos_compat.hpp"
 #include "catchem_process_registry.hpp"
 #include "catchem_state_manager.hpp"
-#include <Kokkos_Core.hpp>
 #include <cassert>
 #include <cmath>
 #include <fstream>
