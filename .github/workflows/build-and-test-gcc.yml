@@ -10,15 +10,15 @@ env:
 
 jobs:
   build-and-test:
-    name: Build and test (${{ matrix.gcc-version }})
+    name: Build and test (GCC ${{ matrix.gcc-version }})
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        gcc-version: ["14"]
+        gcc-version: ["12", "14"]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
