@@ -16,6 +16,12 @@
 
 #else
 
+// The vendored single-header mdspan (src/external/mdspan) defaults its
+// namespace to std; pin it to Kokkos so both build flavors use the same
+// Kokkos::mdspan spellings.
+#ifndef MDSPAN_IMPL_STANDARD_NAMESPACE
+#define MDSPAN_IMPL_STANDARD_NAMESPACE Kokkos
+#endif
 // mdspan's multi-argument operator[] needs C++23; enable the reference
 // implementation's operator() so kernels can index views and mdspans
 // identically (Kokkos::View uses operator() natively).

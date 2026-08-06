@@ -47,9 +47,14 @@ if(CATCHEM_BUILD_MUSICA AND NOT CATCHEM_ENABLE_KOKKOS)
   )
 endif()
 
-# The C++ core (mdspan data layer, MUSICA integration) requires C++20 in
-# both build flavors.
-set(CMAKE_CXX_STANDARD 20)
+# C++ standard: C++17 everywhere except MUSICA builds — the mdspan data
+# layer and the C++ core need only 17, and 17 has broader support on the
+# UFS HPC toolchains; MUSICA requires C++20.
+if(CATCHEM_BUILD_MUSICA)
+  set(CMAKE_CXX_STANDARD 20)
+else()
+  set(CMAKE_CXX_STANDARD 17)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(CATCHEM_ENABLE_KOKKOS)
@@ -140,24 +145,17 @@ if(CATCHEM_ENABLE_KOKKOS)
     FetchContent_MakeAvailable(kokkos)
   endif()
 else()
-  # Host-only build: the C++ core's data layer is Kokkos::mdspan, which the
-  # standalone kokkos/mdspan header-only library provides without Kokkos
-  # (same <mdspan/mdspan.hpp> include, same Kokkos:: namespace). Pinned to a
-  # stable-branch commit: the <mdspan/mdspan.hpp> layout and the Kokkos
-  # default namespace postdate the last tagged release (0.6.0).
-  set(
-    CATCHEM_MDSPAN_COMMIT
-    "884f17a24301955d47cbb22318f06b8d8bee7ca3"
-    CACHE STRING
-    "Standalone kokkos/mdspan commit fetched for CATCHEM_ENABLE_KOKKOS=OFF builds"
-  )
-  include(FetchContent)
-  FetchContent_Declare(
+  # Host-only build: the C++ core's data layer is Kokkos::mdspan, provided
+  # without Kokkos by a vendored single-header build of the kokkos/mdspan
+  # reference implementation (src/external/mdspan — see its README for
+  # provenance and regeneration). Vendored rather than fetched because UFS
+  # compiles on network-restricted compute nodes.
+  add_library(mdspan INTERFACE)
+  add_library(mdspan::mdspan ALIAS mdspan)
+  target_include_directories(
     mdspan
-    URL
-      "https://github.com/kokkos/mdspan/archive/${CATCHEM_MDSPAN_COMMIT}.tar.gz"
+    INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/src/external/mdspan/include"
   )
-  FetchContent_MakeAvailable(mdspan)
 endif()
 # Option to build NUOPC cap (defaults to OFF)
 option(CATCHEM_BUILD_NUOPC "Build NUOPC cap and drivers" OFF)

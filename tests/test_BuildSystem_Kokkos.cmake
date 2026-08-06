@@ -83,7 +83,13 @@ message(STATUS "--- Test 2: CATCHEM_ENABLE_KOKKOS=ON configuration ---")
 assert_file_contains(
   "${SRC_ROOT}/CMakeLists.txt"
   "CMAKE_CXX_STANDARD 20"
-  "C++20 standard is configured"
+  "MUSICA builds use C++20"
+)
+
+assert_file_contains(
+  "${SRC_ROOT}/CMakeLists.txt"
+  "CMAKE_CXX_STANDARD 17"
+  "Non-MUSICA builds use C++17"
 )
 
 assert_file_contains(
@@ -98,13 +104,28 @@ assert_file_contains(
   "ON path falls back to fetching a pinned Kokkos"
 )
 
-# --- Test 3: OFF fetches standalone mdspan ---
+# --- Test 3: OFF uses the vendored mdspan (no network at configure) ---
 message(STATUS "--- Test 3: CATCHEM_ENABLE_KOKKOS=OFF configuration ---")
+
+if(NOT EXISTS "${SRC_ROOT}/src/external/mdspan/include/mdspan/mdspan.hpp")
+  message(
+    FATAL_ERROR
+    "FAILED: vendored mdspan single header is missing\n  Expected: src/external/mdspan/include/mdspan/mdspan.hpp"
+  )
+else()
+  message(STATUS "PASSED: vendored mdspan single header is present")
+endif()
 
 assert_file_contains(
   "${SRC_ROOT}/CMakeLists.txt"
+  "src/external/mdspan/include"
+  "OFF path points the mdspan target at the vendored header"
+)
+
+assert_file_not_contains(
+  "${SRC_ROOT}/CMakeLists.txt"
   "FetchContent_MakeAvailable(mdspan)"
-  "OFF path fetches the standalone kokkos/mdspan library"
+  "OFF path performs no mdspan fetch (network-restricted UFS nodes)"
 )
 
 # --- Test 4: C++ core is unconditional; Kokkos link is conditional ---
@@ -177,6 +198,12 @@ assert_file_contains(
   "${SRC_ROOT}/src/core/catchem_kokkos_compat.hpp"
   "#include <mdspan/mdspan.hpp>"
   "Compat header provides mdspan for host-only builds"
+)
+
+assert_file_contains(
+  "${SRC_ROOT}/src/core/catchem_kokkos_compat.hpp"
+  "#define MDSPAN_IMPL_STANDARD_NAMESPACE Kokkos"
+  "Compat header pins the vendored mdspan namespace to Kokkos"
 )
 
 # --- Test 7: C++ tests not gated on Kokkos ---
