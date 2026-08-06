@@ -20,11 +20,16 @@ namespace catchem {
         bool has_field(const std::string& name) const;
         std::shared_ptr<DiagnosticField> get_field(const std::string& name);
 
+#ifdef CATCHEM_ENABLE_KOKKOS
         Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
         get_device_view_2d(const std::string& name);
 
         Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
         get_device_view_3d(const std::string& name);
+#else
+        DiagnosticField::Mdspan2D get_device_view_2d(const std::string& name);
+        DiagnosticField::Mdspan3D get_device_view_3d(const std::string& name);
+#endif
 
         void* get_host_pointer(const std::string& name);
         void sync_to_host();

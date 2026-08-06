@@ -1,7 +1,7 @@
 #pragma once
+#include "catchem_kokkos_compat.hpp"
 
-#ifdef ENABLE_KOKKOS
-#include <Kokkos_Core.hpp>
+#ifdef CATCHEM_ENABLE_KOKKOS
 namespace catchem {
     namespace math {
         using Kokkos::acos;
@@ -16,9 +16,6 @@ namespace catchem {
     } // namespace math
 } // namespace catchem
 #else
-#ifndef KOKKOS_INLINE_FUNCTION
-#define KOKKOS_INLINE_FUNCTION inline
-#endif
 #include <algorithm>
 #include <cmath>
 namespace catchem {

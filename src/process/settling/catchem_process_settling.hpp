@@ -1,7 +1,8 @@
 #pragma once
+#include "catchem_kokkos_compat.hpp"
 #include "catchem_process_interface.hpp"
-#include <Kokkos_Core.hpp>
 #include <functional>
+#include <vector>
 
 namespace catchem {
 
@@ -10,10 +11,17 @@ namespace catchem {
         std::string active_scheme;
         std::function<void(void*)> fortran_callback;
 
+#ifdef CATCHEM_ENABLE_KOKKOS
         // Device Views for aerosol properties
         Kokkos::View<int*, Kokkos::DefaultExecutionSpace::memory_space> dev_aero_indices;
         Kokkos::View<double*, Kokkos::DefaultExecutionSpace::memory_space> dev_radius_dry;
         Kokkos::View<double*, Kokkos::DefaultExecutionSpace::memory_space> dev_rhop_dry;
+#else
+        // Host-only aerosol property arrays (mdspans over these feed the kernel)
+        std::vector<int> host_aero_indices;
+        std::vector<double> host_radius_dry;
+        std::vector<double> host_rhop_dry;
+#endif
 
     public:
         SettlingProcess();

@@ -1,25 +1,25 @@
 #pragma once
 
 #include "catchem_constants.hpp"
+#include "catchem_kokkos_compat.hpp"
 #include "catchem_state_manager.hpp"
-#include <Kokkos_Core.hpp>
 
 namespace catchem {
     namespace settling {
 
-        struct SettlingFunctor {
-            using ExecutionSpace = Kokkos::DefaultExecutionSpace;
-            using MemorySpace = ExecutionSpace::memory_space;
+        // The physics kernel is templated over its view types so the same
+        // body runs on Kokkos Views (CATCHEM_ENABLE_KOKKOS) or on host
+        // mdspans (host-only builds); both index via operator().
+        template <typename View3D, typename IntView1D, typename DblView1D> struct SettlingFunctorT {
+            View3D conc;
+            View3D t;
+            View3D airden;
+            View3D pedge;
+            View3D dz;
 
-            Kokkos::View<double***, Kokkos::LayoutLeft, MemorySpace> conc;
-            Kokkos::View<double***, Kokkos::LayoutLeft, MemorySpace> t;
-            Kokkos::View<double***, Kokkos::LayoutLeft, MemorySpace> airden;
-            Kokkos::View<double***, Kokkos::LayoutLeft, MemorySpace> pedge;
-            Kokkos::View<double***, Kokkos::LayoutLeft, MemorySpace> dz;
-
-            Kokkos::View<int*, MemorySpace> aerosol_indices;
-            Kokkos::View<double*, MemorySpace> aerosol_radius;
-            Kokkos::View<double*, MemorySpace> aerosol_density;
+            IntView1D aerosol_indices;
+            DblView1D aerosol_radius;
+            DblView1D aerosol_density;
 
             double cdt;
             int n_levels;
@@ -129,6 +129,17 @@ namespace catchem {
                 }
             }
         };
+
+#ifdef CATCHEM_ENABLE_KOKKOS
+        using SettlingFunctor =
+            SettlingFunctorT<Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>,
+                             Kokkos::View<int*, Kokkos::DefaultExecutionSpace::memory_space>,
+                             Kokkos::View<double*, Kokkos::DefaultExecutionSpace::memory_space>>;
+#else
+        using SettlingFunctor =
+            SettlingFunctorT<typename MdspanTypeHelper<double, 3>::type, typename MdspanTypeHelper<int, 1>::type,
+                             typename MdspanTypeHelper<double, 1>::type>;
+#endif
 
     } // namespace settling
 } // namespace catchem

@@ -52,49 +52,42 @@ namespace catchem {
         // 1. Retrieve Meteorological state pointers
         auto airden_ptr_it = state->met.fields_3d.find("air_density_dry");
         double* airden_ptr =
-            (airden_ptr_it != state->met.fields_3d.end()) ? airden_ptr_it->second->host_view.data() : nullptr;
+            (airden_ptr_it != state->met.fields_3d.end()) ? airden_ptr_it->second->host_data() : nullptr;
         auto clayfrac_ptr_it = state->met.fields_2d.find("clay_fraction");
         double* clayfrac_ptr =
-            (clayfrac_ptr_it != state->met.fields_2d.end()) ? clayfrac_ptr_it->second->host_view.data() : nullptr;
+            (clayfrac_ptr_it != state->met.fields_2d.end()) ? clayfrac_ptr_it->second->host_data() : nullptr;
         auto frlake_ptr_it = state->met.fields_2d.find("lake_fraction");
         double* frlake_ptr =
-            (frlake_ptr_it != state->met.fields_2d.end()) ? frlake_ptr_it->second->host_view.data() : nullptr;
+            (frlake_ptr_it != state->met.fields_2d.end()) ? frlake_ptr_it->second->host_data() : nullptr;
         auto frsno_ptr_it = state->met.fields_2d.find("snow_fraction");
-        double* frsno_ptr =
-            (frsno_ptr_it != state->met.fields_2d.end()) ? frsno_ptr_it->second->host_view.data() : nullptr;
+        double* frsno_ptr = (frsno_ptr_it != state->met.fields_2d.end()) ? frsno_ptr_it->second->host_data() : nullptr;
         auto gvf_ptr_it = state->met.fields_2d.find("vegetation_fraction");
-        double* gvf_ptr = (gvf_ptr_it != state->met.fields_2d.end()) ? gvf_ptr_it->second->host_view.data() : nullptr;
+        double* gvf_ptr = (gvf_ptr_it != state->met.fields_2d.end()) ? gvf_ptr_it->second->host_data() : nullptr;
         auto lai_ptr_it = state->met.fields_2d.find("leaf_area_index");
-        double* lai_ptr = (lai_ptr_it != state->met.fields_2d.end()) ? lai_ptr_it->second->host_view.data() : nullptr;
+        double* lai_ptr = (lai_ptr_it != state->met.fields_2d.end()) ? lai_ptr_it->second->host_data() : nullptr;
         int* lwi_ptr = nullptr;
         auto rdrag_ptr_it = state->met.fields_2d.find("drag_coefficient");
-        double* rdrag_ptr =
-            (rdrag_ptr_it != state->met.fields_2d.end()) ? rdrag_ptr_it->second->host_view.data() : nullptr;
+        double* rdrag_ptr = (rdrag_ptr_it != state->met.fields_2d.end()) ? rdrag_ptr_it->second->host_data() : nullptr;
         auto sandfrac_ptr_it = state->met.fields_2d.find("sand_fraction");
         double* sandfrac_ptr =
-            (sandfrac_ptr_it != state->met.fields_2d.end()) ? sandfrac_ptr_it->second->host_view.data() : nullptr;
+            (sandfrac_ptr_it != state->met.fields_2d.end()) ? sandfrac_ptr_it->second->host_data() : nullptr;
         auto soilm_ptr_it = state->met.fields_3d.find("soil_moisture");
-        double* soilm_ptr =
-            (soilm_ptr_it != state->met.fields_3d.end()) ? soilm_ptr_it->second->host_view.data() : nullptr;
+        double* soilm_ptr = (soilm_ptr_it != state->met.fields_3d.end()) ? soilm_ptr_it->second->host_data() : nullptr;
         auto ssm_ptr_it = state->met.fields_2d.find("surface_soil_moisture");
-        double* ssm_ptr = (ssm_ptr_it != state->met.fields_2d.end()) ? ssm_ptr_it->second->host_view.data() : nullptr;
+        double* ssm_ptr = (ssm_ptr_it != state->met.fields_2d.end()) ? ssm_ptr_it->second->host_data() : nullptr;
         auto tskin_ptr_it = state->met.fields_2d.find("skin_temperature");
-        double* tskin_ptr =
-            (tskin_ptr_it != state->met.fields_2d.end()) ? tskin_ptr_it->second->host_view.data() : nullptr;
+        double* tskin_ptr = (tskin_ptr_it != state->met.fields_2d.end()) ? tskin_ptr_it->second->host_data() : nullptr;
         auto u10m_ptr_it = state->met.fields_2d.find("u_10m");
-        double* u10m_ptr =
-            (u10m_ptr_it != state->met.fields_2d.end()) ? u10m_ptr_it->second->host_view.data() : nullptr;
+        double* u10m_ptr = (u10m_ptr_it != state->met.fields_2d.end()) ? u10m_ptr_it->second->host_data() : nullptr;
         auto v10m_ptr_it = state->met.fields_2d.find("v_10m");
-        double* v10m_ptr =
-            (v10m_ptr_it != state->met.fields_2d.end()) ? v10m_ptr_it->second->host_view.data() : nullptr;
+        double* v10m_ptr = (v10m_ptr_it != state->met.fields_2d.end()) ? v10m_ptr_it->second->host_data() : nullptr;
         auto ustar_ptr_it = state->met.fields_2d.find("friction_velocity");
-        double* ustar_ptr =
-            (ustar_ptr_it != state->met.fields_2d.end()) ? ustar_ptr_it->second->host_view.data() : nullptr;
+        double* ustar_ptr = (ustar_ptr_it != state->met.fields_2d.end()) ? ustar_ptr_it->second->host_data() : nullptr;
         auto ustar_th_ptr_it = state->met.fields_2d.find("threshold_friction_velocity");
         double* ustar_th_ptr =
-            (ustar_th_ptr_it != state->met.fields_2d.end()) ? ustar_th_ptr_it->second->host_view.data() : nullptr;
+            (ustar_th_ptr_it != state->met.fields_2d.end()) ? ustar_th_ptr_it->second->host_data() : nullptr;
         auto z0_ptr_it = state->met.fields_2d.find("roughness_length");
-        double* z0_ptr = (z0_ptr_it != state->met.fields_2d.end()) ? z0_ptr_it->second->host_view.data() : nullptr;
+        double* z0_ptr = (z0_ptr_it != state->met.fields_2d.end()) ? z0_ptr_it->second->host_data() : nullptr;
 
         // Provide dummy variables for non-existent ones so tests pass
         std::vector<double> dummy_1d(state->n_cols, 0.0);
@@ -153,7 +146,7 @@ namespace catchem {
             diag_utar_threshold = (double*)state->diag_mgr->get_host_pointer("dust_utar_threshold");
         }
 
-        double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
+        double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);

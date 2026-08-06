@@ -22,27 +22,48 @@ project(CATChem VERSION ${CATCHEM_VERSION} LANGUAGES Fortran C CXX)
 set(CATCHEM_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 set(CATCHEM_SRC_DIR "${CATCHEM_ROOT_DIR}/src")
 
-# Set C++ standard (default 11 for yaml-cpp; overridden to 17 when Kokkos is enabled)
-if(NOT ENABLE_KOKKOS)
-  set(CMAKE_CXX_STANDARD 11)
-  set(CMAKE_CXX_STANDARD_REQUIRED ON)
-endif()
-
 # Option to build NUOPC cap (defaults to OFF)
 option(BUILD_NUOPC "Build NUOPC cap and drivers" OFF)
 
-# Option to enable Kokkos GPU/parallel support (defaults to OFF)
-option(ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
+# Deprecated: ENABLE_KOKKOS was renamed to CATCHEM_ENABLE_KOKKOS to match the
+# other CATCHEM_* options. Honor the old name for out-of-tree callers.
+if(DEFINED ENABLE_KOKKOS AND NOT DEFINED CATCHEM_ENABLE_KOKKOS)
+  message(DEPRECATION "ENABLE_KOKKOS is deprecated; use CATCHEM_ENABLE_KOKKOS")
+  set(CATCHEM_ENABLE_KOKKOS "${ENABLE_KOKKOS}")
+endif()
 
-if(ENABLE_KOKKOS)
+# Option to enable Kokkos GPU/parallel support (defaults to OFF)
+option(CATCHEM_ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
+
+# Option to build with MUSICA chemistry library (defaults to OFF)
+option(CATCHEM_BUILD_MUSICA "Build with MUSICA chemistry library" OFF)
+
+# MUSICA's gaschem/photolysis processes build on the Kokkos-backed C++ core.
+if(CATCHEM_BUILD_MUSICA AND NOT CATCHEM_ENABLE_KOKKOS)
+  message(
+    FATAL_ERROR
+    "CATCHEM_BUILD_MUSICA=ON requires CATCHEM_ENABLE_KOKKOS=ON (gaschem and "
+    "photolysis are built on the Kokkos-backed C++ core)"
+  )
+endif()
+
+# C++ standard: C++17 everywhere except MUSICA builds — the mdspan data
+# layer and the C++ core need only 17, and 17 has broader support on the
+# UFS HPC toolchains; MUSICA requires C++20.
+if(CATCHEM_BUILD_MUSICA)
+  set(CMAKE_CXX_STANDARD 20)
+else()
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(CATCHEM_ENABLE_KOKKOS)
   if(CMAKE_VERSION VERSION_LESS "3.16")
     message(
       FATAL_ERROR
-      "ENABLE_KOKKOS requires CMake 3.16 or later (Kokkos minimum)"
+      "CATCHEM_ENABLE_KOKKOS requires CMake 3.16 or later (Kokkos minimum)"
     )
   endif()
-  set(CMAKE_CXX_STANDARD 20)
-  set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
   # CATChem's C++ core depends on mdspan support (Kokkos::mdspan and the
   # <mdspan/mdspan.hpp> headers), which is only available in modern Kokkos
@@ -123,6 +144,18 @@ if(ENABLE_KOKKOS)
     )
     FetchContent_MakeAvailable(kokkos)
   endif()
+else()
+  # Host-only build: the C++ core's data layer is Kokkos::mdspan, provided
+  # without Kokkos by a vendored single-header build of the kokkos/mdspan
+  # reference implementation (src/external/mdspan — see its README for
+  # provenance and regeneration). Vendored rather than fetched because UFS
+  # compiles on network-restricted compute nodes.
+  add_library(mdspan INTERFACE)
+  add_library(mdspan::mdspan ALIAS mdspan)
+  target_include_directories(
+    mdspan
+    INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/src/external/mdspan/include"
+  )
 endif()
 # Option to build NUOPC cap (defaults to OFF)
 option(CATCHEM_BUILD_NUOPC "Build NUOPC cap and drivers" OFF)
@@ -133,16 +166,8 @@ if(CATCHEM_TRACE_NUOPC)
   add_compile_definitions(CATCHEM_TRACE_NUOPC)
 endif()
 
-# Option to build with MUSICA chemistry library (defaults to OFF)
-option(CATCHEM_BUILD_MUSICA "Build with MUSICA chemistry library" OFF)
-
-# Set C++ standard — MUSICA requires C++20, yaml-cpp needs at least C++11
-if(CATCHEM_BUILD_MUSICA)
-  set(CMAKE_CXX_STANDARD 20)
-else()
-  set(CMAKE_CXX_STANDARD 11)
-endif()
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# CATCHEM_BUILD_MUSICA and the C++ standard are configured next to
+# CATCHEM_ENABLE_KOKKOS near the top of this file.
 
 include(CMakePrintHelpers)
 

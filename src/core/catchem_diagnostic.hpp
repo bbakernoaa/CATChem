@@ -1,6 +1,7 @@
 // src/core/catchem_diagnostic.hpp
 #pragma once
-#include <Kokkos_Core.hpp>
+#include "catchem_interop_field.hpp"
+#include "catchem_kokkos_compat.hpp"
 #include <string>
 #include <vector>
 
@@ -10,6 +11,16 @@ namespace catchem {
 
     class DiagnosticField {
     public:
+        using Mdspan2D = typename MdspanTypeHelper<double, 2>::type;
+        using Mdspan3D = typename MdspanTypeHelper<double, 3>::type;
+
+        std::string name;
+        std::string description;
+        std::string units;
+        DiagType type;
+        std::vector<int> dimensions;
+
+#ifdef CATCHEM_ENABLE_KOKKOS
         using HostSpace = Kokkos::HostSpace;
         using DeviceSpace = Kokkos::DefaultExecutionSpace::memory_space;
 
@@ -19,17 +30,16 @@ namespace catchem {
         using View3D = Kokkos::View<double***, Kokkos::LayoutLeft, DeviceSpace>;
         using HostView3D = Kokkos::View<double***, Kokkos::LayoutLeft, HostSpace>;
 
-        std::string name;
-        std::string description;
-        std::string units;
-        DiagType type;
-        std::vector<int> dimensions;
-
         View2D device_view_2d;
         HostView2D host_view_2d;
 
         View3D device_view_3d;
         HostView3D host_view_3d;
+#else
+        // Host-only builds own their storage directly; mdspans over `storage`
+        // serve as both the "host" and "device" views.
+        std::vector<double> storage;
+#endif
 
         bool is_gpu_target;
 

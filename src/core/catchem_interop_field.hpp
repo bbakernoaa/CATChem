@@ -1,9 +1,12 @@
 #pragma once
-#include <Kokkos_Core.hpp>
-#include <mdspan/mdspan.hpp>
+#include "catchem_kokkos_compat.hpp"
+#include <array>
 #include <memory>
 #include <type_traits>
 #include <vector>
+#ifdef CATCHEM_ENABLE_KOKKOS
+#include <mdspan/mdspan.hpp>
+#endif
 
 namespace catchem {
 
@@ -28,16 +31,21 @@ namespace catchem {
 
     /**
      * @class InteropField
-     * @brief High-performance wrapper mapping host-allocated contiguous pointers to Kokkos Views.
+     * @brief High-performance wrapper mapping host-allocated contiguous pointers to device-capable views.
      *
-     * This class translates standard raw pointer buffers across language boundaries (e.g. Fortran to C++)
-     * into unmanaged Kokkos LayoutLeft Views for zero-copy parallel processing.
+     * This class translates standard raw pointer buffers across language boundaries (e.g. Fortran to C++).
+     * With Kokkos enabled it provides unmanaged LayoutLeft Views plus a managed device mirror; in host-only
+     * builds the same interface is served directly by Kokkos::mdspan (standalone library) over the host
+     * buffer, and the device-sync operations are no-ops.
      *
      * @tparam DataType Numeric type of the grid elements (typically double).
      * @tparam Rank Dimensional dimensionality of the field (1, 2, or 3).
      */
     template <typename DataType, int Rank> class InteropField {
     public:
+        using MdspanType = typename MdspanTypeHelper<DataType, Rank>::type;
+
+#ifdef CATCHEM_ENABLE_KOKKOS
         using HostSpace = Kokkos::HostSpace;
         using DeviceSpace = Kokkos::DefaultExecutionSpace::memory_space;
 
@@ -63,8 +71,6 @@ namespace catchem {
 
         using HostViewType = typename ViewType<DataType, Rank, HostSpace, true>::type;
         using DeviceViewType = typename ViewType<DataType, Rank, DeviceSpace, false>::type;
-
-        using MdspanType = typename MdspanTypeHelper<DataType, Rank>::type;
 
         HostViewType host_view;     ///< Contiguous host layout left view mapping raw pointer.
         DeviceViewType device_view; ///< Dedicated device view managed by Kokkos execution space.
@@ -124,6 +130,9 @@ namespace catchem {
             }
         }
 
+        /** @brief Raw pointer to the host-side buffer. */
+        DataType* host_data() const { return host_view.data(); }
+
         /** @brief Constructs a modern, standard-conforming mdspan referencing active data memory. */
         MdspanType mdspan() const {
             auto v = view();
@@ -135,6 +144,42 @@ namespace catchem {
                 return MdspanType(v.data(), v.extent(0), v.extent(1), v.extent(2));
             }
         }
+#else
+        DataType* data_ptr;         ///< Raw host buffer (not owned).
+        std::array<int, Rank> dims; ///< Grid bounds per rank.
+        bool is_gpu_target = false; ///< Host-only builds never target a device.
+
+        InteropField(DataType* ptr, const std::vector<int>& dim_vec) : data_ptr(ptr) {
+            if (ptr == nullptr) {
+                throw std::invalid_argument("InteropField constructor failed: input pointer is null.");
+            }
+            if (dim_vec.size() != static_cast<size_t>(Rank)) {
+                throw std::invalid_argument("InteropField constructor failed: dimension size mismatch.");
+            }
+            for (int r = 0; r < Rank; ++r)
+                dims[r] = dim_vec[r];
+        }
+
+        void sync_to_device() {}
+        void sync_to_host() {}
+
+        /** @brief Raw pointer to the host-side buffer. */
+        DataType* host_data() const { return data_ptr; }
+
+        /** @brief Host mdspan over the buffer (the only "view" in host-only builds). */
+        MdspanType mdspan() const {
+            if constexpr (Rank == 1) {
+                return MdspanType(data_ptr, dims[0]);
+            } else if constexpr (Rank == 2) {
+                return MdspanType(data_ptr, dims[0], dims[1]);
+            } else if constexpr (Rank == 3) {
+                return MdspanType(data_ptr, dims[0], dims[1], dims[2]);
+            }
+        }
+
+        /** @brief Same as mdspan(); kernels index views and mdspans identically via operator(). */
+        MdspanType view() const { return mdspan(); }
+#endif
     };
 
 } // namespace catchem

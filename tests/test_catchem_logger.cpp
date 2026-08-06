@@ -1,6 +1,6 @@
+#include "catchem_kokkos_compat.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_state_manager.hpp"
-#include <Kokkos_Core.hpp>
 #include <cassert>
 #include <iostream>
 

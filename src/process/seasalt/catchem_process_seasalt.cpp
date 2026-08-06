@@ -44,26 +44,24 @@ namespace catchem {
 
         // 1. Fetch raw pointers to Met fields dynamically from unordered_maps inside state->met
         auto frocean_it = state->met.fields_2d.find("FROCEAN");
-        double* frocean_ptr =
-            (frocean_it != state->met.fields_2d.end()) ? frocean_it->second->host_view.data() : nullptr;
+        double* frocean_ptr = (frocean_it != state->met.fields_2d.end()) ? frocean_it->second->host_data() : nullptr;
 
         auto frseaice_it = state->met.fields_2d.find("FRSEAICE");
-        double* frseaice_ptr =
-            (frseaice_it != state->met.fields_2d.end()) ? frseaice_it->second->host_view.data() : nullptr;
+        double* frseaice_ptr = (frseaice_it != state->met.fields_2d.end()) ? frseaice_it->second->host_data() : nullptr;
 
         auto sst_it = state->met.fields_2d.find("SST");
-        double* sst_ptr = (sst_it != state->met.fields_2d.end()) ? sst_it->second->host_view.data() : nullptr;
+        double* sst_ptr = (sst_it != state->met.fields_2d.end()) ? sst_it->second->host_data() : nullptr;
 
         auto lat_it = state->met.fields_2d.find("LAT");
-        double* lat_ptr = (lat_it != state->met.fields_2d.end()) ? lat_it->second->host_view.data() : nullptr;
+        double* lat_ptr = (lat_it != state->met.fields_2d.end()) ? lat_it->second->host_data() : nullptr;
 
         auto lon_it = state->met.fields_2d.find("LON");
-        double* lon_ptr = (lon_it != state->met.fields_2d.end()) ? lon_it->second->host_view.data() : nullptr;
+        double* lon_ptr = (lon_it != state->met.fields_2d.end()) ? lon_it->second->host_data() : nullptr;
 
         auto delp_it = state->met.fields_3d.find("DELP");
-        double* delp_ptr = (delp_it != state->met.fields_3d.end()) ? delp_it->second->host_view.data() : nullptr;
+        double* delp_ptr = (delp_it != state->met.fields_3d.end()) ? delp_it->second->host_data() : nullptr;
 
-        double* ustar_ptr = state->met.USTAR ? state->met.USTAR->host_view.data() : nullptr;
+        double* ustar_ptr = state->met.USTAR ? state->met.USTAR->host_data() : nullptr;
 
         // Local fallbacks for winds if not bound
         std::vector<double> u10m(state->n_cols, 5.0);
@@ -98,7 +96,7 @@ namespace catchem {
             return; // No sea salt species configured
 
         // Extract chemical concentration raw host pointer
-        double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
+        double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
         if (!conc_ptr)
             return;
 

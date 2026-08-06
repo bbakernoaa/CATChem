@@ -41,25 +41,22 @@ namespace catchem {
         state->sync_to_host();
 
         // 1. Fetch raw pointers to Met Views
-        double* airden_dry_ptr = state->met.AIRDEN_DRY ? state->met.AIRDEN_DRY->host_view.data() : nullptr;
-        double* mairden_ptr = state->met.AIRDEN ? state->met.AIRDEN->host_view.data() : nullptr;
-        double* pedge_ptr = state->met.PEDGE ? state->met.PEDGE->host_view.data() : nullptr;
-        double* t_ptr = state->met.T ? state->met.T->host_view.data() : nullptr;
+        double* airden_dry_ptr = state->met.AIRDEN_DRY ? state->met.AIRDEN_DRY->host_data() : nullptr;
+        double* mairden_ptr = state->met.AIRDEN ? state->met.AIRDEN->host_data() : nullptr;
+        double* pedge_ptr = state->met.PEDGE ? state->met.PEDGE->host_data() : nullptr;
+        double* t_ptr = state->met.T ? state->met.T->host_data() : nullptr;
 
         auto pfilsan_it = state->met.fields_3d.find("PFILSAN");
-        double* pfilsan_ptr =
-            (pfilsan_it != state->met.fields_3d.end()) ? pfilsan_it->second->host_view.data() : nullptr;
+        double* pfilsan_ptr = (pfilsan_it != state->met.fields_3d.end()) ? pfilsan_it->second->host_data() : nullptr;
 
         auto pfllsan_it = state->met.fields_3d.find("PFLLSAN");
-        double* pfllsan_ptr =
-            (pfllsan_it != state->met.fields_3d.end()) ? pfllsan_it->second->host_view.data() : nullptr;
+        double* pfllsan_ptr = (pfllsan_it != state->met.fields_3d.end()) ? pfllsan_it->second->host_data() : nullptr;
 
         auto reevapls_it = state->met.fields_3d.find("REEVAPLS");
-        double* reevapls_ptr =
-            (reevapls_it != state->met.fields_3d.end()) ? reevapls_it->second->host_view.data() : nullptr;
+        double* reevapls_ptr = (reevapls_it != state->met.fields_3d.end()) ? reevapls_it->second->host_data() : nullptr;
 
         // 2. Extract chemical arrays & C++ allocated diagnostics
-        double* conc_ptr = state->chem.conc ? state->chem.conc->host_view.data() : nullptr;
+        double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);

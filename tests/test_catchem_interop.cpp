@@ -2,8 +2,8 @@
 #include "catchem_core.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_fortran_process.hpp"
+#include "catchem_kokkos_compat.hpp"
 #include "catchem_state_manager.hpp"
-#include <Kokkos_Core.hpp>
 #include <cassert>
 #include <fstream>
 #include <iostream>
@@ -44,6 +44,7 @@ public:
         // Retrieve the underlying diagnostic device View
         auto dust_flux = diag_mgr->get_device_view_2d("dust_emission_flux");
 
+#ifdef CATCHEM_ENABLE_KOKKOS
         // Capture View by value in the parallel kernel
         Kokkos::parallel_for(
             "calculate_dust_emissions", Kokkos::RangePolicy<Kokkos::DefaultExecutionSpace>(0, n_cols),
@@ -51,6 +52,11 @@ public:
                 // Write directly to the diagnostic view
                 dust_flux(icol, 0) = 42.0 + icol;
             });
+#else
+        for (int icol = 0; icol < n_cols; ++icol) {
+            dust_flux(icol, 0) = 42.0 + icol;
+        }
+#endif
     }
 
     void finalize() override {}
@@ -238,7 +244,7 @@ int main(int argc, char* argv[]) {
             // Assert unified chemistry array mapped accurately
             auto* state_obj = static_cast<catchem::StateManager*>(state);
             assert(state_obj->chem.conc != nullptr);
-            assert(state_obj->chem.conc->host_view(0, 0, 0) == 4.2);
+            assert(state_obj->chem.conc->host_data()[0] == 4.2);
 
             // 7. Test portable Time State calculations
             catchem_state_set_time(state, 2026, 7, 8, 12, 0, 0, 189, 3600.0);
