@@ -23,6 +23,16 @@ void* catchem_core_create_from_config(const char* config_file) {
     }
 }
 
+void* catchem_core_create_from_config_with_grid(const char* config_file, int ncols, int nlevels) {
+    try {
+        return static_cast<void*>(new catchem::Core(config_file, ncols, nlevels));
+    } catch (const std::exception& e) {
+        std::cerr << "CATChem API Error: Failed to create Core from config '" << config_file << "' with grid (" << ncols
+                  << ", " << nlevels << "). Details: " << e.what() << std::endl;
+        return nullptr;
+    }
+}
+
 void catchem_core_destroy(void* core_ptr) {
     delete static_cast<catchem::Core*>(core_ptr);
 }

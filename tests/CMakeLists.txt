@@ -56,6 +56,29 @@ add_fortran_test(test_GridGeometry)
 add_fortran_test(test_TimeState)
 add_fortran_test(test_MetState)
 
+# High-level API init-sequence test — mirrors the NUOPC cap's usage of
+# CATChem_Model (facade construction, met binding, timestep)
+if(TARGET CATChem)
+  add_executable(test_CATChem_API test_CATChem_API.f90)
+  target_link_libraries(test_CATChem_API PRIVATE CATChem CATChem_core)
+  set_target_properties(
+    test_CATChem_API
+    PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+      LINKER_LANGUAGE Fortran
+  )
+  target_include_directories(
+    test_CATChem_API
+    PRIVATE ${CMAKE_BINARY_DIR}/include
+  )
+  add_dependencies(test_CATChem_API CATChem)
+  add_test(
+    NAME test_CATChem_API
+    COMMAND test_CATChem_API
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+endif()
+
 # UnitConversion needs specific include search dirs
 add_executable(test_UnitConversion test_UnitConversion.f90)
 target_link_libraries(test_UnitConversion PRIVATE CATChem_core testing)

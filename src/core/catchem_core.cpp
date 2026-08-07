@@ -32,6 +32,24 @@ namespace catchem {
         state_mgr->diag_mgr = diag_mgr;
     }
 
+    Core::Core(const std::string& config_file, int nc, int nl) {
+        config_mgr = std::make_shared<ConfigManager>();
+        config_mgr->load_from_file(config_file);
+
+        // The host (e.g. UFS per-rank domain decomposition) dictates the grid
+        // dimensions; the YAML grid section applies to standalone runs only.
+        config_mgr->data.runtime.nx = nc;
+        config_mgr->data.runtime.ny = 1;
+        config_mgr->data.runtime.nz = nl;
+
+        grid_mgr = std::make_shared<GridManager>(nc, 1, nl);
+        state_mgr = std::make_shared<StateManager>(nc, nl, 50); // TODO: species count from config
+        state_mgr->config_mgr = config_mgr;
+        state_mgr->config_file_path = config_mgr->config_file_path;
+        diag_mgr = std::make_shared<DiagnosticManager>();
+        state_mgr->diag_mgr = diag_mgr;
+    }
+
     std::shared_ptr<ConfigManager> Core::get_config_manager() {
         return config_mgr;
     }

@@ -28,6 +28,18 @@ void* catchem_core_create(int nc, int nl, int ns);
 void* catchem_core_create_from_config(const char* config_file);
 
 /**
+ * @brief Creates the Core from a YAML config file with host-supplied grid dimensions.
+ *
+ * Configuration comes from the file; the grid is sized by the host (required
+ * under domain decomposition, e.g. UFS per-rank tiles).
+ * @param config_file Null-terminated filesystem path.
+ * @param ncols Host-local number of columns (nx*ny).
+ * @param nlevels Number of vertical levels.
+ * @return Opacity-wrapped void* handle pointing to catchem::Core, or NULL on failure.
+ */
+void* catchem_core_create_from_config_with_grid(const char* config_file, int ncols, int nlevels);
+
+/**
  * @brief Destroys the Core orchestrator instance and releases heap memory.
  * @param core_ptr Pointer to the active catchem::Core instance.
  */

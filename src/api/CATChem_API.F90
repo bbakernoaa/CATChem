@@ -9,6 +9,7 @@
 module CATChem_API
    use iso_c_binding
    use precision_mod, only: fp
+   use StateManager_Mod, only: StateManagerType
 
    implicit none
    private
@@ -22,6 +23,13 @@ module CATChem_API
       type(c_ptr) function catchem_core_create_from_config(config_file) bind(C, name="catchem_core_create_from_config")
          import :: c_char, c_ptr
          character(kind=c_char), intent(in) :: config_file(*)
+      end function
+
+      type(c_ptr) function catchem_core_create_from_config_with_grid(config_file, ncols, nlevels) &
+         bind(C, name="catchem_core_create_from_config_with_grid")
+         import :: c_char, c_ptr, c_int
+         character(kind=c_char), intent(in) :: config_file(*)
+         integer(c_int), value :: ncols, nlevels
       end function
 
       subroutine catchem_core_destroy(core_ptr) bind(C, name="catchem_core_destroy")
@@ -128,6 +136,10 @@ module CATChem_API
    type :: CATChem_Model
       type(c_ptr) :: cpp_core_ptr = c_null_ptr
       type(c_ptr) :: state_mgr_ptr = c_null_ptr
+      !> Fortran-facing state facade over the C++-owned state: sub-states are
+      !> allocated and their met arrays bound into the C++ StateManager by
+      !> model_initialize; get_state_manager returns this instance.
+      type(StateManagerType), pointer :: facade => null()
       character(len=64), allocatable, public :: required_fields(:)
       integer :: nx = 0
       integer :: ny = 0
@@ -178,26 +190,121 @@ contains
       integer, intent(out) :: rc
 
       character(kind=c_char) :: c_filename(512)
-      integer :: nx_cpp, ny_cpp, nz_cpp
 
       call to_c_string(config_file, c_filename)
-      this%cpp_core_ptr = catchem_core_create_from_config(c_filename)
+
+      ! Configuration (species, processes, runtime options) comes from the
+      ! YAML; grid dimensions are dictated by the host (e.g. UFS per-rank
+      ! domain decomposition) — the YAML grid section applies to standalone
+      ! runs only. Columns are flattened as nx*ny.
+      this%cpp_core_ptr = catchem_core_create_from_config_with_grid( &
+         c_filename, int(nx*ny, c_int), int(nz, c_int))
       if (.not. c_associated(this%cpp_core_ptr)) then
          rc = -1
          return
       end if
 
       this%state_mgr_ptr = catchem_core_get_state_manager(this%cpp_core_ptr)
+
+      ! Host-local dimensions are authoritative
+      this%nx = nx
+      this%ny = ny
+      this%nz = nz
+
+      ! Construct the Fortran state facade over the C++-owned state: allocate
+      ! the sub-state containers, allocate the Fortran-owned met arrays, and
+      ! bind them into the C++ StateManager so both sides share buffers.
+      call model_build_facade(this, nx, ny, nz, nsoil, nsoiltype, nsurftype, rc)
+      if (rc /= 0) return
+
       this%initialized = .true.
-
-      ! Query grid dimensions from the modern C++ Core config
-      call catchem_get_grid_dimensions(this%cpp_core_ptr, nx_cpp, ny_cpp, nz_cpp)
-      this%nx = nx_cpp
-      this%ny = ny_cpp
-      this%nz = nz_cpp
-
       rc = 0
    end subroutine model_initialize
+
+   !> Allocate the Fortran state facade and bind its met arrays into the
+   !> C++ StateManager. After this, StateManagerType getters return live
+   !> sub-states and get_cpp_field retrievals resolve to the same memory.
+   subroutine model_build_facade(this, nx, ny, nz, nsoil, nsoiltype, nsurftype, rc)
+      use MetState_Mod, only: MetStateType
+      class(CATChem_Model), intent(inout) :: this
+      integer, intent(in) :: nx, ny, nz
+      integer, intent(in), optional :: nsoil, nsoiltype, nsurftype
+      integer, intent(out) :: rc
+
+      type(MetStateType), pointer :: met
+
+      allocate(this%facade)
+      this%facade%cpp_ptr = this%state_mgr_ptr
+
+      allocate(this%facade%error_mgr)
+      allocate(this%facade%time_state)
+      allocate(this%facade%chem_state)
+      allocate(this%facade%config_mgr)
+      allocate(this%facade%met_state)
+
+      ! Geometry + allocation of all core met arrays (Fortran-owned)
+      call this%facade%met_state%init(nx, ny, nz, nsoil, nsoiltype, nsurftype, &
+         this%facade%error_mgr, rc)
+      if (rc /= 0) return
+
+      met => this%facade%met_state
+
+      ! Optional surface fields retrieved by get_met_state_ptr but not part of
+      ! the 'ALL' allocation set
+      if (.not. associated(met%FROCEAN)) allocate(met%FROCEAN(nx, ny))
+      if (.not. associated(met%FRSEAICE)) allocate(met%FRSEAICE(nx, ny))
+      if (.not. associated(met%SST)) allocate(met%SST(nx, ny))
+
+      ! Bind every array that get_met_state_ptr retrieves, so retrieval
+      ! resolves to this same memory instead of nullifying the members.
+      call bind_met_3d_ptr(this, "T", met%T)
+      call bind_met_3d_ptr(this, "QV", met%QV)
+      call bind_met_3d_ptr(this, "RH", met%RH)
+      call bind_met_3d_ptr(this, "PMID", met%PMID)
+      call bind_met_3d_ptr(this, "PEDGE", met%PEDGE)
+      call bind_met_3d_ptr(this, "AIRDEN", met%AIRDEN)
+      call bind_met_3d_ptr(this, "AIRDEN_DRY", met%AIRDEN_DRY)
+      call bind_met_3d_ptr(this, "BXHEIGHT", met%BXHEIGHT)
+      call bind_met_3d_ptr(this, "DELP", met%DELP)
+      call bind_met_3d_ptr(this, "DELP_DRY", met%DELP_DRY)
+
+      call bind_met_2d_ptr(this, "PS", met%PS)
+      call bind_met_2d_ptr(this, "TS", met%TS)
+      call bind_met_2d_ptr(this, "PBLH", met%PBLH)
+      call bind_met_2d_ptr(this, "USTAR", met%USTAR)
+      call bind_met_2d_ptr(this, "HFLUX", met%HFLUX)
+      call bind_met_2d_ptr(this, "OBK", met%OBK)
+      call bind_met_2d_ptr(this, "LAT", met%LAT)
+      call bind_met_2d_ptr(this, "LON", met%LON)
+      call bind_met_2d_ptr(this, "AREA_M2", met%AREA_M2)
+      call bind_met_2d_ptr(this, "FROCEAN", met%FROCEAN)
+      call bind_met_2d_ptr(this, "FRSEAICE", met%FRSEAICE)
+      call bind_met_2d_ptr(this, "SST", met%SST)
+
+      rc = 0
+   end subroutine model_build_facade
+
+   !> Bind a Fortran-owned 3D pointer array into the C++ StateManager.
+   subroutine bind_met_3d_ptr(this, name, arr)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: name
+      real(fp), pointer, intent(in) :: arr(:,:,:)
+      character(kind=c_char) :: c_name(64)
+      if (.not. associated(arr)) return
+      call to_c_string(name, c_name)
+      call catchem_state_bind_met_3d(this%state_mgr_ptr, c_name, c_loc(arr))
+   end subroutine bind_met_3d_ptr
+
+   !> Bind a Fortran-owned 2D pointer array into the C++ StateManager.
+   subroutine bind_met_2d_ptr(this, name, arr)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: name
+      real(fp), pointer, intent(in) :: arr(:,:)
+      character(kind=c_char) :: c_name(64)
+      if (.not. associated(arr)) return
+      call to_c_string(name, c_name)
+      call catchem_state_bind_met_2d(this%state_mgr_ptr, c_name, c_loc(arr))
+   end subroutine bind_met_2d_ptr
 
    ! Finalize model and release memory
    subroutine model_finalize(this, rc)
@@ -208,6 +315,16 @@ contains
          call catchem_core_destroy(this%cpp_core_ptr)
          this%cpp_core_ptr = c_null_ptr
          this%state_mgr_ptr = c_null_ptr
+      end if
+      ! Release the facade containers (their pointer-array members are
+      ! intentionally left to process teardown; the C++ side never owned them)
+      if (associated(this%facade)) then
+         if (associated(this%facade%met_state)) deallocate(this%facade%met_state)
+         if (associated(this%facade%chem_state)) deallocate(this%facade%chem_state)
+         if (associated(this%facade%config_mgr)) deallocate(this%facade%config_mgr)
+         if (associated(this%facade%error_mgr)) deallocate(this%facade%error_mgr)
+         if (associated(this%facade%time_state)) deallocate(this%facade%time_state)
+         deallocate(this%facade)
       end if
       this%initialized = .false.
       rc = 0
@@ -404,14 +521,15 @@ contains
       ptr => saved_diag_mgr
    end function model_get_diagnostic_manager
 
-   ! Get pointer to StateManager
+   ! Get pointer to the Fortran state facade (constructed by initialize)
    function model_get_state_manager(this) result(ptr)
-      use StateManager_Mod, only: StateManagerType
       class(CATChem_Model), intent(inout) :: this
       type(StateManagerType), pointer :: ptr
-      type(StateManagerType), save, target :: saved_state_mgr
-      saved_state_mgr%cpp_ptr = this%state_mgr_ptr
-      ptr => saved_state_mgr
+      if (.not. associated(this%facade)) then
+         error stop "CATChem_Model%get_state_manager: model not initialized "// &
+            "(CATChem_Model%initialize constructs the state facade)"
+      end if
+      ptr => this%facade
    end function model_get_state_manager
 
 end module CATChem_API

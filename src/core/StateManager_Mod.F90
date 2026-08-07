@@ -39,6 +39,11 @@ contains
       type(MetStateType), pointer :: ptr
       integer :: rc, nx, ny, nz
 
+      if (.not. associated(this%met_state)) then
+         error stop "StateManagerType%get_met_state_ptr: met_state facade not "// &
+            "initialized (construct via CATChem_Model%initialize)"
+      end if
+
       ptr => this%met_state
       if (associated(ptr) .and. c_associated(this%cpp_ptr)) then
          ptr%cpp_ptr = this%cpp_ptr
@@ -74,24 +79,40 @@ contains
    function state_mgr_get_chem_state_ptr(this) result(ptr)
       class(StateManagerType), intent(in) :: this
       type(ChemStateType), pointer :: ptr
+      if (.not. associated(this%chem_state)) then
+         error stop "StateManagerType%get_chem_state_ptr: chem_state facade not "// &
+            "initialized (construct via CATChem_Model%initialize)"
+      end if
       ptr => this%chem_state
    end function state_mgr_get_chem_state_ptr
 
    function state_mgr_get_config_ptr(this) result(ptr)
       class(StateManagerType), intent(in) :: this
       type(ConfigManagerType), pointer :: ptr
+      if (.not. associated(this%config_mgr)) then
+         error stop "StateManagerType%get_config_ptr: config facade not "// &
+            "initialized (construct via CATChem_Model%initialize)"
+      end if
       ptr => this%config_mgr
    end function state_mgr_get_config_ptr
 
    function state_mgr_get_error_mgr(this) result(ptr)
       class(StateManagerType), intent(in) :: this
       type(ErrorManagerType), pointer :: ptr
+      if (.not. associated(this%error_mgr)) then
+         error stop "StateManagerType%get_error_manager: error manager facade not "// &
+            "initialized (construct via CATChem_Model%initialize)"
+      end if
       ptr => this%error_mgr
    end function state_mgr_get_error_mgr
 
    function state_mgr_get_time_state_ptr(this) result(ptr)
       class(StateManagerType), intent(in) :: this
       type(TimeStateType), pointer :: ptr
+      if (.not. associated(this%time_state)) then
+         error stop "StateManagerType%get_time_state_ptr: time state facade not "// &
+            "initialized (construct via CATChem_Model%initialize)"
+      end if
       ptr => this%time_state
    end function state_mgr_get_time_state_ptr
 

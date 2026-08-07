@@ -45,6 +45,19 @@ namespace catchem {
          */
         Core(const std::string& config_file);
 
+        /**
+         * @brief Constructs the Core from a YAML file with host-supplied grid dimensions.
+         *
+         * Configuration (species, processes, runtime options) comes from the file;
+         * the grid is sized by the host — required under domain decomposition
+         * (e.g. UFS per-rank tiles), where the YAML grid section does not apply.
+         * @param config_file Path to the YAML configuration file.
+         * @param nc Number of contiguous columns (host-local).
+         * @param nl Number of vertical levels.
+         * @throws std::runtime_error If the file cannot be read or parsed.
+         */
+        Core(const std::string& config_file, int nc, int nl);
+
         /** @brief Get the configuration manager. */
         std::shared_ptr<ConfigManager> get_config_manager();
 
