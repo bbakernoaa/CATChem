@@ -4,11 +4,7 @@
 # Description: Process for computing chemical production and loss of carbon species
 
 # Define carbchem process sources
-set(
-  CARBCHEM_PROCESS_SOURCES
-  CarbChemCommon_Mod.F90
-  CarbChemScienceBridge.F90
-)
+set(CARBCHEM_PROCESS_SOURCES CarbChemCommon_Mod.F90 CarbChemScienceBridge.F90)
 
 # Define carbchem scheme sources
 set(CARBCHEM_SCHEME_SOURCES schemes/CarbChemScheme_GOCART_Mod.F90)
@@ -16,7 +12,7 @@ set(CARBCHEM_SCHEME_SOURCES schemes/CarbChemScheme_GOCART_Mod.F90)
 # Combine all sources
 set(CARBCHEM_ALL_SOURCES ${CARBCHEM_PROCESS_SOURCES} ${CARBCHEM_SCHEME_SOURCES})
 
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   list(APPEND CARBCHEM_ALL_SOURCES catchem_process_carbchem.cpp)
 endif()
 
@@ -28,9 +24,9 @@ add_library(${_lib} ${CARBCHEM_ALL_SOURCES})
 target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   target_link_libraries(${_lib} PUBLIC Kokkos::kokkos CATChem_core_cpp)
-  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
+  target_compile_definitions(${_lib} PRIVATE CATCHEM_ENABLE_KOKKOS)
 endif()
 
 # Additional dependencies

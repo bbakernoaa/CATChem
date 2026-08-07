@@ -51,11 +51,11 @@ module DustCommon_Mod
       logical :: affects_full_column = .false.  ! Surface-only processing
 
       ! Scheme parameters
-      real(fp) :: alpha = 0.2  ! linear scaling factor
-      real(fp) :: gamma = 1.0  ! Exponential scaling factor on source parameter
-      real(fp) :: drylimit_factor = 1.0  ! Dry Limit factor modifying the Fecan dry limit following Zender 2003
-      real(fp) :: moist_correction_factor = 1.0  ! Moisture correction factor
-      real(fp) :: kvhmax = 0.0002  ! Maximum vertical to horizontal flux ratio
+      real(fp) :: alpha = 0.2_fp  ! linear scaling factor
+      real(fp) :: gamma = 1.0_fp  ! Exponential scaling factor on source parameter
+      real(fp) :: drylimit_factor = 1.0_fp  ! Dry Limit factor modifying the Fecan dry limit following Zender 2003
+      real(fp) :: moist_correction_factor = 1.0_fp  ! Moisture correction factor
+      real(fp) :: kvhmax = 0.0002_fp  ! Maximum vertical to horizontal flux ratio
       integer :: drag_option = 1  ! Drag Partition Option: 1 - use input drag, 2 - Darmenova, 3 - Leung 2022, 4 - MB95
       integer :: horizflux_option = 1  ! Horizontal flux option: 1 - White (1979), 2 - Draxler (2001), 3 - Kawamura (1964)
       integer :: moist_option = 1  ! Moisture parameterization: 1 - Fecan, 2 - Zhao

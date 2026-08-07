@@ -4,11 +4,7 @@
 # Description: Process for computing windblown dust emissions
 
 # Define dust process sources
-set(
-  DUST_PROCESS_SOURCES
-  DustCommon_Mod.F90
-  DustScienceBridge.F90
-)
+set(DUST_PROCESS_SOURCES DustCommon_Mod.F90 DustScienceBridge.F90)
 
 # Define dust scheme sources
 set(
@@ -20,7 +16,7 @@ set(
 # Combine all sources
 set(DUST_ALL_SOURCES ${DUST_PROCESS_SOURCES} ${DUST_SCHEME_SOURCES})
 
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   list(APPEND DUST_ALL_SOURCES catchem_process_dust.cpp)
 endif()
 
@@ -32,9 +28,9 @@ add_library(${_lib} ${DUST_ALL_SOURCES})
 target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   target_link_libraries(${_lib} PUBLIC Kokkos::kokkos CATChem_core_cpp)
-  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
+  target_compile_definitions(${_lib} PRIVATE CATCHEM_ENABLE_KOKKOS)
 endif()
 
 # Additional dependencies

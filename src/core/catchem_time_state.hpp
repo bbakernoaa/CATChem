@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <cmath>
 
-#ifdef ENABLE_KOKKOS
+#ifdef CATCHEM_ENABLE_KOKKOS
 #include <Kokkos_Core.hpp>
 #else
 #ifndef KOKKOS_INLINE_FUNCTION

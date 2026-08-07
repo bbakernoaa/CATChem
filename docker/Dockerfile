@@ -17,7 +17,7 @@ RUN source /opt/ufschem/spack-stack/setup.sh && \
       -DCATCHEM_BUILD_TESTING=ON \
       -DCATCHEM_BUILD_NUOPC=ON \
       -DCATCHEM_BUILD_MUSICA=ON \
-      -DENABLE_KOKKOS=ON \
+      -DCATCHEM_ENABLE_KOKKOS=ON \
       -DCMAKE_INSTALL_PREFIX=/opt/catchem/install \
       -DCMAKE_BUILD_TYPE=Debug && \
     make -j$(nproc) && \

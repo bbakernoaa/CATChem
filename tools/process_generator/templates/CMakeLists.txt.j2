@@ -31,9 +31,9 @@ add_library(${_lib} ${{ "{" }}{{ config.name | upper_snake }}_ALL_SOURCES})
 target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
-if(ENABLE_KOKKOS)
-  target_link_libraries(${_lib} PUBLIC CATChem_kokkos)
-  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
+  target_link_libraries(${_lib} PUBLIC Kokkos::kokkos CATChem_core_cpp)
+  target_compile_definitions(${_lib} PRIVATE CATCHEM_ENABLE_KOKKOS)
 endif()
 
 # Additional dependencies

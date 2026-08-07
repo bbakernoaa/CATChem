@@ -48,7 +48,7 @@ if(TARGET GOCART2G)
 endif()
 
 # Conditional Kokkos linking
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   set(
     _cpp_core_srcs
     catchem_core.cpp
@@ -60,15 +60,18 @@ if(ENABLE_KOKKOS)
     catchem_logger.cpp
   )
   add_library(CATChem_core_cpp STATIC ${_cpp_core_srcs})
-  target_link_libraries(CATChem_core_cpp PUBLIC Kokkos::kokkos yaml-cpp)
+  target_link_libraries(
+    CATChem_core_cpp
+    PUBLIC Kokkos::kokkos yaml-cpp::yaml-cpp
+  )
   target_include_directories(
     CATChem_core_cpp
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
   )
-  target_compile_definitions(CATChem_core_cpp PUBLIC ENABLE_KOKKOS)
+  target_compile_definitions(CATChem_core_cpp PUBLIC CATCHEM_ENABLE_KOKKOS)
 
   target_link_libraries(CATChem_core PUBLIC CATChem_core_cpp)
-  target_compile_definitions(CATChem_core PRIVATE ENABLE_KOKKOS)
+  target_compile_definitions(CATChem_core PRIVATE CATCHEM_ENABLE_KOKKOS)
 endif()
 
 if(TARGET musica)

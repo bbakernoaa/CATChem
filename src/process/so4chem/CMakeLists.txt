@@ -4,11 +4,7 @@
 # Description: Process for computing chemical production of sulfate from SO2 oxidation
 
 # Define so4chem process sources
-set(
-  SO4CHEM_PROCESS_SOURCES
-  SO4chemCommon_Mod.F90
-  SO4chemScienceBridge.F90
-)
+set(SO4CHEM_PROCESS_SOURCES SO4chemCommon_Mod.F90 SO4chemScienceBridge.F90)
 
 # Define so4chem scheme sources
 set(
@@ -20,7 +16,7 @@ set(
 # Combine all sources
 set(SO4CHEM_ALL_SOURCES ${SO4CHEM_PROCESS_SOURCES} ${SO4CHEM_SCHEME_SOURCES})
 
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   list(APPEND SO4CHEM_ALL_SOURCES catchem_process_so4chem.cpp)
 endif()
 
@@ -32,9 +28,9 @@ add_library(${_lib} ${SO4CHEM_ALL_SOURCES})
 target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   target_link_libraries(${_lib} PUBLIC Kokkos::kokkos CATChem_core_cpp)
-  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
+  target_compile_definitions(${_lib} PRIVATE CATCHEM_ENABLE_KOKKOS)
 endif()
 
 # Additional dependencies

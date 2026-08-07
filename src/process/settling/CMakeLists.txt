@@ -4,10 +4,7 @@
 # Description: Process for computing gravitational settling of aerosol species
 
 # Define settling process sources
-set(
-  SETTLING_PROCESS_SOURCES
-  SettlingCommon_Mod.F90
-)
+set(SETTLING_PROCESS_SOURCES SettlingCommon_Mod.F90)
 
 # Define settling scheme sources
 set(
@@ -19,7 +16,7 @@ set(
 # Combine all sources
 set(SETTLING_ALL_SOURCES ${SETTLING_PROCESS_SOURCES} ${SETTLING_SCHEME_SOURCES})
 
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   list(APPEND SETTLING_ALL_SOURCES catchem_process_settling.cpp)
 endif()
 
@@ -31,9 +28,9 @@ add_library(${_lib} ${SETTLING_ALL_SOURCES})
 target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   target_link_libraries(${_lib} PUBLIC Kokkos::kokkos CATChem_core_cpp)
-  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
+  target_compile_definitions(${_lib} PRIVATE CATCHEM_ENABLE_KOKKOS)
 endif()
 
 # Set module directory

@@ -63,7 +63,8 @@ int main(int argc, char* argv[]) {
                                                "../tests/Configs/Default/CATChem_species.yml",
                                                "../../tests/Configs/Default/CATChem_species.yml",
                                                "Configs/Default/CATChem_species.yml",
-                                               "tests/CATChem_species.yml", "../tests/CATChem_species.yml"};
+                                               "tests/CATChem_species.yml",
+                                               "../tests/CATChem_species.yml"};
         for (const auto& path : candidates) {
             std::ifstream f(path);
             if (f.good()) {
@@ -79,7 +80,8 @@ int main(int argc, char* argv[]) {
 
         // Schedule All Registered Processes dynamically to test synchronized coupled execution
         auto& registry = catchem::ProcessRegistry::get_instance();
-        std::vector<std::string> process_names = {"settling", "drydep", "seasalt", "wetdep", "so4chem", "dust", "carbchem"};
+        std::vector<std::string> process_names = {"settling", "drydep", "seasalt", "wetdep",
+                                                  "so4chem",  "dust",   "carbchem"};
 
         for (const auto& name : process_names) {
             auto proc = registry.create(name);

@@ -64,8 +64,8 @@ contains
       type(c_ptr), value :: diag_moisture_correction
       type(c_ptr), value :: diag_effective_threshold
       type(c_ptr), value :: diag_utar_threshold
-      integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
       integer(c_int), value :: n_diag_species
+      integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
 
       ! Local Fortran Pointers
       real(c_double), pointer :: f_airden(:,:)

@@ -34,15 +34,24 @@ namespace catchem::test {
 
     inline std::string scenario_to_string(AtmosphericScenario scenario) {
         switch (scenario) {
-            case AtmosphericScenario::BoundaryLayer: return "BoundaryLayer";
-            case AtmosphericScenario::UrbanBoundaryLayer: return "UrbanBoundaryLayer";
-            case AtmosphericScenario::RuralAgricultural: return "RuralAgricultural";
-            case AtmosphericScenario::MarineBoundaryLayer: return "MarineBoundaryLayer";
-            case AtmosphericScenario::PolarSnowIce: return "PolarSnowIce";
-            case AtmosphericScenario::MidTroposphere: return "MidTroposphere";
-            case AtmosphericScenario::UpperTroposphereStratosphere: return "UpperTroposphereStratosphere";
-            case AtmosphericScenario::ExtremeStormDesert: return "ExtremeStormDesert";
-            case AtmosphericScenario::FullRandomFuzz: return "FullRandomFuzz";
+        case AtmosphericScenario::BoundaryLayer:
+            return "BoundaryLayer";
+        case AtmosphericScenario::UrbanBoundaryLayer:
+            return "UrbanBoundaryLayer";
+        case AtmosphericScenario::RuralAgricultural:
+            return "RuralAgricultural";
+        case AtmosphericScenario::MarineBoundaryLayer:
+            return "MarineBoundaryLayer";
+        case AtmosphericScenario::PolarSnowIce:
+            return "PolarSnowIce";
+        case AtmosphericScenario::MidTroposphere:
+            return "MidTroposphere";
+        case AtmosphericScenario::UpperTroposphereStratosphere:
+            return "UpperTroposphereStratosphere";
+        case AtmosphericScenario::ExtremeStormDesert:
+            return "ExtremeStormDesert";
+        case AtmosphericScenario::FullRandomFuzz:
+            return "FullRandomFuzz";
         }
         return "Unknown";
     }
@@ -181,205 +190,241 @@ namespace catchem::test {
             double precip_scale = 0.01;
 
             switch (scenario) {
-                case AtmosphericScenario::BoundaryLayer:
-                    p_surf_min = 98000.0; p_surf_max = 103000.0;
-                    temp_min = 273.15; temp_max = 315.0;
-                    rh_min = 20.0; rh_max = 98.0;
-                    ustar_min = 0.1; ustar_max = 2.0;
-                    precip_scale = 0.001;
-                    lwi_.assign(nc, 1.0); // Land
-                    fill_random(frocean_, 0.0, 0.2);
-                    fill_random(frseaice_, 0.0, 0.0);
-                    fill_random(frsno_, 0.0, 0.05);
-                    fill_random(frlake_, 0.0, 0.1);
-                    fill_random(gvf_, 0.1, 0.6);
-                    fill_random(lai_, 0.5, 3.0);
-                    fill_random(z0h_, 0.01, 0.2);
-                    fill_random(hflux_, 10.0, 150.0);
-                    fill_random(ssm_, 0.1, 0.4);
-                    fill_random(gwettop_, 0.1, 0.5);
-                    fill_random(clayfrac_, 0.1, 0.4);
-                    fill_random(sandfrac_, 0.2, 0.6);
-                    fill_random(rdrag_, 0.05, 0.2);
-                    break;
+            case AtmosphericScenario::BoundaryLayer:
+                p_surf_min = 98000.0;
+                p_surf_max = 103000.0;
+                temp_min = 273.15;
+                temp_max = 315.0;
+                rh_min = 20.0;
+                rh_max = 98.0;
+                ustar_min = 0.1;
+                ustar_max = 2.0;
+                precip_scale = 0.001;
+                lwi_.assign(nc, 1.0); // Land
+                fill_random(frocean_, 0.0, 0.2);
+                fill_random(frseaice_, 0.0, 0.0);
+                fill_random(frsno_, 0.0, 0.05);
+                fill_random(frlake_, 0.0, 0.1);
+                fill_random(gvf_, 0.1, 0.6);
+                fill_random(lai_, 0.5, 3.0);
+                fill_random(z0h_, 0.01, 0.2);
+                fill_random(hflux_, 10.0, 150.0);
+                fill_random(ssm_, 0.1, 0.4);
+                fill_random(gwettop_, 0.1, 0.5);
+                fill_random(clayfrac_, 0.1, 0.4);
+                fill_random(sandfrac_, 0.2, 0.6);
+                fill_random(rdrag_, 0.05, 0.2);
+                break;
 
-                case AtmosphericScenario::UrbanBoundaryLayer:
-                    p_surf_min = 97000.0; p_surf_max = 103000.0;
-                    temp_min = 280.0; temp_max = 318.0; // Urban heat island
-                    rh_min = 15.0; rh_max = 85.0;
-                    ustar_min = 0.2; ustar_max = 2.2;
-                    precip_scale = 0.001;
-                    lwi_.assign(nc, 1.0); // Land
-                    frocean_.assign(nc, 0.0);
-                    frseaice_.assign(nc, 0.0);
-                    frsno_.assign(nc, 0.0);
-                    frlake_.assign(nc, 0.0);
-                    fill_random(gvf_, 0.0, 0.15); // Sparse vegetation
-                    fill_random(lai_, 0.0, 0.5);
-                    fill_random(z0h_, 0.8, 2.5); // High urban canopy roughness [m]
-                    fill_random(hflux_, 60.0, 300.0); // Strong sensible heat flux
-                    fill_random(ssm_, 0.005, 0.08); // Impervious dry surface
-                    fill_random(gwettop_, 0.005, 0.1);
-                    fill_random(clayfrac_, 0.1, 0.3);
-                    fill_random(sandfrac_, 0.3, 0.7);
-                    fill_random(rdrag_, 0.15, 0.3);
-                    break;
+            case AtmosphericScenario::UrbanBoundaryLayer:
+                p_surf_min = 97000.0;
+                p_surf_max = 103000.0;
+                temp_min = 280.0;
+                temp_max = 318.0; // Urban heat island
+                rh_min = 15.0;
+                rh_max = 85.0;
+                ustar_min = 0.2;
+                ustar_max = 2.2;
+                precip_scale = 0.001;
+                lwi_.assign(nc, 1.0); // Land
+                frocean_.assign(nc, 0.0);
+                frseaice_.assign(nc, 0.0);
+                frsno_.assign(nc, 0.0);
+                frlake_.assign(nc, 0.0);
+                fill_random(gvf_, 0.0, 0.15); // Sparse vegetation
+                fill_random(lai_, 0.0, 0.5);
+                fill_random(z0h_, 0.8, 2.5);      // High urban canopy roughness [m]
+                fill_random(hflux_, 60.0, 300.0); // Strong sensible heat flux
+                fill_random(ssm_, 0.005, 0.08);   // Impervious dry surface
+                fill_random(gwettop_, 0.005, 0.1);
+                fill_random(clayfrac_, 0.1, 0.3);
+                fill_random(sandfrac_, 0.3, 0.7);
+                fill_random(rdrag_, 0.15, 0.3);
+                break;
 
-                case AtmosphericScenario::RuralAgricultural:
-                    p_surf_min = 96000.0; p_surf_max = 103000.0;
-                    temp_min = 275.0; temp_max = 308.0;
-                    rh_min = 30.0; rh_max = 95.0;
-                    ustar_min = 0.1; ustar_max = 1.5;
-                    precip_scale = 0.002;
-                    lwi_.assign(nc, 1.0); // Land
-                    frocean_.assign(nc, 0.0);
-                    frseaice_.assign(nc, 0.0);
-                    frsno_.assign(nc, 0.0);
-                    fill_random(frlake_, 0.0, 0.05);
-                    fill_random(gvf_, 0.55, 0.98); // High green vegetation fraction
-                    fill_random(lai_, 2.0, 7.0);   // Dense crop/forest leaf area index
-                    fill_random(z0h_, 0.05, 0.8);  // Agricultural / forest roughness [m]
-                    fill_random(hflux_, 10.0, 120.0);
-                    fill_random(ssm_, 0.2, 0.65);  // Moist agricultural soil
-                    fill_random(gwettop_, 0.2, 0.7);
-                    fill_random(clayfrac_, 0.2, 0.5);
-                    fill_random(sandfrac_, 0.2, 0.6);
-                    fill_random(rdrag_, 0.05, 0.2);
-                    break;
+            case AtmosphericScenario::RuralAgricultural:
+                p_surf_min = 96000.0;
+                p_surf_max = 103000.0;
+                temp_min = 275.0;
+                temp_max = 308.0;
+                rh_min = 30.0;
+                rh_max = 95.0;
+                ustar_min = 0.1;
+                ustar_max = 1.5;
+                precip_scale = 0.002;
+                lwi_.assign(nc, 1.0); // Land
+                frocean_.assign(nc, 0.0);
+                frseaice_.assign(nc, 0.0);
+                frsno_.assign(nc, 0.0);
+                fill_random(frlake_, 0.0, 0.05);
+                fill_random(gvf_, 0.55, 0.98); // High green vegetation fraction
+                fill_random(lai_, 2.0, 7.0);   // Dense crop/forest leaf area index
+                fill_random(z0h_, 0.05, 0.8);  // Agricultural / forest roughness [m]
+                fill_random(hflux_, 10.0, 120.0);
+                fill_random(ssm_, 0.2, 0.65); // Moist agricultural soil
+                fill_random(gwettop_, 0.2, 0.7);
+                fill_random(clayfrac_, 0.2, 0.5);
+                fill_random(sandfrac_, 0.2, 0.6);
+                fill_random(rdrag_, 0.05, 0.2);
+                break;
 
-                case AtmosphericScenario::MarineBoundaryLayer:
-                    p_surf_min = 99000.0; p_surf_max = 103500.0;
-                    temp_min = 273.15; temp_max = 303.0;
-                    rh_min = 70.0; rh_max = 98.0; // High marine relative humidity
-                    ustar_min = 0.1; ustar_max = 1.8;
-                    precip_scale = 0.005;
-                    lwi_.assign(nc, 0.0); // Water/Ocean
-                    frocean_.assign(nc, 1.0); // 100% ocean
-                    frseaice_.assign(nc, 0.0);
-                    frsno_.assign(nc, 0.0);
-                    frlake_.assign(nc, 0.0);
-                    gvf_.assign(nc, 0.0);
-                    lai_.assign(nc, 0.0);
-                    fill_random(z0h_, 0.0001, 0.001); // Smooth ocean roughness [m]
-                    fill_random(sst_, 275.0, 303.0);
-                    fill_random(hflux_, -20.0, 50.0);
-                    ssm_.assign(nc, 1.0);
-                    gwettop_.assign(nc, 1.0);
-                    clayfrac_.assign(nc, 0.0);
-                    sandfrac_.assign(nc, 0.0);
-                    rdrag_.assign(nc, 0.0);
-                    break;
+            case AtmosphericScenario::MarineBoundaryLayer:
+                p_surf_min = 99000.0;
+                p_surf_max = 103500.0;
+                temp_min = 273.15;
+                temp_max = 303.0;
+                rh_min = 70.0;
+                rh_max = 98.0; // High marine relative humidity
+                ustar_min = 0.1;
+                ustar_max = 1.8;
+                precip_scale = 0.005;
+                lwi_.assign(nc, 0.0);     // Water/Ocean
+                frocean_.assign(nc, 1.0); // 100% ocean
+                frseaice_.assign(nc, 0.0);
+                frsno_.assign(nc, 0.0);
+                frlake_.assign(nc, 0.0);
+                gvf_.assign(nc, 0.0);
+                lai_.assign(nc, 0.0);
+                fill_random(z0h_, 0.0001, 0.001); // Smooth ocean roughness [m]
+                fill_random(sst_, 275.0, 303.0);
+                fill_random(hflux_, -20.0, 50.0);
+                ssm_.assign(nc, 1.0);
+                gwettop_.assign(nc, 1.0);
+                clayfrac_.assign(nc, 0.0);
+                sandfrac_.assign(nc, 0.0);
+                rdrag_.assign(nc, 0.0);
+                break;
 
-                case AtmosphericScenario::PolarSnowIce:
-                    p_surf_min = 96000.0; p_surf_max = 104000.0;
-                    temp_min = 210.0; temp_max = 271.15; // Freezing polar temperatures
-                    rh_min = 40.0; rh_max = 95.0;
-                    ustar_min = 0.05; ustar_max = 1.2;
-                    precip_scale = 0.001;
-                    lwi_.assign(nc, 2.0); // Ice
-                    fill_random(frocean_, 0.0, 0.2);
-                    fill_random(frseaice_, 0.8, 1.0); // Dense sea ice
-                    fill_random(frsno_, 0.8, 1.0);    // Dense snow pack
-                    frlake_.assign(nc, 0.0);
-                    gvf_.assign(nc, 0.0);
-                    lai_.assign(nc, 0.0);
-                    fill_random(z0h_, 0.0005, 0.01); // Snow/ice roughness [m]
-                    fill_random(sst_, 268.0, 273.15);
-                    fill_random(hflux_, -50.0, 20.0);
-                    fill_random(ssm_, 0.0, 0.1);
-                    fill_random(gwettop_, 0.0, 0.1);
-                    clayfrac_.assign(nc, 0.0);
-                    sandfrac_.assign(nc, 0.0);
-                    rdrag_.assign(nc, 0.0);
-                    break;
+            case AtmosphericScenario::PolarSnowIce:
+                p_surf_min = 96000.0;
+                p_surf_max = 104000.0;
+                temp_min = 210.0;
+                temp_max = 271.15; // Freezing polar temperatures
+                rh_min = 40.0;
+                rh_max = 95.0;
+                ustar_min = 0.05;
+                ustar_max = 1.2;
+                precip_scale = 0.001;
+                lwi_.assign(nc, 2.0); // Ice
+                fill_random(frocean_, 0.0, 0.2);
+                fill_random(frseaice_, 0.8, 1.0); // Dense sea ice
+                fill_random(frsno_, 0.8, 1.0);    // Dense snow pack
+                frlake_.assign(nc, 0.0);
+                gvf_.assign(nc, 0.0);
+                lai_.assign(nc, 0.0);
+                fill_random(z0h_, 0.0005, 0.01); // Snow/ice roughness [m]
+                fill_random(sst_, 268.0, 273.15);
+                fill_random(hflux_, -50.0, 20.0);
+                fill_random(ssm_, 0.0, 0.1);
+                fill_random(gwettop_, 0.0, 0.1);
+                clayfrac_.assign(nc, 0.0);
+                sandfrac_.assign(nc, 0.0);
+                rdrag_.assign(nc, 0.0);
+                break;
 
-                case AtmosphericScenario::MidTroposphere:
-                    p_surf_min = 40000.0; p_surf_max = 85000.0;
-                    temp_min = 230.0; temp_max = 280.0;
-                    rh_min = 10.0; rh_max = 100.0;
-                    ustar_min = 0.05; ustar_max = 0.8;
-                    precip_scale = 0.05; // active clouds and precipitation
-                    fill_random(lwi_, 0.0, 1.0);
-                    fill_random(frocean_, 0.0, 1.0);
-                    fill_random(frseaice_, 0.0, 0.2);
-                    fill_random(frsno_, 0.0, 0.1);
-                    fill_random(frlake_, 0.0, 0.05);
-                    fill_random(gvf_, 0.1, 0.8);
-                    fill_random(lai_, 0.5, 4.0);
-                    fill_random(z0h_, 0.01, 0.2);
-                    fill_random(hflux_, 0.0, 80.0);
-                    fill_random(ssm_, 0.1, 0.5);
-                    fill_random(gwettop_, 0.1, 0.5);
-                    fill_random(clayfrac_, 0.1, 0.4);
-                    fill_random(sandfrac_, 0.2, 0.6);
-                    fill_random(rdrag_, 0.05, 0.2);
-                    break;
+            case AtmosphericScenario::MidTroposphere:
+                p_surf_min = 40000.0;
+                p_surf_max = 85000.0;
+                temp_min = 230.0;
+                temp_max = 280.0;
+                rh_min = 10.0;
+                rh_max = 100.0;
+                ustar_min = 0.05;
+                ustar_max = 0.8;
+                precip_scale = 0.05; // active clouds and precipitation
+                fill_random(lwi_, 0.0, 1.0);
+                fill_random(frocean_, 0.0, 1.0);
+                fill_random(frseaice_, 0.0, 0.2);
+                fill_random(frsno_, 0.0, 0.1);
+                fill_random(frlake_, 0.0, 0.05);
+                fill_random(gvf_, 0.1, 0.8);
+                fill_random(lai_, 0.5, 4.0);
+                fill_random(z0h_, 0.01, 0.2);
+                fill_random(hflux_, 0.0, 80.0);
+                fill_random(ssm_, 0.1, 0.5);
+                fill_random(gwettop_, 0.1, 0.5);
+                fill_random(clayfrac_, 0.1, 0.4);
+                fill_random(sandfrac_, 0.2, 0.6);
+                fill_random(rdrag_, 0.05, 0.2);
+                break;
 
-                case AtmosphericScenario::UpperTroposphereStratosphere:
-                    p_surf_min = 2000.0; p_surf_max = 25000.0;
-                    temp_min = 180.0; temp_max = 230.0;
-                    rh_min = 0.0; rh_max = 20.0;
-                    ustar_min = 0.01; ustar_max = 0.3;
-                    precip_scale = 0.0; // no precipitation in UTLS
-                    fill_random(lwi_, 0.0, 1.0);
-                    fill_random(frocean_, 0.0, 1.0);
-                    fill_random(frseaice_, 0.0, 0.1);
-                    fill_random(frsno_, 0.0, 0.0);
-                    fill_random(frlake_, 0.0, 0.0);
-                    fill_random(gvf_, 0.0, 0.5);
-                    fill_random(lai_, 0.0, 2.0);
-                    fill_random(z0h_, 0.01, 0.1);
-                    fill_random(hflux_, 0.0, 50.0);
-                    fill_random(ssm_, 0.0, 0.2);
-                    fill_random(gwettop_, 0.0, 0.2);
-                    fill_random(clayfrac_, 0.1, 0.4);
-                    fill_random(sandfrac_, 0.2, 0.6);
-                    fill_random(rdrag_, 0.05, 0.2);
-                    break;
+            case AtmosphericScenario::UpperTroposphereStratosphere:
+                p_surf_min = 2000.0;
+                p_surf_max = 25000.0;
+                temp_min = 180.0;
+                temp_max = 230.0;
+                rh_min = 0.0;
+                rh_max = 20.0;
+                ustar_min = 0.01;
+                ustar_max = 0.3;
+                precip_scale = 0.0; // no precipitation in UTLS
+                fill_random(lwi_, 0.0, 1.0);
+                fill_random(frocean_, 0.0, 1.0);
+                fill_random(frseaice_, 0.0, 0.1);
+                fill_random(frsno_, 0.0, 0.0);
+                fill_random(frlake_, 0.0, 0.0);
+                fill_random(gvf_, 0.0, 0.5);
+                fill_random(lai_, 0.0, 2.0);
+                fill_random(z0h_, 0.01, 0.1);
+                fill_random(hflux_, 0.0, 50.0);
+                fill_random(ssm_, 0.0, 0.2);
+                fill_random(gwettop_, 0.0, 0.2);
+                fill_random(clayfrac_, 0.1, 0.4);
+                fill_random(sandfrac_, 0.2, 0.6);
+                fill_random(rdrag_, 0.05, 0.2);
+                break;
 
-                case AtmosphericScenario::ExtremeStormDesert:
-                    p_surf_min = 88000.0; p_surf_max = 104000.0;
-                    temp_min = 250.0; temp_max = 325.0;
-                    rh_min = 5.0; rh_max = 100.0;
-                    ustar_min = 1.0; ustar_max = 3.5; // gale force shear
-                    precip_scale = 0.1;
-                    lwi_.assign(nc, 1.0); // Land
-                    frocean_.assign(nc, 0.0);
-                    frseaice_.assign(nc, 0.0);
-                    frsno_.assign(nc, 0.0);
-                    frlake_.assign(nc, 0.0);
-                    fill_random(gvf_, 0.0, 0.05); // Barren desert soil
-                    fill_random(lai_, 0.0, 0.1);
-                    fill_random(z0h_, 0.005, 0.05);
-                    fill_random(hflux_, 50.0, 250.0);
-                    fill_random(ssm_, 0.001, 0.04); // Extremely dry sand
-                    fill_random(gwettop_, 0.001, 0.04);
-                    fill_random(clayfrac_, 0.15, 0.45);
-                    fill_random(sandfrac_, 0.35, 0.8);
-                    fill_random(rdrag_, 0.05, 0.25);
-                    break;
+            case AtmosphericScenario::ExtremeStormDesert:
+                p_surf_min = 88000.0;
+                p_surf_max = 104000.0;
+                temp_min = 250.0;
+                temp_max = 325.0;
+                rh_min = 5.0;
+                rh_max = 100.0;
+                ustar_min = 1.0;
+                ustar_max = 3.5; // gale force shear
+                precip_scale = 0.1;
+                lwi_.assign(nc, 1.0); // Land
+                frocean_.assign(nc, 0.0);
+                frseaice_.assign(nc, 0.0);
+                frsno_.assign(nc, 0.0);
+                frlake_.assign(nc, 0.0);
+                fill_random(gvf_, 0.0, 0.05); // Barren desert soil
+                fill_random(lai_, 0.0, 0.1);
+                fill_random(z0h_, 0.005, 0.05);
+                fill_random(hflux_, 50.0, 250.0);
+                fill_random(ssm_, 0.001, 0.04); // Extremely dry sand
+                fill_random(gwettop_, 0.001, 0.04);
+                fill_random(clayfrac_, 0.15, 0.45);
+                fill_random(sandfrac_, 0.35, 0.8);
+                fill_random(rdrag_, 0.05, 0.25);
+                break;
 
-                case AtmosphericScenario::FullRandomFuzz:
-                    p_surf_min = 1000.0; p_surf_max = 105000.0;
-                    temp_min = 160.0; temp_max = 340.0;
-                    rh_min = 0.0; rh_max = 100.0;
-                    ustar_min = 0.001; ustar_max = 4.0;
-                    precip_scale = 0.05;
-                    fill_random(lwi_, 0.0, 2.0);
-                    fill_random(frocean_, 0.0, 1.0);
-                    fill_random(frseaice_, 0.0, 1.0);
-                    fill_random(frsno_, 0.0, 1.0);
-                    fill_random(frlake_, 0.0, 1.0);
-                    fill_random(gvf_, 0.0, 1.0);
-                    fill_random(lai_, 0.0, 8.0);
-                    fill_random(z0h_, 0.0001, 3.0);
-                    fill_random(hflux_, -100.0, 400.0);
-                    fill_random(ssm_, 0.0, 1.0);
-                    fill_random(gwettop_, 0.0, 1.0);
-                    fill_random(clayfrac_, 0.0, 1.0);
-                    fill_random(sandfrac_, 0.0, 1.0);
-                    fill_random(rdrag_, 0.0, 0.3);
-                    break;
+            case AtmosphericScenario::FullRandomFuzz:
+                p_surf_min = 1000.0;
+                p_surf_max = 105000.0;
+                temp_min = 160.0;
+                temp_max = 340.0;
+                rh_min = 0.0;
+                rh_max = 100.0;
+                ustar_min = 0.001;
+                ustar_max = 4.0;
+                precip_scale = 0.05;
+                fill_random(lwi_, 0.0, 2.0);
+                fill_random(frocean_, 0.0, 1.0);
+                fill_random(frseaice_, 0.0, 1.0);
+                fill_random(frsno_, 0.0, 1.0);
+                fill_random(frlake_, 0.0, 1.0);
+                fill_random(gvf_, 0.0, 1.0);
+                fill_random(lai_, 0.0, 8.0);
+                fill_random(z0h_, 0.0001, 3.0);
+                fill_random(hflux_, -100.0, 400.0);
+                fill_random(ssm_, 0.0, 1.0);
+                fill_random(gwettop_, 0.0, 1.0);
+                fill_random(clayfrac_, 0.0, 1.0);
+                fill_random(sandfrac_, 0.0, 1.0);
+                fill_random(rdrag_, 0.0, 0.3);
+                break;
             }
 
             fill_random(t_air_, temp_min, temp_max);
@@ -477,8 +522,8 @@ namespace catchem::test {
         static void assert_finiteness(const std::vector<double>& conc, int iter, const std::string& ctx) {
             for (size_t i = 0; i < conc.size(); ++i) {
                 if (!std::isfinite(conc[i])) {
-                    std::cerr << "PROPERTY FAILURE [" << ctx << "]: Index " << i
-                              << " is NaN/Inf (" << conc[i] << ") at iteration " << iter << std::endl;
+                    std::cerr << "PROPERTY FAILURE [" << ctx << "]: Index " << i << " is NaN/Inf (" << conc[i]
+                              << ") at iteration " << iter << std::endl;
                     assert(false && "State variables must remain finite!");
                 }
             }
@@ -491,13 +536,14 @@ namespace catchem::test {
             double max_negative = 0.0;
             for (size_t i = 0; i < conc.size(); ++i) {
                 if (conc[i] < 0.0) {
-                    if (conc[i] < max_negative) max_negative = conc[i];
+                    if (conc[i] < max_negative)
+                        max_negative = conc[i];
                     conc[i] = 0.0; // Clip to zero (standard atmospheric model physical boundary)
                 }
             }
             if (max_negative < -1e-2) {
-                std::cerr << "WARNING [" << ctx << "]: Severe negative concentration "
-                          << max_negative << " clipped to 0.0 at iteration " << iter << std::endl;
+                std::cerr << "WARNING [" << ctx << "]: Severe negative concentration " << max_negative
+                          << " clipped to 0.0 at iteration " << iter << std::endl;
             }
         }
 
@@ -536,17 +582,15 @@ namespace catchem::test {
         void run_full_suite(catchem::Core* core) {
             auto state = core->get_state_manager();
 
-            std::vector<AtmosphericScenario> scenarios = {
-                AtmosphericScenario::BoundaryLayer,
-                AtmosphericScenario::UrbanBoundaryLayer,
-                AtmosphericScenario::RuralAgricultural,
-                AtmosphericScenario::MarineBoundaryLayer,
-                AtmosphericScenario::PolarSnowIce,
-                AtmosphericScenario::MidTroposphere,
-                AtmosphericScenario::UpperTroposphereStratosphere,
-                AtmosphericScenario::ExtremeStormDesert,
-                AtmosphericScenario::FullRandomFuzz
-            };
+            std::vector<AtmosphericScenario> scenarios = {AtmosphericScenario::BoundaryLayer,
+                                                          AtmosphericScenario::UrbanBoundaryLayer,
+                                                          AtmosphericScenario::RuralAgricultural,
+                                                          AtmosphericScenario::MarineBoundaryLayer,
+                                                          AtmosphericScenario::PolarSnowIce,
+                                                          AtmosphericScenario::MidTroposphere,
+                                                          AtmosphericScenario::UpperTroposphereStratosphere,
+                                                          AtmosphericScenario::ExtremeStormDesert,
+                                                          AtmosphericScenario::FullRandomFuzz};
 
             std::cout << "\n========================================================" << std::endl;
             std::cout << "=== RUNNING UNIFIED ATMOSPHERIC PROPERTY TEST SUITE  ===" << std::endl;
@@ -560,7 +604,8 @@ namespace catchem::test {
             // 2. Scenario-based randomized property iterations
             for (auto scenario : scenarios) {
                 std::string sc_name = scenario_to_string(scenario);
-                std::cout << "[Harness] Scenario: " << sc_name << " (" << config_.iterations_per_scenario << " iterations)..." << std::endl;
+                std::cout << "[Harness] Scenario: " << sc_name << " (" << config_.iterations_per_scenario
+                          << " iterations)..." << std::endl;
 
                 for (int iter = 1; iter <= config_.iterations_per_scenario; ++iter) {
                     generate_scenario_state(scenario, state);

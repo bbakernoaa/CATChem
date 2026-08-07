@@ -321,7 +321,7 @@ contains
          dms_final = dms_oh * exp(-rk3 * cdt)
 
          ! MSA production from OH addition channel
-         if ((rk1 + rk2) == 0.0_fp) then
+         if (abs(rk1 + rk2) <= 1.0e-30_fp) then
             pmsa_dms(k) = 0.0_fp
          else
             pmsa_dms(k) = (dms0 - dms_oh) * B_MSA * rk1 / (rk1 + rk2) &

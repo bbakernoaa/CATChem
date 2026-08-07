@@ -478,7 +478,7 @@ contains
 
       ! Local variables
       ! Parameters from Fitzgerald 1975 for seasalt-like particles
-      real(fp), parameter :: epsilon = 1.0_fp       ! Soluble fraction
+      ! real(fp), parameter :: epsilon = 1.0_fp       ! Soluble fraction
       real(fp), parameter :: alphaNaCl = 1.35_fp
 
       real(fp) :: alpha, alpha1, beta, theta, sat, rrat

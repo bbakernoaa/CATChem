@@ -10,7 +10,7 @@ target_include_directories(
 
 target_link_libraries(
   catchem_process_gaschem
-  PUBLIC CATChem_core_cpp CATChem_core musica yaml-cpp Kokkos::kokkos
+  PUBLIC CATChem_core_cpp CATChem_core musica yaml-cpp::yaml-cpp Kokkos::kokkos
 )
 
 # Robust target-level linking to propagate fetched include directories automatically

@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef ENABLE_KOKKOS
+#ifdef CATCHEM_ENABLE_KOKKOS
 #include <Kokkos_Core.hpp>
 namespace catchem {
     namespace math {

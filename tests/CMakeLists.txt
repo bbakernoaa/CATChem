@@ -61,7 +61,10 @@ add_fortran_test(test_DiagnosticInterface)
 # Process Science Unit Tests
 macro(add_process_science_test name_test process_lib)
   add_executable(${name_test} ${name_test}.f90)
-  target_link_libraries(${name_test} PRIVATE ${process_lib} CATChem_core testing)
+  target_link_libraries(
+    ${name_test}
+    PRIVATE ${process_lib} CATChem_core testing
+  )
   set_target_properties(
     ${name_test}
     PROPERTIES
@@ -106,7 +109,7 @@ add_test(
 )
 
 # New C++ Interop and Integration Suite
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   add_executable(test_catchem_logger test_catchem_logger.cpp)
   target_link_libraries(
     test_catchem_logger
@@ -114,7 +117,10 @@ if(ENABLE_KOKKOS)
   )
   add_test(NAME test_catchem_logger COMMAND test_catchem_logger)
 
-  add_executable(test_catchem_process_registry test_catchem_process_registry.cpp)
+  add_executable(
+    test_catchem_process_registry
+    test_catchem_process_registry.cpp
+  )
   target_link_libraries(
     test_catchem_process_registry
     PRIVATE
@@ -129,8 +135,14 @@ if(ENABLE_KOKKOS)
       CATChem_process_dust
       CATChem_process_carbchem
   )
-  set_target_properties(test_catchem_process_registry PROPERTIES LINKER_LANGUAGE CXX)
-  add_test(NAME test_catchem_process_registry COMMAND test_catchem_process_registry)
+  set_target_properties(
+    test_catchem_process_registry
+    PROPERTIES LINKER_LANGUAGE CXX
+  )
+  add_test(
+    NAME test_catchem_process_registry
+    COMMAND test_catchem_process_registry
+  )
 
   add_executable(test_catchem_interop test_catchem_interop.cpp)
   target_link_libraries(
@@ -178,7 +190,7 @@ if(ENABLE_KOKKOS)
       CATChem_core
       Kokkos::kokkos
       catchem_process_photolysis
-      yaml-cpp
+      yaml-cpp::yaml-cpp
   )
   set_target_properties(test_catchem_photolysis PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_photolysis COMMAND test_catchem_photolysis)

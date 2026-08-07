@@ -22,20 +22,20 @@ project(CATChem VERSION ${CATCHEM_VERSION} LANGUAGES Fortran C CXX)
 set(CATCHEM_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 set(CATCHEM_SRC_DIR "${CATCHEM_ROOT_DIR}/src")
 
-# Set C++ standard (default 11 for yaml-cpp; overridden to 17 when Kokkos is enabled)
-if(NOT ENABLE_KOKKOS)
+# Option to enable Kokkos GPU/parallel support (defaults to OFF)
+option(CATCHEM_ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
+
+# Set C++ standard (default 11 for yaml-cpp; overridden to 20 when Kokkos is enabled)
+if(NOT CATCHEM_ENABLE_KOKKOS)
   set(CMAKE_CXX_STANDARD 11)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
-# Option to enable Kokkos GPU/parallel support (defaults to OFF)
-option(CATCHEM_ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
-
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   if(CMAKE_VERSION VERSION_LESS "3.16")
     message(
       FATAL_ERROR
-      "ENABLE_KOKKOS requires CMake 3.16 or later (Kokkos minimum)"
+      "CATCHEM_ENABLE_KOKKOS requires CMake 3.16 or later (Kokkos minimum)"
     )
   endif()
   set(CMAKE_CXX_STANDARD 20)

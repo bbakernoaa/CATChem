@@ -4,11 +4,7 @@
 # Description: Process for computing sea salt aerosol emissions over ocean surfaces
 
 # Define seasalt process sources
-set(
-  SEASALT_PROCESS_SOURCES
-  SeaSaltCommon_Mod.F90
-  SeaSaltScienceBridge.F90
-)
+set(SEASALT_PROCESS_SOURCES SeaSaltCommon_Mod.F90 SeaSaltScienceBridge.F90)
 
 # Define seasalt scheme sources
 set(
@@ -21,7 +17,7 @@ set(
 # Combine all sources
 set(SEASALT_ALL_SOURCES ${SEASALT_PROCESS_SOURCES} ${SEASALT_SCHEME_SOURCES})
 
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   list(APPEND SEASALT_ALL_SOURCES catchem_process_seasalt.cpp)
 endif()
 
@@ -33,9 +29,9 @@ add_library(${_lib} ${SEASALT_ALL_SOURCES})
 target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   target_link_libraries(${_lib} PUBLIC Kokkos::kokkos CATChem_core_cpp)
-  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
+  target_compile_definitions(${_lib} PRIVATE CATCHEM_ENABLE_KOKKOS)
 endif()
 
 # Additional dependencies

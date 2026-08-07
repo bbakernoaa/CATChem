@@ -42,9 +42,9 @@ CATChem (Configurable ATmospheric Chemistry) is a library and modeling component
     git clone https://github.com/UFS-Community/CATChem.git
     cd CATChem
 
-    # Build with CMake (supports -DENABLE_KOKKOS=ON for GPU acceleration)
+    # Build with CMake (supports -DCATCHEM_ENABLE_KOKKOS=ON for GPU acceleration)
     mkdir build && cd build
-    cmake -DENABLE_KOKKOS=ON ..
+    cmake -DCATCHEM_ENABLE_KOKKOS=ON ..
     make -j$(nproc)
     ```
 

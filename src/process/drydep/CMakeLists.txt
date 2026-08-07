@@ -3,11 +3,7 @@
 # Author: Wei Li
 # Description: Process for computing dry deposition of gas and aerosol species
 # Define drydep process sources
-set(
-  DRYDEP_PROCESS_SOURCES
-  DryDepCommon_Mod.F90
-  DryDepScienceBridge.F90
-)
+set(DRYDEP_PROCESS_SOURCES DryDepCommon_Mod.F90 DryDepScienceBridge.F90)
 
 # Define drydep scheme sources
 set(
@@ -20,7 +16,7 @@ set(
 # Combine all sources
 set(DRYDEP_ALL_SOURCES ${DRYDEP_PROCESS_SOURCES} ${DRYDEP_SCHEME_SOURCES})
 
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   list(APPEND DRYDEP_ALL_SOURCES catchem_process_drydep.cpp)
 endif()
 
@@ -32,9 +28,9 @@ add_library(${_lib} ${DRYDEP_ALL_SOURCES})
 target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
-if(ENABLE_KOKKOS)
+if(CATCHEM_ENABLE_KOKKOS)
   target_link_libraries(${_lib} PUBLIC Kokkos::kokkos CATChem_core_cpp)
-  target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
+  target_compile_definitions(${_lib} PRIVATE CATCHEM_ENABLE_KOKKOS)
 endif()
 
 # Additional dependencies

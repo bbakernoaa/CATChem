@@ -266,8 +266,10 @@ int main(int argc, char* argv[]) {
             std::vector<std::string> candidates = {"tests/Configs/Default/CATChem_species.yml",
                                                    "../tests/Configs/Default/CATChem_species.yml",
                                                    "../../tests/Configs/Default/CATChem_species.yml",
-                                                   "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
-                                                   "../../tests/CATChem_species.yml", "CATChem_species.yml"};
+                                                   "tests/CATChem_species.yml",
+                                                   "../tests/CATChem_species.yml",
+                                                   "../../tests/CATChem_species.yml",
+                                                   "CATChem_species.yml"};
             for (const auto& path : candidates) {
                 std::ifstream f(path);
                 if (f.good()) {
@@ -338,8 +340,10 @@ int main(int argc, char* argv[]) {
             std::vector<std::string> candidates = {"tests/Configs/Default/CATChem_species.yml",
                                                    "../tests/Configs/Default/CATChem_species.yml",
                                                    "../../tests/Configs/Default/CATChem_species.yml",
-                                                   "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
-                                                   "../../tests/CATChem_species.yml", "CATChem_species.yml"};
+                                                   "tests/CATChem_species.yml",
+                                                   "../tests/CATChem_species.yml",
+                                                   "../../tests/CATChem_species.yml",
+                                                   "CATChem_species.yml"};
             for (const auto& path : candidates) {
                 std::ifstream f(path);
                 if (f.good()) {
@@ -430,8 +434,10 @@ int main(int argc, char* argv[]) {
             std::vector<std::string> candidates = {"tests/Configs/Default/CATChem_new_config.yml",
                                                    "../tests/Configs/Default/CATChem_new_config.yml",
                                                    "../../tests/Configs/Default/CATChem_new_config.yml",
-                                                   "tests/CATChem_new_config.yml", "../tests/CATChem_new_config.yml",
-                                                   "../../tests/CATChem_new_config.yml", "CATChem_new_config.yml"};
+                                                   "tests/CATChem_new_config.yml",
+                                                   "../tests/CATChem_new_config.yml",
+                                                   "../../tests/CATChem_new_config.yml",
+                                                   "CATChem_new_config.yml"};
             for (const auto& path : candidates) {
                 std::ifstream f(path);
                 if (f.good()) {
@@ -474,7 +480,8 @@ int main(int argc, char* argv[]) {
             std::vector<std::string> paths = {"tests/Configs/Default/CATChem_species.yml",
                                               "../tests/Configs/Default/CATChem_species.yml",
                                               "../../tests/Configs/Default/CATChem_species.yml",
-                                              "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+                                              "tests/CATChem_species.yml",
+                                              "../tests/CATChem_species.yml",
                                               "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {
@@ -563,7 +570,8 @@ int main(int argc, char* argv[]) {
             std::vector<std::string> paths = {"tests/Configs/Default/CATChem_species.yml",
                                               "../tests/Configs/Default/CATChem_species.yml",
                                               "../../tests/Configs/Default/CATChem_species.yml",
-                                              "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+                                              "tests/CATChem_species.yml",
+                                              "../tests/CATChem_species.yml",
                                               "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {
@@ -627,7 +635,8 @@ int main(int argc, char* argv[]) {
             std::vector<std::string> paths = {"tests/Configs/Default/CATChem_species.yml",
                                               "../tests/Configs/Default/CATChem_species.yml",
                                               "../../tests/Configs/Default/CATChem_species.yml",
-                                              "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+                                              "tests/CATChem_species.yml",
+                                              "../tests/CATChem_species.yml",
                                               "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {
@@ -686,7 +695,8 @@ int main(int argc, char* argv[]) {
             std::vector<std::string> paths = {"tests/Configs/Default/CATChem_species.yml",
                                               "../tests/Configs/Default/CATChem_species.yml",
                                               "../../tests/Configs/Default/CATChem_species.yml",
-                                              "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+                                              "tests/CATChem_species.yml",
+                                              "../tests/CATChem_species.yml",
                                               "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {

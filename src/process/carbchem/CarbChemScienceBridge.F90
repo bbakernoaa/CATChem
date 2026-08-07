@@ -43,8 +43,8 @@ contains
       type(c_ptr), value :: diag_phobic_mass
       type(c_ptr), value :: diag_phobic_flux
 
-      integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
       integer(c_int), value :: n_diag_species
+      integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
 
       ! Local Fortran Pointers for multidimensional mapping
       real(c_double), pointer :: f_airden(:,:), f_delp(:,:), f_pmid(:,:)

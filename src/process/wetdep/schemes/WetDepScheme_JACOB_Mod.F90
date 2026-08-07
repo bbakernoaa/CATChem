@@ -28,6 +28,7 @@
 !!
 module WetDepScheme_JACOB_Mod
 
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
    use precision_mod, only: fp, zero, one, rae, TINY_
    use error_mod, only: CC_Warning, CC_SUCCESS !CC_Error
    use WetDepCommon_Mod, only: WetDepSchemeJACOBConfig
@@ -589,7 +590,7 @@ contains
       real(fp),   intent(in)  :: c_h2o                !< Mix ratio of H2O [cm3 H2O/cm3 air]
       real(fp),   intent(in)  :: cldice               !< Precipitable cloud ice mixing ratio [cm3 ice/cm3 air]
       real(fp),   intent(in)  :: cldliq               !< Precipitable cloud liquid mixing ratio [cm3 H2O/cm3 air]
-      character(len = 20),  intent(in)  :: spc        !< Species name
+      character(len = *),   intent(in)  :: spc        !< Species name
       real(fp),   intent(out) :: lossfrac             !< Fraction of species lost to rainout [unitless]
       real(fp),   intent(in) :: SO2                   !< SO2 concentration [kg/kg]; depleted in rainout_loss, not here
       real(fp),   intent(inout) :: H2O2               !< H2O2 concentration [kg/kg]; depleted by SO2 oxidation (written back)
@@ -680,7 +681,7 @@ contains
 
          ! -- fraction of species in liquid and ice phases (guarded against overflow/NaN)
          c_tot = one + l2g + i2g
-         if ( c_tot /= c_tot .or. c_tot >= 1.0e10_fp ) then
+         if ( ieee_is_nan(c_tot) .or. c_tot >= 1.0e10_fp ) then
             if ( l2g >= i2g ) then
                f_l = one
                f_i = zero
@@ -743,7 +744,7 @@ contains
       real(fp),  intent(in)  :: qdwn           !< Instant precip rate in grid box (cm3 (H2O) / cm2 (air) / s)
       real(fp),  intent(in)  :: dz             !< Height of grid box [cm]
       real(fp),  intent(in)  :: dt             !< Timestep (s)
-      character(len = 20),  intent(in) :: spc  !< Species name
+      character(len = *),  intent(in) :: spc  !< Species name
       logical,   intent(in)  :: is_aero        !< aerosol washout flag
       real(fp),  intent(in) :: k0              !< Henry's solubility constant [M/atm]
       real(fp),  intent(in) :: cr              !< Henry's volatility constant [K]
@@ -1052,7 +1053,7 @@ contains
          l2g = liq_to_gas_ratio( k0, cr, pKa, tk, qliq )
 
          ! -- washout fraction from Henry's Law (guarded against overflow/NaN)
-         if ( l2g /= l2g .or. l2g >= 1.0e10_fp ) then
+         if ( ieee_is_nan(l2g) .or. l2g >= 1.0e10_fp ) then
             washfrac = one
          else
             washfrac = l2g / ( one + l2g )
@@ -1152,7 +1153,7 @@ contains
       real(fp),  dimension(:), intent(inout) :: conc    !< concentration [kg/m2]
       real(fp),  dimension(:), intent(inout) :: dconc   !< concentration loss kg/m2
       real(fp),  dimension(:), intent(inout) :: SO4     !< SO4 concentration [kg/m2]
-      character(len = 20),  intent(in) :: spc           !< Species name
+      character(len = *),  intent(in) :: spc            !< Species name
       real(fp),  intent(in)    :: reevap_resusp_frac    !< fraction of re-evaporated mass resuspended (0.5 GEOS-Chem/Luo default; 1.0 GOCART)
       logical,   intent(in)    :: so4_gocart_resusp     !< if .true., sulfate (SO4/SO2) uses GOCART SU_Wet_Removal resuspension alpha
 
@@ -1269,7 +1270,7 @@ contains
       integer,   intent(in)    :: k                     !< layer index
       real(fp),  dimension(:), intent(inout) :: conc    !< concentration [kg/m2]
       real(fp),  dimension(:), intent(inout) :: dconc   !< concentration loss kg/m2
-      character(len = 20),  intent(in) :: spc           !< Species name
+      character(len = *),  intent(in) :: spc           !< Species name
       real(fp),  dimension(:), intent(inout)    :: SO4  !< SO4 concentration [kg/m2]
 
       ! -- local variables
