@@ -28,9 +28,6 @@ if(NOT ENABLE_KOKKOS)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
-# Option to build NUOPC cap (defaults to OFF)
-option(BUILD_NUOPC "Build NUOPC cap and drivers" OFF)
-
 # Option to enable Kokkos GPU/parallel support (defaults to OFF)
 option(CATCHEM_ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
 
