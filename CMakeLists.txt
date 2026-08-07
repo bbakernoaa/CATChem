@@ -32,7 +32,7 @@ endif()
 option(BUILD_NUOPC "Build NUOPC cap and drivers" OFF)
 
 # Option to enable Kokkos GPU/parallel support (defaults to OFF)
-option(ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
+option(CATCHEM_ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
 
 if(ENABLE_KOKKOS)
   if(CMAKE_VERSION VERSION_LESS "3.16")
