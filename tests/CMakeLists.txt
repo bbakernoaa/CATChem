@@ -55,6 +55,35 @@ add_fortran_test(test_Constants)
 add_fortran_test(test_GridGeometry)
 add_fortran_test(test_TimeState)
 add_fortran_test(test_MetState)
+add_fortran_test(test_ChemSpeciesUtils)
+add_fortran_test(test_DiagnosticInterface)
+
+# Process Science Unit Tests
+macro(add_process_science_test name_test process_lib)
+  add_executable(${name_test} ${name_test}.f90)
+  target_link_libraries(${name_test} PRIVATE ${process_lib} CATChem_core testing)
+  set_target_properties(
+    ${name_test}
+    PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+      LINKER_LANGUAGE Fortran
+  )
+  target_include_directories(${name_test} PRIVATE ${CMAKE_BINARY_DIR}/include)
+  add_dependencies(${name_test} ${process_lib} CATChem_core)
+  add_test(
+    NAME ${name_test}
+    COMMAND ${name_test}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+endmacro()
+
+add_process_science_test(test_settling_science CATChem_process_settling)
+add_process_science_test(test_seasalt_science CATChem_process_seasalt)
+add_process_science_test(test_dust_science CATChem_process_dust)
+add_process_science_test(test_drydep_science CATChem_process_drydep)
+add_process_science_test(test_wetdep_science CATChem_process_wetdep)
+add_process_science_test(test_so4chem_science CATChem_process_so4chem)
+add_process_science_test(test_carbchem_science CATChem_process_carbchem)
 
 # UnitConversion needs specific include search dirs
 add_executable(test_UnitConversion test_UnitConversion.f90)
@@ -84,6 +113,24 @@ if(ENABLE_KOKKOS)
     PRIVATE CATChem_core_cpp Kokkos::kokkos
   )
   add_test(NAME test_catchem_logger COMMAND test_catchem_logger)
+
+  add_executable(test_catchem_process_registry test_catchem_process_registry.cpp)
+  target_link_libraries(
+    test_catchem_process_registry
+    PRIVATE
+      CATChem_core_cpp
+      CATChem_core
+      Kokkos::kokkos
+      CATChem_process_settling
+      CATChem_process_seasalt
+      CATChem_process_drydep
+      CATChem_process_wetdep
+      CATChem_process_so4chem
+      CATChem_process_dust
+      CATChem_process_carbchem
+  )
+  set_target_properties(test_catchem_process_registry PROPERTIES LINKER_LANGUAGE CXX)
+  add_test(NAME test_catchem_process_registry COMMAND test_catchem_process_registry)
 
   add_executable(test_catchem_interop test_catchem_interop.cpp)
   target_link_libraries(

@@ -263,7 +263,10 @@ int main(int argc, char* argv[]) {
 
             // 1. Load species config from CATChem_species.yml (finding correct path)
             std::string config_path = "";
-            std::vector<std::string> candidates = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+            std::vector<std::string> candidates = {"tests/Configs/Default/CATChem_species.yml",
+                                                   "../tests/Configs/Default/CATChem_species.yml",
+                                                   "../../tests/Configs/Default/CATChem_species.yml",
+                                                   "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
                                                    "../../tests/CATChem_species.yml", "CATChem_species.yml"};
             for (const auto& path : candidates) {
                 std::ifstream f(path);
@@ -332,7 +335,10 @@ int main(int argc, char* argv[]) {
 
             // Load species config so we have aerosols to process
             std::string config_path = "";
-            std::vector<std::string> candidates = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+            std::vector<std::string> candidates = {"tests/Configs/Default/CATChem_species.yml",
+                                                   "../tests/Configs/Default/CATChem_species.yml",
+                                                   "../../tests/Configs/Default/CATChem_species.yml",
+                                                   "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
                                                    "../../tests/CATChem_species.yml", "CATChem_species.yml"};
             for (const auto& path : candidates) {
                 std::ifstream f(path);
@@ -421,7 +427,10 @@ int main(int argc, char* argv[]) {
         // ==========================================
         {
             std::string config_path = "";
-            std::vector<std::string> candidates = {"tests/CATChem_new_config.yml", "../tests/CATChem_new_config.yml",
+            std::vector<std::string> candidates = {"tests/Configs/Default/CATChem_new_config.yml",
+                                                   "../tests/Configs/Default/CATChem_new_config.yml",
+                                                   "../../tests/Configs/Default/CATChem_new_config.yml",
+                                                   "tests/CATChem_new_config.yml", "../tests/CATChem_new_config.yml",
                                                    "../../tests/CATChem_new_config.yml", "CATChem_new_config.yml"};
             for (const auto& path : candidates) {
                 std::ifstream f(path);
@@ -462,7 +471,10 @@ int main(int argc, char* argv[]) {
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
 
             // Load species configuration first (otherwise species_list is empty)
-            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+            std::vector<std::string> paths = {"tests/Configs/Default/CATChem_species.yml",
+                                              "../tests/Configs/Default/CATChem_species.yml",
+                                              "../../tests/Configs/Default/CATChem_species.yml",
+                                              "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
                                               "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {
@@ -548,7 +560,10 @@ int main(int argc, char* argv[]) {
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
 
             // Load species
-            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+            std::vector<std::string> paths = {"tests/Configs/Default/CATChem_species.yml",
+                                              "../tests/Configs/Default/CATChem_species.yml",
+                                              "../../tests/Configs/Default/CATChem_species.yml",
+                                              "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
                                               "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {
@@ -609,7 +624,10 @@ int main(int argc, char* argv[]) {
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
 
             // Load species
-            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+            std::vector<std::string> paths = {"tests/Configs/Default/CATChem_species.yml",
+                                              "../tests/Configs/Default/CATChem_species.yml",
+                                              "../../tests/Configs/Default/CATChem_species.yml",
+                                              "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
                                               "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {
@@ -665,7 +683,10 @@ int main(int argc, char* argv[]) {
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
 
             // Load species
-            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
+            std::vector<std::string> paths = {"tests/Configs/Default/CATChem_species.yml",
+                                              "../tests/Configs/Default/CATChem_species.yml",
+                                              "../../tests/Configs/Default/CATChem_species.yml",
+                                              "tests/CATChem_species.yml", "../tests/CATChem_species.yml",
                                               "../../tests/CATChem_species.yml"};
             for (const auto& path : paths) {
                 try {
