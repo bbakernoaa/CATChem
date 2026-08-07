@@ -33,6 +33,7 @@ contains
       character(kind=c_char) :: c_name(64)
 
       rc = CC_SUCCESS
+      mapping = -1
 
       if (.not. c_associated(state_mgr%cpp_ptr)) then
          rc = CC_FAILURE

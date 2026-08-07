@@ -183,7 +183,7 @@ contains
                dust_horizontal_flux=col_horizontal_flux, &
                dust_moisture_correction=col_moisture_correction, &
                dust_effective_threshold=col_effective_threshold, &
-               diagnostic_species_id=diagnostic_species_id)
+               diagnostic_species_id=diagnostic_species_id(1:n_diag_species))
          else if (local_scheme == "ginoux") then
             call compute_ginoux( &
                n_levels, n_species, ginoux_config, g0, &
@@ -195,7 +195,7 @@ contains
                dust_emission_total=col_emission_total, &
                dust_emission_per_bin=col_emission_bin, &
                utar_threshold_per_bin=col_utar_threshold, &
-               diagnostic_species_id=diagnostic_species_id)
+               diagnostic_species_id=diagnostic_species_id(1:n_diag_species))
          end if
 
          ! Write tendencies

@@ -408,6 +408,7 @@ contains
 
          ! -- surface level
          k = kbot
+         km1 = k + 1
          if (pdwn(km1) > pdwn_thr) then
             f = ftop
             if ( f > zero ) then

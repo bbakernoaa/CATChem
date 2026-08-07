@@ -125,7 +125,7 @@ contains
       ! 1. Locate YAML configuration path via environment variable
       call get_environment_variable("CATCHEM_CONFIG", config_path)
       if (trim(config_path) == "") then
-         config_path = "./tests/CATChem_config.yml"
+         config_path = "./tests/Configs/Default/CATChem_config.yml"
       end if
 
       ! 2. Lightweight core initialization to load species configuration (spatial bounds are dummy 1, 1, 1 during register)

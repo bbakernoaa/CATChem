@@ -7,7 +7,6 @@
 set(
   SETTLING_PROCESS_SOURCES
   SettlingCommon_Mod.F90
-  catchem_process_settling.cpp
 )
 
 # Define settling scheme sources
@@ -33,7 +32,7 @@ target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
 if(ENABLE_KOKKOS)
-  target_link_libraries(${_lib} PUBLIC Kokkos::kokkos)
+  target_link_libraries(${_lib} PUBLIC Kokkos::kokkos CATChem_core_cpp)
   target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
 endif()
 

@@ -7,7 +7,6 @@
 set(
   CARBCHEM_PROCESS_SOURCES
   CarbChemCommon_Mod.F90
-  catchem_process_carbchem.cpp
   CarbChemScienceBridge.F90
 )
 
@@ -16,6 +15,10 @@ set(CARBCHEM_SCHEME_SOURCES schemes/CarbChemScheme_GOCART_Mod.F90)
 
 # Combine all sources
 set(CARBCHEM_ALL_SOURCES ${CARBCHEM_PROCESS_SOURCES} ${CARBCHEM_SCHEME_SOURCES})
+
+if(ENABLE_KOKKOS)
+  list(APPEND CARBCHEM_ALL_SOURCES catchem_process_carbchem.cpp)
+endif()
 
 # Create the carbchem process library
 set(_lib CATChem_process_carbchem)

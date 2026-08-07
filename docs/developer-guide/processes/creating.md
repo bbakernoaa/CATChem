@@ -214,10 +214,10 @@ add_subdirectory(newprocess)
 list(APPEND PROCESS_LIBRARIES newprocess)
 ```
 
-And register it in `src/core/ProcessRegistry_Mod.F90`.
+And register it in `catchem::ProcessRegistry` using `CATCHEM_REGISTER_PROCESS`.
 
 ## 6. Testing
 
-Create a new test file in the `tests/` directory to test your process. You can use the `test_ProcessFactory.f90` as a starting point to see how to create and run a process.
+Create a new test file in the `tests/` directory to test your process. You can use existing unit/science tests (e.g. `test_dust_science.f90` or `test_catchem_properties.cpp`) as a starting point to see how to create and run a process.
 
 This guide provides a basic skeleton. For more advanced features like diagnostics and handling multiple species, refer to the `seasalt` process implementation in `src/process/seasalt`.

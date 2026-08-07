@@ -7,7 +7,6 @@
 set(
   SO4CHEM_PROCESS_SOURCES
   SO4chemCommon_Mod.F90
-  catchem_process_so4chem.cpp
   SO4chemScienceBridge.F90
 )
 
@@ -34,7 +33,7 @@ target_link_libraries(${_lib} PUBLIC CATChem_core)
 
 # Conditional Kokkos linking
 if(ENABLE_KOKKOS)
-  target_link_libraries(${_lib} PUBLIC Kokkos::kokkos)
+  target_link_libraries(${_lib} PUBLIC Kokkos::kokkos CATChem_core_cpp)
   target_compile_definitions(${_lib} PRIVATE ENABLE_KOKKOS)
 endif()
 

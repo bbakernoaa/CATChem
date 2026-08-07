@@ -7,7 +7,6 @@
 set(
   DUST_PROCESS_SOURCES
   DustCommon_Mod.F90
-  catchem_process_dust.cpp
   DustScienceBridge.F90
 )
 
@@ -20,6 +19,10 @@ set(
 
 # Combine all sources
 set(DUST_ALL_SOURCES ${DUST_PROCESS_SOURCES} ${DUST_SCHEME_SOURCES})
+
+if(ENABLE_KOKKOS)
+  list(APPEND DUST_ALL_SOURCES catchem_process_dust.cpp)
+endif()
 
 # Create the dust process library
 set(_lib CATChem_process_dust)

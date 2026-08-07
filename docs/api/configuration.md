@@ -46,7 +46,7 @@ namespace catchem {
 
 ## Configuration Files Format
 
-### 1. Main Simulation Config (`test_config.yml`)
+### 1. Main Simulation Config (`CATChem_config.yml`)
 Configures physical grid dimensions, model timelines, and scheduled processes:
 
 ```yaml
@@ -71,7 +71,7 @@ processes:
       config_dir: "src/external/musica/configs/tuvx/from_host/"
 ```
 
-### 2. Species Metadata Config (`test_species.yml`)
+### 2. Species Metadata Config (`CATChem_species.yml`)
 Configures active chemical species, molecular weights, and properties:
 
 ```yaml

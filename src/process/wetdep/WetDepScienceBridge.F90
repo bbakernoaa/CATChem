@@ -1,5 +1,5 @@
 module WetDepScienceBridge_Mod
-   use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_bool, c_int
+   use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_bool, c_int, c_null_char
    use Precision_Mod, only: fp
    use Constants, only: g0, AIRMW
    use WetDepCommon_Mod, only: WetDepSchemeJACOBConfig
@@ -104,19 +104,23 @@ contains
 
       ! Extract real species names from flat char array passed via BIND(C)
       do i = 1, n_species
+         dummy_sp_names(i) = ""
          do j = 1, 32
+            if (species_names(j, i) == c_null_char) exit
             dummy_sp_names(i)(j:j) = species_names(j, i)
          end do
          dummy_sp_names(i) = trim(adjustl(dummy_sp_names(i)))
       end do
 
       ! Copy to standard logical arrays & cast doubles once
-      f_is_aerosol      = species_is_aerosol
+      do i = 1, n_species
+         f_is_aerosol(i) = species_is_aerosol(i)
+         f_wd_LiqAndGas(i) = species_wd_LiqAndGas(i)
+      end do
       f_henry_cr        = real(species_henry_cr, fp)
       f_henry_k0        = real(species_henry_k0, fp)
       f_henry_pKa       = real(species_henry_pKa, fp)
       f_wd_retfactor    = real(species_wd_retfactor, fp)
-      f_wd_LiqAndGas    = species_wd_LiqAndGas
       f_wd_convfacI2G   = real(species_wd_convfacI2G, fp)
       f_wd_rainouteff   = real(species_wd_rainouteff, fp)
       col_wd_reevap_frac = real(species_wd_reevap_frac, fp)
@@ -149,7 +153,7 @@ contains
             f_conc, col_tendencies, &
             wetdep_mass_per_species_per_level=col_diag_mass, &
             wetdep_flux_per_species_per_level=col_diag_flux, &
-            diagnostic_species_id=diagnostic_species_id)
+            diagnostic_species_id=diagnostic_species_id(1:n_diag_species))
 
          ! Convert tendencies from process-specific units (ug/kg/s or ppm/s) to kg/kg/s
          do ispec = 1, n_species
