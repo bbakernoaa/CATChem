@@ -351,7 +351,13 @@ if(CATCHEM_BUILD_NUOPC)
   # Only need to depend on CATChem - it already depends on CATChem_core, yaml_interface, etc.
   add_dependencies(cc_nuopc CATChem)
 
-  # Link to library files in dependency order (most dependent first)
+  # Link to library files in dependency order (most dependent first).
+  # NOTE: $<TARGET_FILE:> carries no transitive usage requirements, so this
+  # list must mirror the full dependency closure of the CATChem targets by
+  # hand. CATChem_core_cpp implements the C API the Fortran core and API
+  # bind to (host-only or Kokkos flavor); yaml-cpp (below) is its config
+  # parser. A Kokkos-enabled UFS build will additionally need
+  # Kokkos::kokkos here.
   target_link_libraries(
     cc_nuopc
     PRIVATE
@@ -364,9 +370,22 @@ if(CATCHEM_BUILD_NUOPC)
       $<TARGET_FILE:CATChem_process_so4chem>
       $<TARGET_FILE:CATChem_process_carbchem>
       $<TARGET_FILE:CATChem_core>
+      $<TARGET_FILE:CATChem_core_cpp>
       $<TARGET_FILE:yaml_interface>
       $<TARGET_FILE:catchem_utilities>
   )
+
+  # yaml-cpp for the C++ core's config parsing, after CATChem_core_cpp in
+  # resolution order. Two provisioning modes (src/external/CMakeLists.txt):
+  # the vendored in-tree copy (plain `yaml-cpp` target, which also aliases
+  # yaml-cpp::yaml-cpp) or a system/spack install (imported
+  # yaml-cpp::yaml-cpp only). Link the library file in both modes to stay
+  # consistent with the export-safe path pattern above.
+  if(TARGET yaml-cpp)
+    target_link_libraries(cc_nuopc PRIVATE $<TARGET_FILE:yaml-cpp>)
+  else()
+    target_link_libraries(cc_nuopc PRIVATE $<TARGET_FILE:yaml-cpp::yaml-cpp>)
+  endif()
 
   # Link GOCART2G library if available (needed for drydep process)
   if(TARGET GOCART2G)
