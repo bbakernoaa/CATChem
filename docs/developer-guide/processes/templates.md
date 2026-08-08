@@ -43,31 +43,33 @@ Location: `tools/process_generator/templates/science_bridge.F90.j2`
 
 Generates the `BIND(C)` Fortran bridge module mapping C pointers to Fortran column arrays.
 
-   !> Initialize {{ name }} process
-   subroutine {{ name }}_process_init(this, container, rc)
-      class({{ class_name }}), intent(inout) :: this
-      type(StateContainerType), intent(inout) :: container
-      integer, intent(out) :: rc
+```fortran
+module MyProcessScienceBridge_Mod
+   use iso_c_binding
+   use precision_mod, only: fp
+   use MyProcessCommon_Mod
+   use MyProcessScheme_DEFAULT_Mod, only: compute_default
 
-      type(ErrorManagerType), pointer :: error_mgr
-      type(ConfigDataType), pointer :: config
-      character(len=256) :: message
-      integer :: local_rc
+   implicit none
+   private
 
-      rc = CC_SUCCESS
-      error_mgr => container%get_error_manager()
+   public :: run_myprocess_science_bridge
 
-      call error_mgr%push_context("{{ name }}_process_init")
+contains
 
-      ! Set process metadata
-      this%name = '{{ name }}'
-      this%version = '{{ version }}'
-      this%description = '{{ description }}'
+   subroutine run_myprocess_science_bridge( &
+      n_cols, n_levels, n_species, dt, &
+      u10m, v10m, conc, tendency, rc &
+   ) bind(C, name="run_myprocess_science_bridge")
+      integer(c_int), value :: n_cols, n_levels, n_species
+      real(c_double), value :: dt
+      type(c_ptr), value :: u10m, v10m, conc, tendency
+      integer(c_int), intent(out) :: rc
+      ! Associate pointers & run column loop
+   end subroutine run_myprocess_science_bridge
 
-      ! Species configuration
-{%- if species %}
-      this%n_species = {{ species|length }}
-      allocate(this%species_names(this%n_species))
+end module MyProcessScienceBridge_Mod
+```
 {%- for species in species %}
       this%species_names({{ loop.index }}) = '{{ species }}'
 {%- endfor %}
@@ -127,7 +129,7 @@ Generates the `BIND(C)` Fortran bridge module mapping C pointers to Fortran colu
    !> Run {{ name }} process
    subroutine {{ name }}_process_run(this, container, rc)
       class({{ class_name }}), intent(inout) :: this
-      type(StateContainerType), intent(inout) :: container
+      type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
       type(ErrorManagerType), pointer :: error_mgr
@@ -226,47 +228,31 @@ Generates individual scheme implementations:
 !! {{ scheme_description }}
 !!
 module {{ module_name }}
-   use precision_mod
-   use state_mod, only : StateContainerType
-   use error_mod
+   use precision_mod, only: fp
    use {{ process_name }}Common_Mod
 
    implicit none
    private
 
-   public :: {{ scheme_name|lower }}_calculate
+   public :: compute_{{ scheme_name|lower }}
 
 {%- if scheme_parameters %}
    ! Scheme-specific parameters
 {%- for param in scheme_parameters %}
-   {{ param.type }}, parameter :: {{ param.name }} = {{ param.value }}
+   real(fp), parameter :: {{ param.name }} = {{ param.value }}
 {%- endfor %}
 {%- endif %}
 
 contains
 
    !> Calculate using {{ scheme_name }} algorithm
-   subroutine {{ scheme_name|lower }}_calculate(container, process, rc)
-      type(StateContainerType), intent(inout) :: container
-      class({{ process_name|title }}ProcessType), intent(inout) :: process
-      integer, intent(out) :: rc
+   subroutine compute_{{ scheme_name|lower }}(n_levels, n_species, dt, conc, tendency)
+      integer, intent(in) :: n_levels, n_species
+      real(fp), intent(in) :: dt
+      real(fp), intent(in) :: conc(n_levels, n_species)
+      real(fp), intent(out) :: tendency(n_levels, n_species)
 
-      type(MetStateType), pointer :: met_state
-      type(ChemStateType), pointer :: chem_state
-      type(ErrorManagerType), pointer :: error_mgr
-{%- for field in required_fields %}
-      real(fp), pointer :: {{ field.name }}(:,:,:)
-{%- endfor %}
-      integer :: i, j, k
-
-      rc = CC_SUCCESS
-      error_mgr => container%get_error_manager()
-
-      call error_mgr%push_context("{{ scheme_name|lower }}_calculate")
-
-      ! Get state data
-      met_state => container%get_met_state_ptr()
-      chem_state => container%get_chem_state_ptr()
+      integer :: k, ispec
 
 {%- for field in required_fields %}
       {{ field.name }} => {{ field.source }}%get_field('{{ field.name }}')
@@ -397,45 +383,27 @@ Location: `util/templates/process_config.yml.j2`
 
 ## Test Templates
 
-### Unit Test Template
+### Science Unit Test Template
 
-Location: `util/templates/test_template.f90.j2`
+Location: `tools/process_generator/templates/test_science.f90.j2`
 
 ```fortran
-!> \file test_{{ name }}.F90
-!! \brief Unit tests for {{ name }} process
+!> \file test_{{ name }}_science.f90
+!! \brief Unit test for {{ name }} science bridge and schemes
 !!
-program test_{{ name }}
-   use {{ name }}Process_Mod
-   use testing_mod
-   use state_mod
+program test_{{ name }}_science
+   use testing_mod, only: assert
+   use iso_c_binding
+   use precision_mod, only: fp
 
    implicit none
 
-   type({{ name|title }}ProcessType) :: process
-   type(StateContainerType) :: container
-   integer :: rc
+   ! ScienceBridge BIND(C) interface test
+   call run_{{ name }}_science_bridge(...)
+   call assert(.true., "{{ name }} science bridge executed successfully")
 
-   call testing_init("{{ name|title }} Process Tests")
-
-   ! Test process lifecycle
-   call test_process_init()
-   call test_process_run()
-   call test_process_finalize()
-
-{%- for scheme in schemes %}
-   ! Test {{ scheme }} scheme
-   call test_{{ scheme|lower }}_scheme()
-{%- endfor %}
-
-{%- if diagnostics %}
-   ! Test diagnostics
-   call test_diagnostics()
-{%- endif %}
-
-   call testing_finalize()
-
-contains
+end program test_{{ name }}_science
+```
 
    subroutine test_process_init()
       call testing_start_test("Process Initialization")

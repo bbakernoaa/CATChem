@@ -76,7 +76,7 @@ CATChem (Configurable ATmospheric Chemistry) is a library and modeling component
     // Integrate with your model directly in native C++
     #include <catchem_core.hpp>
 
-    auto core = std::make_shared<catchem::Core>("catchem_config.yml");
+    auto core = std::make_shared<catchem::Core>("tests/Configs/Default/CATChem_config.yml");
     core->get_state_manager()->sync_to_device();
     core->run_timestep(300.0);
     core->get_state_manager()->sync_to_host();

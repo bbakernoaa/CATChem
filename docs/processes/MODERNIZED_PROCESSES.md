@@ -69,28 +69,6 @@ This document provides an overview of the modernized physical and chemical proce
 
 ---
 
-### 4. YSU Vertical Dispersion
-
-**Location**: `src/process/ysuverticaldispersion/`  
-**Type**: Transport (vertical mixing)  
-**Status**: ✅ Completed
-
-#### Key Improvements
-
-*   **Scale-Aware YSU Scheme**:
-    *   Enhanced entrainment calculations.
-    *   Grid-resolution dependent mixing coefficients.
-    *   Improved turbulence parameterization.
-*   **Architecture Enhancements**:
-    *   Unified C++ Kokkos memory view mapping.
-    *   Optimized column processing loop.
-
-#### Diagnostics
-
-*   `mixing_coefficients`, `entrainment_rate`, `boundary_layer_height`.
-
----
-
 ## Shared C++ Code Quality Standards
 
 All modernized C++ processes adhere to strict software engineering standards:

@@ -96,19 +96,19 @@ end program test_settling_science
 
    subroutine test_error_conditions()
       type(settlingProcessType) :: process
-      type(StateContainerType) :: container
+      type(StateManagerType) :: state_mgr
       integer :: rc
 
       call testing_start_test("Error Condition Handling")
 
       ! Test initialization with invalid configuration
-      call create_invalid_test_container(container)
-      call process%init(container, rc)
+      call create_invalid_test_container(state_mgr)
+      call process%init(state_mgr, rc)
       call assert_not_equal(rc, CC_SUCCESS, "Init should fail with invalid config")
 
       ! Test run without initialization
       process%is_initialized = .false.
-      call process%run(container, rc)
+      call process%run(state_mgr, rc)
       call assert_not_equal(rc, CC_SUCCESS, "Run should fail without init")
 
       call testing_end_test()
@@ -211,7 +211,7 @@ Compare process outputs with established reference solutions:
 
 ```fortran
 subroutine test_reference_validation()
-   type(StateContainerType) :: container
+   type(StateManagerType) :: state_mgr
    real(fp), allocatable :: reference_data(:,:,:)
    real(fp), allocatable :: computed_data(:,:,:)
    real(fp), parameter :: validation_tolerance = 0.05_fp  ! 5% tolerance
@@ -223,10 +223,10 @@ subroutine test_reference_validation()
    call load_reference_data("reference/settling_test_case.nc", reference_data)
 
    ! Set up test case to match reference conditions
-   call setup_reference_conditions(container)
+   call setup_reference_conditions(state_mgr)
 
    ! Run process
-   call run_process_for_validation(container, rc)
+   call run_process_for_validation(state_mgr, rc)
    call assert_equal(rc, CC_SUCCESS, "Process should run successfully")
 
    ! Extract computed results
@@ -281,13 +281,13 @@ Measure and validate computational performance:
 ```fortran
 program benchmark_settling
    use settlingProcess_Mod
-   use state_mod
+   use StateManager_Mod, only : StateManagerType
    use iso_fortran_env, only : real64
 
    implicit none
 
    type(settlingProcessType) :: process
-   type(StateContainerType) :: container
+   type(StateManagerType) :: state_mgr
    integer, parameter :: n_runs = 1000
    integer :: i, rc
    real(real64) :: start_time, end_time, total_time
@@ -328,7 +328,7 @@ Monitor memory usage and detect leaks:
 ```fortran
 subroutine test_memory_usage()
    type(settlingProcessType) :: process
-   type(StateContainerType) :: container
+   type(StateManagerType) :: state_mgr
    integer :: initial_memory, final_memory, rc, i
 
    call testing_start_test("Memory Usage Testing")
@@ -337,9 +337,9 @@ subroutine test_memory_usage()
    initial_memory = get_memory_usage()
 
    ! Initialize and run process multiple times
-   call process%init(container, rc)
+   call process%init(state_mgr, rc)
    do i = 1, 1000
-      call process%run(container, rc)
+      call process%run(state_mgr, rc)
    end do
    call process%finalize(rc)
 
@@ -399,15 +399,15 @@ module test_utilities
    implicit none
    private
 
-   public :: create_test_state_container
+   public :: create_test_state_manager
    public :: setup_uniform_conditions
    public :: calculate_total_mass
    public :: validate_against_reference
 
 contains
 
-   subroutine create_test_state_container(container, nx, ny, nz)
-      type(StateContainerType), intent(out) :: container
+   subroutine create_test_state_manager(state_mgr, nx, ny, nz)
+      type(StateManagerType), intent(out) :: state_mgr
       integer, intent(in), optional :: nx, ny, nz
 
       integer :: local_nx, local_ny, local_nz
@@ -419,18 +419,18 @@ contains
       if (present(ny)) local_ny = ny
       if (present(nz)) local_nz = nz
 
-      ! Create minimal container for testing
-      call container%init_for_testing(local_nx, local_ny, local_nz)
+      ! Initialize StateManager for testing
+      call state_mgr%init('TestStateManager', rc=local_nx)
 
-   end subroutine create_test_state_container
+   end subroutine create_test_state_manager
 
-   subroutine setup_uniform_conditions(container, temp, press, density)
-      type(StateContainerType), intent(inout) :: container
+   subroutine setup_uniform_conditions(state_mgr, temp, press, density)
+      type(StateManagerType), intent(inout) :: state_mgr
       real(fp), intent(in) :: temp, press, density
 
       type(MetStateType), pointer :: met_state
 
-      met_state => container%get_met_state_ptr()
+      met_state => state_mgr%get_met_state_ptr()
       call met_state%set_uniform('temperature', temp)
       call met_state%set_uniform('pressure', press)
       call met_state%set_uniform('air_density', density)
