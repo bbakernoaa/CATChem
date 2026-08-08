@@ -8,9 +8,10 @@ Welcome to the CATChem API documentation. This section provides comprehensive re
 ## � API Organization
 
 ### Core Modules
+
 High-level APIs for the main CATChem systems:
 
-- **[State Management](state-management.md)** - StateContainer, ChemState, MetState, & DiagState data handling
+- **[State Management](state-management.md)** - StateManager, ChemState, MetState, & DiagState data handling
 - **[Process Interface](process-interface.md)** - Process development and integration APIs
 - **[Column Interface](column-interface.md)** - Column virtualization and 1D processing
 - **[Configuration Manager](configuration.md)** - YAML configuration system
@@ -40,19 +41,18 @@ The complete API documentation includes:
 - **[Constants](../CATChem/constants_8_f90.md)** - Physical and mathematical constants
 - **[Utilities](../CATChem/utilities__mod_8_f90.md)** - Common utility functions and tools
 
-
 ## Quick Reference
 
 ### Key Types
 
 | Type | Module / Namespace | Description |
-|------|---------------------|-------------|
+| --- | --- | --- |
 | `catchem::Core` | C++ Namespace `catchem` | Central orchestration engine |
 | `catchem::StateManager` | C++ Namespace `catchem` | Central memory state (using Kokkos Views) |
 | `catchem::ProcessInterface` | C++ Namespace `catchem` | Base virtual interface class for physics/chemistry processes |
 | `catchem::ProcessRegistry` | C++ Namespace `catchem` | Creator-lambda process registry |
 | `CATChemType` | Fortran `CATChemAPI_Mod` | BIND(C) wrapper API delegate |
-| `StateContainerType` | Fortran `state_mod` | Fortran delegate container wrapping C++ StateManager |
+| `StateManagerType` | Fortran `StateManager_Mod` | Fortran delegate container wrapping C++ StateManager |
 
 ### Common Patterns
 
@@ -69,10 +69,11 @@ The complete API documentation includes:
 === "Process Initialization (Fortran)"
 
     ```fortran
-    ! Modern Fortran delegates to C++ ProcessRegistry
-    use ProcessName_Mod
-    type(ProcessNameType) :: process
-    call process%init(container, rc)
+    ! Fortran ScienceBridge binds directly to C++ StateManager
+    use StateManager_Mod, only: StateManagerType
+    type(StateManagerType) :: state_mgr
+    real(fp), pointer :: temp(:,:,:)
+    temp => state_mgr%get_met_state_ptr()%T
     ```
 
 === "Diagnostic Access (C++)"
@@ -106,6 +107,7 @@ The complete API documentation includes:
 ## Conventions
 
 ### Naming Conventions
+
 - **C++ Namespaces**: `catchem`
 - **C++ Classes**: `camelCase` (with leading upper letter, e.g. `StateManager`)
 - **C++ Methods**: `snake_case` (e.g. `run_timestep`, `sync_to_device`)
@@ -115,12 +117,13 @@ The complete API documentation includes:
 - **Constants**: `UPPER_CASE`
 
 ### Return Codes
-All C-bound procedures use integer return codes following the convention:
+
 - `CC_SUCCESS = 0` - Successful operation
 - `CC_FAILURE = -1` - Generic failure
 - C++ methods utilize standard exceptions (e.g., `std::runtime_error`) shielded inside BIND(C) boundaries.
 
 ### Memory Management
+
 - Central memory managed entirely in C++ `StateManager` using Kokkos Views
 - Dual-space capabilities: synchronized dynamically between Host (CPU) and Device (GPU) memory layout
 - Fortran pointer variables are dynamically bound at runtime to raw C++ host pointers without any duplicate allocations.

@@ -137,6 +137,7 @@ When physical processes are compiled into distinct static libraries (e.g. `catch
 To guarantee that creator lambdas are preserved and registered at startup, CATChem implements an explicit, linker-safe dynamic callback mechanism across the mixed-language boundary:
 
 ### 1. C++ Registration Hook
+
 The process defines and exports a flat `extern "C"` registration hook:
 
 ```cpp
@@ -150,28 +151,18 @@ extern "C" void catchem_register_gaschem_cpp() {
 }
 ```
 
-### 2. Fortran Trigger
-The process Fortran initialization wrapper explicitly triggers this dynamic hook, forcing the compiler and linker to preserve the C++ object files:
+### 2. C-API Call
 
-```fortran
-module ProcessGasChemInterface_Mod
-    use iso_c_binding
-    implicit none
+The process wrapper or host application triggers this dynamic hook at initialization time to ensure process creator lambdas are present in the `ProcessRegistry`:
 
-    interface
-        subroutine catchem_register_gaschem_cpp() bind(C, name="catchem_register_gaschem_cpp")
-        end subroutine
-    end interface
+```cpp
+// Register C++ process wrapper in ProcessRegistry
+catchem_register_dust_cpp();
 
-contains
-
-    subroutine init_gaschem(rc)
-        integer, intent(out) :: rc
-        rc = 0
-        ! Trigger C++ registry hook explicitly to avoid dead-stripping
-        call catchem_register_gaschem_cpp()
-    end subroutine
-end module
+// Instantiate from ProcessRegistry by lowercase name
+auto dust_proc = catchem::ProcessRegistry::get_instance().create("dust");
+dust_proc->init(state_mgr);
+core->add_process(dust_proc);
 ```
 
 ---
@@ -217,6 +208,7 @@ namespace catchem {
 ## Configuration & Diagnostics Integration
 
 ### YAML Configuration Loading
+
 Processes load configuration settings in their `init` method by querying the thread-safe `StateManager` and associated YAML files:
 
 ```cpp
@@ -231,6 +223,7 @@ void GasChemProcess::init(std::shared_ptr<StateManager> state) {
 ```
 
 ### Diagnostics Binding
+
 Processes write diagnostics directly into pre-allocated memory buffers in the `DiagnosticManager`:
 
 ```cpp
@@ -250,11 +243,13 @@ void PhotolysisProcess::run(std::shared_ptr<StateManager> state) {
 ## Best Practices
 
 ### Performance
+
 1. **Zero-Copy Slicing**: Use `Kokkos::subview` to slice 3D arrays to 1D column vectors.
 2. **Synchronize Efficiently**: Minimize the frequency of calling `sync_to_host()` and `sync_to_device()`. Keep computations inside Kokkos parallel device loops wherever possible.
 3. **Register Fields on Startup**: Avoid dynamic metadata lookup or map queries in the `run()` loop; cache offsets and raw pointer locations inside `init()`.
 
 ### Code Quality
+
 1. **Linker Safety**: Always declare and invoke the `extern "C"` registration hook for all C++ process classes.
 2. **Exceptional Protection**: Ensure no native C++ exception escapes the dynamic registration hooks or BIND(C) boundaries; wrap code in complete `try-catch` blocks returning integer failure codes.
 
