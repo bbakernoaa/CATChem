@@ -8,8 +8,8 @@ This document provides an overview of the modernized physical and chemical proce
 
 ### 1. Gas-Phase Chemistry (GasChem)
 
-**Location**: `src/process/gaschem/`  
-**Type**: Atmospheric Transformation (chemical kinetics)  
+**Location**: `src/process/gaschem/`
+**Type**: Atmospheric Transformation (chemical kinetics)
 **Status**: ✅ Completed
 
 #### Key Improvements
@@ -27,8 +27,8 @@ This document provides an overview of the modernized physical and chemical proce
 
 ### 2. Photolysis
 
-**Location**: `src/process/photolysis/`  
-**Type**: Atmospheric Transformation / Radiation  
+**Location**: `src/process/photolysis/`
+**Type**: Atmospheric Transformation / Radiation
 **Status**: ✅ Completed
 
 #### Key Improvements
@@ -45,8 +45,8 @@ This document provides an overview of the modernized physical and chemical proce
 
 ### 3. Gravitational Settling
 
-**Location**: `src/process/settling/`  
-**Type**: Transport (gravitational settling)  
+**Location**: `src/process/settling/`
+**Type**: Transport (gravitational settling)
 **Status**: ✅ Completed
 
 #### Key Improvements
