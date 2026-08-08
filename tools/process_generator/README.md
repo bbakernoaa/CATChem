@@ -198,7 +198,7 @@ python process_generator.py COMMAND [OPTIONS]
 
 # Main commands
 python process_generator.py generate --config CONFIG_FILE
-python process_generator.py validate --config CONFIG_FILE  
+python process_generator.py validate --config CONFIG_FILE
 python process_generator.py template --type TYPE --output FILE
 python process_generator.py fields --type TYPE [--verbose]
 
@@ -209,7 +209,7 @@ python process_generator.py fields --type TYPE [--verbose]
   --metstate FILE        Path to MetState file for field discovery
   --verbose              Enable verbose output
 
-# Validate options  
+# Validate options
   --config CONFIG_FILE    YAML configuration file (required)
   --metstate FILE        Path to MetState file for field discovery
   --verbose              Enable verbose output

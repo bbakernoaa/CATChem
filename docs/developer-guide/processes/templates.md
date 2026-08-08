@@ -6,12 +6,12 @@ CATChem provides sophisticated code generation templates to streamline process d
 
 The template system uses Jinja2 templating to generate:
 
-- **Process modules**: Main process implementation
-- **Scheme modules**: Algorithm-specific implementations
-- **Build scripts**: CMakeLists.txt files
-- **Configuration**: YAML configuration templates
-- **Tests**: Unit test scaffolding
-- **Documentation**: API documentation templates
+- **C++ Process Modules**: C++ process wrapper classes (`catchem_process_<name>.hpp/cpp`) inheriting from `catchem::ProcessInterface`.
+- **Fortran Science Bridges**: C-interoperable Fortran ScienceBridge subroutines (`<Name>ScienceBridge.F90`) using `BIND(C)`.
+- **Fortran Common & Scheme Modules**: Process configuration modules and pure science scheme implementations.
+- **Build Scripts**: Process package `CMakeLists.txt` supporting `CATCHEM_ENABLE_KOKKOS`.
+- **Tests**: Standalone Fortran CTest unit tests (`test_<name>_science.f90`).
+- **Documentation**: Markdown API documentation templates.
 
 ## Generator Tool
 
@@ -25,99 +25,23 @@ python process_generator.py --help
 ### Basic Usage
 
 ```bash
-python catchem_generate_process.py \
-    --name settling \
-    --description "Gravitational settling of atmospheric particles" \
-    --schemes Stokes,IntermediateReynolds \
-    --species PM25,PM10,DUST \
-    --diagnostics settling_velocity,particle_flux
-```
-
-### Advanced Options
-
-```bash
-python catchem_generate_process.py \
-    --name chemistry \
-    --description "Gas-phase atmospheric chemistry" \
-    --schemes CB6,RACM2,MOZART \
-    --species O3,NO,NO2,CO,SO2,NH3 \
-    --diagnostics reaction_rates,photolysis_rates \
-    --multiphase \
-    --size-bins 8 \
-    --output-dir custom_location \
-    --author "Your Name" \
-    --email "your.email@domain.com"
+python process_generator.py generate \
+    --config configs/dust_generic_process.yaml
 ```
 
 ## Template Files
 
-### Process Main Template
+### C++ Process Wrapper Template
 
-Location: `tools/process_generator/templates/process_main.f90.j2`
+Location: `tools/process_generator/templates/catchem_process.hpp.j2` & `catchem_process.cpp.j2`
 
-This template generates the main process module:
+Generates the C++ `catchem::ProcessInterface` class and registers the process with `catchem::ProcessRegistry`.
 
-```fortran
-{%- set class_name = name|title + "ProcessType" %}
-{%- set module_name = name + "Process_Mod" %}
-!> \file {{ name }}Process_Mod.F90
-!! \brief {{ description }}
-!! \ingroup process_modules
-!!
-!! \author {{ author }}
-!! \date {{ date }}
-!! \version {{ version }}
-!!
-!! {{ detailed_description }}
-!!
-module {{ module_name }}
-   use precision_mod
-   use state_mod, only : StateContainerType
-   use error_mod
-   use ProcessInterface_Mod
-{%- for scheme in schemes %}
-   use {{ scheme|title }}Scheme_Mod
-{%- endfor %}
-   use {{ name }}Common_Mod
+### Fortran Science Bridge Template
 
-   implicit none
-   private
+Location: `tools/process_generator/templates/science_bridge.F90.j2`
 
-   public :: {{ class_name }}
-
-   !> {{ description }}
-   type, extends(ProcessInterface) :: {{ class_name }}
-      private
-
-      ! Process-specific configuration
-      character(len=32) :: selected_scheme = '{{ schemes[0] }}'
-{%- for param in parameters %}
-      {{ param.type }} :: {{ param.name }} = {{ param.default }}
-{%- endfor %}
-
-{%- if size_bins > 0 %}
-      ! Size bin configuration
-      integer :: n_size_bins = {{ size_bins }}
-      real(fp) :: size_bin_bounds({{ size_bins + 1 }})
-{%- endif %}
-
-   contains
-      ! Required ProcessInterface methods
-      procedure :: init => {{ name }}_process_init
-      procedure :: run => {{ name }}_process_run
-      procedure :: finalize => {{ name }}_process_finalize
-
-{%- if diagnostics %}
-      ! Diagnostic methods
-      procedure, private :: setup_diagnostics => {{ name }}_setup_diagnostics
-      procedure, private :: update_diagnostics => {{ name }}_update_diagnostics
-{%- endif %}
-
-      ! Process-specific methods
-      procedure, private :: validate_configuration => {{ name }}_validate_config
-   end type {{ class_name }}
-
-contains
+Generates the `BIND(C)` Fortran bridge module mapping C pointers to Fortran column arrays.
 
    !> Initialize {{ name }} process
    subroutine {{ name }}_process_init(this, container, rc)

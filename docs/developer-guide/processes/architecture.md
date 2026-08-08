@@ -23,57 +23,41 @@ graph TB
 
 ## ProcessInterface Base Class
 
-All processes extend the abstract `ProcessInterface` type defined in `ProcessInterface_Mod.F90`:
+All processes extend the abstract C++ `catchem::ProcessInterface` class defined in `src/core/catchem_process_interface.hpp`:
 
-```fortran
-type, abstract :: ProcessInterface
-   private
-   character(len=64) :: name = ''
-   character(len=64) :: version = ''
-   character(len=256) :: description = ''
-   logical :: is_initialized = .false.
-   logical :: is_active = .false.
-   real(fp) :: dt = 0.0_fp
+```cpp
+namespace catchem {
 
-   ! Species and size bin management
-   integer :: n_species = 0
-   character(len=32), allocatable :: species_names(:)
-   integer :: n_size_bins = 0
-   real(fp), allocatable :: size_bin_bounds(:)
+    class ProcessInterface {
+    public:
+        virtual ~ProcessInterface() = default;
 
-contains
-   ! Required interface methods
-   procedure(init_interface), deferred :: init
-   procedure(run_interface), deferred :: run
-   procedure(finalize_interface), deferred :: finalize
+        virtual std::string get_name() const = 0;
+        virtual void init(std::shared_ptr<StateManager> state) = 0;
+        virtual void run(std::shared_ptr<StateManager> state) = 0;
+        virtual void finalize() = 0;
+    };
 
-   ! Common utility methods
-   procedure :: is_ready
-   procedure :: get_name
-   procedure :: get_version
-end type ProcessInterface
+} // namespace catchem
 ```
 
 ### Required Methods
 
-Every process must implement three core methods:
+Every process must implement three core C++ methods:
 
-#### `init(container, rc)`
-- Initialize the process with configuration and state
-- Validate inputs and allocate resources
-- Set up diagnostic outputs
-- Register with the state container
+#### `init(state)`
+- Initialize the process with C++ `StateManager`
+- Set up diagnostic fields in `DiagnosticManager`
+- Prepare dynamic species mapping and index lists
 
-#### `run(container, rc)`
-- Execute the main process logic
-- Access state data through the container
-- Update species concentrations or emissions
-- Generate diagnostic output
+#### `run(state)`
+- Sync C++ Kokkos state host views
+- Retrieve meteorological and chemical pointers from `StateManager`
+- Invoke the Fortran `ScienceBridge` via `extern "C"`
+- Accumulate tendencies and update device views
 
-#### `finalize(rc)`
-- Clean up allocated resources
-- Close files and finalize diagnostics
-- Graceful shutdown procedures
+#### `finalize()`
+- Clean up allocated resources and state handles
 
 ## Process Development Workflow
 
@@ -85,8 +69,10 @@ mkdir src/process/myprocess
 mkdir src/process/myprocess/schemes
 
 # Create required files
-touch src/process/myprocess/myprocessProcess_Mod.F90
-touch src/process/myprocess/myprocessCommon_Mod.F90
+touch src/process/myprocess/catchem_process_myprocess.hpp
+touch src/process/myprocess/catchem_process_myprocess.cpp
+touch src/process/myprocess/MyProcessScienceBridge.F90
+touch src/process/myprocess/MyProcessCommon_Mod.F90
 touch src/process/myprocess/CMakeLists.txt
 touch src/process/myprocess/schemes/CMakeLists.txt
 ```

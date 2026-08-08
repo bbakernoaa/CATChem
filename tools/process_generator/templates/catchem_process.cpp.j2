@@ -8,15 +8,15 @@ extern "C" {
 void run_{{ config.name }}_science_bridge(
     int n_cols, int n_levels, int n_species, int n_soil, double dt,
     const char* active_scheme, int diagnostics,
-    {% for field in all_met_fields -%}
+{% for field in all_met_fields %}
     double* {{ field }},
-    {% endfor -%}
+{% endfor %}
     double* species_density, double* species_radius,
     double* species_lower_radius, double* species_upper_radius,
     double* conc, double* tendency,
-    {% for diag in config.diagnostics -%}
+{% for diag in config.diagnostics %}
     double* diag_{{ diag.name }},
-    {% endfor -%}
+{% endfor %}
     const int* diagnostic_species_id, int n_diag_species
 );
 }
@@ -110,15 +110,15 @@ namespace catchem {
         run_{{ config.name }}_science_bridge(
             state->n_cols, state->n_levels, state->n_species, 4, state->time.timestep,
             active_scheme.c_str(), diagnostics_enabled ? 1 : 0,
-            {% for field in all_met_fields -%}
+{% for field in all_met_fields %}
             {{ field }}_ptr,
-            {% endfor -%}
+{% endfor %}
             density.data(), radius.data(), lower_radius.data(), upper_radius.data(),
             conc_ptr, local_tendency.data(),
-            {% for diag in config.diagnostics -%}
+{% for diag in config.diagnostics %}
             diag_{{ diag.name }}_ptr,
-            {% endfor -%}
-            diagnostic_species_id.data(), diagnostic_species_id.size()
+{% endfor %}
+            diagnostic_species_id.data(), static_cast<int>(diagnostic_species_id.size())
         );
     }
 

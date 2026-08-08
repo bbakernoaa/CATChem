@@ -41,19 +41,36 @@ logger = logging.getLogger('ProcessGenerator')
 
 
 def _extract_field_names(field_list) -> List[str]:
-    """Extract string field names from a list of strings or dicts."""
+    """Extract string field names from a list of strings or dicts and normalize to standard MetState names."""
+    alias_map = {
+        'LEAF_AREA_INDEX': 'LAI',
+        'SOLAR_ZENITH_ANGLE': 'SUNCOS',
+        'TEMPERATURE': 'T',
+        'PRESSURE': 'PMID',
+        'SURFACE_PRESSURE': 'PS',
+        'HUMIDITY': 'QV',
+        'AIR_DENSITY': 'AIRDEN',
+        'WIND_SPEED': 'U10M',
+        'FRICTION_VELOCITY': 'USTAR',
+    }
     names = []
+    seen = set()
     if not field_list:
         return names
     for item in field_list:
+        name = None
         if isinstance(item, dict):
             name = item.get('name') or item.get('field') or item.get('variable_name')
-            if name:
-                names.append(str(name))
         elif isinstance(item, str):
-            names.append(item)
+            name = item
         else:
-            names.append(str(item))
+            name = str(item)
+        if name:
+            norm_name = str(name).strip().upper()
+            norm_name = alias_map.get(norm_name, norm_name)
+            if norm_name not in seen:
+                seen.add(norm_name)
+                names.append(norm_name)
     return names
 
 
@@ -1571,10 +1588,7 @@ class ProcessGenerator:
 
         all_met_fields = self.get_all_required_met_fields_combined(config)
 
-        script_dir = Path(__file__).resolve().parent
-        repo_root = script_dir.parent.parent
-        tests_root = repo_root / "tests"
-        tests_root.mkdir(parents=True, exist_ok=True)
+        test_dir.mkdir(parents=True, exist_ok=True)
 
         science_test_template = self.env.get_template('test_science.f90.j2')
         content = science_test_template.render(
@@ -1583,7 +1597,7 @@ class ProcessGenerator:
             timestamp=datetime.now().isoformat()
         )
 
-        test_file = tests_root / f"test_{config.name}_science.f90"
+        test_file = test_dir / f"test_{config.name}_science.f90"
         with open(test_file, 'w') as f:
             f.write(content)
 

@@ -40,64 +40,33 @@ call testing_end_test()
 call testing_finalize()
 ```
 
-### Writing Unit Tests
+### Writing Unit & Science Tests
 
-Create unit tests for each process component:
+Create standalone science unit tests for each process component:
 
 ```fortran
-program test_settling_process
-   use settlingProcess_Mod
-   use StokesschemeScheme_Mod
-   use testing_mod
-   use state_mod
+program test_settling_science
+   use testing_mod, only: assert
+   use precision_mod, only: fp
+   use SettlingPhysics_Mod, only: settling_calc_vsettle, settling_compute
 
    implicit none
 
-   call testing_init("Settling Process Tests")
+   write(*,*) 'Testing Settling Science Schemes...'
 
-   ! Test process initialization
-   call test_process_initialization()
-
-   ! Test Stokes scheme calculations
-   call test_stokes_calculations()
-
-   ! Test error handling
-   call test_error_conditions()
-
-   ! Test configuration validation
-   call test_configuration_validation()
-
-   call testing_finalize()
+   ! Test terminal velocity
+   call test_settling_velocity()
 
 contains
 
-   subroutine test_process_initialization()
-      type(settlingProcessType) :: process
-      type(StateContainerType) :: container
-      integer :: rc
+   subroutine test_settling_velocity()
+      real(fp) :: vsettle
+      call settling_calc_vsettle(2.0e-6_fp, 2200.0_fp, 1.225_fp, 288.15_fp, 9.80665_fp, vsettle)
+      call assert(vsettle > 0.0_fp, "Settling velocity must be positive")
+   end subroutine test_settling_velocity
 
-      call testing_start_test("Process Initialization")
-
-      ! Create minimal test container
-      call create_test_state_container(container)
-
-      ! Test successful initialization
-      call process%init(container, rc)
-      call assert_equal(rc, CC_SUCCESS, "Init should succeed")
-      call assert_true(process%is_ready(), "Process should be ready")
-      call assert_equal(process%get_name(), 'settling', "Name should match")
-
-      call testing_end_test()
-   end subroutine test_process_initialization
-
-   subroutine test_stokes_calculations()
-      type(StateContainerType) :: container
-      real(fp) :: particle_radius, air_density, temperature
-      real(fp) :: settling_velocity, expected_velocity
-      real(fp), parameter :: tolerance = 1.0e-6_fp
-      integer :: rc
-
-      call testing_start_test("Stokes Settling Calculations")
+end program test_settling_science
+```
 
       ! Set up test conditions
       particle_radius = 1.0e-6_fp  ! 1 μm
