@@ -276,6 +276,7 @@ contains
       call bind_met_2d_ptr(this, "OBK", met%OBK)
       call bind_met_2d_ptr(this, "LAT", met%LAT)
       call bind_met_2d_ptr(this, "LON", met%LON)
+      call bind_met_2d_ptr(this, "Z0", met%Z0)
       call bind_met_2d_ptr(this, "AREA_M2", met%AREA_M2)
       call bind_met_2d_ptr(this, "FROCEAN", met%FROCEAN)
       call bind_met_2d_ptr(this, "FRSEAICE", met%FRSEAICE)

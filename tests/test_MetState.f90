@@ -470,6 +470,48 @@ program test_MetState
 
    print *, "=== All MetState Field Assignment and Access Tests Passed! ==="
 
+   print *, "=== Testing NUOPC field-mapping set_field contract ==="
+   ! Every catchem_var that CATChem_field_mapping.yml routes through
+   ! set_field in transform_field_to_catchem must (a) have an allocated
+   ! member after init and (b) have a set_field case that stores values.
+   ! Z0 is the live regression: the run-phase abort of 2026-08-11.
+
+   if (.not. allocated(test_2d_real)) allocate(test_2d_real(nx, ny))
+   if (.not. allocated(test_2d_integer)) allocate(test_2d_integer(nx, ny))
+
+   ! --- Z0 (real path; NUOPC delivers cm, the transform converts to m) ---
+   call assert(associated(metstate%Z0), "Z0 not allocated by metstate init")
+   test_2d_real = 150.0_fp*0.01_fp ! 150 cm -> 1.5 m, as the transform does
+   call metstate%set_field("Z0", test_2d_real, error_manager, rc)
+   call assert(rc == CC_SUCCESS, "set_field('Z0') failed (missing case)")
+   call assert_close(metstate%Z0(1, 1), 1.5_fp, 1.0e-12_fp, "Z0 value not stored")
+
+   ! --- DLUSE / DSOILTYPE / LWI (integer path) ---
+   call assert(associated(metstate%DLUSE), "DLUSE not allocated")
+   test_2d_integer = 7
+   call metstate%set_field("DLUSE", test_2d_integer, error_manager, rc)
+   call assert(rc == CC_SUCCESS, "set_field('DLUSE') failed")
+
+   call assert(associated(metstate%DSOILTYPE), "DSOILTYPE not allocated")
+   test_2d_integer = 3
+   call metstate%set_field("DSOILTYPE", test_2d_integer, error_manager, rc)
+   call assert(rc == CC_SUCCESS, "set_field('DSOILTYPE') failed")
+
+   call assert(associated(metstate%LWI), "LWI not allocated")
+   test_2d_integer = 1
+   call metstate%set_field("LWI", test_2d_integer, error_manager, rc)
+   call assert(rc == CC_SUCCESS, "set_field('LWI') failed")
+
+   ! Unknown names must fail loudly (rc /= success, message via error_mgr)
+   test_2d_real = 0.0_fp
+   call metstate%set_field("NOT_A_REAL_FIELD", test_2d_real, error_manager, rc)
+   call assert(rc /= CC_SUCCESS, "unknown 2D real field must fail")
+   test_2d_integer = 0
+   call metstate%set_field("NOT_AN_INT_FIELD", test_2d_integer, error_manager, rc)
+   call assert(rc /= CC_SUCCESS, "unknown 2D integer field must fail")
+
+   print *, "PASS: NUOPC field-mapping set_field contract"
+
    ! Cleanup
    if (allocated(test_2d_real)) deallocate(test_2d_real)
    if (allocated(test_2d_logical)) deallocate(test_2d_logical)

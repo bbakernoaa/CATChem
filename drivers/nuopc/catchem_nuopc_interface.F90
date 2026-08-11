@@ -832,8 +832,22 @@ contains
             trim(field_map%catchem_var) == 'LWI') then
             !convert to integer
             call met_state%set_field(trim(field_map%catchem_var), int(fptr2d), error_mgr, rc)
+            if (rc /= CC_SUCCESS) then
+               call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+                  msg="transform_field_to_catchem: set_field failed for '"// &
+                  trim(field_map%catchem_var)//"'", &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)
+               return  ! bail out
+            end if
          else if (trim(field_map%catchem_var) == 'Z0') then ! roughness length in cm in NUOPC but m in CATChem
             call met_state%set_field(trim(field_map%catchem_var), real(fptr2d, fp)*0.01_fp, error_mgr, rc)
+            if (rc /= CC_SUCCESS) then
+               call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+                  msg="transform_field_to_catchem: set_field failed for '"// &
+                  trim(field_map%catchem_var)//"'", &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)
+               return  ! bail out
+            end if
          else
             ! Standard direct zero-copy pointer mapping
             call cc_wrap%catchem_model%bind_met_2d(trim(field_map%catchem_var) // c_null_char, fptr2d)

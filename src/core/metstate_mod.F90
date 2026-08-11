@@ -359,12 +359,16 @@ CONTAINS
          if (.not. associated(this%OBK)) allocate(this%OBK(nx, ny))
          if (.not. associated(this%LAT)) allocate(this%LAT(nx, ny))
          if (.not. associated(this%LON)) allocate(this%LON(nx, ny))
+         if (.not. associated(this%Z0)) allocate(this%Z0(nx, ny))
          if (.not. associated(this%IsLand)) allocate(this%IsLand(nx, ny))
          if (.not. associated(this%IsWater)) allocate(this%IsWater(nx, ny))
          if (.not. associated(this%IsIce)) allocate(this%IsIce(nx, ny))
          if (.not. associated(this%IsSnow)) allocate(this%IsSnow(nx, ny))
          if (.not. associated(this%LWI)) allocate(this%LWI(nx, ny))
          if (.not. associated(this%DLUSE)) allocate(this%DLUSE(nx, ny))
+         if (.not. associated(this%DSOILTYPE)) allocate(this%DSOILTYPE(nx, ny))
+         if (.not. associated(this%nLNDTYPE)) allocate(this%nLNDTYPE(nx, ny))
+         if (.not. associated(this%TropLev)) allocate(this%TropLev(nx, ny))
          if (.not. associated(this%FRVEG)) allocate(this%FRVEG(nx, ny))
          if (.not. associated(this%AREA_M2)) allocate(this%AREA_M2(nx, ny))
          if (.not. associated(this%U)) allocate(this%U(nx, ny, nz))
@@ -1490,27 +1494,85 @@ CONTAINS
       rc = CC_SUCCESS
       select case (to_upper(trim(adjustl(field_name))))
        case ('PS')
-         if (associated(this%PS)) this%PS = field_data
+         if (associated(this%PS)) then
+            this%PS = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('PS'): member not allocated (data would be dropped)", rc)
+         end if
        case ('TS')
-         if (associated(this%TS)) this%TS = field_data
+         if (associated(this%TS)) then
+            this%TS = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('TS'): member not allocated (data would be dropped)", rc)
+         end if
        case ('PBLH')
-         if (associated(this%PBLH)) this%PBLH = field_data
+         if (associated(this%PBLH)) then
+            this%PBLH = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('PBLH'): member not allocated (data would be dropped)", rc)
+         end if
        case ('USTAR')
-         if (associated(this%USTAR)) this%USTAR = field_data
+         if (associated(this%USTAR)) then
+            this%USTAR = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('USTAR'): member not allocated (data would be dropped)", rc)
+         end if
        case ('HFLUX')
-         if (associated(this%HFLUX)) this%HFLUX = field_data
+         if (associated(this%HFLUX)) then
+            this%HFLUX = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('HFLUX'): member not allocated (data would be dropped)", rc)
+         end if
        case ('OBK')
-         if (associated(this%OBK)) this%OBK = field_data
+         if (associated(this%OBK)) then
+            this%OBK = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('OBK'): member not allocated (data would be dropped)", rc)
+         end if
        case ('LAT')
-         if (associated(this%LAT)) this%LAT = field_data
+         if (associated(this%LAT)) then
+            this%LAT = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('LAT'): member not allocated (data would be dropped)", rc)
+         end if
        case ('LON')
-         if (associated(this%LON)) this%LON = field_data
+         if (associated(this%LON)) then
+            this%LON = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('LON'): member not allocated (data would be dropped)", rc)
+         end if
        case ('FRVEG')
-         if (associated(this%FRVEG)) this%FRVEG = field_data
+         if (associated(this%FRVEG)) then
+            this%FRVEG = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('FRVEG'): member not allocated (data would be dropped)", rc)
+         end if
        case ('AREA_M2')
-         if (associated(this%AREA_M2)) this%AREA_M2 = field_data
+         if (associated(this%AREA_M2)) then
+            this%AREA_M2 = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('AREA_M2'): member not allocated (data would be dropped)", rc)
+         end if
+       case ('Z0')
+         if (associated(this%Z0)) then
+            this%Z0 = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('Z0'): member not allocated (data would be dropped)", rc)
+         end if
        case default
-         rc = CC_FAILURE
+         call error_mgr%report_error(CC_FAILURE, &
+            "set_field: unknown 2D real field '"//trim(field_name)//"'", rc)
       end select
    end subroutine metstate_set_field_2d_real
 
@@ -1527,17 +1589,43 @@ CONTAINS
       rc = CC_SUCCESS
       select case (to_upper(trim(adjustl(field_name))))
        case ('LWI')
-         if (associated(this%LWI)) this%LWI = field_data
+         if (associated(this%LWI)) then
+            this%LWI = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('LWI'): member not allocated (data would be dropped)", rc)
+         end if
        case ('DLUSE')
-         if (associated(this%DLUSE)) this%DLUSE = field_data
+         if (associated(this%DLUSE)) then
+            this%DLUSE = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('DLUSE'): member not allocated (data would be dropped)", rc)
+         end if
        case ('DSOILTYPE')
-         if (associated(this%DSOILTYPE)) this%DSOILTYPE = field_data
+         if (associated(this%DSOILTYPE)) then
+            this%DSOILTYPE = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('DSOILTYPE'): member not allocated (data would be dropped)", rc)
+         end if
        case ('NLNDTYPE')
-         if (associated(this%nLNDTYPE)) this%nLNDTYPE = field_data
+         if (associated(this%nLNDTYPE)) then
+            this%nLNDTYPE = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('nLNDTYPE'): member not allocated (data would be dropped)", rc)
+         end if
        case ('TROPLEV')
-         if (associated(this%TropLev)) this%TropLev = field_data
+         if (associated(this%TropLev)) then
+            this%TropLev = field_data
+         else
+            call error_mgr%report_error(CC_FAILURE, &
+               "set_field('TropLev'): member not allocated (data would be dropped)", rc)
+         end if
        case default
-         rc = CC_FAILURE
+         call error_mgr%report_error(CC_FAILURE, &
+            "set_field: unknown 2D integer field '"//trim(field_name)//"'", rc)
       end select
    end subroutine metstate_set_field_2d_int
 

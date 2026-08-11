@@ -11,12 +11,15 @@ program test_CATChem_API
    use CATChem_API, only: CATChem_Model
    use StateManager_Mod, only: StateManagerType
    use MetState_Mod, only: MetStateType
+   use Error_Mod, only: ErrorManagerType, CC_SUCCESS
    use precision_mod, only: fp
    implicit none
 
    type(CATChem_Model) :: model
    type(StateManagerType), pointer :: sm
    type(MetStateType), pointer :: met
+   type(ErrorManagerType), pointer :: em
+   real(fp), allocatable :: z0_cm(:, :)
    integer :: rc
    integer, parameter :: nx = 4, ny = 2, nz = 5
    character(len=*), parameter :: config_file = 'CATChem_new_config.yml'
@@ -76,6 +79,28 @@ program test_CATChem_API
       error stop 1
    end if
    print *, 'PASS: lat/lon written and persisted through shared buffers'
+
+   ! 3b. Replay the NUOPC transform's Z0 path (cm -> m conversion via
+   !     set_field) — the 2026-08-11 run-phase abort regression.
+   if (.not. associated(met%Z0)) then
+      print *, 'FAIL: Z0 not allocated/bound by the facade'
+      error stop 1
+   end if
+   em => sm%get_error_manager()
+   allocate(z0_cm(nx, ny))
+   z0_cm = 150.0_fp
+   call met%set_field('Z0', z0_cm*0.01_fp, em, rc)
+   if (rc /= CC_SUCCESS) then
+      print *, 'FAIL: set_field(Z0) rc=', rc, ' (missing case)'
+      error stop 1
+   end if
+   met => sm%get_met_state_ptr()
+   if (abs(met%Z0(1, 1) - 1.5_fp) > 1.0e-12_fp) then
+      print *, 'FAIL: Z0 not persisted through shared buffer:', met%Z0(1, 1)
+      error stop 1
+   end if
+   deallocate(z0_cm)
+   print *, 'PASS: Z0 transform path (set_field + shared buffer)'
 
    ! 4. Error manager and time state facades exist (run phase uses them).
    if (.not. associated(sm%get_error_manager())) then

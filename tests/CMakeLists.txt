@@ -166,3 +166,45 @@ endif()
 
 add_executable(test_catchem_gaschem_units test_catchem_gaschem_units.cpp)
 add_test(NAME test_catchem_gaschem_units COMMAND test_catchem_gaschem_units)
+
+# ESMF-backed NUOPC transform test — builds and runs ONLY when the cap is
+# built (CATCHEM_BUILD_NUOPC=ON). cc_nuopc links ESMF/NetCDF/MPI PUBLIC,
+# so its usage requirements arrive transitively; its Fortran modules live
+# in the cap's module directory.
+if(CATCHEM_BUILD_NUOPC)
+  # libesmf.a references the MPI C++ bindings; an executable link needs
+  # them explicitly (the cap static library never resolves them itself).
+  find_package(MPI COMPONENTS Fortran CXX REQUIRED)
+  add_executable(test_nuopc_transform test_nuopc_transform.f90)
+  target_link_libraries(
+    test_nuopc_transform
+    PRIVATE cc_nuopc CATChem CATChem_core MPI::MPI_Fortran MPI::MPI_CXX
+  )
+  set_target_properties(
+    test_nuopc_transform
+    PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+      LINKER_LANGUAGE Fortran
+  )
+  target_include_directories(
+    test_nuopc_transform
+    PRIVATE
+      ${CMAKE_BINARY_DIR}/include
+      $<TARGET_PROPERTY:cc_nuopc,Fortran_MODULE_DIRECTORY>
+  )
+  # Stage the production field mapping and the test model configs into the
+  # test's working directory.
+  file(
+    COPY
+      ${PROJECT_SOURCE_DIR}/drivers/nuopc/CATChem_field_mapping.yml
+      ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_new_config.yml
+      ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_species.yml
+      ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_emission.yml
+    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+  )
+  add_test(
+    NAME test_nuopc_transform
+    COMMAND test_nuopc_transform
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  )
+endif()
