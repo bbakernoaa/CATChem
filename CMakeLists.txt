@@ -22,8 +22,8 @@ project(CATChem VERSION ${CATCHEM_VERSION} LANGUAGES Fortran C CXX)
 set(CATCHEM_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 set(CATCHEM_SRC_DIR "${CATCHEM_ROOT_DIR}/src")
 
-# Option to enable Kokkos GPU/parallel support (defaults to OFF)
-option(CATCHEM_ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
+# Option to enable Kokkos GPU/parallel support (defaults to ON)
+option(CATCHEM_ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" ON)
 
 # Set C++ standard (default 11 for yaml-cpp; overridden to 20 when Kokkos is enabled)
 if(NOT CATCHEM_ENABLE_KOKKOS)
@@ -158,7 +158,7 @@ cmake_print_variables(
 set(_catchem_compiler_options "")
 
 # Handle Intel compiler deprecation warnings
-if(CMAKE_Fortran_COMPILER_ID MATCHES "^Intel")
+if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel|IntelLLVM")
   # Always disable the deprecation warning for ifort
   list(APPEND _catchem_compiler_options -diag-disable=6379,10448)
   # Also disable problematic flags that might come from external dependencies
@@ -191,22 +191,19 @@ if(
     -fmax-errors=0
   )
 elseif(
-  CMAKE_Fortran_COMPILER_ID MATCHES "^Intel"
+  CMAKE_Fortran_COMPILER_ID MATCHES "Intel|IntelLLVM"
   AND CMAKE_BUILD_TYPE MATCHES "Debug"
 )
   list(
     APPEND
     _catchem_compiler_options
     -O0
-    -warn
-    all
-    -check
-    all,nouninit
+    -warnall
+    -check=all,nouninit
     -implicitnone
     -fpe0
     -traceback
-    -error-limit
-    0
+    -error-limit=0
   )
 endif()
 

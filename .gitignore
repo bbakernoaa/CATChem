@@ -103,3 +103,5 @@ coverage.xml
 specs/
 .specify/
 docs/superpowers/
+.github/agents/
+.github/prompts
