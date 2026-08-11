@@ -193,7 +193,10 @@ if(CATCHEM_ENABLE_KOKKOS)
         catchem_process_photolysis
         yaml-cpp::yaml-cpp
     )
-    set_target_properties(test_catchem_photolysis PROPERTIES LINKER_LANGUAGE CXX)
+    set_target_properties(
+      test_catchem_photolysis
+      PROPERTIES LINKER_LANGUAGE CXX
+    )
     add_test(NAME test_catchem_photolysis COMMAND test_catchem_photolysis)
 
     # Coupled Process Integration Test
