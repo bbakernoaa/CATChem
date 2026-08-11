@@ -8,8 +8,12 @@ namespace catchem {
         try {
             YAML::Node config = YAML::LoadFile(filename);
             root_node = config;
+            config_file_path = filename;
             if (config["simulation"]) {
                 auto sim = config["simulation"];
+                if (sim["species_filename"]) {
+                    data.species_filename = sim["species_filename"].as<std::string>();
+                }
                 if (sim["nx"]) {
                     data.runtime.nx = sim["nx"].as<int>();
                 }

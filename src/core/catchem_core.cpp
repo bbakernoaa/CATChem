@@ -1,9 +1,50 @@
 #include "catchem_core.hpp"
 #include <iostream>
 
+namespace {
+
+    // The core owns the Kokkos runtime for hosts that drive it through the
+    // C API (e.g. the NUOPC cap): managed Views (diagnostics, device
+    // mirrors) require an initialized runtime. No-op when Kokkos is off or
+    // when the host already initialized it. Finalization is intentionally
+    // left to the host/test harness.
+    void ensure_kokkos_initialized() {
+#ifdef CATCHEM_ENABLE_KOKKOS
+        if (!Kokkos::is_initialized()) {
+            Kokkos::initialize();
+        }
+#endif
+    }
+
+    // Resolve a (possibly relative) species path against the config file's
+    // directory, so YAML-relative paths work regardless of the host's CWD.
+    std::string resolve_against_config(const std::string& config_file, const std::string& path) {
+        if (path.empty() || path.front() == '/')
+            return path;
+        auto slash = config_file.find_last_of('/');
+        if (slash == std::string::npos)
+            return path;
+        return config_file.substr(0, slash + 1) + path;
+    }
+
+    // Load the species list declared by the config (if any) and size the
+    // state's species dimension from it.
+    void load_configured_species(catchem::StateManager& state, const std::string& config_file,
+                                 const std::string& species_filename) {
+        if (species_filename.empty())
+            return;
+        state.chem.load_species_config(resolve_against_config(config_file, species_filename));
+        if (!state.chem.species_list.empty()) {
+            state.n_species = static_cast<int>(state.chem.species_list.size());
+        }
+    }
+
+} // namespace
+
 namespace catchem {
 
     Core::Core(int nc, int nl, int ns) {
+        ensure_kokkos_initialized();
         config_mgr = std::make_shared<ConfigManager>();
         config_mgr->data.runtime.nx = nc;
         config_mgr->data.runtime.ny = 1;
@@ -17,6 +58,7 @@ namespace catchem {
     }
 
     Core::Core(const std::string& config_file) {
+        ensure_kokkos_initialized();
         config_mgr = std::make_shared<ConfigManager>();
         config_mgr->load_from_file(config_file);
 
@@ -30,9 +72,11 @@ namespace catchem {
         state_mgr->config_file_path = config_mgr->config_file_path;
         diag_mgr = std::make_shared<DiagnosticManager>();
         state_mgr->diag_mgr = diag_mgr;
+        load_configured_species(*state_mgr, config_file, config_mgr->data.species_filename);
     }
 
     Core::Core(const std::string& config_file, int nc, int nl) {
+        ensure_kokkos_initialized();
         config_mgr = std::make_shared<ConfigManager>();
         config_mgr->load_from_file(config_file);
 
@@ -43,11 +87,12 @@ namespace catchem {
         config_mgr->data.runtime.nz = nl;
 
         grid_mgr = std::make_shared<GridManager>(nc, 1, nl);
-        state_mgr = std::make_shared<StateManager>(nc, nl, 50); // TODO: species count from config
+        state_mgr = std::make_shared<StateManager>(nc, nl, 50); // 50 = fallback when no species file
         state_mgr->config_mgr = config_mgr;
         state_mgr->config_file_path = config_mgr->config_file_path;
         diag_mgr = std::make_shared<DiagnosticManager>();
         state_mgr->diag_mgr = diag_mgr;
+        load_configured_species(*state_mgr, config_file, config_mgr->data.species_filename);
     }
 
     std::shared_ptr<ConfigManager> Core::get_config_manager() {

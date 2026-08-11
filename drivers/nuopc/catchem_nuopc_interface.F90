@@ -66,6 +66,7 @@ module catchem_nuopc_interface
    !public :: get_cc_wrap  ! Accessor for process-local wrapper
    public :: get_n_import_fields, get_import_field_info  ! Safe field_config access
    public :: get_n_export_fields, get_export_field_info  ! Safe field_config access
+   public :: update_pm_diagnostics  ! Exposed for the NUOPC transform test harness
 
    !> \brief Field mapping configuration structure
    !!
@@ -894,6 +895,25 @@ contains
 
          ! Direct zero-copy 4D chemistry concentration array mapping to C++ core StateManager
          call cc_wrap%catchem_model%bind_unified_chemistry(fptr4d)
+
+#ifdef USE_REAL8
+         ! Associate per-species Fortran conc slices with the freshly bound
+         ! tracer memory so Fortran-side consumers (e.g. PM diagnostics) see
+         ! live data. tracer_map holds NUOPC-tracer -> CATChem-species
+         ! indices. Zero-copy is only type-legal when fp is REAL64
+         ! (USE_REAL8); without promotion the slices stay unassociated and
+         ! PM diagnostics report zero until the precision policy is settled.
+         if (allocated(cc_wrap%tracer_map%nuopc_to_cc) .and. &
+            allocated(chem_state%ChemSpecies)) then
+            do v = 1, size(cc_wrap%tracer_map%nuopc_to_cc)
+               v_cc = cc_wrap%tracer_map%nuopc_to_cc(v)
+               if (v_cc >= 1 .and. v_cc <= size(chem_state%ChemSpecies) .and. &
+                  v <= size(fptr4d, 4)) then
+                  chem_state%ChemSpecies(v_cc)%conc => fptr4d(:, :, :, v)
+               end if
+            end do
+         end if
+#endif
 
        case default
          call ESMF_LogWrite("Unknown field mapping dimension for: " // trim(field_map%catchem_var), &
@@ -1762,13 +1782,12 @@ contains
       type(cc_wrap_type), intent(inout) :: cc_wrap
       integer, intent(out) :: rc
 
+      ! PM fields live in the C++ DiagnosticManager — the same storage the
+      ! NUOPC export transform and NetCDF output read from.
       logical, save :: pm_diag_registered = .false.
 
-      type(DiagnosticManagerType), pointer :: diag_mgr => null()
-      type(DiagnosticRegistryType), pointer :: registry => null()
-      type(DiagnosticFieldType), pointer :: field_ptr => null()
-      type(DiagnosticFieldType) :: pm_field
       real(fp), allocatable :: pm25(:,:,:), pm10(:,:,:)
+      real(fp), pointer :: diag_ptr(:,:,:) => null()
       integer :: ni, nj, nk
 
       rc = CC_SUCCESS
@@ -1781,63 +1800,43 @@ contains
       nj = size(pm25, 2)
       nk = size(pm25, 3)
 
-      ! Get the diagnostic manager
-      diag_mgr => cc_wrap%catchem_model%get_diagnostic_manager()
-      if (.not. associated(diag_mgr)) then
-         write(*,'(A)') 'Error: DiagnosticManager not available for PM diagnostics'
-         rc = CC_FAILURE
-         return
-      end if
-
-      ! Lazily register the 'aerosol' process and its PM fields
+      ! Lazily register the PM fields in the C++ diagnostic manager
       if (.not. pm_diag_registered) then
-         ! register_process is a no-op-with-error if already present; ignore dup
-         call diag_mgr%register_process('aerosol', rc)
-         rc = CC_SUCCESS
-
-         call diag_mgr%get_process_registry('aerosol', registry, rc)
-         if (rc /= CC_SUCCESS .or. .not. associated(registry)) then
-            write(*,'(A)') 'Error: could not get aerosol diagnostic registry'
+         call cc_wrap%catchem_model%register_diagnostic('pm25', &
+            'PM2.5 aerosol mass concentration', 'ug m-3', (/ni, nj, nk/), rc)
+         if (rc /= 0) then
+            write(*,'(A)') 'Error: could not register pm25 diagnostic'
             rc = CC_FAILURE
             return
          end if
-
-         ! PM2.5 field
-         call pm_field%create('pm25', 'PM2.5 aerosol mass concentration', &
-            'ug m-3', DIAG_REAL_3D, process_name='aerosol', rc=rc)
-         if (rc /= CC_SUCCESS) return
-         call pm_field%initialize_data((/ni, nj, nk/), rc)
-         if (rc /= CC_SUCCESS) return
-         call registry%register_field(pm_field, rc)
-         if (rc /= CC_SUCCESS) return
-
-         ! PM10 field
-         call pm_field%create('pm10', 'PM10 aerosol mass concentration', &
-            'ug m-3', DIAG_REAL_3D, process_name='aerosol', rc=rc)
-         if (rc /= CC_SUCCESS) return
-         call pm_field%initialize_data((/ni, nj, nk/), rc)
-         if (rc /= CC_SUCCESS) return
-         call registry%register_field(pm_field, rc)
-         if (rc /= CC_SUCCESS) return
-
+         call cc_wrap%catchem_model%register_diagnostic('pm10', &
+            'PM10 aerosol mass concentration', 'ug m-3', (/ni, nj, nk/), rc)
+         if (rc /= 0) then
+            write(*,'(A)') 'Error: could not register pm10 diagnostic'
+            rc = CC_FAILURE
+            return
+         end if
          pm_diag_registered = .true.
       end if
 
-      ! Update the stored PM fields with the current values
-      call diag_mgr%get_process_registry('aerosol', registry, rc)
-      if (rc /= CC_SUCCESS .or. .not. associated(registry)) then
-         write(*,'(A)') 'Error: could not get aerosol diagnostic registry for update'
+      ! Write current values into the C++-owned diagnostic storage
+      call cc_wrap%catchem_model%get_diagnostic_ptr('pm25', diag_ptr, (/ni, nj, nk/), rc)
+      if (rc /= 0 .or. .not. associated(diag_ptr)) then
+         write(*,'(A)') 'Error: could not map pm25 diagnostic storage'
          rc = CC_FAILURE
          return
       end if
+      diag_ptr = pm25
+      nullify(diag_ptr)
 
-      field_ptr => registry%get_field_ptr('pm25')
-      if (associated(field_ptr)) call field_ptr%update_data(array_3d=pm25)
-      nullify(field_ptr)
-
-      field_ptr => registry%get_field_ptr('pm10')
-      if (associated(field_ptr)) call field_ptr%update_data(array_3d=pm10)
-      nullify(field_ptr)
+      call cc_wrap%catchem_model%get_diagnostic_ptr('pm10', diag_ptr, (/ni, nj, nk/), rc)
+      if (rc /= 0 .or. .not. associated(diag_ptr)) then
+         write(*,'(A)') 'Error: could not map pm10 diagnostic storage'
+         rc = CC_FAILURE
+         return
+      end if
+      diag_ptr = pm10
+      nullify(diag_ptr)
 
       if (allocated(pm25)) deallocate(pm25)
       if (allocated(pm10)) deallocate(pm10)

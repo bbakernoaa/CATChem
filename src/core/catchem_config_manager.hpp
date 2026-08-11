@@ -15,6 +15,7 @@ namespace catchem {
 
     struct ConfigData {
         RuntimeConfig runtime;
+        std::string species_filename; ///< simulation:species_filename, as written in the YAML
         // We can add FilePathConfig, etc. here later
     };
 

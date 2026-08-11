@@ -101,6 +101,16 @@ module CATChem_API
          character(kind=c_char), intent(in) :: name(*)
       end function
 
+      subroutine catchem_diag_register(core_ptr, name, desc, units, rank, dim1, dim2, dim3) &
+         bind(C, name="catchem_diag_register")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         character(kind=c_char), intent(in) :: desc(*)
+         character(kind=c_char), intent(in) :: units(*)
+         integer(c_int), value :: rank, dim1, dim2, dim3
+      end subroutine
+
       subroutine catchem_diag_sync_to_host(core_ptr) bind(C, name="catchem_diag_sync_to_host")
          import :: c_ptr
          type(c_ptr), value :: core_ptr
@@ -153,6 +163,8 @@ module CATChem_API
       procedure :: run_timestep => model_run_timestep
       procedure :: get_diagnostic_names => model_get_diagnostic_names
       procedure :: get_diagnostic => model_get_diagnostic
+      procedure :: register_diagnostic => model_register_diagnostic
+      procedure :: get_diagnostic_ptr => model_get_diagnostic_ptr
       procedure :: get_diag_index_from_field => model_get_diag_index_from_field
       procedure :: get_required_met_index => model_get_required_met_index
       procedure :: get_grid_dimensions => model_get_grid_dimensions
@@ -226,12 +238,14 @@ contains
    !> sub-states and get_cpp_field retrievals resolve to the same memory.
    subroutine model_build_facade(this, nx, ny, nz, nsoil, nsoiltype, nsurftype, rc)
       use MetState_Mod, only: MetStateType
+      use species_mod, only: populate_species_from_cpp
       class(CATChem_Model), intent(inout) :: this
       integer, intent(in) :: nx, ny, nz
       integer, intent(in), optional :: nsoil, nsoiltype, nsurftype
       integer, intent(out) :: rc
 
       type(MetStateType), pointer :: met
+      integer :: n_species, is
 
       allocate(this%facade)
       this%facade%cpp_ptr = this%state_mgr_ptr
@@ -281,6 +295,19 @@ contains
       call bind_met_2d_ptr(this, "FROCEAN", met%FROCEAN)
       call bind_met_2d_ptr(this, "FRSEAICE", met%FRSEAICE)
       call bind_met_2d_ptr(this, "SST", met%SST)
+
+      ! Chem facade: mirror the C++ species list (loaded by the core from the
+      ! config's species_filename) into the Fortran ChemSpecies metadata.
+      n_species = int(catchem_state_get_species_count(this%state_mgr_ptr))
+      if (n_species > 0) then
+         call this%facade%chem_state%init(n_species, this%facade%error_mgr, rc)
+         if (rc /= 0) return
+         do is = 1, n_species
+            call populate_species_from_cpp( &
+               this%facade%chem_state%ChemSpecies(is), this%state_mgr_ptr, is, rc)
+            if (rc /= 0) return
+         end do
+      end if
 
       rc = 0
    end subroutine model_build_facade
@@ -513,7 +540,52 @@ contains
       call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr))
    end subroutine model_bind_unified_chemistry_4d
 
-   ! Get pointer to DiagnosticManager
+   ! Register a 3D diagnostic field in the C++ DiagnosticManager
+   subroutine model_register_diagnostic(this, name, desc, units, dims, rc)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: name, desc, units
+      integer, intent(in) :: dims(3)
+      integer, intent(out) :: rc
+
+      character(kind=c_char) :: c_name(64), c_desc(128), c_units(64)
+
+      rc = -1
+      if (.not. c_associated(this%cpp_core_ptr)) return
+      call to_c_string(name, c_name)
+      call to_c_string(desc, c_desc)
+      call to_c_string(units, c_units)
+      call catchem_diag_register(this%cpp_core_ptr, c_name, c_desc, c_units, &
+         3_c_int, int(dims(1), c_int), int(dims(2), c_int), int(dims(3), c_int))
+      rc = 0
+   end subroutine model_register_diagnostic
+
+   ! Map the C++-owned storage of a registered 3D diagnostic for in-place
+   ! writes (zero-copy; the same memory NUOPC export and NetCDF output read)
+   subroutine model_get_diagnostic_ptr(this, name, ptr3d, dims, rc)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: name
+      real(fp), pointer, intent(out) :: ptr3d(:, :, :)
+      integer, intent(in) :: dims(3)
+      integer, intent(out) :: rc
+
+      character(kind=c_char) :: c_name(64)
+      type(c_ptr) :: raw_ptr
+
+      rc = -1
+      nullify(ptr3d)
+      if (.not. c_associated(this%cpp_core_ptr)) return
+      call to_c_string(name, c_name)
+      raw_ptr = catchem_diag_get_pointer(this%cpp_core_ptr, c_name)
+      if (.not. c_associated(raw_ptr)) return
+      call c_f_pointer(raw_ptr, ptr3d, dims)
+      rc = 0
+   end subroutine model_get_diagnostic_ptr
+
+   ! Get pointer to the legacy Fortran DiagnosticManager shell.
+   ! NOTE: DiagnosticManager_Mod is a stub (empty process list); the live
+   ! diagnostics system is the C++ DiagnosticManager reached via
+   ! register_diagnostic/get_diagnostic_ptr/get_diagnostic. Retained only
+   ! for the NetCDF diagnostics-write path, which tolerates the stub.
    function model_get_diagnostic_manager(this) result(ptr)
       use DiagnosticManager_Mod, only: DiagnosticManagerType
       class(CATChem_Model), intent(inout) :: this

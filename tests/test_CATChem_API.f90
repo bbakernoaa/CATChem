@@ -11,6 +11,7 @@ program test_CATChem_API
    use CATChem_API, only: CATChem_Model
    use StateManager_Mod, only: StateManagerType
    use MetState_Mod, only: MetStateType
+   use ChemState_Mod, only: ChemStateType
    use Error_Mod, only: ErrorManagerType, CC_SUCCESS
    use precision_mod, only: fp
    implicit none
@@ -18,6 +19,7 @@ program test_CATChem_API
    type(CATChem_Model) :: model
    type(StateManagerType), pointer :: sm
    type(MetStateType), pointer :: met
+   type(ChemStateType), pointer :: chem
    type(ErrorManagerType), pointer :: em
    real(fp), allocatable :: z0_cm(:, :)
    integer :: rc
@@ -101,6 +103,24 @@ program test_CATChem_API
    end if
    deallocate(z0_cm)
    print *, 'PASS: Z0 transform path (set_field + shared buffer)'
+
+   ! 3c. Chem facade: the config declares species_filename, so species
+   !     must be loaded C++-side and mirrored into the Fortran
+   !     ChemSpecies metadata (the PM-diagnostics prerequisite).
+   chem => sm%get_chem_state_ptr()
+   if (.not. allocated(chem%ChemSpecies)) then
+      print *, 'FAIL: ChemSpecies not allocated (species facade unwired)'
+      error stop 1
+   end if
+   if (size(chem%ChemSpecies) < 1) then
+      print *, 'FAIL: no species mirrored into the chem facade'
+      error stop 1
+   end if
+   if (.not. any(chem%ChemSpecies(:)%is_aerosol)) then
+      print *, 'FAIL: no aerosol species in the chem facade'
+      error stop 1
+   end if
+   print *, 'PASS: chem facade populated (', size(chem%ChemSpecies), ' species)'
 
    ! 4. Error manager and time state facades exist (run phase uses them).
    if (.not. associated(sm%get_error_manager())) then

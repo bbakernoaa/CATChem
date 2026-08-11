@@ -10,7 +10,7 @@
 program test_nuopc_transform
    use ESMF
    use catchem_nuopc_interface, only: load_field_config, transform_nuopc_to_catchem, &
-      field_config, cc_wrap_type
+      field_config, cc_wrap_type, update_pm_diagnostics
    use StateManager_Mod, only: StateManagerType
    use MetState_Mod, only: MetStateType
    use Error_Mod, only: CC_SUCCESS
@@ -122,6 +122,28 @@ program test_nuopc_transform
       error stop 1
    end if
    print *, 'PASS: Z0 converted (150 cm -> 1.5 m) and stored'
+
+   ! 6. PM2.5/PM10 diagnostics update — the 2026-08-11 17:07 run-phase
+   !    abort regression. Must succeed and register the fields in the
+   !    C++ DiagnosticManager (where NUOPC export reads from).
+   call update_pm_diagnostics(cc_wrap, rc)
+   if (rc /= CC_SUCCESS) then
+      print *, 'FAIL: update_pm_diagnostics rc=', rc
+      error stop 1
+   end if
+   block
+      character(len=64), allocatable :: diag_names(:)
+      call cc_wrap%catchem_model%get_diagnostic_names(diag_names, rc=rc)
+      if (rc /= 0 .or. .not. allocated(diag_names)) then
+         print *, 'FAIL: get_diagnostic_names rc=', rc
+         error stop 1
+      end if
+      if (.not. any(diag_names == 'pm25') .or. .not. any(diag_names == 'pm10')) then
+         print *, 'FAIL: pm25/pm10 not registered in the C++ diagnostic manager'
+         error stop 1
+      end if
+   end block
+   print *, 'PASS: PM2.5/PM10 diagnostics updated and registered'
 
    call ESMF_Finalize(rc=rc)
    print *, 'All NUOPC transform tests passed!'
