@@ -338,7 +338,7 @@ void catchem_config_get_emission_mapping_item(void* core_ptr, int cat_idx, int f
             if (map_idx >= 0 && map_idx < static_cast<int>(entry.map.size())) {
                 std::strncpy(species_out, entry.map[map_idx].c_str(), 63);
                 species_out[63] = '\0';
-                *scale_out = entry.scale[map_idx];
+                *scale_out = (map_idx < static_cast<int>(entry.scale.size())) ? entry.scale[map_idx] : 1.0;
                 return;
             }
         }
