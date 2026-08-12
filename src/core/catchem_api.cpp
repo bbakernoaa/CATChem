@@ -271,19 +271,22 @@ double catchem_get_config_timestep(void* core_ptr) {
 }
 
 int catchem_config_is_emission_mapping_loaded(void* core_ptr) {
-    if (!core_ptr) return 0;
+    if (!core_ptr)
+        return 0;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     return core->get_config_manager()->data.emission_mapping.is_loaded ? 1 : 0;
 }
 
 int catchem_config_get_emission_category_count(void* core_ptr) {
-    if (!core_ptr) return 0;
+    if (!core_ptr)
+        return 0;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     return static_cast<int>(core->get_config_manager()->data.emission_mapping.categories.size());
 }
 
 void catchem_config_get_emission_category_name(void* core_ptr, int cat_idx, char* name_out) {
-    if (!core_ptr || !name_out) return;
+    if (!core_ptr || !name_out)
+        return;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     const auto& cats = core->get_config_manager()->data.emission_mapping.categories;
     if (cat_idx >= 0 && cat_idx < static_cast<int>(cats.size())) {
@@ -295,7 +298,8 @@ void catchem_config_get_emission_category_name(void* core_ptr, int cat_idx, char
 }
 
 int catchem_config_get_emission_field_count(void* core_ptr, int cat_idx) {
-    if (!core_ptr) return 0;
+    if (!core_ptr)
+        return 0;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     const auto& cats = core->get_config_manager()->data.emission_mapping.categories;
     if (cat_idx >= 0 && cat_idx < static_cast<int>(cats.size())) {
@@ -305,8 +309,9 @@ int catchem_config_get_emission_field_count(void* core_ptr, int cat_idx) {
 }
 
 void catchem_config_get_emission_field_info(void* core_ptr, int cat_idx, int field_idx, char* field_out,
-                                             char* units_out, int* n_map_out) {
-    if (!core_ptr || !field_out || !units_out || !n_map_out) return;
+                                            char* units_out, int* n_map_out) {
+    if (!core_ptr || !field_out || !units_out || !n_map_out)
+        return;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     const auto& cats = core->get_config_manager()->data.emission_mapping.categories;
     if (cat_idx >= 0 && cat_idx < static_cast<int>(cats.size())) {
@@ -327,8 +332,9 @@ void catchem_config_get_emission_field_info(void* core_ptr, int cat_idx, int fie
 }
 
 void catchem_config_get_emission_mapping_item(void* core_ptr, int cat_idx, int field_idx, int map_idx,
-                                               char* species_out, double* scale_out) {
-    if (!core_ptr || !species_out || !scale_out) return;
+                                              char* species_out, double* scale_out) {
+    if (!core_ptr || !species_out || !scale_out)
+        return;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     const auto& cats = core->get_config_manager()->data.emission_mapping.categories;
     if (cat_idx >= 0 && cat_idx < static_cast<int>(cats.size())) {

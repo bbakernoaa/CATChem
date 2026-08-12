@@ -134,7 +134,10 @@ target_link_libraries(
 )
 set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
-set_tests_properties(test_catchem_interop PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+set_tests_properties(
+  test_catchem_interop
+  PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+)
 
 add_executable(test_catchem_properties test_catchem_properties.cpp)
 target_link_libraries(
@@ -153,7 +156,10 @@ target_link_libraries(
 )
 set_target_properties(test_catchem_properties PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME test_catchem_properties COMMAND test_catchem_properties)
-set_tests_properties(test_catchem_properties PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+set_tests_properties(
+  test_catchem_properties
+  PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+)
 
 if(CATCHEM_BUILD_MUSICA)
   # Photolysis Process Unit/Integration Test

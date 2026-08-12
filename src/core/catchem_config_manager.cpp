@@ -20,7 +20,8 @@ namespace catchem {
                 if (sim["emission_filename"]) {
                     data.emission_filename = sim["emission_filename"].as<std::string>();
                     std::filesystem::path resolved_emis = config_dir / data.emission_filename;
-                    std::string target_emis = std::filesystem::exists(resolved_emis) ? resolved_emis.string() : data.emission_filename;
+                    std::string target_emis =
+                        std::filesystem::exists(resolved_emis) ? resolved_emis.string() : data.emission_filename;
                     load_emission_mapping(target_emis);
                 }
                 if (sim["nx"]) {
