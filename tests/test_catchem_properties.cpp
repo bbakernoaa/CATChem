@@ -6,6 +6,7 @@
 #include "catchem_state_manager.hpp"
 #include <cassert>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <iostream>
