@@ -98,6 +98,16 @@ void catchem_core_add_process_by_name(void* core_ptr, const char* name);
 void catchem_get_grid_dimensions(void* core_ptr, int* nx, int* ny, int* nz);
 double catchem_get_config_timestep(void* core_ptr);
 
+// Emission Mapping API
+int catchem_config_is_emission_mapping_loaded(void* core_ptr);
+int catchem_config_get_emission_category_count(void* core_ptr);
+void catchem_config_get_emission_category_name(void* core_ptr, int cat_idx, char* name_out);
+int catchem_config_get_emission_field_count(void* core_ptr, int cat_idx);
+void catchem_config_get_emission_field_info(void* core_ptr, int cat_idx, int field_idx, char* field_out,
+                                             char* units_out, int* n_map_out);
+void catchem_config_get_emission_mapping_item(void* core_ptr, int cat_idx, int field_idx, int map_idx,
+                                               char* species_out, double* scale_out);
+
 // Diagnostic API
 void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1,
                            int dim2, int dim3);

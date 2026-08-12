@@ -55,7 +55,11 @@ protected:
 TEST_F(CatchemPropertiesTest, LoadEmissionMappingFromConfig) {
     catchem::ConfigManager config_mgr;
     // Load config file that references emission_filename
-    config_mgr.load_from_file("tests/Configs/Default/CATChem_new_config.yml");
+    std::string config_path = "tests/Configs/Default/CATChem_new_config.yml";
+    if (!std::filesystem::exists(config_path) && std::filesystem::exists("../" + config_path)) {
+        config_path = "../" + config_path;
+    }
+    config_mgr.load_from_file(config_path);
     EXPECT_TRUE(config_mgr.data.emission_mapping.is_loaded);
     EXPECT_GT(config_mgr.data.emission_mapping.categories.size(), 0u);
 }

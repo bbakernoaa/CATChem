@@ -4,6 +4,7 @@
 #include "catchem_fortran_process.hpp"
 #include "catchem_kokkos_compat.hpp"
 #include "catchem_state_manager.hpp"
+#include <gtest/gtest.h>
 #include <cassert>
 #include <fstream>
 #include <iostream>
@@ -15,6 +16,41 @@ void catchem_register_drydep_cpp();
 void catchem_register_seasalt_cpp();
 void catchem_register_wetdep_cpp();
 void catchem_register_so4chem_cpp();
+}
+
+class CatchemInteropTest : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+TEST_F(CatchemInteropTest, EmissionMappingCApi) {
+    void* core = catchem_core_create_from_config("tests/Configs/Default/CATChem_new_config.yml");
+    ASSERT_NE(core, nullptr);
+
+    EXPECT_EQ(catchem_config_is_emission_mapping_loaded(core), 1);
+    int cat_count = catchem_config_get_emission_category_count(core);
+    EXPECT_GT(cat_count, 0);
+
+    char cat_name[128];
+    catchem_config_get_emission_category_name(core, 0, cat_name);
+    EXPECT_STRNE(cat_name, "");
+
+    int field_count = catchem_config_get_emission_field_count(core, 0);
+    EXPECT_GT(field_count, 0);
+
+    char field_name[128], units[64];
+    int n_map = 0;
+    catchem_config_get_emission_field_info(core, 0, 0, field_name, units, &n_map);
+    EXPECT_STRNE(field_name, "");
+    EXPECT_GT(n_map, 0);
+
+    char spc_name[64];
+    double scale_val = 0.0;
+    catchem_config_get_emission_mapping_item(core, 0, 0, 0, spc_name, &scale_val);
+    EXPECT_STRNE(spc_name, "");
+
+    catchem_core_destroy(core);
 }
 
 // Mock Fortran physics scheme working directly on host array
@@ -62,9 +98,7 @@ public:
     void finalize() override {}
 };
 
-int main(int argc, char* argv[]) {
-    Kokkos::initialize(argc, argv);
-    {
+TEST_F(CatchemInteropTest, LegacyTestSuite) {
         // ==========================================
         // TEST 1: Phase 1 Shared Memory / Interop Test
         // ==========================================
@@ -150,8 +184,7 @@ int main(int argc, char* argv[]) {
             } else {
                 std::cout << "FAILURE: C++ Diagnostic Validation Failed!\n";
                 catchem_core_destroy(core_ptr);
-                Kokkos::finalize();
-                return 1;
+                FAIL() << "C++ Diagnostic Validation Failed";
             }
 
             catchem_core_destroy(core_ptr);
@@ -725,7 +758,12 @@ int main(int argc, char* argv[]) {
             std::cout << "SUCCESS: SO4chem Direct Adapter executed and populated diagnostics!\n";
             catchem_core_destroy(core);
         }
-    }
+}
+
+int main(int argc, char* argv[]) {
+    ::testing::InitGoogleTest(&argc, argv);
+    Kokkos::initialize(argc, argv);
+    int result = RUN_ALL_TESTS();
     Kokkos::finalize();
-    return 0;
+    return result;
 }

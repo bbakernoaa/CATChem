@@ -270,6 +270,83 @@ double catchem_get_config_timestep(void* core_ptr) {
     return core->get_config_manager()->data.runtime.dt;
 }
 
+int catchem_config_is_emission_mapping_loaded(void* core_ptr) {
+    if (!core_ptr) return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return core->get_config_manager()->data.emission_mapping.is_loaded ? 1 : 0;
+}
+
+int catchem_config_get_emission_category_count(void* core_ptr) {
+    if (!core_ptr) return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return static_cast<int>(core->get_config_manager()->data.emission_mapping.categories.size());
+}
+
+void catchem_config_get_emission_category_name(void* core_ptr, int cat_idx, char* name_out) {
+    if (!core_ptr || !name_out) return;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& cats = core->get_config_manager()->data.emission_mapping.categories;
+    if (cat_idx >= 0 && cat_idx < static_cast<int>(cats.size())) {
+        std::strncpy(name_out, cats[cat_idx].category_name.c_str(), 127);
+        name_out[127] = '\0';
+    } else {
+        name_out[0] = '\0';
+    }
+}
+
+int catchem_config_get_emission_field_count(void* core_ptr, int cat_idx) {
+    if (!core_ptr) return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& cats = core->get_config_manager()->data.emission_mapping.categories;
+    if (cat_idx >= 0 && cat_idx < static_cast<int>(cats.size())) {
+        return static_cast<int>(cats[cat_idx].species_mappings.size());
+    }
+    return 0;
+}
+
+void catchem_config_get_emission_field_info(void* core_ptr, int cat_idx, int field_idx, char* field_out,
+                                             char* units_out, int* n_map_out) {
+    if (!core_ptr || !field_out || !units_out || !n_map_out) return;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& cats = core->get_config_manager()->data.emission_mapping.categories;
+    if (cat_idx >= 0 && cat_idx < static_cast<int>(cats.size())) {
+        const auto& fields = cats[cat_idx].species_mappings;
+        if (field_idx >= 0 && field_idx < static_cast<int>(fields.size())) {
+            const auto& entry = fields[field_idx];
+            std::strncpy(field_out, entry.emission_field.c_str(), 127);
+            field_out[127] = '\0';
+            std::strncpy(units_out, entry.units.c_str(), 63);
+            units_out[63] = '\0';
+            *n_map_out = static_cast<int>(entry.map.size());
+            return;
+        }
+    }
+    field_out[0] = '\0';
+    units_out[0] = '\0';
+    *n_map_out = 0;
+}
+
+void catchem_config_get_emission_mapping_item(void* core_ptr, int cat_idx, int field_idx, int map_idx,
+                                               char* species_out, double* scale_out) {
+    if (!core_ptr || !species_out || !scale_out) return;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& cats = core->get_config_manager()->data.emission_mapping.categories;
+    if (cat_idx >= 0 && cat_idx < static_cast<int>(cats.size())) {
+        const auto& fields = cats[cat_idx].species_mappings;
+        if (field_idx >= 0 && field_idx < static_cast<int>(fields.size())) {
+            const auto& entry = fields[field_idx];
+            if (map_idx >= 0 && map_idx < static_cast<int>(entry.map.size())) {
+                std::strncpy(species_out, entry.map[map_idx].c_str(), 63);
+                species_out[63] = '\0';
+                *scale_out = entry.scale[map_idx];
+                return;
+            }
+        }
+    }
+    species_out[0] = '\0';
+    *scale_out = 0.0;
+}
+
 // =========================================================================
 // TimeState C-Linkable API Implementation
 // =========================================================================

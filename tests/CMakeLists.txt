@@ -99,6 +99,18 @@ add_test(
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# Modern Randomized Property-Based Testing & GTest Dependency
+if(NOT TARGET gtest)
+  include(FetchContent)
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.14.0
+  )
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+endif()
+
 # C++ Interop and Integration Suite — runs in both build flavors; the
 # CATChem_core_cpp link carries Kokkos (or standalone mdspan) transitively.
 add_executable(test_catchem_logger test_catchem_logger.cpp)
@@ -118,21 +130,11 @@ target_link_libraries(
     CATChem_process_so4chem
     CATChem_process_dust
     CATChem_process_carbchem
+    gtest
 )
 set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
-
-# Modern Randomized Property-Based Testing
-if(NOT TARGET gtest)
-  include(FetchContent)
-  FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.14.0
-  )
-  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-  FetchContent_MakeAvailable(googletest)
-endif()
+set_tests_properties(test_catchem_interop PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
 add_executable(test_catchem_properties test_catchem_properties.cpp)
 target_link_libraries(
@@ -151,6 +153,7 @@ target_link_libraries(
 )
 set_target_properties(test_catchem_properties PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME test_catchem_properties COMMAND test_catchem_properties)
+set_tests_properties(test_catchem_properties PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
 if(CATCHEM_BUILD_MUSICA)
   # Photolysis Process Unit/Integration Test
