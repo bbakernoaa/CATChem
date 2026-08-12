@@ -138,6 +138,51 @@ module CATChem_API
          type(c_ptr), value :: state_ptr
          integer(c_int), value :: index
       end function
+
+      integer(c_int) function catchem_config_is_emission_mapping_loaded(core_ptr) &
+         bind(C, name="catchem_config_is_emission_mapping_loaded")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      integer(c_int) function catchem_config_get_emission_category_count(core_ptr) &
+         bind(C, name="catchem_config_get_emission_category_count")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      subroutine catchem_config_get_emission_category_name(core_ptr, cat_idx, name_out) &
+         bind(C, name="catchem_config_get_emission_category_name")
+         import :: c_ptr, c_int, c_char
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: cat_idx
+         character(kind=c_char), intent(out) :: name_out(*)
+      end subroutine
+
+      integer(c_int) function catchem_config_get_emission_field_count(core_ptr, cat_idx) &
+         bind(C, name="catchem_config_get_emission_field_count")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: cat_idx
+      end function
+
+      subroutine catchem_config_get_emission_field_info(core_ptr, cat_idx, field_idx, field_out, units_out, n_map_out) &
+         bind(C, name="catchem_config_get_emission_field_info")
+         import :: c_ptr, c_int, c_char
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: cat_idx, field_idx
+         character(kind=c_char), intent(out) :: field_out(*), units_out(*)
+         integer(c_int), intent(out) :: n_map_out
+      end subroutine
+
+      subroutine catchem_config_get_emission_mapping_item(core_ptr, cat_idx, field_idx, map_idx, species_out, scale_out) &
+         bind(C, name="catchem_config_get_emission_mapping_item")
+         import :: c_ptr, c_int, c_char, c_double
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: cat_idx, field_idx, map_idx
+         character(kind=c_char), intent(out) :: species_out(*)
+         real(c_double), intent(out) :: scale_out
+      end subroutine
    end interface
 
    !=========================================================================
@@ -228,6 +273,8 @@ contains
       ! bind them into the C++ StateManager so both sides share buffers.
       call model_build_facade(this, nx, ny, nz, nsoil, nsoiltype, nsurftype, rc)
       if (rc /= 0) return
+
+      call this%facade%config_mgr%populate_emission_mapping_from_core(this%cpp_core_ptr)
 
       this%initialized = .true.
       rc = 0

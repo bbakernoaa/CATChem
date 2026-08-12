@@ -12,6 +12,7 @@ program test_CATChem_API
    use StateManager_Mod, only: StateManagerType
    use MetState_Mod, only: MetStateType
    use ChemState_Mod, only: ChemStateType
+   use ConfigManager_Mod, only: ConfigManagerType
    use Error_Mod, only: ErrorManagerType, CC_SUCCESS
    use precision_mod, only: fp
    implicit none
@@ -20,6 +21,7 @@ program test_CATChem_API
    type(StateManagerType), pointer :: sm
    type(MetStateType), pointer :: met
    type(ChemStateType), pointer :: chem
+   type(ConfigManagerType), pointer :: cfg
    type(ErrorManagerType), pointer :: em
    real(fp), allocatable :: z0_cm(:, :)
    integer :: rc
@@ -121,6 +123,19 @@ program test_CATChem_API
       error stop 1
    end if
    print *, 'PASS: chem facade populated (', size(chem%ChemSpecies), ' species)'
+
+   ! 3d. Config facade: emission mapping must be loaded from C++ core into config facade
+   cfg => sm%get_config_ptr()
+   if (.not. cfg%config_data%emission_mapping%is_loaded) then
+      print *, 'FAIL: emission mapping not loaded into config facade'
+      error stop 1
+   end if
+   if (cfg%config_data%emission_mapping%n_categories <= 0) then
+      print *, 'FAIL: emission mapping has no categories in config facade'
+      error stop 1
+   end if
+   print *, 'PASS: config facade populated with emission mapping (', &
+      cfg%config_data%emission_mapping%n_categories, ' categories)'
 
    ! 4. Error manager and time state facades exist (run phase uses them).
    if (.not. associated(sm%get_error_manager())) then
