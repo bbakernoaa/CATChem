@@ -123,6 +123,17 @@ set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
 
 # Modern Randomized Property-Based Testing
+if(NOT TARGET gtest)
+  include(FetchContent)
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.14.0
+  )
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+endif()
+
 add_executable(test_catchem_properties test_catchem_properties.cpp)
 target_link_libraries(
   test_catchem_properties
@@ -136,6 +147,7 @@ target_link_libraries(
     CATChem_process_so4chem
     CATChem_process_dust
     CATChem_process_carbchem
+    gtest
 )
 set_target_properties(test_catchem_properties PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME test_catchem_properties COMMAND test_catchem_properties)

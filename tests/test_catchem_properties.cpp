@@ -1,8 +1,10 @@
 #include "catchem_api.hpp"
+#include "catchem_config_manager.hpp"
 #include "catchem_core.hpp"
 #include "catchem_kokkos_compat.hpp"
 #include "catchem_process_registry.hpp"
 #include "catchem_state_manager.hpp"
+#include <gtest/gtest.h>
 #include <cassert>
 #include <cmath>
 #include <fstream>
@@ -44,19 +46,31 @@ void verify_properties(const std::vector<double>& conc, size_t size, int iterati
     }
 }
 
-int main(int argc, char* argv[]) {
-    Kokkos::initialize(argc, argv);
-    {
-        std::cout << "\n==========================================" << std::endl;
-        std::cout << "=== RUNNING RANDOMIZED PROPERTY TESTS ===" << std::endl;
-        std::cout << "==========================================\n" << std::endl;
+class CatchemPropertiesTest : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
 
-        // Verify Trace ID Generation
-        {
-            auto test_state = std::make_shared<catchem::StateManager>(4, 10, 50);
-            assert(test_state->trace_id.length() == 8);
-            assert(!test_state->trace_id.empty());
-        }
+TEST_F(CatchemPropertiesTest, LoadEmissionMappingFromConfig) {
+    catchem::ConfigManager config_mgr;
+    // Load config file that references emission_filename
+    config_mgr.load_from_file("tests/Configs/Default/CATChem_new_config.yml");
+    EXPECT_TRUE(config_mgr.data.emission_mapping.is_loaded);
+    EXPECT_GT(config_mgr.data.emission_mapping.categories.size(), 0u);
+}
+
+TEST_F(CatchemPropertiesTest, RandomizedPropertyChecks) {
+    std::cout << "\n==========================================" << std::endl;
+    std::cout << "=== RUNNING RANDOMIZED PROPERTY TESTS ===" << std::endl;
+    std::cout << "==========================================\n" << std::endl;
+
+    // Verify Trace ID Generation
+    {
+        auto test_state = std::make_shared<catchem::StateManager>(4, 10, 50);
+        assert(test_state->trace_id.length() == 8);
+        assert(!test_state->trace_id.empty());
+    }
 
         // Register All C++ Modern Process Handlers
         catchem_register_seasalt_cpp();
@@ -290,7 +304,12 @@ int main(int argc, char* argv[]) {
         std::cout << "\n==========================================" << std::endl;
         std::cout << "=== SUCCESS: ALL PROPERTY CHECKS HELD! ===" << std::endl;
         std::cout << "==========================================\n" << std::endl;
-    }
+}
+
+int main(int argc, char* argv[]) {
+    ::testing::InitGoogleTest(&argc, argv);
+    Kokkos::initialize(argc, argv);
+    int result = RUN_ALL_TESTS();
     Kokkos::finalize();
-    return 0;
+    return result;
 }
