@@ -40,7 +40,7 @@ MODULE MetState_Mod
       type(c_ptr) :: cpp_ptr = c_null_ptr
       CHARACTER(LEN=3)             :: State     = 'MET'    !< Name of this state
       INTEGER                      :: NLEVS     = 127      !< Number of vertical levels (default)
-      TYPE(GridGeometryType), TARGET :: geometry
+      TYPE(GridGeometryType) :: geometry
       INTEGER                      :: NSURFTYPE = 20       !< Number of surface types (default)
       ! Grid flags (2D: nx, ny)
       LOGICAL, POINTER         :: IsLand(:,:) => null()       !< Is this a land grid box?

@@ -145,7 +145,7 @@ CONTAINS
       integer, intent(in) :: max_species
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
-      type(GridGeometryType), pointer, optional, intent(in) :: grid
+      type(GridGeometryType), target, optional, intent(in) :: grid
       character(len=256) :: thisLoc
       integer :: allocStat, nx, ny, nz, s
 
