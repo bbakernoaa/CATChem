@@ -5,6 +5,7 @@
 #include "catchem_state_manager.hpp"
 #include "catchem_unit_conversion.hpp"
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 
 extern "C" {
