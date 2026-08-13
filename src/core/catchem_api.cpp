@@ -270,6 +270,106 @@ double catchem_get_config_timestep(void* core_ptr) {
     return core->get_config_manager()->data.runtime.dt;
 }
 
+int catchem_config_get_bool_path(void* core_ptr, const char* path, int default_val) {
+    if (!core_ptr || !path)
+        return default_val;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return core->get_config_manager()->get_bool_path(path, default_val != 0) ? 1 : 0;
+}
+
+void catchem_config_get_string_path(void* core_ptr, const char* path, char* val_out, const char* default_val) {
+    if (!val_out)
+        return;
+    std::string def_str = default_val ? default_val : "";
+    if (!core_ptr || !path) {
+        std::strncpy(val_out, def_str.c_str(), 255);
+        val_out[255] = '\0';
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    std::string res = core->get_config_manager()->get_string_path(path, def_str);
+    std::strncpy(val_out, res.c_str(), 255);
+    val_out[255] = '\0';
+}
+
+double catchem_config_get_double_path(void* core_ptr, const char* path, double default_val) {
+    if (!core_ptr || !path)
+        return default_val;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return core->get_config_manager()->get_double_path(path, default_val);
+}
+
+int catchem_config_get_int_path(void* core_ptr, const char* path, int default_val) {
+    if (!core_ptr || !path)
+        return default_val;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return core->get_config_manager()->get_int_path(path, default_val);
+}
+
+int catchem_config_get_array_path_count(void* core_ptr, const char* path) {
+    if (!core_ptr || !path)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return static_cast<int>(core->get_config_manager()->get_string_list_path(path).size());
+}
+
+void catchem_config_get_array_path_item(void* core_ptr, const char* path, int idx, char* val_out) {
+    if (!val_out)
+        return;
+    val_out[0] = '\0';
+    if (!core_ptr || !path)
+        return;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    auto list = core->get_config_manager()->get_string_list_path(path);
+    if (idx >= 0 && idx < static_cast<int>(list.size())) {
+        std::strncpy(val_out, list[idx].c_str(), 255);
+        val_out[255] = '\0';
+    }
+}
+
+void catchem_config_get_mie_directory(void* core_ptr, char* dir_out) {
+    if (!dir_out)
+        return;
+    dir_out[0] = '\0';
+    if (!core_ptr)
+        return;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    std::string dir = core->get_config_manager()->data.mie.directory;
+    std::strncpy(dir_out, dir.c_str(), 255);
+    dir_out[255] = '\0';
+}
+
+int catchem_config_get_mie_file_count(void* core_ptr) {
+    if (!core_ptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return static_cast<int>(core->get_config_manager()->data.mie.files.size());
+}
+
+void catchem_config_get_mie_file_info(void* core_ptr, int idx, char* name_out, char* full_path_out) {
+    if (!name_out || !full_path_out)
+        return;
+    name_out[0] = '\0';
+    full_path_out[0] = '\0';
+    if (!core_ptr)
+        return;
+
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& mie = core->get_config_manager()->data.mie;
+    if (idx < 0 || idx >= static_cast<int>(mie.files.size()))
+        return;
+
+    auto it = mie.files.begin();
+    std::advance(it, idx);
+
+    std::strncpy(name_out, it->first.c_str(), 63);
+    name_out[63] = '\0';
+
+    std::filesystem::path full_p = std::filesystem::path(mie.directory) / it->second;
+    std::strncpy(full_path_out, full_p.string().c_str(), 511);
+    full_path_out[511] = '\0';
+}
+
 int catchem_config_is_emission_mapping_loaded(void* core_ptr) {
     if (!core_ptr)
         return 0;

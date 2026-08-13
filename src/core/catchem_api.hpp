@@ -98,6 +98,19 @@ void catchem_core_add_process_by_name(void* core_ptr, const char* name);
 void catchem_get_grid_dimensions(void* core_ptr, int* nx, int* ny, int* nz);
 double catchem_get_config_timestep(void* core_ptr);
 
+// Configuration Path Query API
+int catchem_config_get_bool_path(void* core_ptr, const char* path, int default_val);
+void catchem_config_get_string_path(void* core_ptr, const char* path, char* val_out, const char* default_val);
+double catchem_config_get_double_path(void* core_ptr, const char* path, double default_val);
+int catchem_config_get_int_path(void* core_ptr, const char* path, int default_val);
+int catchem_config_get_array_path_count(void* core_ptr, const char* path);
+void catchem_config_get_array_path_item(void* core_ptr, const char* path, int idx, char* val_out);
+
+// Mie Optics API
+void catchem_config_get_mie_directory(void* core_ptr, char* dir_out);
+int catchem_config_get_mie_file_count(void* core_ptr);
+void catchem_config_get_mie_file_info(void* core_ptr, int idx, char* name_out, char* full_path_out);
+
 // Emission Mapping API
 int catchem_config_is_emission_mapping_loaded(void* core_ptr);
 int catchem_config_get_emission_category_count(void* core_ptr);

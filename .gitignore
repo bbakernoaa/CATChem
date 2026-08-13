@@ -168,7 +168,18 @@ dmypy.json
 cython_debug/
 
 # Kiro
+
+
+# --- AI Files ---
+specify/
+.specify/
+.gemini/
+.github/agents/
+.github/prompts/
+docs/superpowers/
+specs/
 .kiro/
+specs/
 
 # PyCharm
 #  JetBrains specific template is maintainted in a separate JetBrains.gitignore that can

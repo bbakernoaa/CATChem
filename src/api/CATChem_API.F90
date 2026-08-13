@@ -139,6 +139,20 @@ module CATChem_API
          integer(c_int), value :: index
       end function
 
+      integer(c_int) function catchem_config_get_mie_file_count(core_ptr) &
+         bind(C, name="catchem_config_get_mie_file_count")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      subroutine catchem_config_get_mie_file_info(core_ptr, idx, name_out, full_path_out) &
+         bind(C, name="catchem_config_get_mie_file_info")
+         import :: c_ptr, c_int, c_char
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: idx
+         character(kind=c_char), intent(out) :: name_out(*), full_path_out(*)
+      end subroutine
+
       integer(c_int) function catchem_config_is_emission_mapping_loaded(core_ptr) &
          bind(C, name="catchem_config_is_emission_mapping_loaded")
          import :: c_ptr, c_int
@@ -355,6 +369,26 @@ contains
             if (rc /= 0) return
          end do
       end if
+
+      ! Initialize aerosol Mie optics if configured in YAML
+      block
+         integer :: n_mie, i_mie
+         character(kind=c_char) :: c_mie_name(64), c_mie_path(512)
+         character(len=64), allocatable :: mie_names(:)
+         character(len=512), allocatable :: mie_paths(:)
+
+         n_mie = int(catchem_config_get_mie_file_count(this%state_mgr_ptr))
+         if (n_mie > 0 .and. associated(this%facade%chem_state)) then
+            allocate(mie_names(n_mie), mie_paths(n_mie))
+            do i_mie = 1, n_mie
+               call catchem_config_get_mie_file_info(this%state_mgr_ptr, int(i_mie - 1, c_int), c_mie_name, c_mie_path)
+               mie_names(i_mie) = trim(c_to_f_string(c_mie_name))
+               mie_paths(i_mie) = trim(c_to_f_string(c_mie_path))
+            end do
+            call this%facade%chem_state%init_mie_data(n_mie, mie_names, mie_paths, rc)
+            deallocate(mie_names, mie_paths)
+         end if
+      end block
 
       rc = 0
    end subroutine model_build_facade

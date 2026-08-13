@@ -893,27 +893,22 @@ contains
             return  ! bail out
          end if
 
-         ! Direct zero-copy 4D chemistry concentration array mapping to C++ core StateManager
-         call cc_wrap%catchem_model%bind_unified_chemistry(fptr4d)
-
-#ifdef USE_REAL8
-         ! Associate per-species Fortran conc slices with the freshly bound
-         ! tracer memory so Fortran-side consumers (e.g. PM diagnostics) see
-         ! live data. tracer_map holds NUOPC-tracer -> CATChem-species
-         ! indices. Zero-copy is only type-legal when fp is REAL64
-         ! (USE_REAL8); without promotion the slices stay unassociated and
-         ! PM diagnostics report zero until the precision policy is settled.
-         if (allocated(cc_wrap%tracer_map%nuopc_to_cc) .and. &
-            allocated(chem_state%ChemSpecies)) then
+         ! Map imported NUOPC tracers (v = 1..n_tracers) into CATChem species memory (v_cc)
+         if (allocated(cc_wrap%tracer_map%nuopc_to_cc) .and. allocated(chem_state%ChemSpecies)) then
             do v = 1, size(cc_wrap%tracer_map%nuopc_to_cc)
                v_cc = cc_wrap%tracer_map%nuopc_to_cc(v)
-               if (v_cc >= 1 .and. v_cc <= size(chem_state%ChemSpecies) .and. &
-                  v <= size(fptr4d, 4)) then
-                  chem_state%ChemSpecies(v_cc)%conc => fptr4d(:, :, :, v)
+               if (v_cc >= 1 .and. v_cc <= size(chem_state%ChemSpecies) .and. v <= size(fptr4d, 4)) then
+                  if (associated(chem_state%ChemSpecies(v_cc)%conc)) then
+                     chem_state%ChemSpecies(v_cc)%conc(:, :, :) = real(fptr4d(:, :, :, v), fp)
+                  end if
                end if
             end do
          end if
-#endif
+
+         ! Bind updated unified_conc to C++ Core StateManager
+         if (allocated(chem_state%unified_conc)) then
+            call cc_wrap%catchem_model%bind_unified_chemistry(chem_state%unified_conc)
+         end if
 
        case default
          call ESMF_LogWrite("Unknown field mapping dimension for: " // trim(field_map%catchem_var), &
@@ -1047,27 +1042,27 @@ contains
          nk = size(fptr4d, 3)
          nv = size(fptr4d, 4)
 
-         ! Zero-Copy Coupled Tracer export: Since the Cap previously bound the ESMF 4D tracer pointer
-         ! directly to standard C++ unmanaged LayoutLeft Views, the computed concentrations are already
-         ! updated in-place! No copying of individual tracers is needed. We only need to populate
-         ! computed diagnostic tracers (like pm25, pm10) that do not map directly to dynamic tracers.
-         do v = 1, nv
-            if (trim(cc_wrap%tracer_map%names(v)) == 'pm25' .or. &
-               trim(cc_wrap%tracer_map%names(v)) == 'pm10') then
-               found_index = cc_wrap%catchem_model%get_diag_index_from_field(trim(cc_wrap%tracer_map%names(v)))
-               if (found_index > 0) then
-                  if (allocated(cc_diag_data)) deallocate(cc_diag_data)
-                  call cc_wrap%catchem_model%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
-                  if (rc /= ESMF_SUCCESS) then
-                     call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-                        msg="Failed to get diagnostic data for: " // trim(diagnostic_names(found_index)), &
-                        line=__LINE__, file=__FILE__, rcToReturn=rc)
-                     return
+         ! Export CATChem species concentrations back into NUOPC export tracer array
+         if (allocated(cc_wrap%tracer_map%nuopc_to_cc) .and. allocated(chem_state%ChemSpecies)) then
+            do v = 1, nv
+               v_cc = cc_wrap%tracer_map%nuopc_to_cc(v)
+               if (v_cc >= 1 .and. v_cc <= size(chem_state%ChemSpecies)) then
+                  if (associated(chem_state%ChemSpecies(v_cc)%conc)) then
+                     fptr4d(:, :, :, v) = real(chem_state%ChemSpecies(v_cc)%conc(:, :, :), ESMF_KIND_R8)
                   end if
-                  fptr4d(:,:,:,v) = cc_diag_data(:,:,:)
+               else if (trim(cc_wrap%tracer_map%names(v)) == 'pm25' .or. &
+                  trim(cc_wrap%tracer_map%names(v)) == 'pm10') then
+                  found_index = cc_wrap%catchem_model%get_diag_index_from_field(trim(cc_wrap%tracer_map%names(v)))
+                  if (found_index > 0) then
+                     if (allocated(cc_diag_data)) deallocate(cc_diag_data)
+                     call cc_wrap%catchem_model%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
+                     if (rc == ESMF_SUCCESS) then
+                        fptr4d(:, :, :, v) = real(cc_diag_data(:, :, :), ESMF_KIND_R8)
+                     end if
+                  end if
                end if
-            end if
-         end do   !nv
+            end do
+         end if
 
        case default
          call ESMF_LogWrite("Unknown export field dimension for: "//trim(field_map%catchem_var), &
