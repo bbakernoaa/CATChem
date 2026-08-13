@@ -6,12 +6,14 @@
 namespace {
 
     YAML::Node get_node_by_path(const YAML::Node& root, const std::string& path) {
-        if (!root || !root.IsMap()) return YAML::Node();
+        if (!root || !root.IsMap())
+            return YAML::Node();
         YAML::Node current = root;
         std::stringstream ss(path);
         std::string token;
         while (std::getline(ss, token, '/')) {
-            if (token.empty()) continue;
+            if (token.empty())
+                continue;
             if (current && current.IsMap() && current[token]) {
                 current = current[token];
             } else {
@@ -26,7 +28,8 @@ namespace {
 namespace catchem {
 
     bool ConfigManager::get_bool_path(const std::string& path, bool default_val) const {
-        if (!is_loaded) return default_val;
+        if (!is_loaded)
+            return default_val;
         YAML::Node node = get_node_by_path(root_node, path);
         if (node && node.IsScalar()) {
             try {
@@ -38,7 +41,8 @@ namespace catchem {
     }
 
     std::string ConfigManager::get_string_path(const std::string& path, const std::string& default_val) const {
-        if (!is_loaded) return default_val;
+        if (!is_loaded)
+            return default_val;
         YAML::Node node = get_node_by_path(root_node, path);
         if (node && node.IsScalar()) {
             try {
@@ -50,7 +54,8 @@ namespace catchem {
     }
 
     double ConfigManager::get_double_path(const std::string& path, double default_val) const {
-        if (!is_loaded) return default_val;
+        if (!is_loaded)
+            return default_val;
         YAML::Node node = get_node_by_path(root_node, path);
         if (node && node.IsScalar()) {
             try {
@@ -62,7 +67,8 @@ namespace catchem {
     }
 
     int ConfigManager::get_int_path(const std::string& path, int default_val) const {
-        if (!is_loaded) return default_val;
+        if (!is_loaded)
+            return default_val;
         YAML::Node node = get_node_by_path(root_node, path);
         if (node && node.IsScalar()) {
             try {
@@ -75,7 +81,8 @@ namespace catchem {
 
     std::vector<std::string> ConfigManager::get_string_list_path(const std::string& path) const {
         std::vector<std::string> result;
-        if (!is_loaded) return result;
+        if (!is_loaded)
+            return result;
         YAML::Node node = get_node_by_path(root_node, path);
         if (node && node.IsSequence()) {
             for (const auto& item : node) {

@@ -368,6 +368,6 @@ contains
 
       this%config_data%emission_mapping%is_loaded = .true.
    end subroutine populate_emission_mapping_from_core
-   end subroutine populate_emission_mapping_from_core
+end subroutine populate_emission_mapping_from_core
 
 end module ConfigManager_Mod
