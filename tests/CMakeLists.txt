@@ -56,6 +56,15 @@ add_fortran_test(test_GridGeometry)
 add_fortran_test(test_TimeState)
 add_fortran_test(test_MetState)
 
+# Stage test model configs into the tests build directory
+file(
+  COPY
+    ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_new_config.yml
+    ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_species.yml
+    ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_emission.yml
+  DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 # High-level API init-sequence test — mirrors the NUOPC cap's usage of
 # CATChem_Model (facade construction, met binding, timestep)
 if(TARGET CATChem)
@@ -75,7 +84,7 @@ if(TARGET CATChem)
   add_test(
     NAME test_CATChem_API
     COMMAND test_CATChem_API
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   )
 endif()
 
