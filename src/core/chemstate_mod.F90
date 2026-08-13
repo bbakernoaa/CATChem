@@ -657,13 +657,29 @@ CONTAINS
       class(ChemStateType), intent(in) :: this
       real(fp), allocatable, intent(out) :: concentrations(:,:,:,:)
       integer, intent(out) :: rc
-      integer :: s
+      integer :: s, nx, ny, nz
 
       rc = CC_FAILURE
-      if (.not. allocated(this%ChemSpecies) .or. .not. associated(this%Grid)) return
+      if (.not. allocated(this%ChemSpecies)) return
+
+      if (associated(this%Grid)) then
+         nx = this%Grid%nx
+         ny = this%Grid%ny
+         nz = this%Grid%nz
+      else if (size(this%ChemSpecies) > 0) then
+         if (associated(this%ChemSpecies(1)%conc)) then
+            nx = size(this%ChemSpecies(1)%conc, 1)
+            ny = size(this%ChemSpecies(1)%conc, 2)
+            nz = size(this%ChemSpecies(1)%conc, 3)
+         else
+            return
+         end if
+      else
+         return
+      end if
 
       ! Allocate the full 4D array
-      allocate(concentrations(this%Grid%nx, this%Grid%ny, this%Grid%nz, size(this%ChemSpecies)), stat=rc)
+      allocate(concentrations(nx, ny, nz, size(this%ChemSpecies)), stat=rc)
       if (rc /= 0) then
          rc = CC_FAILURE
          return
@@ -693,15 +709,31 @@ CONTAINS
       class(ChemStateType), intent(inout) :: this
       real(fp), intent(in) :: concentrations(:,:,:,:)
       integer, intent(out) :: rc
-      integer :: s
+      integer :: s, nx, ny, nz
 
       rc = CC_FAILURE
-      if (.not. allocated(this%ChemSpecies) .or. .not. associated(this%Grid)) return
+      if (.not. allocated(this%ChemSpecies)) return
+
+      if (associated(this%Grid)) then
+         nx = this%Grid%nx
+         ny = this%Grid%ny
+         nz = this%Grid%nz
+      else if (size(this%ChemSpecies) > 0) then
+         if (associated(this%ChemSpecies(1)%conc)) then
+            nx = size(this%ChemSpecies(1)%conc, 1)
+            ny = size(this%ChemSpecies(1)%conc, 2)
+            nz = size(this%ChemSpecies(1)%conc, 3)
+         else
+            return
+         end if
+      else
+         return
+      end if
 
       ! Validate array dimensions
-      if (size(concentrations, 1) /= this%Grid%nx .or. &
-         size(concentrations, 2) /= this%Grid%ny .or. &
-         size(concentrations, 3) /= this%Grid%nz .or. &
+      if (size(concentrations, 1) /= nx .or. &
+         size(concentrations, 2) /= ny .or. &
+         size(concentrations, 3) /= nz .or. &
          size(concentrations, 4) /= size(this%ChemSpecies)) then
          return
       end if

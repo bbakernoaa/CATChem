@@ -347,7 +347,7 @@ contains
       ! config's species_filename) into the Fortran ChemSpecies metadata.
       n_species = int(catchem_state_get_species_count(this%state_mgr_ptr))
       if (n_species > 0) then
-         call this%facade%chem_state%init(n_species, this%facade%error_mgr, rc)
+         call this%facade%chem_state%init(n_species, this%facade%error_mgr, rc, grid=this%facade%met_state%geometry)
          if (rc /= 0) return
          do is = 1, n_species
             call populate_species_from_cpp( &

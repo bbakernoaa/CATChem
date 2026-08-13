@@ -1311,13 +1311,12 @@ contains
       n_species = chem_state%nSpecies
 
       ! Get current concentrations for all species
-      allocate(concentrations(nx, ny, nz, n_species))
       call chem_state%get_all_concentrations(concentrations, localrc)
       if (localrc /= CC_SUCCESS) then
          write(msg, '(A,A)') trim(pName), ': Failed to get concentrations from chem_state'
          call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
          rc = CC_FAILURE
-         deallocate(concentrations)
+         if (allocated(concentrations)) deallocate(concentrations)
          return
       end if
 
@@ -1354,16 +1353,28 @@ contains
 
          ! Direct mapping access using same indices (one-to-one correspondence)
          ! Add sanity checks to ensure category and field names match
-         if (icat > config_manager%config_data%emission_mapping%n_categories) then
-            write(msg, '(A,A,I0,A,I0)') trim(pName), ': Category index out of bounds: ', &
-               icat, ' > ', config_manager%config_data%emission_mapping%n_categories
+         if (.not. allocated(config_manager%config_data%emission_mapping%categories)) then
+            write(msg, '(A,A)') trim(pName), ': emission_mapping categories not allocated'
             call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
             cycle
          end if
 
-         if (ifield > config_manager%config_data%emission_mapping%categories(icat)%n_emission_species) then
+         if (icat < 1 .or. icat > size(config_manager%config_data%emission_mapping%categories)) then
+            write(msg, '(A,A,I0,A,I0)') trim(pName), ': Category index out of bounds: ', &
+               icat, ' > ', size(config_manager%config_data%emission_mapping%categories)
+            call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+            cycle
+         end if
+
+         if (.not. allocated(config_manager%config_data%emission_mapping%categories(icat)%species_mappings)) then
+            write(msg, '(A,A,I0)') trim(pName), ': species_mappings not allocated for category ', icat
+            call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+            cycle
+         end if
+
+         if (ifield < 1 .or. ifield > size(config_manager%config_data%emission_mapping%categories(icat)%species_mappings)) then
             write(msg, '(A,A,I0,A,I0)') trim(pName), ': Field index out of bounds: ', &
-               ifield, ' > ', config_manager%config_data%emission_mapping%categories(icat)%n_emission_species
+               ifield, ' > ', size(config_manager%config_data%emission_mapping%categories(icat)%species_mappings)
             call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
             cycle
          end if
@@ -1512,7 +1523,9 @@ contains
       end if
 
       ! Clean up
-      deallocate(concentrations, emission_flux, species_tendency)
+      if (allocated(concentrations)) deallocate(concentrations)
+      if (allocated(emission_flux)) deallocate(emission_flux)
+      if (allocated(species_tendency)) deallocate(species_tendency)
       if (allocated(f_bb)) deallocate(f_bb)
    end subroutine catchem_emis_apply
 
@@ -1883,13 +1896,12 @@ contains
          end if
       end do
 
-      allocate(concentrations(nx, ny, nz, n_species))
       call chem_state%get_all_concentrations(concentrations, localrc)
       if (localrc /= CC_SUCCESS) then
          call ESMF_LogWrite(trim(pName)//': failed to get concentrations', &
             ESMF_LOGMSG_ERROR, rc=localrc)
          rc = CC_FAILURE
-         deallocate(concentrations)
+         if (allocated(concentrations)) deallocate(concentrations)
          return
       end if
 
@@ -1897,6 +1909,11 @@ contains
          if (.not. category%fields(ifield)%is_loaded) cycle
          npts = category%fields(ifield)%npts
          if (npts <= 0) cycle
+
+         if (.not. allocated(config_manager%config_data%emission_mapping%categories)) cycle
+         if (icat < 1 .or. icat > size(config_manager%config_data%emission_mapping%categories)) cycle
+         if (.not. allocated(config_manager%config_data%emission_mapping%categories(icat)%species_mappings)) cycle
+         if (ifield < 1 .or. ifield > size(config_manager%config_data%emission_mapping%categories(icat)%species_mappings)) cycle
 
          n_mapped = config_manager%config_data%emission_mapping% &
             categories(icat)%species_mappings(ifield)%n_mappings
@@ -1974,7 +1991,7 @@ contains
          rc = CC_FAILURE
       end if
 
-      deallocate(concentrations)
+      if (allocated(concentrations)) deallocate(concentrations)
 
    end subroutine catchem_emis_apply_points
    !!
