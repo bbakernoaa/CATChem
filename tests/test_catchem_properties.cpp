@@ -44,6 +44,44 @@ void verify_properties(const std::vector<double>& conc, size_t size, int iterati
     }
 }
 
+void CatchemPropertiesTest_RobustMetDerivations() {
+    std::cout << "=== Running CatchemPropertiesTest.RobustMetDerivations ===" << std::endl;
+    catchem::StateManager state(4, 10, 50);
+    std::vector<double> pmid_data(40, 100000.0);
+    std::vector<double> t_data(40, 300.0);
+    std::vector<double> qv_data(40, 1.0); // 100% specific humidity (edge case: q >= 1.0)
+    std::vector<double> airden_dry_data(40, 0.0);
+
+    state.bind_met_field_3d("PMID", pmid_data.data());
+    state.bind_met_field_3d("T", t_data.data());
+    state.bind_met_field_3d("QV", qv_data.data());
+    state.bind_met_field_3d("AIRDEN_DRY", airden_dry_data.data());
+
+    // Should not divide by zero
+    state.derive_airden_dry();
+    state.sync_to_host();
+    assert(!std::isnan(airden_dry_data[0]) && !std::isinf(airden_dry_data[0]));
+
+    // Guard temperature t_val <= 0.0
+    t_data[0] = 0.0;
+    state.derive_airden_dry();
+    state.sync_to_host();
+    assert(!std::isnan(airden_dry_data[0]) && !std::isinf(airden_dry_data[0]));
+
+    std::vector<double> pedge_data(44, 0.0); // 0 pressure at boundary (edge case: PEDGE = 0.0)
+    std::vector<double> bxheight_data(40, 0.0);
+    state.bind_met_field_3d("PEDGE", pedge_data.data());
+    state.bind_met_field_3d("BXHEIGHT", bxheight_data.data());
+
+    // Should not compute log(0) or log(negative)
+    state.derive_bxheight();
+    state.sync_to_host();
+    assert(!std::isnan(bxheight_data[0]) && !std::isinf(bxheight_data[0]));
+    assert(bxheight_data[0] == 0.0);
+
+    std::cout << "=== PASS: CatchemPropertiesTest.RobustMetDerivations ===" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     Kokkos::initialize(argc, argv);
     {
@@ -57,6 +95,8 @@ int main(int argc, char* argv[]) {
             assert(test_state->trace_id.length() == 8);
             assert(!test_state->trace_id.empty());
         }
+
+        CatchemPropertiesTest_RobustMetDerivations();
 
         // Register All C++ Modern Process Handlers
         catchem_register_seasalt_cpp();

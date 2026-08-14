@@ -130,6 +130,7 @@ module catchem_nuopc_interface
       type(ESMF_GridComp) :: iocomp
       ! Time slice tracking for NetCDF output
       integer :: current_time_slice = 0
+      logical :: pm_diag_registered = .false.  !< Track PM diagnostic registration per-instance
    end type cc_wrap_type
 
    type CATChem_InternalState
@@ -659,8 +660,10 @@ contains
       ! This is to check if all required met fields in CATChem are set
       if (allocated(cc_wrap%catchem_model%required_fields)) then
          n_met = size(cc_wrap%catchem_model%required_fields)
-         allocate(set_required_met(n_met))
-         set_required_met = .false.
+         if (n_met > 0) then
+            allocate(set_required_met(n_met))
+            set_required_met = .false.
+         end if
       end if
 
       ! Loop through all import fields and transform to CATChem states
@@ -689,7 +692,7 @@ contains
       end do
 
       !derive some met fields if required after reading from NUOPC
-      if (allocated(cc_wrap%catchem_model%required_fields)) then
+      if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(set_required_met)) then
          do i = 1, n_met
             if (.not. set_required_met(i)) then
                call met_state%derive_field(trim(cc_wrap%catchem_model%required_fields(i)), error_mgr, time_state, rc)
@@ -706,7 +709,7 @@ contains
       end if
 
       !check if all require met fields are set
-      if (allocated(cc_wrap%catchem_model%required_fields)) then
+      if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(set_required_met)) then
          do i = 1, n_met
             if (.not. set_required_met(i)) then
                !write(*,*) 'Wait. A required field is not set: ' // trim(cc_wrap%catchem_model%required_fields(i))
@@ -785,7 +788,7 @@ contains
       type(cc_wrap_type), intent(inout) :: cc_wrap
       type(ESMF_Field), intent(in) :: field
       type(field_mapping_type), intent(in) :: field_map
-      logical, dimension(:), intent(inout) :: is_met_set
+      logical, allocatable, intent(inout) :: is_met_set(:)
       logical, intent(in) :: required
       integer, intent(out) :: rc
 
@@ -831,22 +834,22 @@ contains
          ! Update Fortran facade pointer and bind to C++ core
 #ifdef USE_REAL8
          select case (trim(field_map%catchem_var))
-         case ('PS');       met_state%PS => fptr2d
-         case ('TS');       met_state%TS => fptr2d
-         case ('PBLH');     met_state%PBLH => fptr2d
-         case ('USTAR');    met_state%USTAR => fptr2d
-         case ('HFLUX');    met_state%HFLUX => fptr2d
-         case ('OBK');      met_state%OBK => fptr2d
-         case ('LAT');      met_state%LAT => fptr2d
-         case ('LON');      met_state%LON => fptr2d
-         case ('FROCEAN');  met_state%FROCEAN => fptr2d
-         case ('FRSEAICE'); met_state%FRSEAICE => fptr2d
-         case ('SST');      met_state%SST => fptr2d
+          case ('PS');       met_state%PS => fptr2d
+          case ('TS');       met_state%TS => fptr2d
+          case ('PBLH');     met_state%PBLH => fptr2d
+          case ('USTAR');    met_state%USTAR => fptr2d
+          case ('HFLUX');    met_state%HFLUX => fptr2d
+          case ('OBK');      met_state%OBK => fptr2d
+          case ('LAT');      met_state%LAT => fptr2d
+          case ('LON');      met_state%LON => fptr2d
+          case ('FROCEAN');  met_state%FROCEAN => fptr2d
+          case ('FRSEAICE'); met_state%FRSEAICE => fptr2d
+          case ('SST');      met_state%SST => fptr2d
          end select
 #endif
 
          select case (trim(field_map%catchem_var))
-         case ('Z0')
+          case ('Z0')
             ! Z0 is converted from cm to m during import, leaving its memory owned by met_state
             call met_state%set_field(trim(field_map%catchem_var), real(fptr2d, fp)*0.01_fp, error_mgr, rc)
             if (rc /= CC_SUCCESS) then
@@ -856,7 +859,7 @@ contains
                   line=__LINE__, file=__FILE__, rcToReturn=rc)
                return  ! bail out
             end if
-         case ('DLUSE', 'DSOILTYPE', 'LWI')
+          case ('DLUSE', 'DSOILTYPE', 'LWI')
             ! integer mask conversions owned by met_state
             call met_state%set_field(trim(field_map%catchem_var), int(fptr2d), error_mgr, rc)
             if (rc /= CC_SUCCESS) then
@@ -870,13 +873,13 @@ contains
 
          ! Standard direct zero-copy pointer mapping to C++ core
          if (trim(field_map%catchem_var) /= 'Z0' .and. trim(field_map%catchem_var) /= 'DLUSE' .and. &
-             trim(field_map%catchem_var) /= 'DSOILTYPE' .and. trim(field_map%catchem_var) /= 'LWI') then
+            trim(field_map%catchem_var) /= 'DSOILTYPE' .and. trim(field_map%catchem_var) /= 'LWI') then
             call cc_wrap%catchem_model%bind_met_2d(trim(field_map%catchem_var) // c_null_char, fptr2d)
          end if
 
-         if (allocated(cc_wrap%catchem_model%required_fields)) then
+         if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(is_met_set)) then
             met_index = cc_wrap%catchem_model%get_required_met_index( trim(field_map%catchem_var) )
-            if (met_index > 0) then
+            if (met_index > 0 .and. met_index <= size(is_met_set)) then
                is_met_set(met_index) = .true.
             end if
          end if
@@ -891,25 +894,25 @@ contains
          ! Update Fortran facade pointer
 #ifdef USE_REAL8
          select case (trim(field_map%catchem_var))
-         case ('T');          met_state%T => fptr3d
-         case ('QV');         met_state%QV => fptr3d
-         case ('RH');         met_state%RH => fptr3d
-         case ('PMID');       met_state%PMID => fptr3d
-         case ('PEDGE');      met_state%PEDGE => fptr3d
-         case ('AIRDEN');     met_state%AIRDEN => fptr3d
-         case ('AIRDEN_DRY'); met_state%AIRDEN_DRY => fptr3d
-         case ('BXHEIGHT');   met_state%BXHEIGHT => fptr3d
-         case ('DELP');       met_state%DELP => fptr3d
-         case ('DELP_DRY');   met_state%DELP_DRY => fptr3d
+          case ('T');          met_state%T => fptr3d
+          case ('QV');         met_state%QV => fptr3d
+          case ('RH');         met_state%RH => fptr3d
+          case ('PMID');       met_state%PMID => fptr3d
+          case ('PEDGE');      met_state%PEDGE => fptr3d
+          case ('AIRDEN');     met_state%AIRDEN => fptr3d
+          case ('AIRDEN_DRY'); met_state%AIRDEN_DRY => fptr3d
+          case ('BXHEIGHT');   met_state%BXHEIGHT => fptr3d
+          case ('DELP');       met_state%DELP => fptr3d
+          case ('DELP_DRY');   met_state%DELP_DRY => fptr3d
          end select
 #endif
 
          ! Direct zero-copy 3D volumetric array pointer mapping to C++ core StateManager
          call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var) // c_null_char, fptr3d)
 
-         if (allocated(cc_wrap%catchem_model%required_fields)) then
+         if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(is_met_set)) then
             met_index = cc_wrap%catchem_model%get_required_met_index( trim(field_map%catchem_var) )
-            if (met_index > 0) then
+            if (met_index > 0 .and. met_index <= size(is_met_set)) then
                is_met_set(met_index) = .true.
             end if
          end if
@@ -1818,10 +1821,6 @@ contains
       type(cc_wrap_type), intent(inout) :: cc_wrap
       integer, intent(out) :: rc
 
-      ! PM fields live in the C++ DiagnosticManager — the same storage the
-      ! NUOPC export transform and NetCDF output read from.
-      logical, save :: pm_diag_registered = .false.
-
       real(fp), allocatable :: pm25(:,:,:), pm10(:,:,:)
       real(fp), pointer :: diag_ptr(:,:,:) => null()
       integer :: ni, nj, nk
@@ -1837,7 +1836,7 @@ contains
       nk = size(pm25, 3)
 
       ! Lazily register the PM fields in the C++ diagnostic manager
-      if (.not. pm_diag_registered) then
+      if (.not. cc_wrap%pm_diag_registered) then
          call cc_wrap%catchem_model%register_diagnostic('pm25', &
             'PM2.5 aerosol mass concentration', 'ug m-3', (/ni, nj, nk/), rc)
          if (rc /= 0) then
@@ -1852,7 +1851,7 @@ contains
             rc = CC_FAILURE
             return
          end if
-         pm_diag_registered = .true.
+         cc_wrap%pm_diag_registered = .true.
       end if
 
       ! Write current values into the C++-owned diagnostic storage

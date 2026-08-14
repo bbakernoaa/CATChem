@@ -139,7 +139,7 @@ namespace catchem {
                     double p_lower = pedge(icol, ilev, 0);
                     double p_upper = pedge(icol, ilev + 1, 0);
 
-                    if (p_upper > 0.0) {
+                    if (p_upper > 0.0 && p_lower > 0.0 && p_lower > p_upper) {
                         double virtual_t = met_utilities::virtual_temperature(temp(icol, ilev, 0), qv(icol, ilev, 0));
                         bxheight(icol, ilev, 0) =
                             (constants::RD / constants::G0) * virtual_t * std::log(p_lower / p_upper);
@@ -187,11 +187,16 @@ namespace catchem {
                 for (int ilev = 0; ilev < nl; ++ilev) {
 #endif
                     double q = qv(icol, ilev, 0);
+                    if (q >= 1.0)
+                        q = 0.9999;
                     double avgw = (constants::AIR_MW / constants::H2O_MW) * q / (1.0 - q);
                     double xh2o = avgw / (1.0 + avgw);
 
                     double p_dry = pmid(icol, ilev, 0) * (1.0 - xh2o);
-                    airden_dry(icol, ilev, 0) = p_dry / (constants::RD * temp(icol, ilev, 0));
+                    double t_val = temp(icol, ilev, 0);
+                    if (t_val <= 0.0)
+                        t_val = 1.0;
+                    airden_dry(icol, ilev, 0) = p_dry / (constants::RD * t_val);
 #ifdef CATCHEM_ENABLE_KOKKOS
                 });
 #else
