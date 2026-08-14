@@ -7,13 +7,12 @@ SHELL ["/bin/bash", "-c"]
 # MUSICA requires the Kokkos-backed C++ core, so it is disabled when OFF.
 ARG CATCHEM_ENABLE_KOKKOS=ON
 
+# No apt Kokkos: the distro package predates CATCHEM_KOKKOS_MIN_VERSION, so
+# Kokkos-ON builds always use CMake's pinned FetchContent fallback (verified
+# from Kokkos::print_configuration in the test logs).
 USER root
 RUN apt-get update --yes && \
-    if [ "${CATCHEM_ENABLE_KOKKOS}" = "ON" ]; then \
-      apt-get install --yes libkokkos-dev libyaml-cpp-dev; \
-    else \
-      apt-get install --yes libyaml-cpp-dev; \
-    fi
+    apt-get install --yes libyaml-cpp-dev
 
 COPY . /opt/catchem/src
 

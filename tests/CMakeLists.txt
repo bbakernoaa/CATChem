@@ -2,6 +2,19 @@ foreach(opt IN LISTS _catchem_compiler_options)
   add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:${opt}>")
 endforeach()
 
+# Single knob for the OpenMP thread count of every Kokkos-capable test:
+# applied as OMP_NUM_THREADS through CTest ENVIRONMENT properties (collected
+# in _catchem_omp_tests below) and asserted by test_catchem_threading via
+# catchem_test_config.hpp. Only meaningful with CATCHEM_ENABLE_KOKKOS=ON;
+# the host-only build has no Kokkos or OpenMP.
+set(
+  CATCHEM_TEST_OMP_THREADS
+  "2"
+  CACHE STRING
+  "OpenMP thread count for Kokkos-capable tests"
+)
+set(_catchem_omp_tests "")
+
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/catchem_test_config.hpp.in"
   "${CMAKE_CURRENT_BINARY_DIR}/catchem_test_config.hpp"
@@ -77,6 +90,9 @@ if(TARGET CATChem)
     COMMAND test_CATChem_API
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
+  # Reaches Kokkos through the C API's no-arg initialize; only the
+  # environment can set its thread count.
+  list(APPEND _catchem_omp_tests test_CATChem_API)
 endif()
 
 # UnitConversion needs specific include search dirs
@@ -104,6 +120,7 @@ add_test(
 add_executable(test_catchem_logger test_catchem_logger.cpp)
 target_link_libraries(test_catchem_logger PRIVATE CATChem_core_cpp)
 add_test(NAME test_catchem_logger COMMAND test_catchem_logger)
+list(APPEND _catchem_omp_tests test_catchem_logger)
 
 add_executable(test_catchem_interop test_catchem_interop.cpp)
 target_link_libraries(
@@ -121,6 +138,7 @@ target_link_libraries(
 )
 set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
+list(APPEND _catchem_omp_tests test_catchem_interop)
 
 # Modern Randomized Property-Based Testing
 add_executable(test_catchem_properties test_catchem_properties.cpp)
@@ -139,6 +157,18 @@ target_link_libraries(
 )
 set_target_properties(test_catchem_properties PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME test_catchem_properties COMMAND test_catchem_properties)
+list(APPEND _catchem_omp_tests test_catchem_properties)
+
+# Multithreading contract test — proves the OpenMP backend executes kernel
+# work across the pinned number of threads (CATCHEM_TEST_OMP_THREADS).
+# Kokkos-ON only: the host-only flavor has no parallel backend to verify.
+if(CATCHEM_ENABLE_KOKKOS)
+  add_executable(test_catchem_threading test_catchem_threading.cpp)
+  target_link_libraries(test_catchem_threading PRIVATE CATChem_core_cpp)
+  set_target_properties(test_catchem_threading PROPERTIES LINKER_LANGUAGE CXX)
+  add_test(NAME test_catchem_threading COMMAND test_catchem_threading)
+  list(APPEND _catchem_omp_tests test_catchem_threading)
+endif()
 
 if(CATCHEM_BUILD_MUSICA)
   # Photolysis Process Unit/Integration Test
@@ -149,6 +179,7 @@ if(CATCHEM_BUILD_MUSICA)
   )
   set_target_properties(test_catchem_photolysis PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_photolysis COMMAND test_catchem_photolysis)
+  list(APPEND _catchem_omp_tests test_catchem_photolysis)
 
   # Coupled Process Integration Test
   add_executable(test_catchem_gaschem test_catchem_gaschem.cpp)
@@ -162,6 +193,7 @@ if(CATCHEM_BUILD_MUSICA)
   )
   set_target_properties(test_catchem_gaschem PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_gaschem COMMAND test_catchem_gaschem)
+  list(APPEND _catchem_omp_tests test_catchem_gaschem)
 endif()
 
 add_executable(test_catchem_gaschem_units test_catchem_gaschem_units.cpp)
@@ -206,5 +238,21 @@ if(CATCHEM_BUILD_NUOPC)
     NAME test_nuopc_transform
     COMMAND test_nuopc_transform
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  )
+  # Reaches Kokkos through the C API's no-arg initialize; only the
+  # environment can set its thread count.
+  list(APPEND _catchem_omp_tests test_nuopc_transform)
+endif()
+
+# Pin every Kokkos-capable test to the configured OpenMP thread count.
+# OMP_PROC_BIND=false silences the Kokkos affinity warning and avoids
+# pinning threads inside oversubscribed container builds ("For unit
+# testing set OMP_PROC_BIND=false" — Kokkos's own initialize hint).
+if(CATCHEM_ENABLE_KOKKOS AND _catchem_omp_tests)
+  set_tests_properties(
+    ${_catchem_omp_tests}
+    PROPERTIES
+      ENVIRONMENT
+        "OMP_NUM_THREADS=${CATCHEM_TEST_OMP_THREADS};OMP_PROC_BIND=false"
   )
 endif()
