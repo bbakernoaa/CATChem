@@ -68,6 +68,16 @@ if(NOT yaml-cpp_FOUND AND NOT TARGET yaml-cpp::yaml-cpp AND NOT TARGET yaml-cpp)
   # This prevents MUSICA from fetching their own copy
   FetchContent_Declare(yaml-cpp SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/yaml-cpp)
   FetchContent_MakeAvailable(yaml-cpp)
+
+  # Rename the vendored yaml-cpp namespace: ESMF's static library bundles its
+  # own compiled yaml-cpp with public YAML:: symbols, so any executable
+  # linking both (e.g. the NUOPC tests) fails with duplicate definitions.
+  # PUBLIC so every consumer of these headers (including MUSICA) sees the
+  # same renamed namespace.
+  target_compile_definitions(
+    yaml-cpp
+    PUBLIC "$<$<COMPILE_LANGUAGE:CXX>:YAML=CATChem_YAML>"
+  )
 endif()
 
 # Ensure both yaml-cpp and yaml-cpp::yaml-cpp targets exist regardless of how it was found
