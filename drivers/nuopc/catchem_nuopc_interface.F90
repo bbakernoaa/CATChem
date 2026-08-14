@@ -25,33 +25,80 @@
 
 module catchem_nuopc_interface
 
-   use iso_c_binding, only: c_loc, c_null_char, c_char, c_double, c_ptr
+   use iso_c_binding, only: c_loc, c_null_char, c_char, c_double, c_ptr, c_int, c_associated, c_f_pointer
    use ESMF
    use NUOPC
    use MPI
    use CATChem_API, only: CATChem_Model
-   ! use catchem_nuopc_cf_input
-   ! use catchem_nuopc_netcdf_out
-   ! use machine, only: kind_phys
    use precision_mod, only: fp
    use Constants, only: g0, Rd, Re
    use Error_Mod, only : CC_SUCCESS, CC_FAILURE
-   use StateManager_Mod, only: StateManagerType
-   use ConfigManager_Mod, only: ConfigManagerType
    use error_mod, only: ErrorManagerType
-   use MetState_Mod, only: MetStateType
-   use ChemState_Mod, only: ChemStateType
-   use TimeState_Mod, only: TimeStateType
    use ExtEmisData_Mod, only: ExtEmisDataType  ! External emissions data type
-   use DiagnosticManager_Mod, only: DiagnosticManagerType
-   use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DiagnosticFieldType, &
-      DIAG_REAL_SCALAR, DIAG_REAL_1D, DIAG_REAL_2D, DIAG_REAL_3D
    use aqmio, only: AQMIO_Create, AQMIO_Destroy, AQMIO_Write, AQMIO_Close, AQMIO_Write1D, AQMIO_FMT_NETCDF, &
       AQMIO_LatlonInit, AQMIO_LatlonCleanup
    use catchem_latlon_output_mod, only: latlon_diag_set_time, latlon_diag_is_init
    use catchem_emis_mod
 
    implicit none
+
+   integer, parameter :: DIAG_REAL_SCALAR = 0, DIAG_REAL_1D = 1, DIAG_REAL_2D = 2, DIAG_REAL_3D = 3
+
+   interface
+      type(c_ptr) function catchem_state_get_pointer_3d(state_ptr, name) bind(C, name="catchem_state_get_pointer_3d")
+         import :: c_ptr, c_char
+         type(c_ptr), value :: state_ptr
+         character(kind=c_char), intent(in) :: name(*)
+      end function
+
+      integer(c_int) function catchem_state_get_species_count(state_ptr) bind(C, name="catchem_state_get_species_count")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+      end function
+
+      integer(c_int) function catchem_state_get_species_index(state_ptr, name) bind(C, name="catchem_state_get_species_index")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: state_ptr
+         character(kind=c_char), intent(in) :: name(*)
+      end function
+
+      subroutine catchem_state_get_species_name_at(state_ptr, index, name_out) bind(C, name="catchem_state_get_species_name_at")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+         character(kind=c_char), intent(out) :: name_out(*)
+      end subroutine
+
+      integer(c_int) function catchem_state_is_species_gas(state_ptr, index) bind(C, name="catchem_state_is_species_gas")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+      end function
+
+      integer(c_int) function catchem_state_is_species_aerosol(state_ptr, index) bind(C, name="catchem_state_is_species_aerosol")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+      end function
+
+      subroutine catchem_state_set_time(state_ptr, yr, mo, dy, hr, mn, sc, doy, tstep) &
+         bind(C, name="catchem_state_set_time")
+         import :: c_ptr, c_int, c_double
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: yr, mo, dy, hr, mn, sc, doy
+         real(c_double), value :: tstep
+      end subroutine
+
+      subroutine catchem_state_derive_airden_dry(state_ptr) bind(C, name="catchem_state_derive_airden_dry")
+         import :: c_ptr
+         type(c_ptr), value :: state_ptr
+      end subroutine
+
+      subroutine catchem_state_derive_bxheight(state_ptr) bind(C, name="catchem_state_derive_bxheight")
+         import :: c_ptr
+         type(c_ptr), value :: state_ptr
+      end subroutine
+   end interface
 
    private
 
@@ -115,6 +162,8 @@ module catchem_nuopc_interface
       type(field_config_type) :: field_config  ! Moved from module level for MPI safety
       type(tracer_index_map) :: tracer_map
       type(ESMF_Grid) :: grid
+      real(c_double), allocatable :: area_m2(:,:)
+      real(c_double), allocatable :: z0_m(:,:)
       logical :: initialized = .false.
       ! Diagnostic output variables (moved from module level for MPI safety)
       type(ESMF_Time) :: last_output_time
@@ -176,7 +225,6 @@ contains
    !!
    !! @warning Proper error checking should be performed on errflg after calling
    subroutine catchem_nuopc_init(model, config_file, lat, lon, nlev, tracerinfo, input_grid, startTime,stopTime, timeStep, clock, nsoil, nsoiltype, nsurftype, rc)
-      use ChemSpeciesUtils_Mod, only : create_species_mapping
 
       type(ESMF_GridComp)  :: model
       character(len=*), intent(in) :: config_file
@@ -192,13 +240,11 @@ contains
       integer, intent(out) :: rc
 
       ! Local variables
-      type(StateManagerType), pointer :: state_mgr
-      type(ConfigManagerType), pointer :: config_manager
-      type(MetStateType), pointer :: met_state
-      integer :: nx, ny, num_processes, stat
+      integer :: nx, ny, num_processes, stat, i
       integer(ESMF_KIND_I8) :: tstep_seconds
       character(len=128), allocatable :: tracer_names(:) !< NUOPC tracer name
       character(len=128), allocatable :: tracer_units(:) !< NUOPC tracer unit
+      real(c_double), allocatable :: lon_m180(:,:)
       type(CATChem_InternalState) :: is
       type(cc_wrap_type), pointer:: cc_wrap
 
@@ -230,77 +276,66 @@ contains
          return  ! bail out
       end if
 
-      !assign lat and lon to metstate
-      state_mgr => cc_wrap%catchem_model%get_state_manager()
-      met_state => state_mgr%get_met_state_ptr()
-      met_state%lat = lat
-      met_state%lon = lon
-      ! Convert longitude from 0–360 to -180–180
-      where (met_state%lon > 180.0_fp)
-         met_state%lon = met_state%lon - 360.0_fp
+      !assign lat and lon directly to C++ StateManager
+      allocate(lon_m180(nx, ny))
+      lon_m180 = real(lon, c_double)
+      where (lon_m180 > 180.0_c_double)
+         lon_m180 = lon_m180 - 360.0_c_double
       end where
+      call cc_wrap%catchem_model%bind_met_2d("LAT" // c_null_char, real(lat, c_double))
+      call cc_wrap%catchem_model%bind_met_2d("LON" // c_null_char, lon_m180)
 
-      ! Populate grid-cell areas [m2] used for point-source emissions and other
-      ! per-area conversions (the NUOPC path does not import an area field).
-      ! Preference order:
-      !   1) ESMF_GRIDITEM_AREA attached to the grid (true FV3 cell areas [m2]).
-      !   2) ESMF_FieldRegridGetArea, which returns areas on the unit sphere
-      !      (steradians); scale by Re^2 to obtain m2.
-      if (associated(met_state%AREA_M2)) then
-         block
-            type(ESMF_Field) :: areaField
-            real(ESMF_KIND_R8), pointer :: areaPtr(:,:)
-            integer :: arc
-            logical :: areaIsPresent
-            nullify(areaPtr)
-            ! Query whether the grid actually carries an AREA item before
-            ! retrieving it. Requesting farrayPtr on a grid that has no
-            ! ESMF_GRIDITEM_AREA attached makes ESMF dereference an unset
-            ! coord/item array and log a NULL-pointer ERROR. The FV3 import
-            ! grid on the NUOPC path does not attach areas, so check first.
-            areaIsPresent = .false.
+      ! Populate grid-cell areas [m2] used for point-source emissions
+      allocate(cc_wrap%area_m2(nx, ny))
+      cc_wrap%area_m2 = 0.0_c_double
+      block
+         type(ESMF_Field) :: areaField
+         real(ESMF_KIND_R8), pointer :: areaPtr(:,:)
+         integer :: arc
+         logical :: areaIsPresent
+         nullify(areaPtr)
+         areaIsPresent = .false.
+         call ESMF_GridGetItem(input_grid, itemflag=ESMF_GRIDITEM_AREA, &
+            staggerloc=ESMF_STAGGERLOC_CENTER, isPresent=areaIsPresent, rc=arc)
+         if (arc == ESMF_SUCCESS .and. areaIsPresent) then
             call ESMF_GridGetItem(input_grid, itemflag=ESMF_GRIDITEM_AREA, &
-               staggerloc=ESMF_STAGGERLOC_CENTER, isPresent=areaIsPresent, rc=arc)
-            if (arc == ESMF_SUCCESS .and. areaIsPresent) then
-               call ESMF_GridGetItem(input_grid, itemflag=ESMF_GRIDITEM_AREA, &
-                  staggerloc=ESMF_STAGGERLOC_CENTER, farrayPtr=areaPtr, rc=arc)
-            else
-               arc = ESMF_RC_NOT_FOUND
+               staggerloc=ESMF_STAGGERLOC_CENTER, farrayPtr=areaPtr, rc=arc)
+         else
+            arc = ESMF_RC_NOT_FOUND
+         end if
+         if (arc == ESMF_SUCCESS .and. associated(areaPtr)) then
+            if (size(areaPtr,1) == nx .and. size(areaPtr,2) == ny) then
+               cc_wrap%area_m2 = real(areaPtr, c_double)
             end if
+         else
+            ! Fall back to computing cell areas from the grid geometry.
+            nullify(areaPtr)
+            areaField = ESMF_FieldCreate(input_grid, typekind=ESMF_TYPEKIND_R8, &
+               staggerloc=ESMF_STAGGERLOC_CENTER, rc=arc)
+            if (arc == ESMF_SUCCESS) call ESMF_FieldRegridGetArea(areaField, rc=arc)
+            if (arc == ESMF_SUCCESS) call ESMF_FieldGet(areaField, farrayPtr=areaPtr, rc=arc)
             if (arc == ESMF_SUCCESS .and. associated(areaPtr)) then
                if (size(areaPtr,1) == nx .and. size(areaPtr,2) == ny) then
-                  met_state%AREA_M2 = real(areaPtr, fp)
+                  cc_wrap%area_m2 = real(areaPtr, c_double) * real(Re * Re, c_double)
                end if
             else
-               ! Fall back to computing cell areas from the grid geometry.
-               nullify(areaPtr)
-               areaField = ESMF_FieldCreate(input_grid, typekind=ESMF_TYPEKIND_R8, &
-                  staggerloc=ESMF_STAGGERLOC_CENTER, rc=arc)
-               if (arc == ESMF_SUCCESS) call ESMF_FieldRegridGetArea(areaField, rc=arc)
-               if (arc == ESMF_SUCCESS) call ESMF_FieldGet(areaField, farrayPtr=areaPtr, rc=arc)
-               if (arc == ESMF_SUCCESS .and. associated(areaPtr)) then
-                  if (size(areaPtr,1) == nx .and. size(areaPtr,2) == ny) then
-                     met_state%AREA_M2 = real(areaPtr, fp) * Re * Re
-                  end if
-               else
-                  call ESMF_LogWrite('catchem_nuopc_init: could not determine grid-cell '// &
-                     'areas; AREA_M2 left unset (point emissions will be skipped)', &
-                     ESMF_LOGMSG_WARNING, rc=arc)
-               end if
-               call ESMF_FieldDestroy(areaField, rc=arc)
+               call ESMF_LogWrite('catchem_nuopc_init: could not determine grid-cell '// &
+                  'areas; AREA_M2 left unset (point emissions will be skipped)', &
+                  ESMF_LOGMSG_WARNING, rc=arc)
             end if
-         end block
-      end if
+            call ESMF_FieldDestroy(areaField, rc=arc)
+         end if
+         call cc_wrap%catchem_model%bind_met_2d("AREA_M2" // c_null_char, cc_wrap%area_m2)
+      end block
 
       !initialize extemission data here
-      config_manager => state_mgr%get_config_ptr()
-      call catchem_emis_init(cc_wrap%ext_emis, config_manager, nx, ny, nlev, clock, rc)
+      call catchem_emis_init(cc_wrap%ext_emis, cc_wrap%catchem_model%cpp_core_ptr, nx, ny, nlev, clock, rc)
 
       !get output information from config
-      cc_wrap%output_frequency = config_manager%config_data%runtime%Output_Frequency
-      cc_wrap%compress_lev = config_manager%config_data%runtime%CompressLev
-      cc_wrap%output_directory = config_manager%config_data%file_paths%Output_Directory
-      cc_wrap%output_prefix = config_manager%config_data%file_paths%Output_Prefix
+      cc_wrap%output_frequency = cc_wrap%catchem_model%get_output_frequency()
+      cc_wrap%compress_lev = cc_wrap%catchem_model%get_compress_level()
+      call cc_wrap%catchem_model%get_output_directory(cc_wrap%output_directory)
+      call cc_wrap%catchem_model%get_output_prefix(cc_wrap%output_prefix)
 
       !populate tracer mapping using process-local tracer_map
       call TracerInfoGet(tracerinfo, 'tracerNames', tracer_names, rc=rc)
@@ -344,10 +379,11 @@ contains
          msg="Unable to allocate nuopc_to_cc mapping", &
          line=__LINE__,  file=__FILE__, rcToReturn=rc)) return  ! bail out
 
-      ! assign mapping index
-      call create_species_mapping(state_mgr, cc_wrap%tracer_map%names, cc_wrap%tracer_map%nuopc_to_cc, rc)
-      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-         line=__LINE__,  file=__FILE__)) return  ! bail out
+      ! assign mapping index directly from C++ StateManager
+      do i = 1, size(cc_wrap%tracer_map%names)
+         cc_wrap%tracer_map%nuopc_to_cc(i) = catchem_state_get_species_index( &
+            cc_wrap%catchem_model%state_mgr_ptr, trim(cc_wrap%tracer_map%names(i)) // c_null_char)
+      end do
 
       !copy fields to cc_wrap
       cc_wrap%field_config = field_config
@@ -361,7 +397,7 @@ contains
       end if
 
       ! Initialize lat/lon stitched output if configured (multi-tile only)
-      if (config_manager%config_data%runtime%latlon_output) then
+      if (cc_wrap%catchem_model%is_latlon_output_enabled()) then
          call AQMIO_LatlonInit(cc_wrap%grid, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) then
@@ -382,7 +418,8 @@ contains
       if (present(timeStep)) then
          cc_wrap%timeStep = timeStep
          call ESMF_TimeIntervalGet(timeStep, s_i8=tstep_seconds, rc=rc)
-         state_mgr%tstep = real(tstep_seconds, fp)
+         call catchem_state_set_time(cc_wrap%catchem_model%state_mgr_ptr, &
+            0_c_int, 0_c_int, 0_c_int, 0_c_int, 0_c_int, 0_c_int, 0_c_int, real(tstep_seconds, c_double))
       end if
 
       ! Add all enabled processes from configuration
@@ -475,24 +512,18 @@ contains
       character(len=*), intent(out) :: errmsg
       integer, intent(out) :: rc
 
-      ! Get process-local state
-      type(StateManagerType), pointer :: state_mgr => null()
       integer, save :: timestep = 0
-
-      !cc_wrap => get_cc_wrap()
 
       rc = CC_SUCCESS
       errmsg = ''
 
       ! Update extemission data first
-      state_mgr => cc_wrap%catchem_model%get_state_manager()
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionEnter("catchem_emis_update", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
 #endif
-      call catchem_emis_update(cc_wrap%ext_emis, current_time, state_mgr, &
-         cc_wrap%iocomp, cc_wrap%grid, real(dt, fp), rc)
+      call catchem_emis_update(cc_wrap%ext_emis, current_time, cc_wrap%catchem_model%nz, cc_wrap%iocomp, cc_wrap%grid, real(dt, fp), rc)
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionExit("catchem_emis_update", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -631,31 +662,21 @@ contains
       integer, intent(out) :: rc
 
       type(ESMF_Field) :: field
-      type(StateManagerType), pointer :: state_mgr
-      type(ErrorManagerType), pointer :: error_mgr
-      type(TimeStateType), pointer :: time_state
-      type(MetStateType), pointer :: met_state
       logical, allocatable :: set_required_met(:)
       integer(ESMF_KIND_I8) :: timestep_seconds
       integer :: year, month, day, hour, minute, second
       integer :: i, n, n_met
-      !type(cc_wrap_type), pointer :: cc_wrap
 
       rc = ESMF_SUCCESS
 
       ! assign time to catchem model's time state
-      state_mgr => cc_wrap%catchem_model%get_state_manager()
-      error_mgr => state_mgr%get_error_manager()
-      time_state => state_mgr%get_time_state_ptr()
-      met_state => state_mgr%get_met_state_ptr()
-
       call ESMF_TimeGet(currTime, yy=year, mm=month, dd=day, &
          h=hour, m=minute, s=second, rc=rc)
       call ESMF_TimeIntervalGet(cc_wrap%timeStep, s_i8=timestep_seconds, rc=rc)
-      call time_state%init(year, month, day, hour, minute, second, real(timestep_seconds, fp), error_mgr, rc)
-      if (rc /= CC_SUCCESS) then
-         return !maybe add an error message
-      end if
+      call catchem_state_set_time(cc_wrap%catchem_model%state_mgr_ptr, &
+         int(year, c_int), int(month, c_int), int(day, c_int), &
+         int(hour, c_int), int(minute, c_int), int(second, c_int), &
+         0_c_int, real(timestep_seconds, c_double))
 
       ! This is to check if all required met fields in CATChem are set
       if (allocated(cc_wrap%catchem_model%required_fields)) then
@@ -691,22 +712,9 @@ contains
 
       end do
 
-      !derive some met fields if required after reading from NUOPC
-      if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(set_required_met)) then
-         do i = 1, n_met
-            if (.not. set_required_met(i)) then
-               call met_state%derive_field(trim(cc_wrap%catchem_model%required_fields(i)), error_mgr, time_state, rc)
-               if (rc /= CC_SUCCESS) then
-                  call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-                     msg="Error deriving required met field: "// trim(cc_wrap%catchem_model%required_fields(i)), &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)
-                  return  ! bail out
-               else
-                  set_required_met(i) = .true.
-               end if
-            end if
-         end do
-      end if
+      ! derive required met fields in C++ StateManager
+      call catchem_state_derive_airden_dry(cc_wrap%catchem_model%state_mgr_ptr)
+      call catchem_state_derive_bxheight(cc_wrap%catchem_model%state_mgr_ptr)
 
       !check if all require met fields are set
       if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(set_required_met)) then
@@ -793,33 +801,10 @@ contains
       integer, intent(out) :: rc
 
       !local vars
-      !type(ProcessManagerType), pointer :: process_mgr
-      type(StateManagerType), pointer :: state_mgr
-      type(ErrorManagerType), pointer :: error_mgr
-      type(MetStateType), pointer :: met_state
-      type(ChemStateType), pointer :: chem_state
-      !type(cc_wrap_type), pointer :: cc_wrap
       real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
-      real(ESMF_KIND_R8), pointer :: fptr4d_rev(:,:,:,:), fptr3d_rev(:,:,:)
-      real(fp), allocatable :: cc_conc(:,:,:,:)
-      real(fp), pointer :: column_ptr(:) !catchem met column pointer to get vertical dimension for nz+1 variables
-      real(ESMF_KIND_R8) :: unit_conv
-      integer :: i, j, k, v, ni, nj, nk, nk1, nv, kk, v_cc, met_index
+      integer :: met_index
 
       rc = ESMF_SUCCESS
-
-      ! Get process-local state
-      !process_mgr => cc_wrap%catchem_model%get_process_manager()
-      state_mgr => cc_wrap%catchem_model%get_state_manager()
-      error_mgr => state_mgr%get_error_manager()
-      met_state => state_mgr%get_met_state_ptr()
-
-      if ( .not. associated(met_state) ) then
-         call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-            msg="met_state is not associated in CATChem before transformation from NUOPC", &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)
-         return  ! bail out
-      end if
 
       ! Transform based on field mapping
       select case (field_map%dimensions)
@@ -831,49 +816,14 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
 
-         ! Update Fortran facade pointer and bind to C++ core
-#ifdef USE_REAL8
-         select case (trim(field_map%catchem_var))
-          case ('PS');       met_state%PS => fptr2d
-          case ('TS');       met_state%TS => fptr2d
-          case ('PBLH');     met_state%PBLH => fptr2d
-          case ('USTAR');    met_state%USTAR => fptr2d
-          case ('HFLUX');    met_state%HFLUX => fptr2d
-          case ('OBK');      met_state%OBK => fptr2d
-          case ('LAT');      met_state%LAT => fptr2d
-          case ('LON');      met_state%LON => fptr2d
-          case ('FROCEAN');  met_state%FROCEAN => fptr2d
-          case ('FRSEAICE'); met_state%FRSEAICE => fptr2d
-          case ('SST');      met_state%SST => fptr2d
-         end select
-#endif
-
-         select case (trim(field_map%catchem_var))
-          case ('Z0')
-            ! Z0 is converted from cm to m during import, leaving its memory owned by met_state
-            call met_state%set_field(trim(field_map%catchem_var), real(fptr2d, fp)*0.01_fp, error_mgr, rc)
-            if (rc /= CC_SUCCESS) then
-               call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-                  msg="transform_field_to_catchem: set_field failed for '"// &
-                  trim(field_map%catchem_var)//"'", &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)
-               return  ! bail out
-            end if
-          case ('DLUSE', 'DSOILTYPE', 'LWI')
-            ! integer mask conversions owned by met_state
-            call met_state%set_field(trim(field_map%catchem_var), int(fptr2d), error_mgr, rc)
-            if (rc /= CC_SUCCESS) then
-               call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-                  msg="transform_field_to_catchem: set_field failed for '"// &
-                  trim(field_map%catchem_var)//"'", &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)
-               return  ! bail out
-            end if
-         end select
-
          ! Standard direct zero-copy pointer mapping to C++ core
-         if (trim(field_map%catchem_var) /= 'Z0' .and. trim(field_map%catchem_var) /= 'DLUSE' .and. &
-            trim(field_map%catchem_var) /= 'DSOILTYPE' .and. trim(field_map%catchem_var) /= 'LWI') then
+         if (trim(field_map%catchem_var) == 'Z0') then
+            if (.not. allocated(cc_wrap%z0_m)) then
+               allocate(cc_wrap%z0_m(size(fptr2d, 1), size(fptr2d, 2)))
+            end if
+            cc_wrap%z0_m = real(fptr2d, c_double) * 0.01_c_double
+            call cc_wrap%catchem_model%bind_met_2d("Z0" // c_null_char, cc_wrap%z0_m)
+         else
             call cc_wrap%catchem_model%bind_met_2d(trim(field_map%catchem_var) // c_null_char, fptr2d)
          end if
 
@@ -890,22 +840,6 @@ contains
          call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
-
-         ! Update Fortran facade pointer
-#ifdef USE_REAL8
-         select case (trim(field_map%catchem_var))
-          case ('T');          met_state%T => fptr3d
-          case ('QV');         met_state%QV => fptr3d
-          case ('RH');         met_state%RH => fptr3d
-          case ('PMID');       met_state%PMID => fptr3d
-          case ('PEDGE');      met_state%PEDGE => fptr3d
-          case ('AIRDEN');     met_state%AIRDEN => fptr3d
-          case ('AIRDEN_DRY'); met_state%AIRDEN_DRY => fptr3d
-          case ('BXHEIGHT');   met_state%BXHEIGHT => fptr3d
-          case ('DELP');       met_state%DELP => fptr3d
-          case ('DELP_DRY');   met_state%DELP_DRY => fptr3d
-         end select
-#endif
 
          ! Direct zero-copy 3D volumetric array pointer mapping to C++ core StateManager
          call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var) // c_null_char, fptr3d)
@@ -924,35 +858,8 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
 
-         chem_state => state_mgr%get_chem_state_ptr()
-         if ( .not. associated(chem_state) ) then
-            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-               msg="chem_state is not associated in CATChem before transformation from NUOPC", &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)
-            return  ! bail out
-         end if
-
          ! Direct zero-copy 4D chemistry concentration array mapping to C++ core StateManager
          call cc_wrap%catchem_model%bind_unified_chemistry(fptr4d)
-
-#ifdef USE_REAL8
-         ! Associate per-species Fortran conc slices with the freshly bound
-         ! tracer memory so Fortran-side consumers (e.g. PM diagnostics) see
-         ! live data. tracer_map holds NUOPC-tracer -> CATChem-species
-         ! indices. Zero-copy is only type-legal when fp is REAL64
-         ! (USE_REAL8); without promotion the slices stay unassociated and
-         ! PM diagnostics report zero until the precision policy is settled.
-         if (allocated(cc_wrap%tracer_map%nuopc_to_cc) .and. &
-            allocated(chem_state%ChemSpecies)) then
-            do v = 1, size(cc_wrap%tracer_map%nuopc_to_cc)
-               v_cc = cc_wrap%tracer_map%nuopc_to_cc(v)
-               if (v_cc >= 1 .and. v_cc <= size(chem_state%ChemSpecies) .and. &
-                  v <= size(fptr4d, 4)) then
-                  chem_state%ChemSpecies(v_cc)%conc => fptr4d(:, :, :, v)
-               end if
-            end do
-         end if
-#endif
 
        case default
          call ESMF_LogWrite("Unknown field mapping dimension for: " // trim(field_map%catchem_var), &
@@ -978,9 +885,6 @@ contains
       type(ESMF_Field), intent(inout) :: field
       integer, intent(out) :: rc
 
-      type(StateManagerType), pointer :: state_mgr
-      type(ChemStateType), pointer :: chem_state
-      !type(cc_wrap_type), pointer :: cc_wrap
       real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
       real(fp), allocatable :: cc_diag_data(:,:,:)
       character(len=128), allocatable :: diagnostic_names(:)
@@ -989,13 +893,8 @@ contains
 
       rc = ESMF_SUCCESS
 
-      ! Get process-local state
-      !cc_wrap => get_cc_wrap()
-
       !TODO: we assume all the export fields are from DiagManager
       call cc_wrap%catchem_model%get_diagnostic_names(diagnostic_names, rc = rc)
-
-      state_mgr => cc_wrap%catchem_model%get_state_manager()
 
       ! Transform based on field mapping
       select case (field_map%dimensions)
@@ -1073,14 +972,6 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
 
-         chem_state => state_mgr%get_chem_state_ptr()
-         if ( .not. associated(chem_state) ) then
-            call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-               msg="chem_state is not associated in CATChem before transformation from NUOPC", &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)
-            return  ! bail out
-         end if
-
          ni = size(fptr4d, 1)
          nj = size(fptr4d, 2)
          nk = size(fptr4d, 3)
@@ -1131,9 +1022,6 @@ contains
       integer, intent(out) :: rc
 
       !type(cc_wrap_type), pointer :: cc_wrap
-      type(DiagnosticManagerType), pointer :: diag_mgr => null()
-      type(StateManagerType), pointer :: state_mgr_diag => null()
-      type(ConfigManagerType), pointer :: config_mgr_diag => null()
       type(ESMF_Time) :: time_on_file
       character(len=64), allocatable :: process_list(:)
       integer :: num_processes, i
@@ -1143,12 +1031,9 @@ contains
       rc = CC_SUCCESS
 
       ! Check top-level diagnostics/output/enabled switch before doing anything
-      state_mgr_diag => cc_wrap%catchem_model%get_state_manager()
-      config_mgr_diag => state_mgr_diag%get_config_ptr()
-      if (.not. config_mgr_diag%config_data%runtime%DiagEnabled) then
+      if (.not. cc_wrap%catchem_model%is_diag_enabled()) then
          return
       end if
-      nullify(state_mgr_diag, config_mgr_diag)
 
       ! Initialize output timing if not done
       if (.not. cc_wrap%output_timing_initialized) then
@@ -1175,21 +1060,6 @@ contains
       ! Update time variable in NetCDF file and get the time slice to use
       call update_time_variable(cc_wrap, filename, time_on_file, cc_wrap%current_time_slice, rc)
       if (rc /= CC_SUCCESS) return
-
-      ! Write process diagnostics (optional - may have no registered processes)
-      diag_mgr => cc_wrap%catchem_model%get_diagnostic_manager()
-      if (associated(diag_mgr)) then
-         call diag_mgr%list_processes(process_list, num_processes, rc)
-         if (rc == CC_SUCCESS .and. num_processes > 0) then
-            do i = 1, num_processes
-               call write_process_diagnostics(cc_wrap, trim(process_list(i)), filename, rc)
-               if (rc /= CC_SUCCESS) then
-                  write(*,'(A,A)') 'Error: Failed to write diagnostics for process: ', trim(process_list(i))
-                  return
-               end if
-            end do
-         end if
-      end if
 
       !write extemission fields if needed
       call catchem_emis_write_diagnostics(cc_wrap%ext_emis, cc_wrap%current_time_slice, cc_wrap%iocomp, cc_wrap%grid, filename, rc)
@@ -1223,69 +1093,7 @@ contains
       character(len=*), intent(in) :: filename
       integer, intent(out) :: rc
 
-      type(DiagnosticManagerType), pointer :: diag_mgr => null()
-      type(DiagnosticRegistryType), pointer :: registry => null()
-      !type(cc_wrap_type), pointer :: cc_wrap
-      character(len=64), allocatable :: field_names(:)
-      integer :: num_fields, i, data_type
-      real(fp) :: scalar_value
-      real(fp), pointer :: array_1d_ptr(:) => null()
-      real(fp), pointer :: array_2d_ptr(:,:) => null()
-      real(fp), pointer :: array_3d_ptr(:,:,:) => null()
-      character(len=128) :: description
-      character(len=32) :: units
-      character(len=64) :: field_name
-
       rc = CC_SUCCESS
-
-      ! Get process-local state
-      !cc_wrap => get_cc_wrap()
-
-      ! Get diagnostic manager and process registry
-      diag_mgr => cc_wrap%catchem_model%get_diagnostic_manager()
-      call diag_mgr%get_process_registry(process_name, registry, rc)
-      if (rc /= CC_SUCCESS .or. .not. associated(registry)) return
-
-      ! Get field count
-      num_fields = registry%get_field_count()
-      if (num_fields == 0) return
-
-      ! Get field names
-      allocate(field_names(num_fields))
-      call registry%list_fields(field_names, num_fields)
-
-      ! Write each field
-      do i = 1, num_fields
-         field_name = trim(field_names(i))
-
-         ! Get field value with metadata
-         call diag_mgr%get_field_value(process_name, field_name, &
-            scalar_value, array_1d_ptr, array_2d_ptr, array_3d_ptr, &
-            data_type, description, units, rc)
-
-         if (rc /= CC_SUCCESS) then
-            write(*,'(A,A,A,A)') 'Warning: Failed to get field: ', trim(process_name), '.', trim(field_name)
-            cycle
-         end if
-
-         ! Write field to NetCDF using AQMIO
-         call write_diagnostic_field(cc_wrap, field_name, data_type, scalar_value, &
-            array_1d_ptr, array_2d_ptr, array_3d_ptr, &
-            description, units, filename, rc)
-
-         if (rc /= CC_SUCCESS) then
-            write(*,'(A,A,A,A)') 'Error: Failed to write field: ', trim(process_name), '.', trim(field_name)
-            return
-         end if
-
-         ! Clean up pointers
-         if (associated(array_1d_ptr)) nullify(array_1d_ptr)
-         if (associated(array_2d_ptr)) nullify(array_2d_ptr)
-         if (associated(array_3d_ptr)) nullify(array_3d_ptr)
-      end do
-
-      deallocate(field_names)
-
    end subroutine write_process_diagnostics
 
    !> \brief Write individual diagnostic field to NetCDF
@@ -1434,64 +1242,33 @@ contains
       integer, intent(out) :: rc
 
       ! Local variables
-      type(StateManagerType), pointer :: state_mgr => null()
-      type(ConfigManagerType), pointer :: config_manager => null()
-      type(ChemStateType), pointer :: chem_state => null()
-      type(MetStateType), pointer :: met_state => null()
       character(len=64), allocatable :: diag_species(:)
-      integer :: num_diag_species, i, j, species_idx
+      integer :: num_diag_species, i, j, species_idx, num_total_species, dims(3)
       character(len=64) :: species_name, field_name, units_str
       character(len=128) :: description
-      logical :: found_species, save_all_species
+      logical :: save_all_species, is_gas, is_aerosol
       real(fp), pointer :: conc_data(:,:,:) => null()
       real(fp), pointer :: converted_conc(:,:,:) => null()
       real(fp), pointer :: air_density(:,:,:) => null()
-      type(ESMF_Field) :: air_density_field
+      type(c_ptr) :: raw_airden_ptr
 
       ! Initialize return code
       rc = CC_SUCCESS
 
-      ! Get state manager from CATChem model
-      state_mgr => cc_wrap%catchem_model%get_state_manager()
-      if (.not. associated(state_mgr)) then
-         write(*,'(A)') 'Error: StateManager not available for chemistry diagnostics'
-         rc = CC_FAILURE
-         return
-      end if
-
-      ! Get configuration manager
-      config_manager => state_mgr%get_config_ptr()
-      if (.not. associated(config_manager)) then
-         write(*,'(A)') 'Error: ConfigManager not available for chemistry diagnostics'
-         rc = CC_FAILURE
-         return
-      end if
-
-      if (.not. config_manager%config_data%runtime%DiagEnabled) then
+      if (.not. cc_wrap%catchem_model%is_diag_enabled()) then
          ! Chemistry diagnostics not enabled, skip
          return
       end if
 
-      ! Get chemistry state
-      chem_state => state_mgr%get_chem_state_ptr()
-      if (.not. associated(chem_state)) then
-         write(*,'(A)') 'Error: ChemState not available for chemistry diagnostics'
-         rc = CC_FAILURE
-         return
-      end if
-
-      ! Get meteorology state for air density
-      met_state => state_mgr%get_met_state_ptr()
-      if (.not. associated(met_state)) then
-         write(*,'(A)') 'Error: MetState not available for chemistry diagnostics'
-         rc = CC_FAILURE
-         return
-      end if
+      dims = [cc_wrap%catchem_model%nx, cc_wrap%catchem_model%ny, cc_wrap%catchem_model%nz]
 
       ! Get diagnostic species configuration
-      if (allocated(config_manager%config_data%runtime%diag_species)) then
-         diag_species = config_manager%config_data%runtime%diag_species
-         num_diag_species = size(diag_species)
+      num_diag_species = cc_wrap%catchem_model%get_diag_species_count()
+      if (num_diag_species > 0) then
+         allocate(diag_species(num_diag_species))
+         do i = 1, num_diag_species
+            call cc_wrap%catchem_model%get_diag_species_at(i, diag_species(i))
+         end do
       else
          ! No species configured for diagnostics
          return
@@ -1506,51 +1283,54 @@ contains
       end if
 
       ! Get air density field for unit conversion
-      air_density => met_state%AIRDEN
+      raw_airden_ptr = catchem_state_get_pointer_3d(cc_wrap%catchem_model%state_mgr_ptr, "AIRDEN" // c_null_char)
+      if (.not. c_associated(raw_airden_ptr)) then
+         raw_airden_ptr = catchem_state_get_pointer_3d(cc_wrap%catchem_model%state_mgr_ptr, "AIRDEN_DRY" // c_null_char)
+      end if
+      if (c_associated(raw_airden_ptr)) then
+         call c_f_pointer(raw_airden_ptr, air_density, dims)
+      end if
+
+      num_total_species = catchem_state_get_species_count(cc_wrap%catchem_model%state_mgr_ptr)
 
       if (save_all_species) then
          ! Save all available chemical species
-         do i = 1, size(chem_state%ChemSpecies)
-            species_name = trim(chem_state%ChemSpecies(i)%short_name)
+         do i = 1, num_total_species
+            call catchem_state_get_species_name_at(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), species_name)
             field_name = 'conc_' // trim(species_name)
 
-            ! Set units and description based on species type
-            if (chem_state%ChemSpecies(i)%is_gas) then
+            is_gas = (catchem_state_is_species_gas(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int)) /= 0)
+            is_aerosol = (catchem_state_is_species_aerosol(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int)) /= 0)
+
+            if (is_gas) then
                units_str = 'ppm'
                description = 'Gas phase concentration of ' // trim(species_name)
-            else if (chem_state%ChemSpecies(i)%is_aerosol) then
+            else if (is_aerosol) then
                units_str = 'ug/m3'
                description = 'Aerosol mass concentration of ' // trim(species_name)
             else
-               ! Skip species that are neither gas nor aerosol
                cycle
             end if
 
-            ! Get concentration data
-            conc_data => chem_state%ChemSpecies(i)%conc
-            if (.not. associated(conc_data)) cycle
+            call cc_wrap%catchem_model%get_species_conc_ptr(i, conc_data, dims, rc)
+            if (rc /= 0 .or. .not. associated(conc_data)) cycle
 
-            ! Apply unit conversion if needed
-            if (chem_state%ChemSpecies(i)%is_aerosol) then
-               allocate(converted_conc(size(conc_data,1), size(conc_data,2), size(conc_data,3)))
+            if (is_aerosol .and. associated(air_density)) then
+               allocate(converted_conc(dims(1), dims(2), dims(3)))
                converted_conc = conc_data * air_density
-
-               ! Write the converted aerosol data
                call write_diagnostic_field(cc_wrap, field_name, DIAG_REAL_3D, 0.0_fp, &
-                  null(), null(), converted_conc, &
-                  trim(description), trim(units_str), filename, rc)
-
+                  array_3d_ptr=converted_conc, description=trim(description), &
+                  units=trim(units_str), filename=filename, rc=rc)
                deallocate(converted_conc)
             else
-               ! Write gas data directly (already in ppm)
                call write_diagnostic_field(cc_wrap, field_name, DIAG_REAL_3D, 0.0_fp, &
-                  null(), null(), conc_data, &
-                  trim(description), trim(units_str), filename, rc)
+                  array_3d_ptr=conc_data, description=trim(description), &
+                  units=trim(units_str), filename=filename, rc=rc)
             end if
 
             if (rc /= CC_SUCCESS) then
                write(*,'(A,A)') 'Warning: Failed to write diagnostics for species: ', trim(species_name)
-               rc = CC_SUCCESS  ! Continue with other species
+               rc = CC_SUCCESS
             end if
          end do
 
@@ -1558,29 +1338,22 @@ contains
          ! Save only specified species
          do i = 1, num_diag_species
             species_name = trim(diag_species(i))
-            found_species = .false.
+            species_idx = catchem_state_get_species_index(cc_wrap%catchem_model%state_mgr_ptr, trim(species_name) // c_null_char)
 
-            ! Find the species in the ChemSpecies array
-            do j = 1, size(chem_state%ChemSpecies)
-               if (trim(chem_state%ChemSpecies(j)%short_name) == species_name) then
-                  found_species = .true.
-                  species_idx = j
-                  exit
-               end if
-            end do
-
-            if (.not. found_species) then
+            if (species_idx <= 0) then
                write(*,'(A,A)') 'Warning: Requested diagnostic species not found: ', trim(species_name)
                cycle
             end if
 
             field_name = 'conc_' // trim(species_name)
 
-            ! Set units and description based on species type
-            if (chem_state%ChemSpecies(species_idx)%is_gas) then
+            is_gas = (catchem_state_is_species_gas(cc_wrap%catchem_model%state_mgr_ptr, int(species_idx, c_int)) /= 0)
+            is_aerosol = (catchem_state_is_species_aerosol(cc_wrap%catchem_model%state_mgr_ptr, int(species_idx, c_int)) /= 0)
+
+            if (is_gas) then
                units_str = 'ppm'
                description = 'Gas phase concentration of ' // trim(species_name)
-            else if (chem_state%ChemSpecies(species_idx)%is_aerosol) then
+            else if (is_aerosol) then
                units_str = 'ug/m3'
                description = 'Aerosol mass concentration of ' // trim(species_name)
             else
@@ -1588,34 +1361,28 @@ contains
                cycle
             end if
 
-            ! Get concentration data
-            conc_data => chem_state%ChemSpecies(species_idx)%conc
-            if (.not. associated(conc_data)) then
+            call cc_wrap%catchem_model%get_species_conc_ptr(species_idx, conc_data, dims, rc)
+            if (rc /= 0 .or. .not. associated(conc_data)) then
                write(*,'(A,A)') 'Warning: Concentration data not available for species: ', trim(species_name)
                cycle
             end if
 
-            ! Apply unit conversion if needed
-            if (chem_state%ChemSpecies(species_idx)%is_aerosol) then
-               allocate(converted_conc(size(conc_data,1), size(conc_data,2), size(conc_data,3)))
+            if (is_aerosol .and. associated(air_density)) then
+               allocate(converted_conc(dims(1), dims(2), dims(3)))
                converted_conc = conc_data * air_density
-
-               ! Write the converted aerosol data
                call write_diagnostic_field(cc_wrap, field_name, DIAG_REAL_3D, 0.0_fp, &
-                  array_3d_ptr=converted_conc, description = trim(description), &
-                  units = trim(units_str), filename = filename, rc = rc)
-
+                  array_3d_ptr=converted_conc, description=trim(description), &
+                  units=trim(units_str), filename=filename, rc=rc)
                deallocate(converted_conc)
             else
-               ! Write gas data directly (already in ppm)
                call write_diagnostic_field(cc_wrap, field_name, DIAG_REAL_3D, 0.0_fp, &
-                  array_3d_ptr=conc_data, description = trim(description), &
-                  units = trim(units_str), filename = filename, rc = rc)
+                  array_3d_ptr=conc_data, description=trim(description), &
+                  units=trim(units_str), filename=filename, rc=rc)
             end if
 
             if (rc /= CC_SUCCESS) then
                write(*,'(A,A)') 'Warning: Failed to write diagnostics for species: ', trim(species_name)
-               rc = CC_SUCCESS  ! Continue with other species
+               rc = CC_SUCCESS
             end if
          end do
       end if
@@ -1736,66 +1503,46 @@ contains
       real(fp), allocatable, intent(out) :: pm10(:,:,:)
       integer, intent(out) :: rc
 
-      type(StateManagerType), pointer :: state_mgr => null()
-      type(ChemStateType), pointer :: chem_state => null()
-      type(MetStateType), pointer :: met_state => null()
       real(fp), pointer :: air_density(:,:,:) => null()
       real(fp), pointer :: conc_data(:,:,:) => null()
-      integer :: i, ni, nj, nk
+      integer :: i, num_total_species, dims(3)
       real(fp) :: w25, w10
+      character(len=64) :: species_name
+      type(c_ptr) :: raw_airden_ptr
 
       rc = CC_SUCCESS
 
-      ! Get state manager and the chemistry / meteorology states
-      state_mgr => cc_wrap%catchem_model%get_state_manager()
-      if (.not. associated(state_mgr)) then
-         write(*,'(A)') 'Error: StateManager not available for PM diagnostics'
-         rc = CC_FAILURE
-         return
-      end if
+      dims = [cc_wrap%catchem_model%nx, cc_wrap%catchem_model%ny, cc_wrap%catchem_model%nz]
 
-      chem_state => state_mgr%get_chem_state_ptr()
-      if (.not. associated(chem_state)) then
-         write(*,'(A)') 'Error: ChemState not available for PM diagnostics'
-         rc = CC_FAILURE
-         return
+      raw_airden_ptr = catchem_state_get_pointer_3d(cc_wrap%catchem_model%state_mgr_ptr, "AIRDEN" // c_null_char)
+      if (.not. c_associated(raw_airden_ptr)) then
+         raw_airden_ptr = catchem_state_get_pointer_3d(cc_wrap%catchem_model%state_mgr_ptr, "AIRDEN_DRY" // c_null_char)
       end if
-
-      met_state => state_mgr%get_met_state_ptr()
-      if (.not. associated(met_state)) then
-         write(*,'(A)') 'Error: MetState not available for PM diagnostics'
-         rc = CC_FAILURE
-         return
-      end if
-
-      air_density => met_state%AIRDEN
-      if (.not. associated(air_density)) then
+      if (.not. c_associated(raw_airden_ptr)) then
          write(*,'(A)') 'Error: AIRDEN not available for PM diagnostics'
          rc = CC_FAILURE
          return
       end if
+      call c_f_pointer(raw_airden_ptr, air_density, dims)
 
-      ni = size(air_density, 1)
-      nj = size(air_density, 2)
-      nk = size(air_density, 3)
-
-      allocate(pm25(ni, nj, nk))
-      allocate(pm10(ni, nj, nk))
+      allocate(pm25(dims(1), dims(2), dims(3)))
+      allocate(pm10(dims(1), dims(2), dims(3)))
       pm25 = 0.0_fp
       pm10 = 0.0_fp
 
-      ! Weighted sum over all aerosol species
-      do i = 1, size(chem_state%ChemSpecies)
-         if (.not. chem_state%ChemSpecies(i)%is_aerosol) cycle
+      num_total_species = catchem_state_get_species_count(cc_wrap%catchem_model%state_mgr_ptr)
 
-         w25 = pm_tracer_weight(trim(chem_state%ChemSpecies(i)%short_name), 'PM25')
-         w10 = pm_tracer_weight(trim(chem_state%ChemSpecies(i)%short_name), 'PM10')
+      do i = 1, num_total_species
+         if (catchem_state_is_species_aerosol(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int)) == 0) cycle
+
+         call catchem_state_get_species_name_at(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), species_name)
+         w25 = pm_tracer_weight(trim(species_name), 'PM25')
+         w10 = pm_tracer_weight(trim(species_name), 'PM10')
          if (w25 == 0.0_fp .and. w10 == 0.0_fp) cycle
 
-         conc_data => chem_state%ChemSpecies(i)%conc
-         if (.not. associated(conc_data)) cycle
+         call cc_wrap%catchem_model%get_species_conc_ptr(i, conc_data, dims, rc)
+         if (rc /= 0 .or. .not. associated(conc_data)) cycle
 
-         ! conc_data (ug kg-1) * air_density (kg m-3) -> ug m-3
          if (w25 /= 0.0_fp) pm25 = pm25 + w25 * conc_data * air_density
          if (w10 /= 0.0_fp) pm10 = pm10 + w10 * conc_data * air_density
 

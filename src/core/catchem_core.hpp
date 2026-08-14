@@ -29,6 +29,10 @@ namespace catchem {
         std::shared_ptr<StateManager> state_mgr;                  ///< Reference-counted memory state.
         std::shared_ptr<DiagnosticManager> diag_mgr;              ///< Global diagnostics registry.
         std::vector<std::shared_ptr<ProcessInterface>> processes; ///< Scheduled physics processes.
+
+        /** @brief Creates and initializes the processes requested by configuration. */
+        void add_configured_processes();
+
     public:
         /**
          * @brief Constructs the Core with dimensions.
@@ -69,6 +73,9 @@ namespace catchem {
 
         /** @brief Get the diagnostic manager. */
         std::shared_ptr<DiagnosticManager> get_diagnostic_manager();
+
+        /** @brief Get the number of scheduled physics processes. */
+        std::size_t get_num_processes() const;
 
         /**
          * @brief Registers a new physics process into the simulation schedule.

@@ -1,9 +1,21 @@
 #pragma once
+#include <map>
 #include <string>
 #include <string_view>
+#include <vector>
 #include <yaml-cpp/yaml.h>
 
 namespace catchem {
+
+    /// @brief Basic simulation file and verbosity settings from YAML.
+    struct SimulationConfig {
+        std::string name;
+        std::string start_date;
+        std::string end_date;
+        std::string species_filename;
+        std::string emission_filename;
+        bool verbose_enabled = false;
+    };
 
     struct RuntimeConfig {
         int nx = 1;
@@ -13,10 +25,95 @@ namespace catchem {
         int nsteps = 1;
     };
 
+    /// @brief Grid dimensions and static grid settings from YAML.
+    struct GridConfig {
+        int number_of_levels = 1;
+        int number_of_soil_layers = 0;
+    };
+
+    /// @brief Runtime timestep settings from YAML.
+    struct TimestepConfig {
+        int transport_timestep_in_s = 0;
+        int chemistry_timestep_in_s = 0;
+    };
+
+    /// @brief Diagnostic output settings from YAML.
+    struct DiagnosticOutputConfig {
+        bool enabled = false;
+        std::string directory;
+        std::string prefix;
+        int frequency = 0;
+        std::string format;
+        int compress_lev = 0;
+        std::vector<std::string> diag_list;
+    };
+
+    /// @brief Diagnostic collection settings from YAML.
+    struct DiagnosticCollectionConfig {
+        bool enabled = false;
+        int buffer_size = 0;
+    };
+
+    /// @brief Top-level diagnostic settings from YAML.
+    struct DiagnosticsConfig {
+        DiagnosticOutputConfig output;
+        DiagnosticCollectionConfig collection;
+    };
+
+    /// @brief Process activation and nested process settings from YAML.
+    struct ProcessConfig {
+        bool activate = false;
+        bool diagnostics = false;
+        std::string scheme;
+        std::vector<std::string> diag_species;
+        YAML::Node settings;
+    };
+
+    /// @brief Species metadata loaded from a CATChem species YAML file.
+    struct SpeciesConfig {
+        std::string name;
+        std::string long_name;
+        std::string description;
+        double molecular_weight_kg_mol = 0.0;
+        double density = 0.0;
+        double radius = 0.0;
+        double lower_radius = 0.0;
+        double upper_radius = 0.0;
+        double viscosity = 0.0;
+        bool is_gas = false;
+        bool is_aerosol = false;
+        bool is_dust = false;
+        bool is_drydep = false;
+        bool is_wetdep = false;
+        bool is_advected = true;
+        bool is_photolysis = false;
+        std::string mie_name;
+    };
+
+    /// @brief Mapping for one external emission source field.
+    struct EmissionFieldMapping {
+        std::string long_name;
+        std::string units;
+        std::vector<double> scale;
+        std::vector<std::string> map;
+    };
+
+    /// @brief Emission mapping category from a CATChem emission YAML file.
+    struct EmissionCategoryMapping {
+        std::map<std::string, EmissionFieldMapping> fields;
+    };
+
     struct ConfigData {
+        SimulationConfig simulation;
         RuntimeConfig runtime;
+        GridConfig grid;
+        TimestepConfig timesteps;
+        DiagnosticsConfig diagnostics;
         std::string species_filename; ///< simulation:species_filename, as written in the YAML
-        // We can add FilePathConfig, etc. here later
+        std::vector<std::string> active_processes;
+        std::map<std::string, ProcessConfig> processes;
+        std::vector<SpeciesConfig> species;
+        std::map<std::string, EmissionCategoryMapping> emission_mappings;
     };
 
     class ConfigManager {
@@ -28,9 +125,20 @@ namespace catchem {
 
         ConfigManager() = default;
         void load_from_file(const std::string& filename);
+        void load_species_file(const std::string& filename);
+        void load_emission_mapping_file(const std::string& filename);
 
         YAML::Node get_process_config(std::string_view process_name) const {
-            if (is_loaded && root_node["process"]) {
+            if (!is_loaded) {
+                return YAML::Node();
+            }
+            if (root_node["processes"]) {
+                std::string key(process_name);
+                if (root_node["processes"][key]) {
+                    return root_node["processes"][key];
+                }
+            }
+            if (root_node["process"]) {
                 std::string key(process_name);
                 if (root_node["process"][key]) {
                     return root_node["process"][key];

@@ -1,4 +1,5 @@
 #include "catchem_core.hpp"
+#include "catchem_process_registry.hpp"
 #include <iostream>
 
 namespace {
@@ -73,6 +74,7 @@ namespace catchem {
         diag_mgr = std::make_shared<DiagnosticManager>();
         state_mgr->diag_mgr = diag_mgr;
         load_configured_species(*state_mgr, config_file, config_mgr->data.species_filename);
+        add_configured_processes();
     }
 
     Core::Core(const std::string& config_file, int nc, int nl) {
@@ -93,6 +95,7 @@ namespace catchem {
         diag_mgr = std::make_shared<DiagnosticManager>();
         state_mgr->diag_mgr = diag_mgr;
         load_configured_species(*state_mgr, config_file, config_mgr->data.species_filename);
+        add_configured_processes();
     }
 
     std::shared_ptr<ConfigManager> Core::get_config_manager() {
@@ -109,6 +112,19 @@ namespace catchem {
 
     std::shared_ptr<DiagnosticManager> Core::get_diagnostic_manager() {
         return diag_mgr;
+    }
+
+    std::size_t Core::get_num_processes() const {
+        return processes.size();
+    }
+
+    void Core::add_configured_processes() {
+        auto& registry = ProcessRegistry::get_instance();
+        for (const auto& process_name : config_mgr->data.active_processes) {
+            auto process = registry.create(process_name);
+            process->init(state_mgr);
+            add_process(process);
+        }
     }
 
     void Core::add_process(std::shared_ptr<ProcessInterface> process) {

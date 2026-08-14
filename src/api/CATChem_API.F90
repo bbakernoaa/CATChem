@@ -9,7 +9,6 @@
 module CATChem_API
    use iso_c_binding
    use precision_mod, only: fp
-   use StateManager_Mod, only: StateManagerType
 
    implicit none
    private
@@ -37,6 +36,27 @@ module CATChem_API
          type(c_ptr), value :: core_ptr
       end subroutine
 
+      subroutine catchem_register_carbchem_cpp() bind(C, name="catchem_register_carbchem_cpp")
+      end subroutine
+
+      subroutine catchem_register_drydep_cpp() bind(C, name="catchem_register_drydep_cpp")
+      end subroutine
+
+      subroutine catchem_register_dust_cpp() bind(C, name="catchem_register_dust_cpp")
+      end subroutine
+
+      subroutine catchem_register_seasalt_cpp() bind(C, name="catchem_register_seasalt_cpp")
+      end subroutine
+
+      subroutine catchem_register_settling_cpp() bind(C, name="catchem_register_settling_cpp")
+      end subroutine
+
+      subroutine catchem_register_so4chem_cpp() bind(C, name="catchem_register_so4chem_cpp")
+      end subroutine
+
+      subroutine catchem_register_wetdep_cpp() bind(C, name="catchem_register_wetdep_cpp")
+      end subroutine
+
       type(c_ptr) function catchem_core_get_state_manager(core_ptr) bind(C, name="catchem_core_get_state_manager")
          import :: c_ptr
          type(c_ptr), value :: core_ptr
@@ -47,6 +67,11 @@ module CATChem_API
          type(c_ptr), value :: core_ptr
          character(kind=c_char), intent(in) :: name(*)
       end subroutine
+
+      integer(c_int) function catchem_core_get_num_processes(core_ptr) bind(C, name="catchem_core_get_num_processes")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
 
       subroutine catchem_core_run_timestep(core_ptr, dt) bind(C, name="catchem_core_run_timestep")
          import :: c_ptr, c_double
@@ -84,6 +109,13 @@ module CATChem_API
          type(c_ptr), value :: state_ptr
       end subroutine
 
+      type(c_ptr) function catchem_state_get_species_conc_pointer(state_ptr, index) &
+         bind(C, name="catchem_state_get_species_conc_pointer")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+      end function
+
       subroutine catchem_get_grid_dimensions(core_ptr, nx, ny, nz) bind(C, name="catchem_get_grid_dimensions")
          import :: c_ptr, c_int
          type(c_ptr), value :: core_ptr
@@ -92,6 +124,74 @@ module CATChem_API
 
       real(c_double) function catchem_get_config_timestep(core_ptr) bind(C, name="catchem_get_config_timestep")
          import :: c_ptr, c_double
+         type(c_ptr), value :: core_ptr
+      end function
+
+      integer(c_int) function catchem_config_get_output_frequency(core_ptr) &
+         bind(C, name="catchem_config_get_output_frequency")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      integer(c_int) function catchem_config_get_compress_level(core_ptr) &
+         bind(C, name="catchem_config_get_compress_level")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      subroutine catchem_config_get_output_directory(core_ptr, buffer, max_len) &
+         bind(C, name="catchem_config_get_output_directory")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(out) :: buffer(*)
+         integer(c_int), value :: max_len
+      end subroutine
+
+      subroutine catchem_config_get_output_prefix(core_ptr, buffer, max_len) &
+         bind(C, name="catchem_config_get_output_prefix")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(out) :: buffer(*)
+         integer(c_int), value :: max_len
+      end subroutine
+
+      integer(c_int) function catchem_config_get_latlon_output(core_ptr) &
+         bind(C, name="catchem_config_get_latlon_output")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      integer(c_int) function catchem_config_get_diag_enabled(core_ptr) &
+         bind(C, name="catchem_config_get_diag_enabled")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      integer(c_int) function catchem_config_get_diag_species_count(core_ptr) &
+         bind(C, name="catchem_config_get_diag_species_count")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      subroutine catchem_config_get_diag_species_at(core_ptr, index, buffer, max_len) &
+         bind(C, name="catchem_config_get_diag_species_at")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: index
+         character(kind=c_char), intent(out) :: buffer(*)
+         integer(c_int), value :: max_len
+      end subroutine
+
+      integer(c_int) function catchem_config_get_process_active(core_ptr, process_name) &
+         bind(C, name="catchem_config_get_process_active")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: process_name(*)
+      end function
+
+      integer(c_int) function catchem_config_has_emission_mapping(core_ptr) &
+         bind(C, name="catchem_config_has_emission_mapping")
+         import :: c_ptr, c_int
          type(c_ptr), value :: core_ptr
       end function
 
@@ -146,10 +246,6 @@ module CATChem_API
    type :: CATChem_Model
       type(c_ptr) :: cpp_core_ptr = c_null_ptr
       type(c_ptr) :: state_mgr_ptr = c_null_ptr
-      !> Fortran-facing state facade over the C++-owned state: sub-states are
-      !> allocated and their met arrays bound into the C++ StateManager by
-      !> model_initialize; get_state_manager returns this instance.
-      type(StateManagerType), pointer :: facade => null()
       character(len=64), allocatable, public :: required_fields(:)
       integer :: nx = 0
       integer :: ny = 0
@@ -165,6 +261,7 @@ module CATChem_API
       procedure :: get_diagnostic => model_get_diagnostic
       procedure :: register_diagnostic => model_register_diagnostic
       procedure :: get_diagnostic_ptr => model_get_diagnostic_ptr
+      procedure :: get_species_conc_ptr => model_get_species_conc_ptr
       procedure :: get_diag_index_from_field => model_get_diag_index_from_field
       procedure :: get_required_met_index => model_get_required_met_index
       procedure :: get_grid_dimensions => model_get_grid_dimensions
@@ -174,8 +271,16 @@ module CATChem_API
       procedure :: bind_unified_chemistry_3d => model_bind_unified_chemistry_3d
       procedure :: bind_unified_chemistry_4d => model_bind_unified_chemistry_4d
       generic :: bind_unified_chemistry => bind_unified_chemistry_3d, bind_unified_chemistry_4d
-      procedure :: get_diagnostic_manager => model_get_diagnostic_manager
-      procedure :: get_state_manager => model_get_state_manager
+      procedure :: get_output_frequency => model_get_output_frequency
+      procedure :: get_compress_level => model_get_compress_level
+      procedure :: get_output_directory => model_get_output_directory
+      procedure :: get_output_prefix => model_get_output_prefix
+      procedure :: is_latlon_output_enabled => model_is_latlon_output_enabled
+      procedure :: is_diag_enabled => model_is_diag_enabled
+      procedure :: get_diag_species_count => model_get_diag_species_count
+      procedure :: get_diag_species_at => model_get_diag_species_at
+      procedure :: is_process_active => model_is_process_active
+      procedure :: has_emission_mapping => model_has_emission_mapping
    end type CATChem_Model
 
 contains
@@ -205,10 +310,15 @@ contains
 
       call to_c_string(config_file, c_filename)
 
-      ! Configuration (species, processes, runtime options) comes from the
-      ! YAML; grid dimensions are dictated by the host (e.g. UFS per-rank
-      ! domain decomposition) — the YAML grid section applies to standalone
-      ! runs only. Columns are flattened as nx*ny.
+      call catchem_register_carbchem_cpp()
+      call catchem_register_drydep_cpp()
+      call catchem_register_dust_cpp()
+      call catchem_register_seasalt_cpp()
+      call catchem_register_settling_cpp()
+      call catchem_register_so4chem_cpp()
+      call catchem_register_wetdep_cpp()
+
+      ! Configuration comes from YAML; grid dimensions are dictated by host
       this%cpp_core_ptr = catchem_core_create_from_config_with_grid( &
          c_filename, int(nx*ny, c_int), int(nz, c_int))
       if (.not. c_associated(this%cpp_core_ptr)) then
@@ -223,116 +333,9 @@ contains
       this%ny = ny
       this%nz = nz
 
-      ! Construct the Fortran state facade over the C++-owned state: allocate
-      ! the sub-state containers, allocate the Fortran-owned met arrays, and
-      ! bind them into the C++ StateManager so both sides share buffers.
-      call model_build_facade(this, nx, ny, nz, nsoil, nsoiltype, nsurftype, rc)
-      if (rc /= 0) return
-
       this%initialized = .true.
       rc = 0
    end subroutine model_initialize
-
-   !> Allocate the Fortran state facade and bind its met arrays into the
-   !> C++ StateManager. After this, StateManagerType getters return live
-   !> sub-states and get_cpp_field retrievals resolve to the same memory.
-   subroutine model_build_facade(this, nx, ny, nz, nsoil, nsoiltype, nsurftype, rc)
-      use MetState_Mod, only: MetStateType
-      use species_mod, only: populate_species_from_cpp
-      class(CATChem_Model), intent(inout) :: this
-      integer, intent(in) :: nx, ny, nz
-      integer, intent(in), optional :: nsoil, nsoiltype, nsurftype
-      integer, intent(out) :: rc
-
-      type(MetStateType), pointer :: met
-      integer :: n_species, is
-
-      allocate(this%facade)
-      this%facade%cpp_ptr = this%state_mgr_ptr
-
-      allocate(this%facade%error_mgr)
-      allocate(this%facade%time_state)
-      allocate(this%facade%chem_state)
-      allocate(this%facade%config_mgr)
-      allocate(this%facade%met_state)
-
-      ! Geometry + allocation of all core met arrays (Fortran-owned)
-      call this%facade%met_state%init(nx, ny, nz, nsoil, nsoiltype, nsurftype, &
-         this%facade%error_mgr, rc)
-      if (rc /= 0) return
-
-      met => this%facade%met_state
-
-      ! Optional surface fields retrieved by get_met_state_ptr but not part of
-      ! the 'ALL' allocation set
-      if (.not. associated(met%FROCEAN)) allocate(met%FROCEAN(nx, ny))
-      if (.not. associated(met%FRSEAICE)) allocate(met%FRSEAICE(nx, ny))
-      if (.not. associated(met%SST)) allocate(met%SST(nx, ny))
-
-      ! Bind every array that get_met_state_ptr retrieves, so retrieval
-      ! resolves to this same memory instead of nullifying the members.
-      call bind_met_3d_ptr(this, "T", met%T)
-      call bind_met_3d_ptr(this, "QV", met%QV)
-      call bind_met_3d_ptr(this, "RH", met%RH)
-      call bind_met_3d_ptr(this, "PMID", met%PMID)
-      call bind_met_3d_ptr(this, "PEDGE", met%PEDGE)
-      call bind_met_3d_ptr(this, "AIRDEN", met%AIRDEN)
-      call bind_met_3d_ptr(this, "AIRDEN_DRY", met%AIRDEN_DRY)
-      call bind_met_3d_ptr(this, "BXHEIGHT", met%BXHEIGHT)
-      call bind_met_3d_ptr(this, "DELP", met%DELP)
-      call bind_met_3d_ptr(this, "DELP_DRY", met%DELP_DRY)
-
-      call bind_met_2d_ptr(this, "PS", met%PS)
-      call bind_met_2d_ptr(this, "TS", met%TS)
-      call bind_met_2d_ptr(this, "PBLH", met%PBLH)
-      call bind_met_2d_ptr(this, "USTAR", met%USTAR)
-      call bind_met_2d_ptr(this, "HFLUX", met%HFLUX)
-      call bind_met_2d_ptr(this, "OBK", met%OBK)
-      call bind_met_2d_ptr(this, "LAT", met%LAT)
-      call bind_met_2d_ptr(this, "LON", met%LON)
-      call bind_met_2d_ptr(this, "Z0", met%Z0)
-      call bind_met_2d_ptr(this, "AREA_M2", met%AREA_M2)
-      call bind_met_2d_ptr(this, "FROCEAN", met%FROCEAN)
-      call bind_met_2d_ptr(this, "FRSEAICE", met%FRSEAICE)
-      call bind_met_2d_ptr(this, "SST", met%SST)
-
-      ! Chem facade: mirror the C++ species list (loaded by the core from the
-      ! config's species_filename) into the Fortran ChemSpecies metadata.
-      n_species = int(catchem_state_get_species_count(this%state_mgr_ptr))
-      if (n_species > 0) then
-         call this%facade%chem_state%init(n_species, this%facade%error_mgr, rc)
-         if (rc /= 0) return
-         do is = 1, n_species
-            call populate_species_from_cpp( &
-               this%facade%chem_state%ChemSpecies(is), this%state_mgr_ptr, is, rc)
-            if (rc /= 0) return
-         end do
-      end if
-
-      rc = 0
-   end subroutine model_build_facade
-
-   !> Bind a Fortran-owned 3D pointer array into the C++ StateManager.
-   subroutine bind_met_3d_ptr(this, name, arr)
-      class(CATChem_Model), intent(inout) :: this
-      character(len=*), intent(in) :: name
-      real(fp), pointer, intent(in) :: arr(:,:,:)
-      character(kind=c_char) :: c_name(64)
-      if (.not. associated(arr)) return
-      call to_c_string(name, c_name)
-      call catchem_state_bind_met_3d(this%state_mgr_ptr, c_name, c_loc(arr))
-   end subroutine bind_met_3d_ptr
-
-   !> Bind a Fortran-owned 2D pointer array into the C++ StateManager.
-   subroutine bind_met_2d_ptr(this, name, arr)
-      class(CATChem_Model), intent(inout) :: this
-      character(len=*), intent(in) :: name
-      real(fp), pointer, intent(in) :: arr(:,:)
-      character(kind=c_char) :: c_name(64)
-      if (.not. associated(arr)) return
-      call to_c_string(name, c_name)
-      call catchem_state_bind_met_2d(this%state_mgr_ptr, c_name, c_loc(arr))
-   end subroutine bind_met_2d_ptr
 
    ! Finalize model and release memory
    subroutine model_finalize(this, rc)
@@ -344,16 +347,6 @@ contains
          this%cpp_core_ptr = c_null_ptr
          this%state_mgr_ptr = c_null_ptr
       end if
-      ! Release the facade containers (their pointer-array members are
-      ! intentionally left to process teardown; the C++ side never owned them)
-      if (associated(this%facade)) then
-         if (associated(this%facade%met_state)) deallocate(this%facade%met_state)
-         if (associated(this%facade%chem_state)) deallocate(this%facade%chem_state)
-         if (associated(this%facade%config_mgr)) deallocate(this%facade%config_mgr)
-         if (associated(this%facade%error_mgr)) deallocate(this%facade%error_mgr)
-         if (associated(this%facade%time_state)) deallocate(this%facade%time_state)
-         deallocate(this%facade)
-      end if
       this%initialized = .false.
       rc = 0
    end subroutine model_finalize
@@ -363,8 +356,11 @@ contains
       class(CATChem_Model), intent(inout) :: this
       integer, intent(out) :: rc
 
-      ! Process registration and instantiation are managed dynamically in the modern C++ orchestrator
-      rc = 0
+      if (c_associated(this%cpp_core_ptr)) then
+         rc = 0
+      else
+         rc = -1
+      end if
    end subroutine model_add_process
 
    ! Get number of active processes
@@ -372,8 +368,7 @@ contains
       class(CATChem_Model), intent(inout) :: this
       integer :: num_processes
 
-      ! Dummy backward compatible process count
-      num_processes = 7
+      num_processes = int(catchem_core_get_num_processes(this%cpp_core_ptr))
    end function model_get_num_processes
 
    ! Execute standard timestep
@@ -504,7 +499,7 @@ contains
    subroutine model_bind_met_3d(this, name, arr)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: name
-      real(c_double), target, intent(in) :: arr(:,:,:)
+      real(c_double), target, contiguous, intent(in) :: arr(:,:,:)
 
       character(kind=c_char) :: c_name(64)
 
@@ -516,7 +511,7 @@ contains
    subroutine model_bind_met_2d(this, name, arr)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: name
-      real(c_double), target, intent(in) :: arr(:,:)
+      real(c_double), target, contiguous, intent(in) :: arr(:,:)
 
       character(kind=c_char) :: c_name(64)
 
@@ -527,7 +522,7 @@ contains
    ! Bind unified chemical concentrations 3D array
    subroutine model_bind_unified_chemistry_3d(this, arr)
       class(CATChem_Model), intent(inout) :: this
-      real(c_double), target, intent(in) :: arr(:,:,:)
+      real(c_double), target, contiguous, intent(in) :: arr(:,:,:)
 
       call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr))
    end subroutine model_bind_unified_chemistry_3d
@@ -535,7 +530,7 @@ contains
    ! Bind unified chemical concentrations 4D array
    subroutine model_bind_unified_chemistry_4d(this, arr)
       class(CATChem_Model), intent(inout) :: this
-      real(c_double), target, intent(in) :: arr(:,:,:,:)
+      real(c_double), target, contiguous, intent(in) :: arr(:,:,:,:)
 
       call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr))
    end subroutine model_bind_unified_chemistry_4d
@@ -559,6 +554,23 @@ contains
       rc = 0
    end subroutine model_register_diagnostic
 
+   subroutine model_get_species_conc_ptr(this, species_index, ptr3d, dims, rc)
+      class(CATChem_Model), intent(inout) :: this
+      integer, intent(in) :: species_index
+      real(fp), pointer, intent(out) :: ptr3d(:,:,:)
+      integer, intent(in) :: dims(3)
+      integer, intent(out) :: rc
+      type(c_ptr) :: raw_ptr
+
+      rc = -1
+      nullify(ptr3d)
+      if (.not. c_associated(this%state_mgr_ptr)) return
+      raw_ptr = catchem_state_get_species_conc_pointer(this%state_mgr_ptr, int(species_index, c_int))
+      if (.not. c_associated(raw_ptr)) return
+      call c_f_pointer(raw_ptr, ptr3d, dims)
+      rc = 0
+   end subroutine model_get_species_conc_ptr
+
    ! Map the C++-owned storage of a registered 3D diagnostic for in-place
    ! writes (zero-copy; the same memory NUOPC export and NetCDF output read)
    subroutine model_get_diagnostic_ptr(this, name, ptr3d, dims, rc)
@@ -581,28 +593,89 @@ contains
       rc = 0
    end subroutine model_get_diagnostic_ptr
 
-   ! Get pointer to the legacy Fortran DiagnosticManager shell.
-   ! NOTE: DiagnosticManager_Mod is a stub (empty process list); the live
-   ! diagnostics system is the C++ DiagnosticManager reached via
-   ! register_diagnostic/get_diagnostic_ptr/get_diagnostic. Retained only
-   ! for the NetCDF diagnostics-write path, which tolerates the stub.
-   function model_get_diagnostic_manager(this) result(ptr)
-      use DiagnosticManager_Mod, only: DiagnosticManagerType
-      class(CATChem_Model), intent(inout) :: this
-      type(DiagnosticManagerType), pointer :: ptr
-      type(DiagnosticManagerType), save, target :: saved_diag_mgr
-      ptr => saved_diag_mgr
-   end function model_get_diagnostic_manager
+   function model_get_output_frequency(this) result(freq)
+      class(CATChem_Model), intent(in) :: this
+      integer :: freq
+      freq = int(catchem_config_get_output_frequency(this%cpp_core_ptr))
+   end function model_get_output_frequency
 
-   ! Get pointer to the Fortran state facade (constructed by initialize)
-   function model_get_state_manager(this) result(ptr)
-      class(CATChem_Model), intent(inout) :: this
-      type(StateManagerType), pointer :: ptr
-      if (.not. associated(this%facade)) then
-         error stop "CATChem_Model%get_state_manager: model not initialized "// &
-            "(CATChem_Model%initialize constructs the state facade)"
-      end if
-      ptr => this%facade
-   end function model_get_state_manager
+   function model_get_compress_level(this) result(clev)
+      class(CATChem_Model), intent(in) :: this
+      integer :: clev
+      clev = int(catchem_config_get_compress_level(this%cpp_core_ptr))
+   end function model_get_compress_level
+
+   subroutine model_get_output_directory(this, dir_out)
+      class(CATChem_Model), intent(in) :: this
+      character(len=*), intent(out) :: dir_out
+      character(kind=c_char) :: c_buf(256)
+      integer :: i
+      call catchem_config_get_output_directory(this%cpp_core_ptr, c_buf, 256_c_int)
+      dir_out = ""
+      do i = 1, 256
+         if (c_buf(i) == c_null_char) exit
+         dir_out(i:i) = c_buf(i)
+      end do
+   end subroutine model_get_output_directory
+
+   subroutine model_get_output_prefix(this, prefix_out)
+      class(CATChem_Model), intent(in) :: this
+      character(len=*), intent(out) :: prefix_out
+      character(kind=c_char) :: c_buf(256)
+      integer :: i
+      call catchem_config_get_output_prefix(this%cpp_core_ptr, c_buf, 256_c_int)
+      prefix_out = ""
+      do i = 1, 256
+         if (c_buf(i) == c_null_char) exit
+         prefix_out(i:i) = c_buf(i)
+      end do
+   end subroutine model_get_output_prefix
+
+   function model_is_latlon_output_enabled(this) result(enabled)
+      class(CATChem_Model), intent(in) :: this
+      logical :: enabled
+      enabled = (catchem_config_get_latlon_output(this%cpp_core_ptr) /= 0_c_int)
+   end function model_is_latlon_output_enabled
+
+   function model_is_diag_enabled(this) result(enabled)
+      class(CATChem_Model), intent(in) :: this
+      logical :: enabled
+      enabled = (catchem_config_get_diag_enabled(this%cpp_core_ptr) /= 0_c_int)
+   end function model_is_diag_enabled
+
+   function model_get_diag_species_count(this) result(count)
+      class(CATChem_Model), intent(in) :: this
+      integer :: count
+      count = int(catchem_config_get_diag_species_count(this%cpp_core_ptr))
+   end function model_get_diag_species_count
+
+   subroutine model_get_diag_species_at(this, index, species_name)
+      class(CATChem_Model), intent(in) :: this
+      integer, intent(in) :: index
+      character(len=*), intent(out) :: species_name
+      character(kind=c_char) :: c_buf(128)
+      integer :: i
+      call catchem_config_get_diag_species_at(this%cpp_core_ptr, int(index - 1, c_int), c_buf, 128_c_int)
+      species_name = ""
+      do i = 1, 128
+         if (c_buf(i) == c_null_char) exit
+         species_name(i:i) = c_buf(i)
+      end do
+   end subroutine model_get_diag_species_at
+
+   function model_is_process_active(this, process_name) result(active)
+      class(CATChem_Model), intent(in) :: this
+      character(len=*), intent(in) :: process_name
+      logical :: active
+      character(kind=c_char) :: c_name(128)
+      call to_c_string(process_name, c_name)
+      active = (catchem_config_get_process_active(this%cpp_core_ptr, c_name) /= 0_c_int)
+   end function model_is_process_active
+
+   function model_has_emission_mapping(this) result(has_mapping)
+      class(CATChem_Model), intent(in) :: this
+      logical :: has_mapping
+      has_mapping = (catchem_config_has_emission_mapping(this%cpp_core_ptr) /= 0_c_int)
+   end function model_has_emission_mapping
 
 end module CATChem_API

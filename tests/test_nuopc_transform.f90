@@ -8,24 +8,32 @@
 !! asserting success and the Z0 cm->m conversion landing in the met
 !! state (the 2026-08-11 first-timestep abort regression).
 program test_nuopc_transform
+   use iso_c_binding, only: c_ptr, c_char, c_double, c_associated, c_f_pointer, c_null_char
    use ESMF
    use catchem_nuopc_interface, only: load_field_config, transform_nuopc_to_catchem, &
       field_config, cc_wrap_type, update_pm_diagnostics
-   use StateManager_Mod, only: StateManagerType
-   use MetState_Mod, only: MetStateType
    use Error_Mod, only: CC_SUCCESS
    use precision_mod, only: fp
+
    implicit none
+
+   interface
+      type(c_ptr) function catchem_state_get_pointer_2d(state_ptr, name) bind(C, name="catchem_state_get_pointer_2d")
+         import :: c_ptr, c_char
+         type(c_ptr), value :: state_ptr
+         character(kind=c_char), intent(in) :: name(*)
+      end function
+   end interface
 
    integer, parameter :: nx = 4, ny = 2, nz = 5, ntr = 2
    type(cc_wrap_type) :: cc_wrap
-   type(StateManagerType), pointer :: sm
-   type(MetStateType), pointer :: met
    type(ESMF_Grid) :: grid
    type(ESMF_State) :: importState
    type(ESMF_Field) :: field
    type(ESMF_Time) :: currTime
    real(ESMF_KIND_R8), pointer :: fptr2(:, :), fptr3(:, :, :), fptr4(:, :, :, :)
+   real(c_double), pointer :: z0_ptr(:,:) => null()
+   type(c_ptr) :: raw_z0_ptr
    character(len=256) :: errmsg
    integer :: rc, i, nzf
 
@@ -59,8 +67,6 @@ program test_nuopc_transform
    call check(rc, "StateCreate")
 
    do i = 1, cc_wrap%field_config%n_import_fields
-      if (cc_wrap%field_config%import_fields(i)%optional) cycle
-
       select case (cc_wrap%field_config%import_fields(i)%dimensions)
        case (2)
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
@@ -110,15 +116,15 @@ program test_nuopc_transform
    end if
    print *, 'PASS: transform_nuopc_to_catchem over the full required mapping'
 
-   ! 5. Z0 must have landed, converted, in the met state
-   sm => cc_wrap%catchem_model%get_state_manager()
-   met => sm%get_met_state_ptr()
-   if (.not. associated(met%Z0)) then
-      print *, 'FAIL: Z0 not allocated in met state after transform'
+   ! 5. Z0 must have landed in the C++ met state
+   raw_z0_ptr = catchem_state_get_pointer_2d(cc_wrap%catchem_model%state_mgr_ptr, "Z0" // c_null_char)
+   if (.not. c_associated(raw_z0_ptr)) then
+      print *, 'FAIL: Z0 not bound in C++ met state after transform'
       error stop 1
    end if
-   if (abs(met%Z0(1, 1) - 1.5_fp) > 1.0e-12_fp) then
-      print *, 'FAIL: Z0 cm->m conversion not applied:', met%Z0(1, 1)
+   call c_f_pointer(raw_z0_ptr, z0_ptr, [nx, ny])
+   if (abs(z0_ptr(1, 1) - 1.5_fp) > 1.0e-12_fp) then
+      print *, 'FAIL: Z0 cm->m conversion not applied:', z0_ptr(1, 1)
       error stop 1
    end if
    print *, 'PASS: Z0 converted (150 cm -> 1.5 m) and stored'

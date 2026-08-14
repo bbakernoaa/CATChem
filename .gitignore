@@ -9,6 +9,11 @@ docs2/latex/
 # Mac
 .DS_Store
 ._.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
 
 # Possible non-default docs build dir
 docs/_build/

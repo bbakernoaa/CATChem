@@ -6,6 +6,56 @@
 #include "catchem_unit_conversion.hpp"
 #include <cstring>
 #include <iostream>
+#include <sstream>
+
+#if defined(__GNUC__) || defined(__clang__)
+#define CATCHEM_WEAK_SYMBOL __attribute__((weak))
+#else
+#define CATCHEM_WEAK_SYMBOL
+#endif
+
+extern "C" {
+void catchem_register_carbchem_cpp() CATCHEM_WEAK_SYMBOL;
+void catchem_register_drydep_cpp() CATCHEM_WEAK_SYMBOL;
+void catchem_register_dust_cpp() CATCHEM_WEAK_SYMBOL;
+void catchem_register_seasalt_cpp() CATCHEM_WEAK_SYMBOL;
+void catchem_register_settling_cpp() CATCHEM_WEAK_SYMBOL;
+void catchem_register_so4chem_cpp() CATCHEM_WEAK_SYMBOL;
+void catchem_register_wetdep_cpp() CATCHEM_WEAK_SYMBOL;
+}
+
+namespace {
+
+    static void copy_string_to_buffer(const std::string& src, char* buffer, int max_len) {
+        if (buffer == nullptr || max_len <= 0)
+            return;
+        std::strncpy(buffer, src.c_str(), max_len - 1);
+        buffer[max_len - 1] = '\0';
+    }
+
+    void register_builtin_processes() {
+        static bool registered = false;
+        if (registered) {
+            return;
+        }
+        if (catchem_register_carbchem_cpp)
+            catchem_register_carbchem_cpp();
+        if (catchem_register_drydep_cpp)
+            catchem_register_drydep_cpp();
+        if (catchem_register_dust_cpp)
+            catchem_register_dust_cpp();
+        if (catchem_register_seasalt_cpp)
+            catchem_register_seasalt_cpp();
+        if (catchem_register_settling_cpp)
+            catchem_register_settling_cpp();
+        if (catchem_register_so4chem_cpp)
+            catchem_register_so4chem_cpp();
+        if (catchem_register_wetdep_cpp)
+            catchem_register_wetdep_cpp();
+        registered = true;
+    }
+
+} // namespace
 
 extern "C" {
 
@@ -15,6 +65,7 @@ void* catchem_core_create(int nc, int nl, int ns) {
 
 void* catchem_core_create_from_config(const char* config_file) {
     try {
+        register_builtin_processes();
         return static_cast<void*>(new catchem::Core(config_file));
     } catch (const std::exception& e) {
         std::cerr << "CATChem API Error: Failed to create Core from config '" << config_file
@@ -25,6 +76,7 @@ void* catchem_core_create_from_config(const char* config_file) {
 
 void* catchem_core_create_from_config_with_grid(const char* config_file, int ncols, int nlevels) {
     try {
+        register_builtin_processes();
         return static_cast<void*>(new catchem::Core(config_file, ncols, nlevels));
     } catch (const std::exception& e) {
         std::cerr << "CATChem API Error: Failed to create Core from config '" << config_file << "' with grid (" << ncols
@@ -109,6 +161,17 @@ double* catchem_state_get_pointer_3d(void* state_ptr, const char* name) {
     return state->get_host_pointer_3d(name);
 }
 
+double* catchem_state_get_species_conc_pointer(void* state_ptr, int species_index) {
+    if (state_ptr == nullptr)
+        return nullptr;
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = species_index - 1;
+    if (state->chem.conc && state->chem.conc->host_data() && idx_0 >= 0 && idx_0 < state->n_species) {
+        return state->chem.conc->host_data() + static_cast<size_t>(idx_0) * state->n_cols * state->n_levels;
+    }
+    return nullptr;
+}
+
 void catchem_core_run_timestep(void* core_ptr, double dt) {
     try {
         auto* core = static_cast<catchem::Core*>(core_ptr);
@@ -119,10 +182,19 @@ void catchem_core_run_timestep(void* core_ptr, double dt) {
 }
 
 void catchem_core_add_process_by_name(void* core_ptr, const char* name) {
+    register_builtin_processes();
     auto* core = static_cast<catchem::Core*>(core_ptr);
     auto process = catchem::ProcessRegistry::get_instance().create(name);
     process->init(core->get_state_manager());
     core->add_process(process);
+}
+
+int catchem_core_get_num_processes(void* core_ptr) {
+    if (core_ptr == nullptr) {
+        return 0;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return static_cast<int>(core->get_num_processes());
 }
 
 void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1,
@@ -247,6 +319,118 @@ int catchem_state_is_species_aerosol(void* state_ptr, int index) {
     return 0;
 }
 
+void catchem_state_get_species_name_at(void* state_ptr, int index, char* name_out) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        copy_string_to_buffer(state->chem.species_list[idx_0].short_name, name_out, 64);
+    } else {
+        copy_string_to_buffer("", name_out, 64);
+    }
+}
+
+void catchem_state_get_species_long_name_at(void* state_ptr, int index, char* name_out) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        copy_string_to_buffer(state->chem.species_list[idx_0].long_name, name_out, 128);
+    } else {
+        copy_string_to_buffer("", name_out, 128);
+    }
+}
+
+void catchem_state_get_species_desc_at(void* state_ptr, int index, char* desc_out) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        copy_string_to_buffer(state->chem.species_list[idx_0].description, desc_out, 256);
+    } else {
+        copy_string_to_buffer("", desc_out, 256);
+    }
+}
+
+double catchem_state_get_species_density(void* state_ptr, int index) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        return state->chem.species_list[idx_0].density;
+    }
+    return 0.0;
+}
+
+double catchem_state_get_species_radius(void* state_ptr, int index) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        return state->chem.species_list[idx_0].radius;
+    }
+    return 0.0;
+}
+
+double catchem_state_get_species_lower_radius(void* state_ptr, int index) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        return state->chem.species_list[idx_0].lower_radius;
+    }
+    return 0.0;
+}
+
+double catchem_state_get_species_upper_radius(void* state_ptr, int index) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        return state->chem.species_list[idx_0].upper_radius;
+    }
+    return 0.0;
+}
+
+int catchem_state_is_species_dust(void* state_ptr, int index) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        return state->chem.species_list[idx_0].is_dust ? 1 : 0;
+    }
+    return 0;
+}
+
+int catchem_state_is_species_seasalt(void* state_ptr, int index) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        return state->chem.species_list[idx_0].is_seasalt ? 1 : 0;
+    }
+    return 0;
+}
+
+int catchem_state_is_species_drydep(void* state_ptr, int index) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        return state->chem.species_list[idx_0].is_drydep ? 1 : 0;
+    }
+    return 0;
+}
+
+int catchem_state_is_species_wetdep(void* state_ptr, int index) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        return state->chem.species_list[idx_0].is_wetdep ? 1 : 0;
+    }
+    return 0;
+}
+
+void catchem_state_get_species_mie_name(void* state_ptr, int index, char* mie_out) {
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    int idx_0 = index - 1;
+    if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
+        copy_string_to_buffer(state->chem.species_list[idx_0].mie_name, mie_out, 64);
+    } else {
+        copy_string_to_buffer("", mie_out, 64);
+    }
+}
+
 void catchem_state_derive_bxheight(void* state_ptr) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     state->derive_bxheight();
@@ -258,16 +442,329 @@ void catchem_state_derive_airden_dry(void* state_ptr) {
 }
 
 void catchem_get_grid_dimensions(void* core_ptr, int* nx, int* ny, int* nz) {
+    if (core_ptr == nullptr)
+        return;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     auto grid = core->get_grid_manager();
-    *nx = grid->geometry.nx;
-    *ny = grid->geometry.ny;
-    *nz = grid->geometry.nz;
+    if (nx)
+        *nx = grid->geometry.nx;
+    if (ny)
+        *ny = grid->geometry.ny;
+    if (nz)
+        *nz = grid->geometry.nz;
 }
 
 double catchem_get_config_timestep(void* core_ptr) {
+    if (core_ptr == nullptr)
+        return 0.0;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     return core->get_config_manager()->data.runtime.dt;
+}
+
+int catchem_config_get_output_frequency(void* core_ptr) {
+    if (core_ptr == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return core->get_config_manager()->data.diagnostics.output.frequency;
+}
+
+int catchem_config_get_compress_level(void* core_ptr) {
+    if (core_ptr == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return core->get_config_manager()->data.diagnostics.output.compress_lev;
+}
+
+void catchem_config_get_output_directory(void* core_ptr, char* buffer, int max_len) {
+    if (core_ptr == nullptr) {
+        copy_string_to_buffer("./", buffer, max_len);
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    copy_string_to_buffer(core->get_config_manager()->data.diagnostics.output.directory, buffer, max_len);
+}
+
+void catchem_config_get_output_prefix(void* core_ptr, char* buffer, int max_len) {
+    if (core_ptr == nullptr) {
+        copy_string_to_buffer("catchem_diag", buffer, max_len);
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    copy_string_to_buffer(core->get_config_manager()->data.diagnostics.output.prefix, buffer, max_len);
+}
+
+int catchem_config_get_latlon_output(void* core_ptr) {
+    if (core_ptr == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return core->get_config_manager()->data.diagnostics.output.format == "latlon" ? 1 : 0;
+}
+
+int catchem_config_get_diag_enabled(void* core_ptr) {
+    if (core_ptr == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return core->get_config_manager()->data.diagnostics.output.enabled ? 1 : 0;
+}
+
+int catchem_config_get_diag_species_count(void* core_ptr) {
+    if (core_ptr == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return static_cast<int>(core->get_config_manager()->data.diagnostics.output.diag_list.size());
+}
+
+void catchem_config_get_diag_species_at(void* core_ptr, int index, char* buffer, int max_len) {
+    if (core_ptr == nullptr)
+        return;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& diag_list = core->get_config_manager()->data.diagnostics.output.diag_list;
+    if (index >= 0 && index < static_cast<int>(diag_list.size())) {
+        copy_string_to_buffer(diag_list[index], buffer, max_len);
+    } else {
+        copy_string_to_buffer("", buffer, max_len);
+    }
+}
+
+int catchem_config_get_process_active(void* core_ptr, const char* process_name) {
+    if (core_ptr == nullptr || process_name == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& processes = core->get_config_manager()->data.processes;
+    auto it = processes.find(std::string(process_name));
+    if (it != processes.end()) {
+        return it->second.activate ? 1 : 0;
+    }
+    return 0;
+}
+
+int catchem_config_has_emission_mapping(void* core_ptr) {
+    if (core_ptr == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return !core->get_config_manager()->data.emission_mappings.empty() ? 1 : 0;
+}
+
+int catchem_config_get_emission_category_count(void* core_ptr) {
+    if (core_ptr == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return static_cast<int>(core->get_config_manager()->data.emission_mappings.size());
+}
+
+void catchem_config_get_emission_category_name_at(void* core_ptr, int index, char* name_out, int max_len) {
+    if (core_ptr == nullptr) {
+        copy_string_to_buffer("", name_out, max_len);
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& mappings = core->get_config_manager()->data.emission_mappings;
+    if (index >= 0 && index < static_cast<int>(mappings.size())) {
+        auto it = mappings.begin();
+        std::advance(it, index);
+        copy_string_to_buffer(it->first, name_out, max_len);
+    } else {
+        copy_string_to_buffer("", name_out, max_len);
+    }
+}
+
+int catchem_config_is_emission_category_active(void* core_ptr, const char* category_name) {
+    if (core_ptr == nullptr || category_name == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& mappings = core->get_config_manager()->data.emission_mappings;
+    auto it = mappings.find(std::string(category_name));
+    if (it != mappings.end()) {
+        return 1;
+    }
+    return 0;
+}
+
+int catchem_config_get_emission_field_count(void* core_ptr, const char* category_name) {
+    if (core_ptr == nullptr || category_name == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& mappings = core->get_config_manager()->data.emission_mappings;
+    auto it = mappings.find(std::string(category_name));
+    if (it != mappings.end()) {
+        return static_cast<int>(it->second.fields.size());
+    }
+    return 0;
+}
+
+void catchem_config_get_emission_field_name_at(void* core_ptr, const char* category_name, int field_idx, char* name_out,
+                                               int max_len) {
+    if (core_ptr == nullptr || category_name == nullptr) {
+        copy_string_to_buffer("", name_out, max_len);
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& mappings = core->get_config_manager()->data.emission_mappings;
+    auto it = mappings.find(std::string(category_name));
+    if (it != mappings.end() && field_idx >= 0 && field_idx < static_cast<int>(it->second.fields.size())) {
+        auto fit = it->second.fields.begin();
+        std::advance(fit, field_idx);
+        copy_string_to_buffer(fit->first, name_out, max_len);
+    } else {
+        copy_string_to_buffer("", name_out, max_len);
+    }
+}
+
+int catchem_config_get_emission_species_map_count(void* core_ptr, const char* category_name, const char* field_name) {
+    if (core_ptr == nullptr || category_name == nullptr || field_name == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& mappings = core->get_config_manager()->data.emission_mappings;
+    auto it = mappings.find(std::string(category_name));
+    if (it != mappings.end()) {
+        auto fit = it->second.fields.find(std::string(field_name));
+        if (fit != it->second.fields.end()) {
+            return static_cast<int>(fit->second.map.size());
+        }
+    }
+    return 0;
+}
+
+void catchem_config_get_emission_species_map_at(void* core_ptr, const char* category_name, const char* field_name,
+                                                int map_idx, char* target_species_out, int max_len, double* scale_out,
+                                                int* species_idx_out) {
+    if (core_ptr == nullptr || category_name == nullptr || field_name == nullptr) {
+        copy_string_to_buffer("", target_species_out, max_len);
+        if (scale_out)
+            *scale_out = 1.0;
+        if (species_idx_out)
+            *species_idx_out = -1;
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& mappings = core->get_config_manager()->data.emission_mappings;
+    auto it = mappings.find(std::string(category_name));
+    if (it != mappings.end()) {
+        auto fit = it->second.fields.find(std::string(field_name));
+        if (fit != it->second.fields.end() && map_idx >= 0 && map_idx < static_cast<int>(fit->second.map.size())) {
+            copy_string_to_buffer(fit->second.map[map_idx], target_species_out, max_len);
+            if (scale_out) {
+                *scale_out = (map_idx < static_cast<int>(fit->second.scale.size())) ? fit->second.scale[map_idx] : 1.0;
+            }
+            if (species_idx_out) {
+                *species_idx_out =
+                    catchem_state_get_species_index(core->get_state_manager().get(), fit->second.map[map_idx].c_str());
+            }
+            return;
+        }
+    }
+    copy_string_to_buffer("", target_species_out, max_len);
+    if (scale_out)
+        *scale_out = 1.0;
+    if (species_idx_out)
+        *species_idx_out = -1;
+}
+
+static YAML::Node resolve_yaml_node_path(const YAML::Node& root, const std::string& path) {
+    if (!root)
+        return YAML::Node();
+    std::stringstream ss(path);
+    std::string key;
+    YAML::Node curr = root;
+    while (std::getline(ss, key, '/')) {
+        if (key.empty())
+            continue;
+        if (!curr[key])
+            return YAML::Node();
+        curr = curr[key];
+    }
+    return curr;
+}
+
+int catchem_config_get_yaml_bool(void* core_ptr, const char* yaml_path, int default_val) {
+    if (core_ptr == nullptr || yaml_path == nullptr)
+        return default_val;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
+    if (node) {
+        try {
+            return node.as<bool>() ? 1 : 0;
+        } catch (...) {
+            return default_val;
+        }
+    }
+    return default_val;
+}
+
+double catchem_config_get_yaml_double(void* core_ptr, const char* yaml_path, double default_val) {
+    if (core_ptr == nullptr || yaml_path == nullptr)
+        return default_val;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
+    if (node) {
+        try {
+            return node.as<double>();
+        } catch (...) {
+            return default_val;
+        }
+    }
+    return default_val;
+}
+
+int catchem_config_get_yaml_int(void* core_ptr, const char* yaml_path, int default_val) {
+    if (core_ptr == nullptr || yaml_path == nullptr)
+        return default_val;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
+    if (node) {
+        try {
+            return node.as<int>();
+        } catch (...) {
+            return default_val;
+        }
+    }
+    return default_val;
+}
+
+void catchem_config_get_yaml_string(void* core_ptr, const char* yaml_path, char* val_out, int max_len,
+                                    const char* default_val) {
+    if (core_ptr == nullptr || yaml_path == nullptr) {
+        copy_string_to_buffer(default_val ? default_val : "", val_out, max_len);
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
+    if (node) {
+        try {
+            copy_string_to_buffer(node.as<std::string>(), val_out, max_len);
+            return;
+        } catch (...) {
+        }
+    }
+    copy_string_to_buffer(default_val ? default_val : "", val_out, max_len);
+}
+
+int catchem_config_get_yaml_list_count(void* core_ptr, const char* yaml_path) {
+    if (core_ptr == nullptr || yaml_path == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
+    if (node && node.IsSequence()) {
+        return static_cast<int>(node.size());
+    }
+    return 0;
+}
+
+void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int index, char* val_out, int max_len) {
+    if (core_ptr == nullptr || yaml_path == nullptr) {
+        copy_string_to_buffer("", val_out, max_len);
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
+    if (node && node.IsSequence() && index >= 0 && index < static_cast<int>(node.size())) {
+        try {
+            copy_string_to_buffer(node[index].as<std::string>(), val_out, max_len);
+            return;
+        } catch (...) {
+        }
+    }
+    copy_string_to_buffer("", val_out, max_len);
 }
 
 // =========================================================================
@@ -644,100 +1141,6 @@ int catchem_convert_process_flux_units(catchem::fp* values, int size, const char
 // =========================================================================
 // Species Metadata and Property Query C-API
 // =========================================================================
-void catchem_state_get_species_name_at(void* state_ptr, int index, char* name_out) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            std::strcpy(name_out, state->chem.species_list[idx_0].short_name.c_str());
-        } else {
-            name_out[0] = '\0';
-        }
-    } catch (...) {
-        name_out[0] = '\0';
-    }
-}
-
-void catchem_state_get_species_long_name_at(void* state_ptr, int index, char* name_out) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            std::strcpy(name_out, state->chem.species_list[idx_0].long_name.c_str());
-        } else {
-            name_out[0] = '\0';
-        }
-    } catch (...) {
-        name_out[0] = '\0';
-    }
-}
-
-void catchem_state_get_species_desc_at(void* state_ptr, int index, char* desc_out) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            std::strcpy(desc_out, state->chem.species_list[idx_0].description.c_str());
-        } else {
-            desc_out[0] = '\0';
-        }
-    } catch (...) {
-        desc_out[0] = '\0';
-    }
-}
-
-double catchem_state_get_species_density(void* state_ptr, int index) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            return state->chem.species_list[idx_0].density;
-        }
-        return 0.0;
-    } catch (...) {
-        return 0.0;
-    }
-}
-
-double catchem_state_get_species_radius(void* state_ptr, int index) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            return state->chem.species_list[idx_0].radius;
-        }
-        return 0.0;
-    } catch (...) {
-        return 0.0;
-    }
-}
-
-double catchem_state_get_species_lower_radius(void* state_ptr, int index) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            return state->chem.species_list[idx_0].lower_radius;
-        }
-        return 0.0;
-    } catch (...) {
-        return 0.0;
-    }
-}
-
-double catchem_state_get_species_upper_radius(void* state_ptr, int index) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            return state->chem.species_list[idx_0].upper_radius;
-        }
-        return 0.0;
-    } catch (...) {
-        return 0.0;
-    }
-}
-
 double catchem_state_get_species_viscosity(void* state_ptr, int index) {
     try {
         auto* state = static_cast<catchem::StateManager*>(state_ptr);
@@ -777,64 +1180,12 @@ int catchem_state_get_species_is_advected(void* state_ptr, int index) {
     }
 }
 
-int catchem_state_get_species_is_drydep(void* state_ptr, int index) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            return state->chem.species_list[idx_0].is_drydep ? 1 : 0;
-        }
-        return 0;
-    } catch (...) {
-        return 0;
-    }
-}
-
-int catchem_state_get_species_is_wetdep(void* state_ptr, int index) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            return state->chem.species_list[idx_0].is_wetdep ? 1 : 0;
-        }
-        return 0;
-    } catch (...) {
-        return 0;
-    }
-}
-
 int catchem_state_get_species_is_photolysis(void* state_ptr, int index) {
     try {
         auto* state = static_cast<catchem::StateManager*>(state_ptr);
         int idx_0 = index - 1;
         if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
             return state->chem.species_list[idx_0].is_photolysis ? 1 : 0;
-        }
-        return 0;
-    } catch (...) {
-        return 0;
-    }
-}
-
-int catchem_state_get_species_is_dust(void* state_ptr, int index) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            return state->chem.species_list[idx_0].is_dust ? 1 : 0;
-        }
-        return 0;
-    } catch (...) {
-        return 0;
-    }
-}
-
-int catchem_state_get_species_is_seasalt(void* state_ptr, int index) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            return state->chem.species_list[idx_0].is_seasalt ? 1 : 0;
         }
         return 0;
     } catch (...) {
@@ -1038,20 +1389,6 @@ double catchem_state_get_species_BackgroundVV(void* state_ptr, int index) {
         return 1.0e-20;
     } catch (...) {
         return 1.0e-20;
-    }
-}
-
-void catchem_state_get_species_mie_name(void* state_ptr, int index, char* name_out) {
-    try {
-        auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        int idx_0 = index - 1;
-        if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chem.species_list.size())) {
-            std::strcpy(name_out, state->chem.species_list[idx_0].mie_name.c_str());
-        } else {
-            name_out[0] = '\0';
-        }
-    } catch (...) {
-        name_out[0] = '\0';
     }
 }
 

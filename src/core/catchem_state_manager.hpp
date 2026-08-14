@@ -6,6 +6,7 @@
 #include "catchem_met_state.hpp"
 #include "catchem_met_utilities.hpp"
 #include "catchem_time_state.hpp"
+#include <iostream>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -99,32 +100,33 @@ namespace catchem {
             if (chem.conc) {
                 chem.conc->update_host_pointer(ptr);
             } else {
-                chem.conc = std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, n_levels, n_species});
+                chem.conc =
+                    std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, n_levels, n_species});
             }
         }
+
+        std::vector<std::shared_ptr<std::vector<double>>> owned_buffers;
 
         /**
          * @brief Derives layer thicknesses (BXHEIGHT / dz) hydrostatically.
          *
          * Computes the vertical distance of each grid cell based on pressure edges, temperature, and moisture content.
-         * @throws std::runtime_error If required input fields (PEDGE, T, QV, BXHEIGHT) are not bound.
          */
         void derive_bxheight() {
-            if (!met.PEDGE)
-                throw std::runtime_error("derive_bxheight failed: PEDGE field is not bound.");
-            if (!met.T)
-                throw std::runtime_error("derive_bxheight failed: T field is not bound.");
-            if (!met.QV)
-                throw std::runtime_error("derive_bxheight failed: QV field is not bound.");
-            if (!met.BXHEIGHT)
-                throw std::runtime_error("derive_bxheight failed: BXHEIGHT field is not bound.");
+            if (!met.PEDGE || !met.T)
+                return;
+
+            if (!met.BXHEIGHT) {
+                auto buf = std::make_shared<std::vector<double>>(n_cols * n_levels, 0.0);
+                owned_buffers.push_back(buf);
+                bind_met_field_3d("BXHEIGHT", buf->data());
+            }
 
             int nc = n_cols;
             int nl = n_levels;
 
             auto pedge = met.PEDGE->view();
             auto temp = met.T->view();
-            auto qv = met.QV->view();
             auto bxheight = met.BXHEIGHT->view();
 
 #ifdef CATCHEM_ENABLE_KOKKOS
@@ -132,24 +134,34 @@ namespace catchem {
                 "derive_bxheight_kernel",
                 Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({0, 0}, {nc, nl}),
                 KOKKOS_LAMBDA(int icol, int ilev) {
-#else
-            for (int icol = 0; icol < nc; ++icol)
-                for (int ilev = 0; ilev < nl; ++ilev) {
-#endif
                     double p_lower = pedge(icol, ilev, 0);
                     double p_upper = pedge(icol, ilev + 1, 0);
 
                     if (p_upper > 0.0 && p_lower > 0.0 && p_lower > p_upper) {
-                        double virtual_t = met_utilities::virtual_temperature(temp(icol, ilev, 0), qv(icol, ilev, 0));
+                        double q_val = met.QV ? met.QV->view()(icol, ilev, 0) : 0.0;
+                        double virtual_t = met_utilities::virtual_temperature(temp(icol, ilev, 0), q_val);
                         bxheight(icol, ilev, 0) =
                             (constants::RD / constants::G0) * virtual_t * std::log(p_lower / p_upper);
                     } else {
                         bxheight(icol, ilev, 0) = 0.0;
                     }
-#ifdef CATCHEM_ENABLE_KOKKOS
                 });
 #else
+            for (int icol = 0; icol < nc; ++icol) {
+                for (int ilev = 0; ilev < nl; ++ilev) {
+                    double p_lower = pedge(icol, ilev, 0);
+                    double p_upper = pedge(icol, ilev + 1, 0);
+
+                    if (p_upper > 0.0 && p_lower > 0.0 && p_lower > p_upper) {
+                        double q_val = met.QV ? met.QV->view()(icol, ilev, 0) : 0.0;
+                        double virtual_t = met_utilities::virtual_temperature(temp(icol, ilev, 0), q_val);
+                        bxheight(icol, ilev, 0) =
+                            (constants::RD / constants::G0) * virtual_t * std::log(p_lower / p_upper);
+                    } else {
+                        bxheight(icol, ilev, 0) = 0.0;
+                    }
                 }
+            }
 #endif
         }
 
@@ -157,24 +169,22 @@ namespace catchem {
          * @brief Derives dry air density (AIRDEN_DRY) using the Ideal Gas Law.
          *
          * Calculates dry air mass densities based on mid-point pressures, temperature, and specific humidity.
-         * @throws std::runtime_error If required input fields (PMID, T, QV, AIRDEN_DRY) are not bound.
          */
         void derive_airden_dry() {
-            if (!met.PMID)
-                throw std::runtime_error("derive_airden_dry failed: PMID field is not bound.");
-            if (!met.T)
-                throw std::runtime_error("derive_airden_dry failed: T field is not bound.");
-            if (!met.QV)
-                throw std::runtime_error("derive_airden_dry failed: QV field is not bound.");
-            if (!met.AIRDEN_DRY)
-                throw std::runtime_error("derive_airden_dry failed: AIRDEN_DRY field is not bound.");
+            if (!met.PMID || !met.T)
+                return;
+
+            if (!met.AIRDEN_DRY) {
+                auto buf = std::make_shared<std::vector<double>>(n_cols * n_levels, 0.0);
+                owned_buffers.push_back(buf);
+                bind_met_field_3d("AIRDEN_DRY", buf->data());
+            }
 
             int nc = n_cols;
             int nl = n_levels;
 
             auto pmid = met.PMID->view();
             auto temp = met.T->view();
-            auto qv = met.QV->view();
             auto airden_dry = met.AIRDEN_DRY->view();
 
 #ifdef CATCHEM_ENABLE_KOKKOS
@@ -182,11 +192,7 @@ namespace catchem {
                 "derive_airden_dry_kernel",
                 Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({0, 0}, {nc, nl}),
                 KOKKOS_LAMBDA(int icol, int ilev) {
-#else
-            for (int icol = 0; icol < nc; ++icol)
-                for (int ilev = 0; ilev < nl; ++ilev) {
-#endif
-                    double q = qv(icol, ilev, 0);
+                    double q = met.QV ? met.QV->view()(icol, ilev, 0) : 0.0;
                     if (q >= 1.0)
                         q = 0.9999;
                     double avgw = (constants::AIR_MW / constants::H2O_MW) * q / (1.0 - q);
@@ -197,10 +203,23 @@ namespace catchem {
                     if (t_val <= 0.0)
                         t_val = 1.0;
                     airden_dry(icol, ilev, 0) = p_dry / (constants::RD * t_val);
-#ifdef CATCHEM_ENABLE_KOKKOS
                 });
 #else
+            for (int icol = 0; icol < nc; ++icol) {
+                for (int ilev = 0; ilev < nl; ++ilev) {
+                    double q = met.QV ? met.QV->view()(icol, ilev, 0) : 0.0;
+                    if (q >= 1.0)
+                        q = 0.9999;
+                    double avgw = (constants::AIR_MW / constants::H2O_MW) * q / (1.0 - q);
+                    double xh2o = avgw / (1.0 + avgw);
+
+                    double p_dry = pmid(icol, ilev, 0) * (1.0 - xh2o);
+                    double t_val = temp(icol, ilev, 0);
+                    if (t_val <= 0.0)
+                        t_val = 1.0;
+                    airden_dry(icol, ilev, 0) = p_dry / (constants::RD * t_val);
                 }
+            }
 #endif
         }
 

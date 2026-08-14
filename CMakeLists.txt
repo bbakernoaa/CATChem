@@ -348,7 +348,7 @@ if(CATCHEM_BUILD_NUOPC)
   )
 
   # Manually handle the CATChem dependencies by linking to built libraries
-  # Only need to depend on CATChem - it already depends on CATChem_core, yaml_interface, etc.
+  # Only need to depend on CATChem - it already depends on CATChem_core, etc.
   add_dependencies(cc_nuopc CATChem)
 
   # Link to library files in dependency order (most dependent first).
@@ -371,7 +371,6 @@ if(CATCHEM_BUILD_NUOPC)
       $<TARGET_FILE:CATChem_process_carbchem>
       $<TARGET_FILE:CATChem_core>
       $<TARGET_FILE:CATChem_core_cpp>
-      $<TARGET_FILE:yaml_interface>
       $<TARGET_FILE:catchem_utilities>
   )
 

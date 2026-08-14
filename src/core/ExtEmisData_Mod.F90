@@ -18,7 +18,6 @@ MODULE ExtEmisData_Mod
    USE Error_Mod
    ! USE logging_mod, only: log_message, LOG_ERROR, LOG_WARNING, LOG_INFO, LOG_DEBUG
    USE Precision_Mod
-   USE species_mod, only: SpeciesType
    USE IEEE_ARITHMETIC
 
    IMPLICIT NONE

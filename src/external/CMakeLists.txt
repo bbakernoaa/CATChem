@@ -96,6 +96,3 @@ if(CATCHEM_BUILD_MUSICA)
   # Add MUSICA as a subdirectory
   add_subdirectory(musica)
 endif()
-
-# Add our yaml interface (yaml-cpp is already available from above)
-add_subdirectory(yaml_interface)

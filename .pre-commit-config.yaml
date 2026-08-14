@@ -1,6 +1,6 @@
 # Vendored upstream code is excluded globally so every hook — present and
-# future — skips it. First-party code under src/external (yaml_interface,
-# the external CMakeLists.txt, vendor READMEs) stays linted.
+# future — skips it. First-party code under src/external (the external CMakeLists.txt,
+# vendor READMEs) stays linted.
 exclude: |
     (?x)^(
         src/external/yaml-cpp/.*|

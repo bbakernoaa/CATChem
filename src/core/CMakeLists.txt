@@ -2,27 +2,11 @@ set(
   _base_srcs
   constants.F90
   error_mod.F90
-  UnitConversion_Mod.F90
-  met_utilities_mod.F90
-)
-
-set(
-  _state_srcs
-  TimeState_Mod.F90
-  species_mod.F90
-  GridGeometry_Mod.F90
-  metstate_mod.F90
-  chemstate_mod.F90
+  Precision_Mod.F90
   ExtEmisData_Mod.F90
-  DiagnosticInterface_Mod.F90
-  ConfigManager_Mod.F90
-  StateManager_Mod.F90
-  DiagnosticManager_Mod.F90
-  ChemSpeciesUtils_Mod.F90
-  Interop_Mod.F90
 )
 
-set(_srcs ${_base_srcs} ${_state_srcs})
+set(_srcs ${_base_srcs})
 
 add_library(CATChem_core ${_srcs})
 set_target_properties(
@@ -40,7 +24,7 @@ foreach(opt IN LISTS _catchem_compiler_options)
   )
 endforeach()
 
-target_link_libraries(CATChem_core PRIVATE yaml_interface catchem_utilities)
+target_link_libraries(CATChem_core PRIVATE catchem_utilities)
 
 # Link GOCART2G library for external process dependencies
 if(TARGET GOCART2G)

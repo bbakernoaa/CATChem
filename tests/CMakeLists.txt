@@ -19,16 +19,8 @@ if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/configs")
   )
 endif()
 
-# Restore compilation of foundational Fortran testing helper library
-add_library(testing testing_mod.f90)
-target_link_libraries(testing PRIVATE CATChem_core)
-set_target_properties(
-  testing
-  PROPERTIES
-    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
-    LINKER_LANGUAGE Fortran
-)
-target_include_directories(testing PRIVATE ${CMAKE_BINARY_DIR}/include)
+# Foundational Fortran testing helper library (quarantined — legacy core replaced by C++)
+# add_library(testing testing_mod.f90)
 
 # Restored Low-Level Foundational Unit Tests
 macro(add_fortran_test name_test)
@@ -49,12 +41,13 @@ macro(add_fortran_test name_test)
   )
 endmacro()
 
-add_fortran_test(test_Precision)
-add_fortran_test(test_Error)
-add_fortran_test(test_Constants)
-add_fortran_test(test_GridGeometry)
-add_fortran_test(test_TimeState)
-add_fortran_test(test_MetState)
+# Legacy Fortran core unit tests (quarantined — behavior now covered by test_catchem_properties)
+# add_fortran_test(test_Precision)
+# add_fortran_test(test_Error)
+# add_fortran_test(test_Constants)
+# add_fortran_test(test_GridGeometry)
+# add_fortran_test(test_TimeState)
+# add_fortran_test(test_MetState)
 
 # High-level API init-sequence test — mirrors the NUOPC cap's usage of
 # CATChem_Model (facade construction, met binding, timestep)
@@ -79,25 +72,25 @@ if(TARGET CATChem)
   )
 endif()
 
-# UnitConversion needs specific include search dirs
-add_executable(test_UnitConversion test_UnitConversion.f90)
-target_link_libraries(test_UnitConversion PRIVATE CATChem_core testing)
-set_target_properties(
-  test_UnitConversion
-  PROPERTIES
-    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
-    LINKER_LANGUAGE Fortran
-)
-target_include_directories(
-  test_UnitConversion
-  PRIVATE ${CMAKE_BINARY_DIR}/include
-)
-add_dependencies(test_UnitConversion CATChem_core)
-add_test(
-  NAME test_UnitConversion
-  COMMAND test_UnitConversion
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)
+# UnitConversion needs specific include search dirs (quarantined)
+# add_executable(test_UnitConversion test_UnitConversion.f90)
+# target_link_libraries(test_UnitConversion PRIVATE CATChem_core testing)
+# set_target_properties(
+#   test_UnitConversion
+#   PROPERTIES
+#     Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+#     LINKER_LANGUAGE Fortran
+# )
+# target_include_directories(
+#   test_UnitConversion
+#   PRIVATE ${CMAKE_BINARY_DIR}/include
+# )
+# add_dependencies(test_UnitConversion CATChem_core)
+# add_test(
+#   NAME test_UnitConversion
+#   COMMAND test_UnitConversion
+#   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+# )
 
 # C++ Interop and Integration Suite — runs in both build flavors; the
 # CATChem_core_cpp link carries Kokkos (or standalone mdspan) transitively.
@@ -122,6 +115,33 @@ target_link_libraries(
 set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
 
+# Individual C++ Process Unit Tests
+macro(add_process_unit_test process_name target_lib)
+  set(test_name "test_catchem_${process_name}")
+  add_executable(${test_name} "${test_name}.cpp")
+  target_link_libraries(
+    ${test_name}
+    PRIVATE CATChem_core_cpp CATChem_core ${target_lib}
+  )
+  set_target_properties(
+    ${test_name}
+    PROPERTIES CXX_STANDARD 20 LINKER_LANGUAGE CXX
+  )
+  add_test(
+    NAME ${test_name}
+    COMMAND ${test_name}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  )
+endmacro()
+
+add_process_unit_test(seasalt CATChem_process_seasalt)
+add_process_unit_test(dust CATChem_process_dust)
+add_process_unit_test(drydep CATChem_process_drydep)
+add_process_unit_test(wetdep CATChem_process_wetdep)
+add_process_unit_test(settling CATChem_process_settling)
+add_process_unit_test(so4chem CATChem_process_so4chem)
+add_process_unit_test(carbchem CATChem_process_carbchem)
+
 # Modern Randomized Property-Based Testing
 add_executable(test_catchem_properties test_catchem_properties.cpp)
 target_link_libraries(
@@ -138,7 +158,56 @@ target_link_libraries(
     CATChem_process_carbchem
 )
 set_target_properties(test_catchem_properties PROPERTIES LINKER_LANGUAGE CXX)
-add_test(NAME test_catchem_properties COMMAND test_catchem_properties)
+file(
+  COPY
+    ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_config.yml
+    ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_new_config.yml
+    ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_species.yml
+    ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_emission.yml
+  DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(
+  NAME test_catchem_properties
+  COMMAND test_catchem_properties
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+# Multi-Atmospheric Scenario Property Test
+add_executable(test_catchem_scenarios test_catchem_scenarios.cpp)
+target_link_libraries(
+  test_catchem_scenarios
+  PRIVATE
+    CATChem_core_cpp
+    CATChem_core
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+    CATChem_process_dust
+    CATChem_process_carbchem
+)
+set_target_properties(
+  test_catchem_scenarios
+  PROPERTIES CXX_STANDARD 20 LINKER_LANGUAGE CXX
+)
+add_test(
+  NAME test_catchem_scenarios
+  COMMAND test_catchem_scenarios
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+# Static Fortran Core Import Check
+find_program(PYTHON_EXECUTABLE NAMES python3 python)
+if(PYTHON_EXECUTABLE)
+  add_test(
+    NAME test_check_fortran_core_imports
+    COMMAND
+      ${PYTHON_EXECUTABLE}
+      "${PROJECT_SOURCE_DIR}/tools/check_fortran_core_imports.py"
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+  )
+endif()
 
 if(CATCHEM_BUILD_MUSICA)
   # Photolysis Process Unit/Integration Test

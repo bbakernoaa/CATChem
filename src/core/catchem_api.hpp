@@ -83,6 +83,7 @@ void catchem_state_sync_to_host(void* state_ptr);
 double* catchem_state_get_pointer_1d(void* state_ptr, const char* name);
 double* catchem_state_get_pointer_2d(void* state_ptr, const char* name);
 double* catchem_state_get_pointer_3d(void* state_ptr, const char* name);
+double* catchem_state_get_species_conc_pointer(void* state_ptr, int species_index);
 
 /**
  * @brief Executes a single timestepped execution over scheduled processes.
@@ -94,9 +95,41 @@ void catchem_core_run_timestep(void* core_ptr, double dt);
 /** @brief Registers and attaches an active physics process handler. */
 void catchem_core_add_process_by_name(void* core_ptr, const char* name);
 
+/** @brief Returns the number of active physics processes scheduled on the Core. */
+int catchem_core_get_num_processes(void* core_ptr);
+
 // Grid and Configuration API
 void catchem_get_grid_dimensions(void* core_ptr, int* nx, int* ny, int* nz);
 double catchem_get_config_timestep(void* core_ptr);
+int catchem_config_get_output_frequency(void* core_ptr);
+int catchem_config_get_compress_level(void* core_ptr);
+void catchem_config_get_output_directory(void* core_ptr, char* buffer, int max_len);
+void catchem_config_get_output_prefix(void* core_ptr, char* buffer, int max_len);
+int catchem_config_get_latlon_output(void* core_ptr);
+int catchem_config_get_diag_enabled(void* core_ptr);
+int catchem_config_get_diag_species_count(void* core_ptr);
+void catchem_config_get_diag_species_at(void* core_ptr, int index, char* buffer, int max_len);
+int catchem_config_get_process_active(void* core_ptr, const char* process_name);
+int catchem_config_has_emission_mapping(void* core_ptr);
+int catchem_config_get_emission_category_count(void* core_ptr);
+void catchem_config_get_emission_category_name_at(void* core_ptr, int index, char* name_out, int max_len);
+int catchem_config_is_emission_category_active(void* core_ptr, const char* category_name);
+int catchem_config_get_emission_field_count(void* core_ptr, const char* category_name);
+void catchem_config_get_emission_field_name_at(void* core_ptr, const char* category_name, int field_idx, char* name_out,
+                                               int max_len);
+int catchem_config_get_emission_species_map_count(void* core_ptr, const char* category_name, const char* field_name);
+void catchem_config_get_emission_species_map_at(void* core_ptr, const char* category_name, const char* field_name,
+                                                int map_idx, char* target_species_out, int max_len, double* scale_out,
+                                                int* species_idx_out);
+
+// Generic Config YAML Property Queries
+int catchem_config_get_yaml_bool(void* core_ptr, const char* yaml_path, int default_val);
+double catchem_config_get_yaml_double(void* core_ptr, const char* yaml_path, double default_val);
+int catchem_config_get_yaml_int(void* core_ptr, const char* yaml_path, int default_val);
+void catchem_config_get_yaml_string(void* core_ptr, const char* yaml_path, char* val_out, int max_len,
+                                    const char* default_val);
+int catchem_config_get_yaml_list_count(void* core_ptr, const char* yaml_path);
+void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int index, char* val_out, int max_len);
 
 // Diagnostic API
 void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1,
@@ -123,6 +156,18 @@ void catchem_state_get_aerosol_indices(void* state_ptr, int* indices_out);
 double catchem_state_get_species_mw(void* state_ptr, int index);
 int catchem_state_is_species_gas(void* state_ptr, int index);
 int catchem_state_is_species_aerosol(void* state_ptr, int index);
+void catchem_state_get_species_name_at(void* state_ptr, int index, char* name_out);
+void catchem_state_get_species_long_name_at(void* state_ptr, int index, char* name_out);
+void catchem_state_get_species_desc_at(void* state_ptr, int index, char* desc_out);
+double catchem_state_get_species_density(void* state_ptr, int index);
+double catchem_state_get_species_radius(void* state_ptr, int index);
+double catchem_state_get_species_lower_radius(void* state_ptr, int index);
+double catchem_state_get_species_upper_radius(void* state_ptr, int index);
+int catchem_state_is_species_dust(void* state_ptr, int index);
+int catchem_state_is_species_seasalt(void* state_ptr, int index);
+int catchem_state_is_species_drydep(void* state_ptr, int index);
+int catchem_state_is_species_wetdep(void* state_ptr, int index);
+void catchem_state_get_species_mie_name(void* state_ptr, int index, char* mie_out);
 
 // Physics derivations
 void catchem_state_derive_bxheight(void* state_ptr);

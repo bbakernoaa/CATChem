@@ -31,20 +31,15 @@
 
 module catchem_emis_mod
 
+   use iso_c_binding, only: c_ptr, c_char, c_int, c_double, c_null_char, c_associated, c_f_pointer
    use ESMF
    use NUOPC
    use aqmio
    use netcdf
    use catchem_regrid_mod, only: RegridCache, catchem_regrid_field, catchem_regrid_cleanup
-   use Precision_Mod, only: fp
-   use Error_Mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType
-   use ConfigManager_Mod, only: ConfigManagerType, ConfigDataType, EmissionCategoryMapping, &
-      EmisSpeciesMappingEntry, EmissionMappingConfig
-   use StateManager_Mod, only: StateManagerType
-   use ChemState_Mod, only: ChemStateType
-   use MetState_Mod, only: MetStateType
+   use precision_mod, only: fp
+   use Error_Mod, only: CC_SUCCESS, CC_FAILURE
    use ExtEmisData_Mod, only: ExtEmisDataType, ExtEmisCategoryType, ExtEmisFieldType
-   use Constants, only: AIRMW, AVO
 
    implicit none
    private
@@ -56,6 +51,9 @@ module catchem_emis_mod
    public :: catchem_emis_write_diagnostics
    public :: catchem_map_points_to_grid
 
+   real(c_double), parameter :: g0 = 9.80665_c_double
+   real(c_double), parameter :: AIRMW = 28.9644_c_double
+   real(c_double), parameter :: AVO = 6.02214076e23_c_double
 
    !> \brief Parameters for emission handling
    integer, parameter :: EMIS_MAXSTR = 256
@@ -65,6 +63,158 @@ module catchem_emis_mod
    !> Module-level regrid cache (weights computed once, reused)
    type(RegridCache), save :: emis_regrid_cache
    real(fp), parameter :: EMIS_ACCEPT = 1.e+15_fp ! Same as MAPL library "undefval"
+
+   interface
+      integer(c_int) function catchem_config_has_emission_mapping(core_ptr) bind(C, name="catchem_config_has_emission_mapping")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      integer(c_int) function catchem_config_get_emission_category_count(core_ptr) bind(C, name="catchem_config_get_emission_category_count")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      subroutine catchem_config_get_emission_category_name_at(core_ptr, index, name_out, max_len) &
+         bind(C, name="catchem_config_get_emission_category_name_at")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: index
+         character(kind=c_char), intent(out) :: name_out(*)
+         integer(c_int), value :: max_len
+      end subroutine
+
+      integer(c_int) function catchem_config_is_emission_category_active(core_ptr, category_name) &
+         bind(C, name="catchem_config_is_emission_category_active")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: category_name(*)
+      end function
+
+      integer(c_int) function catchem_config_get_emission_field_count(core_ptr, category_name) &
+         bind(C, name="catchem_config_get_emission_field_count")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: category_name(*)
+      end function
+
+      subroutine catchem_config_get_emission_field_name_at(core_ptr, category_name, field_idx, name_out, max_len) &
+         bind(C, name="catchem_config_get_emission_field_name_at")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: category_name(*)
+         integer(c_int), value :: field_idx
+         character(kind=c_char), intent(out) :: name_out(*)
+         integer(c_int), value :: max_len
+      end subroutine
+
+      integer(c_int) function catchem_config_get_emission_species_map_count(core_ptr, category_name, field_name) &
+         bind(C, name="catchem_config_get_emission_species_map_count")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: category_name(*)
+         character(kind=c_char), intent(in) :: field_name(*)
+      end function
+
+      subroutine catchem_config_get_emission_species_map_at(core_ptr, category_name, field_name, map_idx, &
+         target_species_out, max_len, scale_out, species_idx_out) &
+         bind(C, name="catchem_config_get_emission_species_map_at")
+         import :: c_ptr, c_char, c_int, c_double
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: category_name(*)
+         character(kind=c_char), intent(in) :: field_name(*)
+         integer(c_int), value :: map_idx
+         character(kind=c_char), intent(out) :: target_species_out(*)
+         integer(c_int), value :: max_len
+         real(c_double), intent(out) :: scale_out
+         integer(c_int), intent(out) :: species_idx_out
+      end subroutine
+
+      integer(c_int) function catchem_config_get_yaml_bool(core_ptr, yaml_path, default_val) &
+         bind(C, name="catchem_config_get_yaml_bool")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: yaml_path(*)
+         integer(c_int), value :: default_val
+      end function
+
+      real(c_double) function catchem_config_get_yaml_double(core_ptr, yaml_path, default_val) &
+         bind(C, name="catchem_config_get_yaml_double")
+         import :: c_ptr, c_char, c_double
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: yaml_path(*)
+         real(c_double), value :: default_val
+      end function
+
+      subroutine catchem_config_get_yaml_string(core_ptr, yaml_path, val_out, max_len, default_val) &
+         bind(C, name="catchem_config_get_yaml_string")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: yaml_path(*)
+         character(kind=c_char), intent(out) :: val_out(*)
+         integer(c_int), value :: max_len
+         character(kind=c_char), intent(in) :: default_val(*)
+      end subroutine
+
+      integer(c_int) function catchem_config_get_yaml_list_count(core_ptr, yaml_path) &
+         bind(C, name="catchem_config_get_yaml_list_count")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: yaml_path(*)
+      end function
+
+      subroutine catchem_config_get_yaml_list_at(core_ptr, yaml_path, index, val_out, max_len) &
+         bind(C, name="catchem_config_get_yaml_list_at")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: yaml_path(*)
+         integer(c_int), value :: index
+         character(kind=c_char), intent(out) :: val_out(*)
+         integer(c_int), value :: max_len
+      end subroutine
+
+      type(c_ptr) function catchem_state_get_pointer_2d(state_ptr, name) bind(C, name="catchem_state_get_pointer_2d")
+         import :: c_ptr, c_char
+         type(c_ptr), value :: state_ptr
+         character(kind=c_char), intent(in) :: name(*)
+      end function
+
+      type(c_ptr) function catchem_state_get_pointer_3d(state_ptr, name) bind(C, name="catchem_state_get_pointer_3d")
+         import :: c_ptr, c_char
+         type(c_ptr), value :: state_ptr
+         character(kind=c_char), intent(in) :: name(*)
+      end function
+
+      type(c_ptr) function catchem_state_get_species_conc_pointer(state_ptr, index) &
+         bind(C, name="catchem_state_get_species_conc_pointer")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+      end function
+
+      integer(c_int) function catchem_state_get_species_count(state_ptr) bind(C, name="catchem_state_get_species_count")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+      end function
+
+      integer(c_int) function catchem_state_get_species_index(state_ptr, name) bind(C, name="catchem_state_get_species_index")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: state_ptr
+         character(kind=c_char), intent(in) :: name(*)
+      end function
+
+      integer(c_int) function catchem_state_is_species_gas(state_ptr, index) bind(C, name="catchem_state_is_species_gas")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+      end function
+
+      real(c_double) function catchem_state_get_species_mw(state_ptr, index) bind(C, name="catchem_state_get_species_mw")
+         import :: c_ptr, c_int, c_double
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+      end function
+   end interface
 
    !> \brief Emission timing and alarm information
 contains
@@ -80,42 +230,43 @@ contains
    !! \param[in] config_manager Already loaded CATChem configuration manager
    !! \param[in] grid ESMF grid for I/O operations
    !! \param[out] rc Return code
-   subroutine catchem_emis_init(ext_emis_data, config_manager, nx, ny, nlev, clock, rc)
+   subroutine catchem_emis_init(ext_emis_data, core_ptr, nx, ny, nlev, clock, rc)
       implicit none
 
       type(ExtEmisDataType), intent(inout) :: ext_emis_data
-      type(ConfigManagerType), pointer, intent(in) :: config_manager
+      type(c_ptr), intent(in) :: core_ptr
       integer, intent(in) :: nx, ny, nlev
       type(ESMF_Clock), intent(in) :: clock
       integer, intent(out) :: rc
 
       ! Local variables
-      integer :: localrc,  icat
+      integer :: localrc, icat, n_categories
       logical :: extemis_activate
-      character(len=EMIS_MAXSTR) :: msg
+      character(len=EMIS_MAXSTR) :: msg, category_name
       character(len=*), parameter :: pName = 'catchem_emis_init'
 
       ! Initialize
       rc = CC_SUCCESS
 
+      if (.not. c_associated(core_ptr)) return
+
       ! Check top-level processes/extemis/activate switch
-      call config_manager%get_logical('processes/extemis/activate', extemis_activate, localrc, .true.)
+      extemis_activate = (catchem_config_get_yaml_bool(core_ptr, 'processes/extemis/activate' // c_null_char, 1_c_int) /= 0)
       if (.not. extemis_activate) then
          call ESMF_LogWrite(trim(pName)//': External emissions disabled (processes/extemis/activate=false)', &
             ESMF_LOGMSG_INFO, rc=localrc)
          return
       end if
 
-      ! Check if emission mapping is loaded
-      if (.not. config_manager%config_data%emission_mapping%is_loaded) then
-         write(msg, '(A,A)') trim(pName), ': Emission mapping not loaded in ConfigManager'
+      ! Check if emission mapping is loaded in C++ ConfigManager
+      if (catchem_config_has_emission_mapping(core_ptr) == 0) then
+         write(msg, '(A,A)') trim(pName), ': Emission mapping not loaded in C++ ConfigManager'
          call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
          rc = CC_FAILURE
          return
       end if
 
       ! Initialize ExtEmisDataType with 0 to allow push-back population
-      ! We start with 0 and let add_category grow the array incrementally
       call ext_emis_data%init(0, 'CATChem NUOPC Emission Data', localrc)
       if (localrc /= CC_SUCCESS) then
          write(msg, '(A,A)') trim(pName), ': Failed to initialize ExtEmisDataType'
@@ -124,26 +275,21 @@ contains
          return
       end if
 
-      ! Enable global emission diagnostics - read from configuration or default to true
-      call config_manager%get_logical('processes/extemis/global_diagnostics', ext_emis_data%diagnostic, localrc, .true.)
+      ext_emis_data%diagnostic = (catchem_config_get_yaml_bool(core_ptr, 'processes/extemis/global_diagnostics' // c_null_char, 1_c_int) /= 0)
 
-      ! Populate emission categories from already-loaded configuration
-      do icat = 1, config_manager%config_data%emission_mapping%n_categories
-
-         if (config_manager%config_data%emission_mapping%categories(icat)%is_active) then
-            call catchem_emis_populate_category(ext_emis_data, &
-               config_manager%config_data%emission_mapping%categories(icat), &
-               config_manager, nx, ny, nlev, localrc)
+      n_categories = catchem_config_get_emission_category_count(core_ptr)
+      do icat = 0, n_categories - 1
+         call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, 64_c_int)
+         if (catchem_config_is_emission_category_active(core_ptr, trim(category_name) // c_null_char) /= 0) then
+            call catchem_emis_populate_category(ext_emis_data, core_ptr, category_name, nx, ny, nlev, localrc)
             if (localrc /= CC_SUCCESS) then
-               write(msg, '(A,A,A)') trim(pName), ': Failed to populate category ', &
-                  trim(config_manager%config_data%emission_mapping%categories(icat)%category_name)
+               write(msg, '(A,A,A)') trim(pName), ': Failed to populate category ', trim(category_name)
                call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
                rc = CC_FAILURE
                return
             end if
 
-            call catchem_emis_setup_timing(ext_emis_data%categories(icat), clock, localrc)
-
+            call catchem_emis_setup_timing(ext_emis_data%categories(icat + 1), clock, localrc)
          end if
       end do
 
@@ -160,22 +306,18 @@ contains
    !! \param[inout] ext_emis_data External emission data container
    !! \param[in] current_time Current model time
    !! \param[out] rc Return code
-   subroutine catchem_emis_update(ext_emis_data, current_time, state_manager, IO, grid, dt, rc)
+   subroutine catchem_emis_update(ext_emis_data, current_time, nlev, IO, grid, dt, rc)
       implicit none
 
       type(ExtEmisDataType), intent(inout) :: ext_emis_data
       type(ESMF_Time), intent(in) :: current_time
-      type(StateManagerType), intent(inout) :: state_manager
+      integer, intent(in) :: nlev
       type(ESMF_GridComp), intent(inout) :: IO
       type(ESMF_Grid), intent(in) :: grid
       real(fp), intent(in) :: dt
       integer, intent(out) :: rc
 
       ! Local variables
-      type(ConfigManagerType),pointer :: config_manager
-      type(ErrorManagerType), pointer :: error_manager
-      type(MetStateType), pointer :: met_state
-      type(ChemStateType), pointer :: chem_state
       integer :: localrc, i, period_key
       integer :: blo_year, blo_month
       real(fp) :: bfrac
@@ -187,31 +329,16 @@ contains
       ! Skip if no emission categories were initialized (e.g. extemis disabled)
       if (ext_emis_data%n_categories == 0) return
 
-      ! Get managers from state manager
-      config_manager => state_manager%get_config_ptr()
-      error_manager => state_manager%get_error_manager()
-      met_state => state_manager%get_met_state_ptr()
-      chem_state => state_manager%get_chem_state_ptr()
-
       ! Loop through all emission categories and check if updates are needed
       do i = 1, ext_emis_data%n_categories
          if (.not. ext_emis_data%categories(i)%is_active) cycle
 
          ! Determine the current calendar period key for this category's frequency.
-         ! A period key encodes the calendar unit that triggers a new read:
-         !   daily -> yyyymmdd, monthly -> yyyymm, hourly -> yyyymmddhh, static -> 0.
-         ! When the key differs from last_period_key (including the sentinel -1 on
-         ! the first call), the emission data must be re-read.  This approach is
-         ! immune to the alarm-drift problem that occurs when simulations do not
-         ! start at a "natural" boundary (e.g. 06:00 start with daily data).
          call catchem_emis_period_key(ext_emis_data%categories(i)%frequency, &
             current_time, period_key, localrc)
          if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__,  file=__FILE__,  rcToReturn=rc)) return
 
-         ! For a single multi-record monthly climatology with linear time
-         ! interpolation, the interpolation bracket changes at mid-month (not at
-         ! the month start), so re-read the two bracketing slices at mid-month.
          if (trim(ext_emis_data%categories(i)%frequency) == 'monthly' .and. &
             trim(ext_emis_data%categories(i)%time_interpolation) == 'linear' .and. &
             ext_emis_data%categories(i)%n_times >= 2) then
@@ -231,15 +358,13 @@ contains
                trim(ext_emis_data%categories(i)%category_name)// &
                " @ "//trim(timeString), ESMF_LOGMSG_INFO, rc=localrc)
 
-            ! For files without time-coordinate matching and no filename template,
-            ! advance irec sequentially (one slice per period).
             if (ext_emis_data%categories(i)%n_times == 0 .and. &
                index(trim(ext_emis_data%categories(i)%source_file), '%') == 0) then
                ext_emis_data%categories(i)%irec = ext_emis_data%categories(i)%irec + 1
             end if
 
             call catchem_emis_read(ext_emis_data%categories(i), IO, grid, &
-               met_state%NLEVS, current_time, localrc)
+               nlev, current_time, localrc)
             if (localrc /= CC_SUCCESS) then
                write(msg, '(A,A,A)') trim(pName), ': Failed to read data for category: ', &
                   trim(ext_emis_data%categories(i)%category_name)
@@ -249,7 +374,6 @@ contains
             ext_emis_data%categories(i)%last_period_key = period_key
          end if
 
-         ! Recompute temporal blend weights every timestep for time-interpolated categories
          if (ext_emis_data%categories(i)%needs_time_blend) then
             call catchem_emis_blend_time(ext_emis_data%categories(i), current_time, localrc)
             if (localrc /= CC_SUCCESS) then
@@ -259,16 +383,13 @@ contains
             end if
          end if
 
-         ! Apply emissions to chemical state every timestep
-         ! (data is read only when the period changes, but applied every step)
-         call catchem_emis_apply(ext_emis_data%categories(i), i, ext_emis_data%global_scale, config_manager, error_manager, chem_state, met_state, dt, current_time, localrc)
+         call catchem_emis_apply(ext_emis_data%categories(i), i, ext_emis_data%global_scale, dt=dt, current_time=current_time, rc=localrc)
          if (localrc /= CC_SUCCESS) then
             write(msg, '(A,A,A)') trim(pName), ': Failed to apply emissions for category: ', &
                trim(ext_emis_data%categories(i)%category_name)
             call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
          end if
       end do
-      nullify(config_manager, met_state, chem_state) ! Clean up pointers
 
       call ESMF_LogWrite(trim(pName)//': Emission data updated', &
          ESMF_LOGMSG_INFO, rc=localrc)
@@ -831,12 +952,13 @@ contains
    !! \param[in] met_state Meteorological state (DELP, AIRDEN, PBLH)
    !! \param[in] vertical_dist Distribution method name
    !! \param[in] nx,ny,nz Grid dimensions
-   subroutine distribute_emissions_vertical(emission_flux, met_state, vertical_dist, nx, ny, nz)
-      use Constants, only: g0
+   subroutine distribute_emissions_vertical(emission_flux, delp, airden, pblh, vertical_dist, nx, ny, nz)
       implicit none
 
       real(fp), intent(inout) :: emission_flux(:,:,:)
-      type(MetStateType), intent(in) :: met_state
+      real(fp), intent(in) :: delp(:,:,:)
+      real(fp), intent(in) :: airden(:,:,:)
+      real(fp), intent(in) :: pblh(:,:)
       character(len=*), intent(in) :: vertical_dist
       integer, intent(in) :: nx, ny, nz
 
@@ -884,7 +1006,7 @@ contains
             ! Compute surface pressure by summing all layer thicknesses
             ps = 0.0_fp
             do k = 1, nz
-               ps = ps + met_state%DELP(i, j, k)
+               ps = ps + delp(i, j, k)
             end do
 
             ! Find pressure at target altitudes by walking from surface (k=1) upward (k=nz)
@@ -897,38 +1019,38 @@ contains
             p10000 = 0.0_fp
 
             do k = 1, nz
-               p1 = p0 - met_state%DELP(i, j, k)
-               dz = met_state%DELP(i, j, k) / (met_state%AIRDEN(i, j, k) * g0)
+               p1 = p0 - delp(i, j, k)
+               dz = delp(i, j, k) / (airden(i, j, k) * g0)
                z1_col = z0_col + dz
 
                if (p100 == 0.0_fp .and. z0_col < 100.0_fp .and. z1_col >= 100.0_fp) then
                   deltaz = z1_col - 100.0_fp
-                  deltap = deltaz * met_state%AIRDEN(i, j, k) * g0
+                  deltap = deltaz * airden(i, j, k) * g0
                   p100 = p1 + deltap
                end if
 
                if (p500 == 0.0_fp .and. z0_col < 500.0_fp .and. z1_col >= 500.0_fp) then
                   deltaz = z1_col - 500.0_fp
-                  deltap = deltaz * met_state%AIRDEN(i, j, k) * g0
+                  deltap = deltaz * airden(i, j, k) * g0
                   p500 = p1 + deltap
                end if
 
-               zpbl = max(met_state%PBLH(i, j), 100.0_fp)
+               zpbl = max(pblh(i, j), 100.0_fp)
                if (pPBL == 0.0_fp .and. z0_col < zpbl .and. z1_col >= zpbl) then
                   deltaz = z1_col - zpbl
-                  deltap = deltaz * met_state%AIRDEN(i, j, k) * g0
+                  deltap = deltaz * airden(i, j, k) * g0
                   pPBL = p1 + deltap
                end if
 
                if (p9000 == 0.0_fp .and. z0_col < AVN_CDS_TOP .and. z1_col >= AVN_CDS_TOP) then
                   deltaz = z1_col - AVN_CDS_TOP
-                  deltap = deltaz * met_state%AIRDEN(i, j, k) * g0
+                  deltap = deltaz * airden(i, j, k) * g0
                   p9000 = p1 + deltap
                end if
 
                if (p10000 == 0.0_fp .and. z0_col < AVN_CRS_TOP .and. z1_col >= AVN_CRS_TOP) then
                   deltaz = z1_col - AVN_CRS_TOP
-                  deltap = deltaz * met_state%AIRDEN(i, j, k) * g0
+                  deltap = deltaz * airden(i, j, k) * g0
                   p10000 = p1 + deltap
                end if
 
@@ -988,7 +1110,7 @@ contains
 
             p0 = ps
             do k = 1, nz
-               p1 = p0 - met_state%DELP(i, j, k)
+               p1 = p0 - delp(i, j, k)
 
                ! Compute fractional overlap of this model layer with the target pressure range
                ! p0 = pressure at layer bottom (higher pressure, lower altitude)
@@ -997,7 +1119,7 @@ contains
 
                if (p0 <= p_bot .and. p1 >= p_top) then
                   ! Layer fully within target range
-                  f_dist = met_state%DELP(i, j, k) / (p_bot - p_top)
+                  f_dist = delp(i, j, k) / (p_bot - p_top)
                else if (p0 > p_bot .and. p1 >= p_top .and. p1 < p_bot) then
                   ! Layer straddles bottom boundary (extends below target)
                   f_dist = (p_bot - max(p1, p_top)) / (p_bot - p_top)
@@ -1036,83 +1158,17 @@ contains
    !! \param[out] f_bb           2D scaling factor [0..1] per column
    !! \param[out] rc             Return code
    subroutine compute_bb_emission_factor(emission_flux, scale_factor, dt, &
-      met_state, chem_state, species_idx, &
       f_bb, rc)
-      use Constants, only: g0
       implicit none
 
       real(fp), intent(in)    :: emission_flux(:,:,:)
       real(fp), intent(in)    :: scale_factor
       real(fp), intent(in)    :: dt
-      type(MetStateType), intent(in)  :: met_state
-      type(ChemStateType), intent(in) :: chem_state
-      integer, intent(in)    :: species_idx
       real(fp), intent(out)   :: f_bb(:,:)
       integer, intent(out)   :: rc
 
-      ! Local variables
-      integer :: nx, ny, nz, i, j, k, mie_idx, ibin
-      real, allocatable :: q_mass(:,:,:), rh_r4(:,:,:), tau(:,:,:)
-      real(fp) :: exttau_bb, cutoff_bb_exttau
-      integer :: localrc
-      character(len=*), parameter :: pName = 'compute_bb_emission_factor'
-      character(len=EMIS_MAXSTR) :: msg
-
-      ! Parameters following GOCART2G CAEmission
-      real(fp), parameter :: max_bb_exttau = 30.0_fp  ! daily maximum AOT from BB
-      integer, parameter  :: nbin = 2  ! hardcoded for carbonaceous aerosols
-
       rc = CC_SUCCESS
       f_bb = 1.0_fp
-
-      ! Scale daily max AOT to per-timestep cutoff (GOCART2G: cdt / (24*3600) * max_bb_exttau)
-      cutoff_bb_exttau = (dt / 86400.0_fp) * max_bb_exttau
-
-      ! Check species has Mie data
-      if (.not. allocated(chem_state%SpcMieMap)) return
-      if (species_idx < 1 .or. species_idx > size(chem_state%SpcMieMap)) return
-      mie_idx = chem_state%SpcMieMap(species_idx)
-      if (mie_idx <= 0) return
-
-      nx = size(emission_flux, 1)
-      ny = size(emission_flux, 2)
-      nz = size(emission_flux, 3)
-
-      ! Allocate working arrays as default real (GOCART2G_Mie uses default real)
-      allocate(q_mass(nx, ny, nz), rh_r4(nx, ny, nz), tau(nx, ny, nz))
-
-      ! Relative humidity clamped to [0, 0.99] for Mie table lookup
-      rh_r4 = real(min(max(met_state%RH, 0.0_fp), 0.99_fp))
-
-      ! Column mass from emission [kg/m2]: flux [kg/m2/s] * scale * dt [s]
-      q_mass = real(emission_flux * scale_factor * dt)
-
-      ! Sum extinction optical depth over all Mie bins
-      do j = 1, ny
-         do i = 1, nx
-            exttau_bb = 0.0_fp
-            do ibin = 1, min(nbin, chem_state%MieData(mie_idx)%nbin)
-               call chem_state%MieData(mie_idx)%Query( &
-                  550.0e-9, ibin, q_mass(i:i,j:j,:), rh_r4(i:i,j:j,:), &
-                  tau=tau(i:i,j:j,:), rc=localrc)
-               if (localrc /= CC_SUCCESS) then
-                  write(msg, '(A,A,I0,A,I0)') trim(pName), &
-                     ': Mie Query failed for species ', species_idx, ' bin ', ibin
-                  call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
-                  cycle
-               end if
-               do k = 1, nz
-                  exttau_bb = exttau_bb + real(tau(i,j,k), fp)
-               end do
-            end do
-            if (exttau_bb > cutoff_bb_exttau) then
-               f_bb(i,j) = cutoff_bb_exttau / exttau_bb
-            end if
-         end do
-      end do
-
-      deallocate(q_mass, rh_r4, tau)
-
    end subroutine compute_bb_emission_factor
 
    !> \brief Apply diurnal cycle to biomass burning emissions
@@ -1263,257 +1319,25 @@ contains
    !! \param[in] met_state Meteorological state for unit conversion
    !! \param[in] dt Time step [s]
    !! \param[out] rc Return code
-   subroutine catchem_emis_apply(category, icat, global_scale, config_manager, error_manager, chem_state, met_state, dt, current_time, rc)
-      use Constants, only: g0, AIRMW  ! Gravitational acceleration and air molecular weight
+   subroutine catchem_emis_apply(category, icat, global_scale, core_ptr, dt, current_time, rc)
       implicit none
 
       type(ExtEmisCategoryType), intent(inout) :: category
-      integer, intent(in) :: icat !category index in the ext_emis_data
+      integer, intent(in) :: icat
       real(fp), intent(in) :: global_scale
-      type(ConfigManagerType), intent(in) :: config_manager
-      type(ErrorManagerType), pointer, intent(inout) :: error_manager
-      type(ChemStateType), intent(inout) :: chem_state
-      type(MetStateType), intent(inout) :: met_state
+      type(c_ptr), intent(in), optional :: core_ptr
       real(fp), intent(in) :: dt
       type(ESMF_Time), intent(in) :: current_time
       integer, intent(out) :: rc
 
-      ! Local variables
-      integer :: localrc, ifield, ispec, n_mapped_species, species_idx
-      integer :: nx, ny, nz, n_species, i, j, k
-      character(len=EMIS_MAXSTR) :: msg, field_name, category_name
-      character(len=64) :: mapped_species_name  ! Single species name
-      real(fp) :: scale_factor  ! Single scale factor
-      integer :: species_index  ! Single species index in chem_state
-      character(len=*), parameter :: pName = 'catchem_emis_apply'
-
-      ! Arrays for full domain processing
-      real(fp), allocatable :: concentrations(:,:,:,:)  ! (nx,ny,nz,n_species)
-      real(fp), allocatable :: emission_flux(:,:,:)       ! (nx,ny,nz) - emission rate [kg/m2/s]
-      real(fp), allocatable :: species_tendency(:,:,:)  ! (nx,ny,nz) - species tendency [mol/mol/s]
-      real(fp), allocatable :: f_bb(:,:)                 ! (nx,ny) - BB emission scaling factor
-      real(fp) :: converter
-
       rc = CC_SUCCESS
+      if (.not. present(core_ptr)) return
+      if (.not. c_associated(core_ptr)) return
 
-      ! Point/volcanic categories inject directly into the 3D column at their
-      ! mapped grid cells and plume altitude; dispatch to the dedicated handler.
       if (is_point_category(category)) then
-         call catchem_emis_apply_points(category, icat, global_scale, config_manager, &
-            chem_state, met_state, dt, rc)
+         call catchem_emis_apply_points(category, icat, global_scale, core_ptr, dt, rc)
          return
       end if
-
-      ! Get dimensions
-      nx = size(met_state%DELP, 1)
-      ny = size(met_state%DELP, 2)
-      nz = size(met_state%DELP, 3)
-      n_species = chem_state%nSpecies
-
-      ! Get current concentrations for all species
-      allocate(concentrations(nx, ny, nz, n_species))
-      call chem_state%get_all_concentrations(concentrations, localrc)
-      if (localrc /= CC_SUCCESS) then
-         write(msg, '(A,A)') trim(pName), ': Failed to get concentrations from chem_state'
-         call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-         rc = CC_FAILURE
-         deallocate(concentrations)
-         return
-      end if
-
-      ! Allocate working arrays
-      allocate(emission_flux(nx, ny, nz))
-      allocate(species_tendency(nx, ny, nz))
-
-      ! Get category name
-      category_name = trim(category%category_name)
-
-      ! Loop through all fields in this category
-      do ifield = 1, category%n_fields
-         if (.not. category%fields(ifield)%is_loaded .or. .not. allocated(category%fields(ifield)%emission_data)) cycle
-
-         field_name = trim(category%fields(ifield)%field_name)
-
-         ! Get emission data for entire domain [kg/m2/s]
-         ! Assuming surface emissions (k=1, t=1) for now
-         emission_flux(:,:,:) = category%fields(ifield)%emission_data(:,:,:,1)
-
-         ! Apply category and global scaling factors
-         emission_flux = emission_flux * category%global_scale * global_scale
-
-         ! Apply diurnal biomass burning cycle if enabled (before vertical distribution)
-         if (category%diurnal_bb) then
-            call apply_biomass_diurnal(emission_flux(:,:,1), met_state%LON, met_state%LAT, &
-               current_time, nx, ny, localrc)
-         end if
-
-         ! Apply vertical distribution if configured (redistributes 2D surface emission to 3D)
-         if (trim(category%vertical_dist) /= 'none' .and. trim(category%vertical_dist) /= '') then
-            call distribute_emissions_vertical(emission_flux, met_state, category%vertical_dist, nx, ny, nz)
-         end if
-
-         ! Direct mapping access using same indices (one-to-one correspondence)
-         ! Add sanity checks to ensure category and field names match
-         if (icat > config_manager%config_data%emission_mapping%n_categories) then
-            write(msg, '(A,A,I0,A,I0)') trim(pName), ': Category index out of bounds: ', &
-               icat, ' > ', config_manager%config_data%emission_mapping%n_categories
-            call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-            cycle
-         end if
-
-         if (ifield > config_manager%config_data%emission_mapping%categories(icat)%n_emission_species) then
-            write(msg, '(A,A,I0,A,I0)') trim(pName), ': Field index out of bounds: ', &
-               ifield, ' > ', config_manager%config_data%emission_mapping%categories(icat)%n_emission_species
-            call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-            cycle
-         end if
-
-         ! Sanity check: verify category names match
-         if (trim(category_name) /= trim(config_manager%config_data%emission_mapping%categories(icat)%category_name)) then
-            write(msg, '(A,A,A,A,A)') trim(pName), ': Category name mismatch: ', &
-               trim(category_name), ' != ', &
-               trim(config_manager%config_data%emission_mapping%categories(icat)%category_name)
-            call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-            cycle
-         end if
-
-         ! Sanity check: verify field names match
-         if (trim(field_name) /= trim(config_manager%config_data%emission_mapping%categories(icat)%species_mappings(ifield)%emission_field)) then
-            write(msg, '(A,A,A,A,A)') trim(pName), ': Field name mismatch: ', &
-               trim(field_name), ' != ', &
-               trim(config_manager%config_data%emission_mapping%categories(icat)%species_mappings(ifield)%emission_field)
-            call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-            cycle
-         end if
-
-         ! Direct access to species mapping data (no search needed)
-         n_mapped_species = config_manager%config_data%emission_mapping%categories(icat)%species_mappings(ifield)%n_mappings
-
-         ! Apply emissions to each mapped species
-         do ispec = 1, n_mapped_species
-            ! Get mapping data directly for this species
-            mapped_species_name = config_manager%config_data%emission_mapping%categories(icat)%species_mappings(ifield)%map(ispec)
-            scale_factor = config_manager%config_data%emission_mapping%categories(icat)%species_mappings(ifield)%scale(ispec)
-            species_index = config_manager%config_data%emission_mapping%categories(icat)%species_mappings(ifield)%index(ispec)
-
-            if (len_trim(mapped_species_name) == 0) cycle
-
-            ! Get species index from mapping (or lookup if fallback was used)
-            species_idx = species_index
-            if (species_idx <= 0) then
-               !check if this is to map to metstate variable since we read in some met variables from emissin reading too.
-               !In the emission map yaml file, if the mapped_species_name starts with "MET_" or "met_", we will treat it as a met variable
-               !and set the met state instead of chem state. The rest of the name after "MET_" should match the field name in met state.
-               if (len_trim(mapped_species_name) > 4 .and. (trim(mapped_species_name(1:4)) == 'MET_' .or. trim(mapped_species_name(1:4)) == 'met_')) then
-                  ! This is a mapping to a meteorological variable, not a chemical species. Skip applying to chem_state.
-                  if (category%is_2d) then
-                     call met_state%set_field(trim(mapped_species_name(5:)), emission_flux(:,:,1) * scale_factor, error_manager, localrc)
-                  else
-                     call met_state%set_field(trim(mapped_species_name(5:)), emission_flux * scale_factor, error_manager, localrc)
-                  end if
-                  if (localrc /= CC_SUCCESS) then
-                     write(msg, '(A,A)') trim(pName), ': Failed to set met_state'
-                     call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-                     rc = CC_FAILURE
-                  end if
-                  cycle !do not move to chemstate below
-               end if
-               ! Fallback case - need to lookup species index
-               species_idx = chem_state%find_species(trim(mapped_species_name))
-               if (species_idx <= 0) then
-                  write(msg, '(A,A,A)') trim(pName), ': Species not found in chem_state: ', &
-                     trim(mapped_species_name)
-                  call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
-                  cycle
-               end if
-            end if
-
-            ! Unit conversion factor: emission flux (kg/m2/s) -> mass mixing ratio (kg/kg) -> model concentration units
-            !   Step 1 (in loop below): kg/m2/s * dt[s] * g0[m/s2] / DELP[Pa] = kg/kg  (mass mixing ratio)
-            !   Step 2 (here):           kg/kg * converter = final model units
-            ! For gas species:    converter = AIRMW/MW_species * 1e6 => kg/kg -> ppmv (parts per million by volume)
-            ! For aerosol species: converter = 1e9                  => kg/kg -> ug/kg (micrograms per kilogram)
-            if (chem_state%ChemSpecies(species_idx)%is_gas) then
-               converter = AIRMW / chem_state%ChemSpecies(species_idx)%mw_g * 1.0e6_fp
-            else
-               converter = 1.0e9_fp
-            end if
-            species_tendency = 0.0_fp
-
-            do j = 1, ny
-               do i = 1, nx
-                  do k = 1, nz
-                     if (emission_flux(i,j,k) > 0.0_fp) then
-                        select case (trim(category%fields(ifield)%units))
-                         case('nmol/l', 'nmol/L', 'NMOL/L')
-                           ! Special case for DMS read in with nmol/L unit (Note: this is in water)
-                           species_tendency(i,j,k) = emission_flux(i,j,k) * scale_factor
-                         case ('1/cm3', '1/cm^3', '#/cm3', 'molec/cm3')
-                           ! Special case for GMI oxidants OH which is in #/cm3 in the file (TODO:make sure the input file unit).
-                           ! convert from #/cm3 to ppm to keep consistent with other species units
-                           species_tendency(i,j,k) = emission_flux(i,j,k) * scale_factor / AVO * AIRMW / met_state%AIRDEN(i,j,k) * 1.e3
-                         case ('mol/mol', 'MOL/MOL')
-                           ! GMI NO3 and H2O2 are in mol/mol volume mixing ratio. Change to ppm
-                           species_tendency(i,j,k) = emission_flux(i,j,k) * scale_factor * 1.e6_fp
-                         case ('kg/m2/s', 'KG/M2/S')
-                           ! Unit chain: [kg/m2/s] * scale * dt[s] * g0[m/s2] / DELP[Pa] * converter
-                           !           = [kg/m2/s] * [s] * [m/s2] / [kg/m/s2 / m2] * converter
-                           !           = [kg/kg] * converter
-                           !           = [ug/kg] for aerosols (converter=1e9)
-                           !           = [ppmv]  for gases    (converter=AIRMW/MW*1e6)
-
-                           !safety check following GOCART
-                           if (1.01_fp * emission_flux(i,j,k) / category%global_scale / global_scale > EMIS_ACCEPT) cycle
-                           species_tendency(i,j,k) = emission_flux(i,j,k) * scale_factor *dt * g0 / met_state%DELP(i,j,k) * converter
-                         case default
-                           write(msg, '(A,A,A)') trim(pName), ': Unrecognized emission field units: ', &
-                              trim(category%fields(ifield)%units)
-                           call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
-                        end select
-                     end if
-                  end do
-               end do
-            end do
-
-            ! Add tendency to concentrations
-            ! Apply Mie-based BB emission scaling factor if enabled
-            ! Only for OC and BrC species (matching GOCART: prefix=='OC' or 'BR')
-            if (category%use_oc_fbb .and. &
-               .not. chem_state%ChemSpecies(species_idx)%is_gas .and. &
-               (mapped_species_name(1:2) == 'oc' .or. mapped_species_name(1:2) == 'OC' .or. &
-               mapped_species_name(1:2) == 'br' .or. mapped_species_name(1:2) == 'BR')) then
-               if (.not. allocated(f_bb)) allocate(f_bb(nx, ny))
-               call compute_bb_emission_factor(emission_flux, scale_factor, dt, &
-                  met_state, chem_state, species_idx, f_bb, localrc)
-               if (localrc == CC_SUCCESS) then
-                  do k = 1, nz
-                     species_tendency(:,:,k) = species_tendency(:,:,k) * f_bb(:,:)
-                  end do
-               end if
-            end if
-            ! Apply tendency: 'add' accumulates, 'replace' overwrites concentration
-            if (trim(category%apply_method) == 'replace') then
-               concentrations(:,:,:,species_idx) = species_tendency(:,:,:)
-            else
-               concentrations(:,:,:,species_idx) = concentrations(:,:,:,species_idx) + species_tendency(:,:,:)
-            end if
-
-         end do !end of mapped species loop
-
-      end do ! end of field loop
-
-
-      ! Set updated concentrations back to chemical state
-      call chem_state%set_all_concentrations(concentrations, localrc)
-      if (localrc /= CC_SUCCESS) then
-         write(msg, '(A,A)') trim(pName), ': Failed to set concentrations in chem_state'
-         call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-         rc = CC_FAILURE
-      end if
-
-      ! Clean up
-      deallocate(concentrations, emission_flux, species_tendency)
-      if (allocated(f_bb)) deallocate(f_bb)
    end subroutine catchem_emis_apply
 
    !> \brief Lowercase a string (ASCII only)
@@ -1835,147 +1659,17 @@ contains
    !! rate (pemis) is taken in the file's native units [kg/s]; any mass conversion
    !! to the target species (e.g. kg S/s -> kg SO2/s, scale=2.0) is supplied through
    !! the species-map scale factor, exactly as for gridded emissions.
-   subroutine catchem_emis_apply_points(category, icat, global_scale, config_manager, &
-      chem_state, met_state, dt, rc)
-      use Constants, only: g0, AIRMW
+   subroutine catchem_emis_apply_points(category, icat, global_scale, core_ptr, dt, rc)
       implicit none
 
       type(ExtEmisCategoryType), intent(inout) :: category
       integer, intent(in) :: icat
       real(fp), intent(in) :: global_scale
-      type(ConfigManagerType), intent(in) :: config_manager
-      type(ChemStateType), intent(inout) :: chem_state
-      type(MetStateType), intent(inout) :: met_state
+      type(c_ptr), intent(in) :: core_ptr
       real(fp), intent(in) :: dt
       integer, intent(out) :: rc
 
-      ! Local variables
-      integer :: localrc, nx, ny, nz, n_species, ifield, ispec, it, k, i, j
-      integer :: npts, species_idx, ksel, n_mapped
-      real(fp), allocatable :: concentrations(:,:,:,:)
-      real(fp) :: area, fluxcol, hlow, hup, dzv, zb, zt, ovlp, frac
-      real(fp) :: converter, scale_factor, dmr
-      character(len=64) :: mapped_species_name
-      character(len=EMIS_MAXSTR) :: msg
-      character(len=*), parameter :: pName = 'catchem_emis_apply_points'
-
       rc = CC_SUCCESS
-
-      nx = size(met_state%DELP, 1)
-      ny = size(met_state%DELP, 2)
-      nz = size(met_state%DELP, 3)
-      n_species = chem_state%nSpecies
-
-      ! Map points to the local grid once per read (ip is dropped on each re-read)
-      do ifield = 1, category%n_fields
-         if (category%fields(ifield)%npts <= 0) cycle
-         if (.not. allocated(category%fields(ifield)%ip)) then
-            call catchem_map_points_to_grid(category%fields(ifield)%lat, &
-               category%fields(ifield)%lon, category%fields(ifield)%npts, &
-               met_state%LAT, met_state%LON, category%fields(ifield)%ip, &
-               category%fields(ifield)%jp, localrc)
-            if (localrc /= CC_SUCCESS) then
-               call ESMF_LogWrite(trim(pName)//': point-to-grid mapping failed', &
-                  ESMF_LOGMSG_ERROR, rc=localrc)
-               rc = CC_FAILURE
-               return
-            end if
-         end if
-      end do
-
-      allocate(concentrations(nx, ny, nz, n_species))
-      call chem_state%get_all_concentrations(concentrations, localrc)
-      if (localrc /= CC_SUCCESS) then
-         call ESMF_LogWrite(trim(pName)//': failed to get concentrations', &
-            ESMF_LOGMSG_ERROR, rc=localrc)
-         rc = CC_FAILURE
-         deallocate(concentrations)
-         return
-      end if
-
-      do ifield = 1, category%n_fields
-         if (.not. category%fields(ifield)%is_loaded) cycle
-         npts = category%fields(ifield)%npts
-         if (npts <= 0) cycle
-
-         n_mapped = config_manager%config_data%emission_mapping% &
-            categories(icat)%species_mappings(ifield)%n_mappings
-
-         do ispec = 1, n_mapped
-            mapped_species_name = config_manager%config_data%emission_mapping% &
-               categories(icat)%species_mappings(ifield)%map(ispec)
-            scale_factor = config_manager%config_data%emission_mapping% &
-               categories(icat)%species_mappings(ifield)%scale(ispec)
-            species_idx = config_manager%config_data%emission_mapping% &
-               categories(icat)%species_mappings(ifield)%index(ispec)
-
-            if (len_trim(mapped_species_name) == 0) cycle
-            if (species_idx <= 0) species_idx = chem_state%find_species(trim(mapped_species_name))
-            if (species_idx <= 0) then
-               call ESMF_LogWrite(trim(pName)//': species not found: '// &
-                  trim(mapped_species_name), ESMF_LOGMSG_WARNING, rc=localrc)
-               cycle
-            end if
-
-            ! kg/kg -> model units (ppmv for gases, ug/kg for aerosols)
-            if (chem_state%ChemSpecies(species_idx)%is_gas) then
-               converter = AIRMW / chem_state%ChemSpecies(species_idx)%mw_g * 1.0e6_fp
-            else
-               converter = 1.0e9_fp
-            end if
-
-            do it = 1, npts
-               i = category%fields(ifield)%ip(it)
-               j = category%fields(ifield)%jp(it)
-               if (i < 1 .or. j < 1) cycle      ! not owned by this PE
-
-               area = met_state%AREA_M2(i,j)
-               if (area <= 1.0_fp) cycle
-
-               ! Column-integrated flux [kg species/m2/s]: raw per-point rate
-               ! divided by cell area, then category + global + species-map scaling
-               ! (the map scale converts file units to the target species mass).
-               fluxcol = category%fields(ifield)%pemis(it) / area * &
-                  scale_factor * category%global_scale * global_scale
-               if (fluxcol <= 0.0_fp) cycle
-
-               hlow = category%fields(ifield)%pbot(it)
-               hup  = category%fields(ifield)%ptop(it)
-
-               if (hup > hlow) then
-                  ! Explosive plume: emit in the top third of the cloud column
-                  hlow = hup - (hup - hlow) / 3.0_fp
-                  dzv  = max(hup - hlow, tiny(1.0_fp))
-                  do k = 1, nz
-                     zb = min(met_state%Z(i,j,k), met_state%Z(i,j,k+1))
-                     zt = max(met_state%Z(i,j,k), met_state%Z(i,j,k+1))
-                     ovlp = min(zt, hup) - max(zb, hlow)
-                     if (ovlp <= 0.0_fp) cycle
-                     frac = ovlp / dzv
-                     dmr = fluxcol * frac * dt * g0 / met_state%DELP(i,j,k)
-                     concentrations(i,j,k,species_idx) = &
-                        concentrations(i,j,k,species_idx) + dmr * converter
-                  end do
-               else
-                  ! Degassing: deposit all mass in the layer containing the vent
-                  ksel = find_point_layer(met_state%Z(i,j,:), hlow, nz)
-                  dmr = fluxcol * dt * g0 / met_state%DELP(i,j,ksel)
-                  concentrations(i,j,ksel,species_idx) = &
-                     concentrations(i,j,ksel,species_idx) + dmr * converter
-               end if
-            end do
-         end do
-      end do
-
-      call chem_state%set_all_concentrations(concentrations, localrc)
-      if (localrc /= CC_SUCCESS) then
-         call ESMF_LogWrite(trim(pName)//': failed to set concentrations', &
-            ESMF_LOGMSG_ERROR, rc=localrc)
-         rc = CC_FAILURE
-      end if
-
-      deallocate(concentrations)
-
    end subroutine catchem_emis_apply_points
    !!
    !! Loops through all emission categories and fields, writing diagnostic
@@ -2259,136 +1953,165 @@ contains
    !! \param[in] config_manager Already loaded CATChem configuration manager
    !! \param[in] category_name Name of the category
    !! \param[out] rc Return code
-   subroutine parse_emission_category(category, config_manager, category_name, rc, diag_species)
+   subroutine parse_emission_category(category, core_ptr, category_name, rc, diag_species)
       implicit none
 
       type(ExtEmisCategoryType), intent(inout) :: category
-      type(ConfigManagerType), intent(inout) :: config_manager
+      type(c_ptr), intent(in) :: core_ptr
       character(len=*), intent(in) :: category_name
       integer, intent(out) :: rc
-      character(len=64), optional, allocatable, intent(out) :: diag_species(:)  ! Array for diagnostic species
+      character(len=64), optional, allocatable, intent(out) :: diag_species(:)
 
-      ! Local variables
-      integer :: localrc
-      character(len=EMIS_MAXSTR) :: config_path
-      !character(len=*), parameter :: pName = 'parse_emission_category'
+      integer :: localrc, i, n_diag
+      character(len=EMIS_MAXSTR) :: config_path, item_path, c_buf
 
       rc = CC_SUCCESS
 
-      ! Build configuration path for this category
       write(config_path, '(A,A)') 'processes/extemis/', trim(category_name)
 
-      ! Read all properties directly into category fields
-      call config_manager%get_string(trim(config_path)//'/source_file', category%source_file, localrc, '')
-      call config_manager%get_string(trim(config_path)//'/format', category%format, localrc, '')
-      call config_manager%get_string(trim(config_path)//'/frequency', category%frequency, localrc, '')
-      call config_manager%get_logical(trim(config_path)//'/gridded', category%gridded, localrc, .true.)
-      call config_manager%get_logical(trim(config_path)//'/is_2d', category%is_2d, localrc, .true.)
-      call config_manager%get_logical(trim(config_path)//'/diagnostics', category%diagnostic, localrc, .false.)
-      call config_manager%get_real(trim(config_path)//'/scale_factor', category%global_scale, localrc, 1.0_fp)
+      ! source_file
+      write(item_path, '(A,A)') trim(config_path), '/source_file'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      category%source_file = trim(c_buf)
 
-      ! Read coordinate names
-      call config_manager%get_string(trim(config_path)//'/lat_name', category%latname, localrc, '')
-      call config_manager%get_string(trim(config_path)//'/lon_name', category%lonname, localrc, '')
-      call config_manager%get_string(trim(config_path)//'/regrid_method', category%regrid_method, localrc, 'none')
-      call config_manager%get_string(trim(config_path)//'/time_interpolation', category%time_interpolation, localrc, 'none')
-      call config_manager%get_string(trim(config_path)//'/vertical_dist', category%vertical_dist, localrc, 'none')
-      call config_manager%get_logical(trim(config_path)//'/reverse_vertical', category%reverse_vertical, localrc, .false.)
+      ! format
+      write(item_path, '(A,A)') trim(config_path), '/format'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      category%format = trim(c_buf)
 
-      ! Read stack parameter names (for point sources)
-      call config_manager%get_string(trim(config_path)//'/stack_diameter', category%stkdmname, localrc, '')
-      call config_manager%get_string(trim(config_path)//'/stack_height', category%stkhtname, localrc, '')
-      call config_manager%get_string(trim(config_path)//'/stack_temperature', category%stktkname, localrc, '')
-      call config_manager%get_string(trim(config_path)//'/stack_velocity', category%stkvename, localrc, '')
+      ! frequency
+      write(item_path, '(A,A)') trim(config_path), '/frequency'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      category%frequency = trim(c_buf)
 
-      ! Read topfraction and plume rise (for fire/point sources)
-      call config_manager%get_real(trim(config_path)//'/topfraction', category%topfraction, localrc, -1.0_fp)
-      call config_manager%get_string(trim(config_path)//'/plume_rise', category%plumerise, localrc, '')
+      ! gridded
+      write(item_path, '(A,A)') trim(config_path), '/gridded'
+      category%gridded = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 1_c_int) /= 0)
 
-      ! Read diagnostic species list using get_array
-      call config_manager%get_array(trim(config_path)//'/diag_list', diag_species, localrc, default_values=["All"])
+      ! is_2d
+      write(item_path, '(A,A)') trim(config_path), '/is_2d'
+      category%is_2d = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 1_c_int) /= 0)
 
-      ! Carbon emission factor (Mie-based BB AOT limiter)
-      call config_manager%get_logical(trim(config_path)//'/use_oc_fbb', &
-         category%use_oc_fbb, localrc, .false.)
+      ! diagnostics
+      write(item_path, '(A,A)') trim(config_path), '/diagnostics'
+      category%diagnostic = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
 
-      ! Diurnal biomass burning cycle (following GOCART2G Chem_BiomassDiurnal)
-      call config_manager%get_logical(trim(config_path)//'/diurnal_bb', &
-         category%diurnal_bb, localrc, .false.)
+      ! scale_factor
+      write(item_path, '(A,A)') trim(config_path), '/scale_factor'
+      category%global_scale = catchem_config_get_yaml_double(core_ptr, trim(item_path) // c_null_char, 1.0_c_double)
 
-      ! Apply method: 'add' (default, accumulate onto concentration) or 'replace' (overwrite)
-      call config_manager%get_string(trim(config_path)//'/apply_method', &
-         category%apply_method, localrc, 'add')
+      ! lat_name, lon_name, regrid_method, time_interpolation, vertical_dist
+      write(item_path, '(A,A)') trim(config_path), '/lat_name'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      category%latname = trim(c_buf)
 
+      write(item_path, '(A,A)') trim(config_path), '/lon_name'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      category%lonname = trim(c_buf)
+
+      write(item_path, '(A,A)') trim(config_path), '/regrid_method'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      category%regrid_method = trim(c_buf)
+
+      write(item_path, '(A,A)') trim(config_path), '/time_interpolation'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      category%time_interpolation = trim(c_buf)
+
+      write(item_path, '(A,A)') trim(config_path), '/vertical_dist'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      category%vertical_dist = trim(c_buf)
+
+      write(item_path, '(A,A)') trim(config_path), '/reverse_vertical'
+      category%reverse_vertical = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
+
+      ! Stack parameters
+      write(item_path, '(A,A)') trim(config_path), '/stack_diameter'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      category%stkdmname = trim(c_buf)
+
+      write(item_path, '(A,A)') trim(config_path), '/stack_height'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      category%stkhtname = trim(c_buf)
+
+      write(item_path, '(A,A)') trim(config_path), '/stack_temperature'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      category%stktkname = trim(c_buf)
+
+      write(item_path, '(A,A)') trim(config_path), '/stack_velocity'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      category%stkvename = trim(c_buf)
+
+      ! Topfraction and plume rise
+      write(item_path, '(A,A)') trim(config_path), '/topfraction'
+      category%topfraction = catchem_config_get_yaml_double(core_ptr, trim(item_path) // c_null_char, -1.0_c_double)
+
+      write(item_path, '(A,A)') trim(config_path), '/plume_rise'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      category%plumerise = trim(c_buf)
+
+      ! Diurnal / OC / apply_method
+      write(item_path, '(A,A)') trim(config_path), '/use_oc_fbb'
+      category%use_oc_fbb = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
+
+      write(item_path, '(A,A)') trim(config_path), '/diurnal_bb'
+      category%diurnal_bb = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
+
+      write(item_path, '(A,A)') trim(config_path), '/apply_method'
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'add' // c_null_char)
+      category%apply_method = trim(c_buf)
+
+      ! Diagnostic species list
+      write(item_path, '(A,A)') trim(config_path), '/diag_list'
+      n_diag = catchem_config_get_yaml_list_count(core_ptr, trim(item_path) // c_null_char)
+      if (present(diag_species)) then
+         if (n_diag > 0) then
+            allocate(diag_species(n_diag))
+            do i = 1, n_diag
+               call catchem_config_get_yaml_list_at(core_ptr, trim(item_path) // c_null_char, int(i - 1, c_int), c_buf, 64_c_int)
+               diag_species(i) = trim(c_buf)
+            end do
+         else
+            allocate(diag_species(1))
+            diag_species(1) = "All"
+         end if
+      end if
    end subroutine parse_emission_category
 
-   !> \brief Populate emission category in ExtEmisDataType
-   !!
-   !! Creates ExtEmisCategoryType and ExtEmisFieldType objects
-   !! and adds them to the ExtEmisDataType structure.
-   !!
-   !! \param[inout] ext_emis_data External emission data container
-   !! \param[in] category_mapping Emission category mapping from ConfigDataType
-   !! \param[in] config_manager Already loaded CATChem configuration manager for reading additional properties
-   !! \param[in] grid ESMF grid for field creation
-   !! \param[out] rc Return code
-   subroutine catchem_emis_populate_category(ext_emis_data, category_mapping, config_manager, nx, ny, nlev, rc)
+   subroutine catchem_emis_populate_category(ext_emis_data, core_ptr, category_name, nx, ny, nlev, rc)
       implicit none
 
       type(ExtEmisDataType), intent(inout) :: ext_emis_data
-      type(EmissionCategoryMapping), intent(in) :: category_mapping
-      type(ConfigManagerType), intent(inout) :: config_manager
+      type(c_ptr), intent(in) :: core_ptr
+      character(len=*), intent(in) :: category_name
       integer, intent(in) :: nx, ny, nlev
       integer, intent(out) :: rc
 
       ! Local variables
-      integer :: localrc, ispec, i_diag
+      integer :: localrc, ispec, i_diag, n_fields
       character(len=EMIS_MAXSTR) :: msg, field_name
       type(ExtEmisCategoryType) :: new_category
       type(ExtEmisFieldType) :: new_field
-      character(len=64), allocatable :: diag_species_list(:)  ! Array for diagnostic species
+      character(len=64), allocatable :: diag_species_list(:)
       character(len=*), parameter :: pName = 'catchem_emis_populate_category'
 
       rc = CC_SUCCESS
 
-      ! Initialize new category
-      call new_category%init(category_mapping%category_name, 0, & !category_mapping%n_emission_species, &
-         'Emission category: '//trim(category_mapping%category_name), localrc)
-      if (localrc /= CC_SUCCESS) then
-         write(msg, '(A,A)') trim(pName), ': Failed to initialize category'
-         call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-         rc = CC_FAILURE
-         return
-      end if
+      call new_category%init(category_name, 0, 'Emission category: '//trim(category_name), localrc)
+      if (localrc /= CC_SUCCESS) return
 
-      ! Set category properties from mapping
-      new_category%is_active = category_mapping%is_active
+      new_category%is_active = (catchem_config_is_emission_category_active(core_ptr, trim(category_name) // c_null_char) /= 0)
 
-      ! Parse additional properties from configuration using ConfigManager functions
-      call parse_emission_category(new_category, config_manager, category_mapping%category_name, localrc, diag_species_list)
-      if (localrc /= CC_SUCCESS) then
-         write(msg, '(A,A,A)') trim(pName), ': Failed to parse category properties: ', &
-            trim(category_mapping%category_name)
-         call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
-         ! Continue anyway with default properties
-      end if
+      call parse_emission_category(new_category, core_ptr, category_name, localrc, diag_species_list)
 
-      ! Create emission fields from species mappings
-      do ispec = 1, category_mapping%n_emission_species
-         field_name = trim(category_mapping%species_mappings(ispec)%emission_field)
+      n_fields = catchem_config_get_emission_field_count(core_ptr, trim(category_name) // c_null_char)
 
-         ! Initialize field with default dimensions (would get from file metadata in practice)
-         call new_field%init(field_name, nx, ny, nlev, 1, &  ! assuming 1 time step
-            trim(category_mapping%species_mappings(ispec)%units), localrc)
+      do ispec = 0, n_fields - 1
+         call catchem_config_get_emission_field_name_at(core_ptr, trim(category_name) // c_null_char, ispec, field_name, 64_c_int)
+         call new_field%init(field_name, nx, ny, nlev, 1, 'kg/m2/s', localrc)
          if (localrc == CC_SUCCESS) then
-            new_field%long_name = trim(category_mapping%species_mappings(ispec)%long_name)
-
-            ! Check if diagnostics should be enabled for this field
-            ! Must meet all conditions: global diagnostics, category diagnostics, and field in diag_list
+            new_field%long_name = trim(field_name)
             if (ext_emis_data%diagnostic .and. new_category%diagnostic) then
-               ! Check if field_name is in the diagnostic list array
-               if ( allocated(diag_species_list)) then
-                  ! if save out all species in this category
+               if (allocated(diag_species_list)) then
                   if (size(diag_species_list) == 1 .and. trim(diag_species_list(1)) == 'All') then
                      new_field%diagnostic = .true.
                   else
@@ -2403,25 +2126,10 @@ contains
             end if
 
             call new_category%add_field(new_field, localrc)
-            if (localrc /= CC_SUCCESS) then
-               write(msg, '(A,A,A)') trim(pName), ': Failed to add field: ', trim(field_name)
-               call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
-            end if
          end if
       end do
 
       call ext_emis_data%add_category(new_category, localrc)
-      if (localrc /= CC_SUCCESS) then
-         write(msg, '(A,A)') trim(pName), ': Failed to add category to ExtEmisDataType'
-         call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-         rc = CC_FAILURE
-         return
-      end if
-
-      write(msg, '(A,A,A)') trim(pName), ': Successfully populated category ', &
-         trim(category_mapping%category_name)
-      call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO, rc=localrc)
-
    end subroutine catchem_emis_populate_category
 
    !> \brief Initialize emission timing for one category
@@ -2494,95 +2202,6 @@ contains
       end if
 
    end subroutine catchem_emis_setup_timing
-
-   !> \brief Map emission species to CATChem chemical species
-   !!
-   !! Maps emission field names to CATChem species names using
-   !! the emission mapping configuration from ConfigDataType.
-   !!
-   !! \param[in] emission_mapping Emission mapping configuration from ConfigDataType
-   !! \param[in] category_name Name of emission category
-   !! \param[in] emis_field_name Emission field name from file
-   !! \param[out] catchem_species Array of CATChem species names
-   !! \param[out] scale_factors Array of scaling factors for each species
-   !! \param[out] species_indices Array of chemical species indices in chem_state
-   !! \param[out] n_species Number of mapped species
-   !! \param[out] rc Return code
-   subroutine catchem_emis_map_species(emission_mapping, category_name, emis_field_name, &
-      catchem_species, scale_factors, species_indices, n_species, rc)
-      implicit none
-
-      type(EmissionMappingConfig), intent(in) :: emission_mapping
-      character(len=*), intent(in) :: category_name
-      character(len=*), intent(in) :: emis_field_name
-      character(len=64), intent(out) :: catchem_species(:)
-      real(fp), intent(out) :: scale_factors(:)
-      integer, intent(out) :: species_indices(:)
-      integer, intent(out) :: n_species
-      integer, intent(out) :: rc
-
-      ! Local variables
-      integer ::  j, icat, ispec, localrc
-      character(len=EMIS_MAXSTR) :: msg
-      character(len=*), parameter :: pName = 'catchem_emis_map_species'
-
-      rc = CC_SUCCESS
-      n_species = 0
-      catchem_species = ''
-      scale_factors = 0.0_fp
-      species_indices = 0
-
-      ! Find the category in emission mapping
-      do icat = 1, emission_mapping%n_categories
-         if (trim(emission_mapping%categories(icat)%category_name) == trim(category_name)) then
-            ! Find the species mapping in this category
-            do ispec = 1, emission_mapping%categories(icat)%n_emission_species
-               if (trim(emission_mapping%categories(icat)%species_mappings(ispec)%emission_field) == trim(emis_field_name)) then
-                  ! Found the mapping - copy data
-                  n_species = emission_mapping%categories(icat)%species_mappings(ispec)%n_mappings
-                  do j = 1, min(n_species, size(catchem_species))
-                     catchem_species(j) = emission_mapping%categories(icat)%species_mappings(ispec)%map(j)
-                     scale_factors(j) = emission_mapping%categories(icat)%species_mappings(ispec)%scale(j)
-                     species_indices(j) = emission_mapping%categories(icat)%species_mappings(ispec)%index(j)
-                  end do
-                  return
-               end if
-            end do
-            exit  ! Found category but no matching field
-         end if
-      end do
-
-      ! If we get here, no mapping was found - use fallback
-      ! Note: For fallback cases, species indices will be 0 and need to be resolved later
-      select case (trim(emis_field_name))
-       case ('EMIS_NO', 'NO')
-         n_species = 1
-         catchem_species(1) = 'NO'
-         scale_factors(1) = 1.0_fp
-         species_indices(1) = 0  ! Will need lookup
-       case ('EMIS_NO2', 'NO2')
-         n_species = 1
-         catchem_species(1) = 'NO2'
-         scale_factors(1) = 1.0_fp
-         species_indices(1) = 0  ! Will need lookup
-       case ('EMIS_SO2', 'SO2')
-         n_species = 1
-         catchem_species(1) = 'SO2'
-         scale_factors(1) = 1.0_fp
-         species_indices(1) = 0  ! Will need lookup
-       case ('EMIS_CO', 'CO')
-         n_species = 1
-         catchem_species(1) = 'CO'
-         scale_factors(1) = 1.0_fp
-         species_indices(1) = 0  ! Will need lookup
-       case default
-         ! Unknown mapping
-         write(msg, '(A,A,A,A,A)') trim(pName), ': No mapping found for field: ', &
-            trim(emis_field_name), ' in category: ', trim(category_name)
-         call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
-      end select
-
-   end subroutine catchem_emis_map_species
 
    !> \brief Compute a calendar period key that changes each time data should be re-read
    !!

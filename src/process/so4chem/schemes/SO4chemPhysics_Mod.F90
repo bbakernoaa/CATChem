@@ -15,7 +15,6 @@
 module SO4chemPhysics_Mod
 
    use precision_mod, only: fp
-   use Met_Utilities_Mod, only: solar_zenith_angle
    implicit none
    private
 
