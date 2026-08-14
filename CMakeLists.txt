@@ -311,10 +311,7 @@ if(NOT TARGET yaml-cpp::yaml-cpp AND NOT TARGET yaml-cpp)
     # otherwise get a bare -lyaml-cpp with no include/link dirs.
     # (Promotion must happen here — IMPORTED_GLOBAL can only be set from
     # the directory that created the imported target.)
-    set_target_properties(
-      yaml-cpp::yaml-cpp
-      PROPERTIES IMPORTED_GLOBAL TRUE
-    )
+    set_target_properties(yaml-cpp::yaml-cpp PROPERTIES IMPORTED_GLOBAL TRUE)
   endif()
 endif()
 
