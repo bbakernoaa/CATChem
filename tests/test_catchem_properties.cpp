@@ -53,11 +53,18 @@ protected:
     void TearDown() override {}
 };
 
+namespace {
+    bool file_exists(const std::string& name) {
+        std::ifstream f(name.c_str());
+        return f.good();
+    }
+} // namespace
+
 TEST_F(CatchemPropertiesTest, LoadEmissionMappingFromConfig) {
     catchem::ConfigManager config_mgr;
     // Load config file that references emission_filename
     std::string config_path = "tests/Configs/Default/CATChem_new_config.yml";
-    if (!std::filesystem::exists(config_path) && std::filesystem::exists("../" + config_path)) {
+    if (!file_exists(config_path) && file_exists("../" + config_path)) {
         config_path = "../" + config_path;
     }
     config_mgr.load_from_file(config_path);

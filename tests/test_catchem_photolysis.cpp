@@ -16,9 +16,10 @@ extern "C" {
 void catchem_register_photolysis_cpp();
 }
 
-// Simple helper to check if a file exists using C++17 std::filesystem
+// Simple helper to check if a file exists
 bool file_exists(const std::string& name) {
-    return std::filesystem::exists(name);
+    std::ifstream f(name.c_str());
+    return f.good();
 }
 
 int main(int argc, char* argv[]) {

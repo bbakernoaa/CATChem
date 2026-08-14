@@ -1,9 +1,25 @@
 #include "catchem_config_manager.hpp"
-#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 
 namespace {
+
+    bool file_exists(const std::string& path) {
+        if (path.empty())
+            return false;
+        std::ifstream f(path.c_str());
+        return f.good();
+    }
+
+    std::string resolve_against_config(const std::string& config_file, const std::string& path) {
+        if (path.empty() || path.front() == '/')
+            return path;
+        auto slash = config_file.find_last_of('/');
+        if (slash == std::string::npos)
+            return path;
+        return config_file.substr(0, slash + 1) + path;
+    }
 
     YAML::Node get_node_by_path(const YAML::Node& root, const std::string& path) {
         if (!root || !root.IsMap())
@@ -97,7 +113,6 @@ namespace catchem {
 
     void ConfigManager::load_from_file(const std::string& filename) {
         config_file_path = filename;
-        std::filesystem::path config_dir = std::filesystem::path(filename).parent_path();
 
         try {
             YAML::Node config = YAML::LoadFile(filename);
@@ -112,9 +127,8 @@ namespace catchem {
                 }
                 if (sim["emission_filename"]) {
                     data.emission_filename = sim["emission_filename"].as<std::string>();
-                    std::filesystem::path resolved_emis = config_dir / data.emission_filename;
-                    std::string target_emis =
-                        std::filesystem::exists(resolved_emis) ? resolved_emis.string() : data.emission_filename;
+                    std::string resolved_emis = resolve_against_config(filename, data.emission_filename);
+                    std::string target_emis = file_exists(resolved_emis) ? resolved_emis : data.emission_filename;
                     load_emission_mapping(target_emis);
                 }
                 if (sim["nx"]) {

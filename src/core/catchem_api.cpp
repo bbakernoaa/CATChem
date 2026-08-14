@@ -5,7 +5,7 @@
 #include "catchem_state_manager.hpp"
 #include "catchem_unit_conversion.hpp"
 #include <cstring>
-#include <filesystem>
+#include <fstream>
 #include <iostream>
 
 extern "C" {
@@ -366,8 +366,12 @@ void catchem_config_get_mie_file_info(void* core_ptr, int idx, char* name_out, c
     std::strncpy(name_out, it->first.c_str(), 63);
     name_out[63] = '\0';
 
-    std::filesystem::path full_p = std::filesystem::path(mie.directory) / it->second;
-    std::strncpy(full_path_out, full_p.string().c_str(), 511);
+    std::string full_p = mie.directory;
+    if (!full_p.empty() && full_p.back() != '/') {
+        full_p += '/';
+    }
+    full_p += it->second;
+    std::strncpy(full_path_out, full_p.c_str(), 511);
     full_path_out[511] = '\0';
 }
 

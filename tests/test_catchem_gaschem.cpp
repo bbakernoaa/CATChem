@@ -18,7 +18,8 @@ void catchem_register_gaschem_cpp();
 }
 
 bool file_exists(const std::string& name) {
-    return std::filesystem::exists(name);
+    std::ifstream f(name.c_str());
+    return f.good();
 }
 
 int main(int argc, char* argv[]) {
