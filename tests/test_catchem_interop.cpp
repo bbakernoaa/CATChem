@@ -93,6 +93,36 @@ int main(int argc, char* argv[]) {
             assert(catchem_state_get_pointer_3d(state, "dummy3") == dummy_3d.data());
             assert(catchem_state_get_pointer_1d(state, "nonexistent") == nullptr);
 
+            // Test in-place InteropField pointer updates
+            std::vector<double> dummy1_v2(n_cols, 4.0);
+            catchem_state_bind_1d(state, "dummy1", dummy1_v2.data());
+            assert(catchem_state_get_pointer_1d(state, "dummy1") == dummy1_v2.data());
+
+            catchem::StateManager sm(n_cols, n_levels, n_species);
+            std::vector<double> ps_v1(n_cols * n_levels, 100000.0);
+            std::vector<double> ps_v2(n_cols * n_levels, 101325.0);
+            sm.bind_met_field_2d("PS", ps_v1.data());
+            auto orig_ps_field = sm.met.PS;
+            sm.bind_met_field_2d("PS", ps_v2.data());
+            assert(sm.met.PS == orig_ps_field);
+            assert(sm.met.PS->host_data() == ps_v2.data());
+
+            std::vector<double> t_v1(n_cols * n_levels, 290.0);
+            std::vector<double> t_v2(n_cols * n_levels, 300.0);
+            sm.bind_met_field_3d("T", t_v1.data());
+            auto orig_t_field = sm.met.T;
+            sm.bind_met_field_3d("T", t_v2.data());
+            assert(sm.met.T == orig_t_field);
+            assert(sm.met.T->host_data() == t_v2.data());
+
+            std::vector<double> chem_v1(n_cols * n_levels * n_species, 1e-9);
+            std::vector<double> chem_v2(n_cols * n_levels * n_species, 2e-9);
+            sm.bind_unified_chemistry(chem_v1.data());
+            auto orig_chem_field = sm.chem.conc;
+            sm.bind_unified_chemistry(chem_v2.data());
+            assert(sm.chem.conc == orig_chem_field);
+            assert(sm.chem.conc->host_data() == chem_v2.data());
+
             // 2. Sync to active space
             catchem_state_sync_to_device(state);
 

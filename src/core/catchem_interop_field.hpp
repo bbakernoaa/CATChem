@@ -114,6 +114,20 @@ namespace catchem {
             }
         }
 
+        /** @brief Updates the host raw pointer and updates the unmanaged host view. */
+        void update_host_pointer(DataType* ptr) {
+            if (ptr == nullptr) {
+                throw std::invalid_argument("InteropField::update_host_pointer failed: input pointer is null.");
+            }
+            if constexpr (Rank == 1) {
+                host_view = HostViewType(ptr, host_view.extent(0));
+            } else if constexpr (Rank == 2) {
+                host_view = HostViewType(ptr, host_view.extent(0), host_view.extent(1));
+            } else if constexpr (Rank == 3) {
+                host_view = HostViewType(ptr, host_view.extent(0), host_view.extent(1), host_view.extent(2));
+            }
+        }
+
         /** @brief Sync calculated outputs from Kokkos device back to host buffer. */
         void sync_to_host() {
             if constexpr (!std::is_same_v<HostSpace, DeviceSpace>) {
@@ -162,6 +176,14 @@ namespace catchem {
 
         void sync_to_device() {}
         void sync_to_host() {}
+
+        /** @brief Updates the host raw pointer. */
+        void update_host_pointer(DataType* ptr) {
+            if (ptr == nullptr) {
+                throw std::invalid_argument("InteropField::update_host_pointer failed: input pointer is null.");
+            }
+            data_ptr = ptr;
+        }
 
         /** @brief Raw pointer to the host-side buffer. */
         DataType* host_data() const { return data_ptr; }

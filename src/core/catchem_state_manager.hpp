@@ -42,51 +42,65 @@ namespace catchem {
         void load_species_config(const std::string& filename) { chem.load_species_config(filename); }
 
         void bind_met_field_2d(const std::string& name, double* ptr) {
-            auto field = std::make_shared<InteropField<double, 2>>(ptr, std::vector<int>{n_cols, n_levels});
-            if (name == "PS")
-                met.PS = field;
-            else if (name == "TS")
-                met.TS = field;
-            else if (name == "PBLH")
-                met.PBLH = field;
-            else if (name == "USTAR")
-                met.USTAR = field;
-            else if (name == "HFLUX")
-                met.HFLUX = field;
-            else if (name == "OBK")
-                met.OBK = field;
-            else if (name == "LAT")
-                met.LAT = field;
-            else if (name == "LON")
-                met.LON = field;
-            met.fields_2d[name] = field;
+            auto it = met.fields_2d.find(name);
+            if (it != met.fields_2d.end() && it->second) {
+                it->second->update_host_pointer(ptr);
+            } else {
+                auto field = std::make_shared<InteropField<double, 2>>(ptr, std::vector<int>{n_cols, n_levels});
+                if (name == "PS")
+                    met.PS = field;
+                else if (name == "TS")
+                    met.TS = field;
+                else if (name == "PBLH")
+                    met.PBLH = field;
+                else if (name == "USTAR")
+                    met.USTAR = field;
+                else if (name == "HFLUX")
+                    met.HFLUX = field;
+                else if (name == "OBK")
+                    met.OBK = field;
+                else if (name == "LAT")
+                    met.LAT = field;
+                else if (name == "LON")
+                    met.LON = field;
+                met.fields_2d[name] = field;
+            }
         }
 
         void bind_met_field_3d(const std::string& name, double* ptr) {
-            int nl = (name == "PEDGE" || name == "PFILSAN" || name == "PFLLSAN") ? n_levels + 1 : n_levels;
-            auto field = std::make_shared<InteropField<double, 3>>(
-                ptr, std::vector<int>{n_cols, nl, 1}); // Using 1 for single-field layout
-            if (name == "T")
-                met.T = field;
-            else if (name == "QV")
-                met.QV = field;
-            else if (name == "RH")
-                met.RH = field;
-            else if (name == "PMID")
-                met.PMID = field;
-            else if (name == "PEDGE")
-                met.PEDGE = field;
-            else if (name == "AIRDEN")
-                met.AIRDEN = field;
-            else if (name == "AIRDEN_DRY")
-                met.AIRDEN_DRY = field;
-            else if (name == "BXHEIGHT")
-                met.BXHEIGHT = field;
-            met.fields_3d[name] = field;
+            auto it = met.fields_3d.find(name);
+            if (it != met.fields_3d.end() && it->second) {
+                it->second->update_host_pointer(ptr);
+            } else {
+                int nl = (name == "PEDGE" || name == "PFILSAN" || name == "PFLLSAN") ? n_levels + 1 : n_levels;
+                auto field = std::make_shared<InteropField<double, 3>>(
+                    ptr, std::vector<int>{n_cols, nl, 1}); // Using 1 for single-field layout
+                if (name == "T")
+                    met.T = field;
+                else if (name == "QV")
+                    met.QV = field;
+                else if (name == "RH")
+                    met.RH = field;
+                else if (name == "PMID")
+                    met.PMID = field;
+                else if (name == "PEDGE")
+                    met.PEDGE = field;
+                else if (name == "AIRDEN")
+                    met.AIRDEN = field;
+                else if (name == "AIRDEN_DRY")
+                    met.AIRDEN_DRY = field;
+                else if (name == "BXHEIGHT")
+                    met.BXHEIGHT = field;
+                met.fields_3d[name] = field;
+            }
         }
 
         void bind_unified_chemistry(double* ptr) {
-            chem.conc = std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, n_levels, n_species});
+            if (chem.conc) {
+                chem.conc->update_host_pointer(ptr);
+            } else {
+                chem.conc = std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, n_levels, n_species});
+            }
         }
 
         /**
@@ -216,16 +230,31 @@ namespace catchem {
         }
 
         void bind_field_1d(const std::string& name, double* ptr) {
-            fields_1d[name] = std::make_shared<InteropField<double, 1>>(ptr, std::vector<int>{n_cols});
+            auto it = fields_1d.find(name);
+            if (it != fields_1d.end() && it->second) {
+                it->second->update_host_pointer(ptr);
+            } else {
+                fields_1d[name] = std::make_shared<InteropField<double, 1>>(ptr, std::vector<int>{n_cols});
+            }
         }
 
         void bind_field_2d(const std::string& name, double* ptr) {
-            fields_2d[name] = std::make_shared<InteropField<double, 2>>(ptr, std::vector<int>{n_cols, n_levels});
+            auto it = fields_2d.find(name);
+            if (it != fields_2d.end() && it->second) {
+                it->second->update_host_pointer(ptr);
+            } else {
+                fields_2d[name] = std::make_shared<InteropField<double, 2>>(ptr, std::vector<int>{n_cols, n_levels});
+            }
         }
 
         void bind_field_3d(const std::string& name, double* ptr) {
-            fields_3d[name] =
-                std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, n_levels, n_species});
+            auto it = fields_3d.find(name);
+            if (it != fields_3d.end() && it->second) {
+                it->second->update_host_pointer(ptr);
+            } else {
+                fields_3d[name] =
+                    std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, n_levels, n_species});
+            }
         }
 
         double* get_host_pointer_1d(const std::string& name) {
