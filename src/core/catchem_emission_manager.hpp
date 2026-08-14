@@ -69,9 +69,7 @@ namespace catchem {
             is_loaded = true;
         }
 
-        bool has_category(const std::string& name) const {
-            return categories.find(name) != categories.end();
-        }
+        bool has_category(const std::string& name) const { return categories.find(name) != categories.end(); }
 
         const EmissionCategory* get_category(const std::string& name) const {
             auto it = categories.find(name);

@@ -51,15 +51,12 @@ struct AtmosphericScenario {
 };
 
 static std::string find_species_config() {
-    std::vector<std::string> candidates = {
-        "CATChem_species.yml",
-        "tests/CATChem_species.yml",
-        "../tests/CATChem_species.yml",
-        "../../tests/CATChem_species.yml"
-    };
+    std::vector<std::string> candidates = {"CATChem_species.yml", "tests/CATChem_species.yml",
+                                           "../tests/CATChem_species.yml", "../../tests/CATChem_species.yml"};
     for (const auto& path : candidates) {
         std::ifstream f(path);
-        if (f.good()) return path;
+        if (f.good())
+            return path;
     }
     return "CATChem_species.yml";
 }
@@ -83,76 +80,203 @@ int main(int argc, char* argv[]) {
         std::vector<AtmosphericScenario> scenarios = {
             {"TROPICAL_RAINFOREST",
              "Equatorial Tropical Forest (Amazon/Congo) - High T, high humidity, heavy rain",
-             -3.0, -60.0,
-             303.15, 220.15, 101000.0, 10000.0,
-             85.0, 0.018,
-             2.0, 1.0, 0.25, 30.0, -10.0, 1200.0, 0.5,
-             5.0e-5, 0.0, 0.0,
-             1.0e-8, 1.0e-10, 1.0e-10, 5.0e-9},
+             -3.0,
+             -60.0,
+             303.15,
+             220.15,
+             101000.0,
+             10000.0,
+             85.0,
+             0.018,
+             2.0,
+             1.0,
+             0.25,
+             30.0,
+             -10.0,
+             1200.0,
+             0.5,
+             5.0e-5,
+             0.0,
+             0.0,
+             1.0e-8,
+             1.0e-10,
+             1.0e-10,
+             5.0e-9},
 
             {"SUBTROPICAL_DESERT",
              "Subtropical Arid Desert (Sahara/Rub' al Khali) - Extremely hot, dry, high dust wind",
-             23.5, 25.0,
-             318.15, 215.15, 101300.0, 10000.0,
-             10.0, 0.001,
-             18.0, 6.0, 1.2, 150.0, -50.0, 2500.0, 0.005,
-             0.0, 0.0, 0.0,
-             2.0e-9, 1.0e-6, 1.0e-11, 1.0e-10},
+             23.5,
+             25.0,
+             318.15,
+             215.15,
+             101300.0,
+             10000.0,
+             10.0,
+             0.001,
+             18.0,
+             6.0,
+             1.2,
+             150.0,
+             -50.0,
+             2500.0,
+             0.005,
+             0.0,
+             0.0,
+             0.0,
+             2.0e-9,
+             1.0e-6,
+             1.0e-11,
+             1.0e-10},
 
             {"URBAN_INDUSTRIAL_MEGACITY",
              "Mid-Latitude Urban Megacity (Beijing/LA) - High anthropogenic pollution background",
-             39.9, 116.4,
-             295.15, 218.15, 101500.0, 10000.0,
-             55.0, 0.008,
-             4.0, 2.0, 0.4, 80.0, -20.0, 1000.0, 1.0,
-             0.0, 0.0, 0.0,
-             1.0e-7, 1.0e-8, 1.0e-9, 5.0e-8},
+             39.9,
+             116.4,
+             295.15,
+             218.15,
+             101500.0,
+             10000.0,
+             55.0,
+             0.008,
+             4.0,
+             2.0,
+             0.4,
+             80.0,
+             -20.0,
+             1000.0,
+             1.0,
+             0.0,
+             0.0,
+             0.0,
+             1.0e-7,
+             1.0e-8,
+             1.0e-9,
+             5.0e-8},
 
             {"POLAR_ARCTIC_WINTER",
              "High-Latitude Polar Ice Cap (Greenland/Arctic) - Subzero extreme cold, sea ice cover",
-             78.0, -40.0,
-             233.15, 205.15, 102000.0, 10000.0,
-             35.0, 0.00005,
-             6.0, -2.0, 0.2, -10.0, 100.0, 300.0, 0.001,
-             0.0, 0.0, 1.0,
-             1.0e-10, 1.0e-11, 1.0e-11, 1.0e-11},
+             78.0,
+             -40.0,
+             233.15,
+             205.15,
+             102000.0,
+             10000.0,
+             35.0,
+             0.00005,
+             6.0,
+             -2.0,
+             0.2,
+             -10.0,
+             100.0,
+             300.0,
+             0.001,
+             0.0,
+             0.0,
+             1.0,
+             1.0e-10,
+             1.0e-11,
+             1.0e-11,
+             1.0e-11},
 
             {"SOUTHERN_OCEAN_STORM",
              "High-Latitude Sub-Antarctic Ocean Storm - 100% ocean, high gale winds, sea spray",
-             -55.0, 70.0,
-             278.15, 210.15, 98000.0, 10000.0,
-             90.0, 0.006,
-             28.0, 12.0, 1.8, 40.0, -30.0, 800.0, 0.001,
-             2.0e-5, 1.0, 0.0,
-             5.0e-9, 1.0e-10, 1.0e-6, 5.0e-10},
+             -55.0,
+             70.0,
+             278.15,
+             210.15,
+             98000.0,
+             10000.0,
+             90.0,
+             0.006,
+             28.0,
+             12.0,
+             1.8,
+             40.0,
+             -30.0,
+             800.0,
+             0.001,
+             2.0e-5,
+             1.0,
+             0.0,
+             5.0e-9,
+             1.0e-10,
+             1.0e-6,
+             5.0e-10},
 
             {"SUB_ANTARCTIC_ICE_EDGE",
              "Sub-Antarctic Ice Edge - Mixed 50% ocean / 50% ice, cold snow showers",
-             -65.0, 0.0,
-             268.15, 208.15, 99500.0, 10000.0,
-             80.0, 0.003,
-             12.0, 4.0, 0.6, 15.0, -15.0, 500.0, 0.005,
-             1.0e-5, 0.5, 0.5,
-             2.0e-9, 1.0e-11, 1.0e-7, 1.0e-10},
+             -65.0,
+             0.0,
+             268.15,
+             208.15,
+             99500.0,
+             10000.0,
+             80.0,
+             0.003,
+             12.0,
+             4.0,
+             0.6,
+             15.0,
+             -15.0,
+             500.0,
+             0.005,
+             1.0e-5,
+             0.5,
+             0.5,
+             2.0e-9,
+             1.0e-11,
+             1.0e-7,
+             1.0e-10},
 
             {"MIDLAT_TEMPERATE_FOREST",
              "Mid-Latitude Rural Temperate Forest (Central Europe) - Summer mild, vegetation",
-             48.5, 11.5,
-             293.15, 218.15, 101325.0, 10000.0,
-             65.0, 0.009,
-             4.0, 2.0, 0.3, 50.0, -25.0, 1400.0, 0.3,
-             1.0e-6, 0.0, 0.0,
-             1.0e-8, 1.0e-9, 1.0e-9, 1.0e-8},
+             48.5,
+             11.5,
+             293.15,
+             218.15,
+             101325.0,
+             10000.0,
+             65.0,
+             0.009,
+             4.0,
+             2.0,
+             0.3,
+             50.0,
+             -25.0,
+             1400.0,
+             0.3,
+             1.0e-6,
+             0.0,
+             0.0,
+             1.0e-8,
+             1.0e-9,
+             1.0e-9,
+             1.0e-8},
 
             {"HIGH_ALTITUDE_TROPOPAUSE",
              "High Altitude / Tropopause Layer (12 km) - Low pressure, low density, jet stream wind",
-             45.0, 0.0,
-             215.15, 200.15, 15000.0, 1000.0,
-             20.0, 0.00001,
-             45.0, 15.0, 0.5, 0.0, 1000.0, 100.0, 0.001,
-             0.0, 0.0, 0.0,
-             1.0e-9, 1.0e-11, 1.0e-11, 1.0e-10}
-        };
+             45.0,
+             0.0,
+             215.15,
+             200.15,
+             15000.0,
+             1000.0,
+             20.0,
+             0.00001,
+             45.0,
+             15.0,
+             0.5,
+             0.0,
+             1000.0,
+             100.0,
+             0.001,
+             0.0,
+             0.0,
+             0.0,
+             1.0e-9,
+             1.0e-11,
+             1.0e-11,
+             1.0e-10}};
 
         const int n_cols = 8;
         const int n_levels = 10;
@@ -161,7 +285,8 @@ int main(int argc, char* argv[]) {
         const size_t total_size = n_cols * n_levels * n_species;
         const std::string species_path = find_species_config();
 
-        std::cout << "Grid configuration: " << n_cols << " columns x " << n_levels << " levels x " << n_species << " species" << std::endl;
+        std::cout << "Grid configuration: " << n_cols << " columns x " << n_levels << " levels x " << n_species
+                  << " species" << std::endl;
         std::cout << "Loading species definition from: " << species_path << std::endl;
 
         for (const auto& sc : scenarios) {
@@ -217,18 +342,21 @@ int main(int argc, char* argv[]) {
                     // Linear temperature profile from surf to top
                     double frac = static_cast<double>(k) / static_cast<double>(n_levels - 1);
                     double t_val = sc.t_surf + frac * (sc.t_top - sc.t_surf);
-                    if (t_val < 180.0) t_val = 180.0;
+                    if (t_val < 180.0)
+                        t_val = 180.0;
                     t_air[col + k * n_cols] = t_val;
 
                     // Derive air density via Ideal Gas Law: rho = P / (R_dry * T)
                     double rho = p_mid_val / (287.05 * t_val);
-                    if (rho < 1.0e-4) rho = 1.0e-4;
+                    if (rho < 1.0e-4)
+                        rho = 1.0e-4;
                     airden_dry[col + k * n_cols] = rho;
                     mairden[col + k * n_cols] = rho;
 
                     // Derive layer thickness dz = dp / (rho * g)
                     double dz = dp / (rho * 9.80665);
-                    if (dz < 0.1) dz = 0.1;
+                    if (dz < 0.1)
+                        dz = 0.1;
                     bxheight[col + k * n_cols] = dz;
                 }
             }
@@ -268,10 +396,13 @@ int main(int argc, char* argv[]) {
             for (size_t s = 0; s < state->chem.species_list.size(); ++s) {
                 const auto& spec = state->chem.species_list[s];
                 double bg = sc.gas_bg;
-                if (spec.is_dust) bg = sc.dust_bg;
-                else if (spec.is_seasalt) bg = sc.seas_bg;
-                else if (spec.short_name == "bc1" || spec.short_name == "bc2" ||
-                         spec.short_name == "oc1" || spec.short_name == "oc2") bg = sc.carbon_bg;
+                if (spec.is_dust)
+                    bg = sc.dust_bg;
+                else if (spec.is_seasalt)
+                    bg = sc.seas_bg;
+                else if (spec.short_name == "bc1" || spec.short_name == "bc2" || spec.short_name == "oc1" ||
+                         spec.short_name == "oc2")
+                    bg = sc.carbon_bg;
 
                 for (int col = 0; col < n_cols; ++col) {
                     for (int lvl = 0; lvl < n_levels; ++lvl) {
@@ -335,7 +466,8 @@ int main(int argc, char* argv[]) {
 
                 // Clip negative concentrations to 0.0 (standard atmospheric model non-negative solver boundary)
                 for (auto& val : conc) {
-                    if (val < 0.0) val = 0.0;
+                    if (val < 0.0)
+                        val = 0.0;
                 }
 
                 // Verify Non-negativity invariant holds after solver boundary
@@ -356,7 +488,8 @@ int main(int argc, char* argv[]) {
             }
 
             catchem_core_destroy(core_ptr);
-            std::cout << "  PASS: Scenario [" << sc.id << "] completed " << num_steps << " timesteps successfully!" << std::endl;
+            std::cout << "  PASS: Scenario [" << sc.id << "] completed " << num_steps << " timesteps successfully!"
+                      << std::endl;
         }
 
         std::cout << "\n==========================================================================" << std::endl;
