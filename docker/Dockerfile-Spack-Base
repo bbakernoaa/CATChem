@@ -77,7 +77,7 @@ RUN <<INSTALL_ALL
 
   spack env create ufschem
   spack env activate ufschem
-  spack add esmf yaml-cpp parallelio+pnetcdf py-pip kokkos+openmp+serial kokkos-kernels+openmp+serial
+  spack add esmf yaml-cpp parallelio+pnetcdf py-pip kokkos+openmp+serial kokkos-kernels+openmp+serial arborx@2.1:+mpi+openmp+serial
   spack concretize
   spack install --fail-fast
   spack gc -y
