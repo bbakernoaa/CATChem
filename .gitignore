@@ -169,6 +169,14 @@ cython_debug/
 
 # Kiro
 .kiro/
+.specs/
+specs/
+specify/
+.specify/
+docs/superpowers/
+.gemini/
+.github/agents/
+.github/prompts/
 
 # PyCharm
 #  JetBrains specific template is maintainted in a separate JetBrains.gitignore that can
