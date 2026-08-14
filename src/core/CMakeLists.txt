@@ -61,7 +61,11 @@ set(
   catchem_logger.cpp
 )
 add_library(CATChem_core_cpp STATIC ${_cpp_core_srcs})
-target_link_libraries(CATChem_core_cpp PUBLIC yaml-cpp)
+# Use the namespaced target: the plain `yaml-cpp` name is only a
+# directory-scoped alias in src/external when yaml-cpp comes from the
+# system/spack, so it is not visible here; yaml-cpp::yaml-cpp exists
+# everywhere in both provisioning modes.
+target_link_libraries(CATChem_core_cpp PUBLIC yaml-cpp::yaml-cpp)
 target_include_directories(CATChem_core_cpp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(CATCHEM_ENABLE_KOKKOS)

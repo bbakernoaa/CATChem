@@ -304,6 +304,18 @@ endif()
 # Find yaml-cpp for configuration parsing
 if(NOT TARGET yaml-cpp::yaml-cpp AND NOT TARGET yaml-cpp)
   find_package(yaml-cpp QUIET)
+  if(TARGET yaml-cpp::yaml-cpp)
+    # Promote to global so the plain `yaml-cpp` alias created in
+    # src/external is visible everywhere: MUSICA's fetched deps link the
+    # plain name, and consumers outside src/external (e.g. tests/) would
+    # otherwise get a bare -lyaml-cpp with no include/link dirs.
+    # (Promotion must happen here — IMPORTED_GLOBAL can only be set from
+    # the directory that created the imported target.)
+    set_target_properties(
+      yaml-cpp::yaml-cpp
+      PROPERTIES IMPORTED_GLOBAL TRUE
+    )
+  endif()
 endif()
 
 add_subdirectory(src)

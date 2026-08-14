@@ -175,7 +175,11 @@ if(CATCHEM_BUILD_MUSICA)
   add_executable(test_catchem_photolysis test_catchem_photolysis.cpp)
   target_link_libraries(
     test_catchem_photolysis
-    PRIVATE CATChem_core_cpp CATChem_core catchem_process_photolysis yaml-cpp
+    PRIVATE
+      CATChem_core_cpp
+      CATChem_core
+      catchem_process_photolysis
+      yaml-cpp::yaml-cpp
   )
   set_target_properties(test_catchem_photolysis PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_photolysis COMMAND test_catchem_photolysis)
