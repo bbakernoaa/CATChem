@@ -828,19 +828,26 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
 
-         ! Special mask/convert variables
-         if (trim(field_map%catchem_var) == 'DLUSE' .or. trim(field_map%catchem_var) == 'DSOILTYPE' .or. &
-            trim(field_map%catchem_var) == 'LWI') then
-            !convert to integer
-            call met_state%set_field(trim(field_map%catchem_var), int(fptr2d), error_mgr, rc)
-            if (rc /= CC_SUCCESS) then
-               call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-                  msg="transform_field_to_catchem: set_field failed for '"// &
-                  trim(field_map%catchem_var)//"'", &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)
-               return  ! bail out
-            end if
-         else if (trim(field_map%catchem_var) == 'Z0') then ! roughness length in cm in NUOPC but m in CATChem
+         ! Update Fortran facade pointer and bind to C++ core
+#ifdef USE_REAL8
+         select case (trim(field_map%catchem_var))
+         case ('PS');       met_state%PS => fptr2d
+         case ('TS');       met_state%TS => fptr2d
+         case ('PBLH');     met_state%PBLH => fptr2d
+         case ('USTAR');    met_state%USTAR => fptr2d
+         case ('HFLUX');    met_state%HFLUX => fptr2d
+         case ('OBK');      met_state%OBK => fptr2d
+         case ('LAT');      met_state%LAT => fptr2d
+         case ('LON');      met_state%LON => fptr2d
+         case ('FROCEAN');  met_state%FROCEAN => fptr2d
+         case ('FRSEAICE'); met_state%FRSEAICE => fptr2d
+         case ('SST');      met_state%SST => fptr2d
+         end select
+#endif
+
+         select case (trim(field_map%catchem_var))
+         case ('Z0')
+            ! Z0 is converted from cm to m during import, leaving its memory owned by met_state
             call met_state%set_field(trim(field_map%catchem_var), real(fptr2d, fp)*0.01_fp, error_mgr, rc)
             if (rc /= CC_SUCCESS) then
                call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
@@ -849,8 +856,21 @@ contains
                   line=__LINE__, file=__FILE__, rcToReturn=rc)
                return  ! bail out
             end if
-         else
-            ! Standard direct zero-copy pointer mapping
+         case ('DLUSE', 'DSOILTYPE', 'LWI')
+            ! integer mask conversions owned by met_state
+            call met_state%set_field(trim(field_map%catchem_var), int(fptr2d), error_mgr, rc)
+            if (rc /= CC_SUCCESS) then
+               call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+                  msg="transform_field_to_catchem: set_field failed for '"// &
+                  trim(field_map%catchem_var)//"'", &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)
+               return  ! bail out
+            end if
+         end select
+
+         ! Standard direct zero-copy pointer mapping to C++ core
+         if (trim(field_map%catchem_var) /= 'Z0' .and. trim(field_map%catchem_var) /= 'DLUSE' .and. &
+             trim(field_map%catchem_var) /= 'DSOILTYPE' .and. trim(field_map%catchem_var) /= 'LWI') then
             call cc_wrap%catchem_model%bind_met_2d(trim(field_map%catchem_var) // c_null_char, fptr2d)
          end if
 
@@ -867,6 +887,22 @@ contains
          call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
+
+         ! Update Fortran facade pointer
+#ifdef USE_REAL8
+         select case (trim(field_map%catchem_var))
+         case ('T');          met_state%T => fptr3d
+         case ('QV');         met_state%QV => fptr3d
+         case ('RH');         met_state%RH => fptr3d
+         case ('PMID');       met_state%PMID => fptr3d
+         case ('PEDGE');      met_state%PEDGE => fptr3d
+         case ('AIRDEN');     met_state%AIRDEN => fptr3d
+         case ('AIRDEN_DRY'); met_state%AIRDEN_DRY => fptr3d
+         case ('BXHEIGHT');   met_state%BXHEIGHT => fptr3d
+         case ('DELP');       met_state%DELP => fptr3d
+         case ('DELP_DRY');   met_state%DELP_DRY => fptr3d
+         end select
+#endif
 
          ! Direct zero-copy 3D volumetric array pointer mapping to C++ core StateManager
          call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var) // c_null_char, fptr3d)
