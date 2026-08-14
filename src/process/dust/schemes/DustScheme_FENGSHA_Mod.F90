@@ -22,7 +22,7 @@
 !! Reference: Zhang et al. 2022
 module DustScheme_FENGSHA_Mod
 
-   use precision_mod, only: fp
+   use catchem_bridge_precision, only: fp
    use DustCommon_Mod, only: DustSchemeFENGSHAConfig
 
    implicit none
@@ -361,7 +361,7 @@ contains
    !!
    !!!>
    subroutine KokDistribution(radius, rLow, rUp, dist)
-      !use constants, only: pi
+      !use catchem_bridge_constants, only: pi
       IMPLICIT NONE
       ! Parameters
       real(fp), dimension(:), intent(in)  :: radius

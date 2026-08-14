@@ -20,18 +20,18 @@
 module Process{{ config.class_name }}Interface_Mod
 
    ! Core CATChem infrastructure
-   use precision_mod, only: fp
+   use catchem_bridge_precision, only: fp
    use ProcessInterface_Mod, only: ProcessInterface
-   use constants, only: MAX_LEN_NAME
+   use catchem_bridge_constants, only: MAX_LEN_NAME
    use ProcessInterface_Mod, only: ProcessInterface, ColumnProcessInterface
    use StateManager_Mod, only: StateManagerType
    use GridManager_Mod, only: GridManagerType
-   use error_mod, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType
+   use catchem_bridge_error, only: CC_SUCCESS, CC_FAILURE, CC_Error, CC_Warning, ErrorManagerType
    use DiagnosticManager_Mod, only: DiagnosticManagerType
    use DiagnosticInterface_Mod, only: DiagnosticRegistryType, DiagnosticFieldType, DiagnosticDataType
    use VirtualColumn_Mod, only: VirtualColumnType, VirtualMetType
 {% if all_required_constants and all_required_constants|length > 0 %}
-   use Constants, only: {{ all_required_constants | join(', ') }}{% if all_required_constants|length == 0 %}g0, AIRMW{% endif %}  ! Required constants for scheme calculations
+   use catchem_bridge_constants, only: {{ all_required_constants | join(', ') }}{% if all_required_constants|length == 0 %}g0, AIRMW{% endif %}  ! Required constants for scheme calculations
 {% endif %}
 
    ! Core utilities (leverage existing infrastructure)

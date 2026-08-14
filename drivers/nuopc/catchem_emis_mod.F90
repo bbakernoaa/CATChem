@@ -37,9 +37,9 @@ module catchem_emis_mod
    use aqmio
    use netcdf
    use catchem_regrid_mod, only: RegridCache, catchem_regrid_field, catchem_regrid_cleanup
-   use precision_mod, only: fp
-   use Error_Mod, only: CC_SUCCESS, CC_FAILURE
-   use ExtEmisData_Mod, only: ExtEmisDataType, ExtEmisCategoryType, ExtEmisFieldType
+   use catchem_bridge_precision, only: fp
+   use catchem_bridge_error, only: CC_SUCCESS, CC_FAILURE
+   use catchem_emis_data_mod, only: ExtEmisDataType, ExtEmisCategoryType, ExtEmisFieldType
 
    implicit none
    private

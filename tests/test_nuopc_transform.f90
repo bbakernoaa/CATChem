@@ -12,8 +12,8 @@ program test_nuopc_transform
    use ESMF
    use catchem_nuopc_interface, only: load_field_config, transform_nuopc_to_catchem, &
       field_config, cc_wrap_type, update_pm_diagnostics
-   use Error_Mod, only: CC_SUCCESS
-   use precision_mod, only: fp
+   use catchem_bridge_error, only: CC_SUCCESS
+   use catchem_bridge_precision, only: fp
 
    implicit none
 

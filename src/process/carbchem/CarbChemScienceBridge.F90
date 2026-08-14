@@ -1,7 +1,7 @@
 module CarbChemScienceBridge_Mod
    use iso_c_binding
-   use precision_mod, only: fp
-   use Constants, only: g0
+   use catchem_bridge_precision, only: fp
+   use catchem_bridge_constants, only: g0
    use CarbChemScheme_GOCART_Mod, only: compute_gocart
    use CarbChemCommon_Mod, only: CarbChemSchemeGOCARTConfig
 

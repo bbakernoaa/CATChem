@@ -30,11 +30,11 @@ module catchem_nuopc_interface
    use NUOPC
    use MPI
    use CATChem_API, only: CATChem_Model
-   use precision_mod, only: fp
-   use Constants, only: g0, Rd, Re
-   use Error_Mod, only : CC_SUCCESS, CC_FAILURE
-   use error_mod, only: ErrorManagerType
-   use ExtEmisData_Mod, only: ExtEmisDataType  ! External emissions data type
+   use catchem_bridge_precision, only: fp
+   use catchem_bridge_constants, only: g0, Rd, Re
+   use catchem_bridge_error, only : CC_SUCCESS, CC_FAILURE
+   use catchem_bridge_error, only: ErrorManagerType
+   use catchem_emis_data_mod, only: ExtEmisDataType  ! External emissions data type
    use aqmio, only: AQMIO_Create, AQMIO_Destroy, AQMIO_Write, AQMIO_Close, AQMIO_Write1D, AQMIO_FMT_NETCDF, &
       AQMIO_LatlonInit, AQMIO_LatlonCleanup
    use catchem_latlon_output_mod, only: latlon_diag_set_time, latlon_diag_is_init

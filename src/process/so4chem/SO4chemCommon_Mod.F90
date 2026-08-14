@@ -1,6 +1,6 @@
 module SO4chemCommon_Mod
 
-   use precision_mod, only: fp
+   use catchem_bridge_precision, only: fp
    implicit none
    public
 

@@ -4,7 +4,7 @@
 !!!>
 program test_Precision
    use testing_mod, only: assert, assert_close
-   use Precision_Mod, only: fp, f4, f8, MISSING, ZERO, ONE, rae
+   use catchem_bridge_precision, only: fp, f4, f8, MISSING, ZERO, ONE, rae
 
    implicit none
 

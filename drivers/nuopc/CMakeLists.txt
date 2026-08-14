@@ -9,6 +9,7 @@ set(
   catchem_latlon_output_mod.F90
   catchem_nuopc_cap.F90
   catchem_nuopc_interface.F90
+  catchem_emis_data_mod.F90
   catchem_emis_mod.F90
   # catchem_nuopc_netcdf_out.F90
   # catchem_nuopc_cf_input.F90

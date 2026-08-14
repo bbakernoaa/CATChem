@@ -22,7 +22,7 @@
 !! Reference: Ginoux et al. [2001]
 module DustScheme_GINOUX_Mod
 
-   use precision_mod, only: fp
+   use catchem_bridge_precision, only: fp
    use DustCommon_Mod, only: DustSchemeGINOUXConfig
 
    implicit none

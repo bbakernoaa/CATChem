@@ -28,10 +28,10 @@
 !!
 module WetDepScheme_JACOB_Mod
 
-   use precision_mod, only: fp, zero, one, rae, TINY_
-   use error_mod, only: CC_Warning, CC_SUCCESS !CC_Error
+   use catchem_bridge_precision, only: fp, zero, one, rae, TINY_
+   use catchem_bridge_error, only: CC_Warning, CC_SUCCESS !CC_Error
    use WetDepCommon_Mod, only: WetDepSchemeJACOBConfig
-   use Constants, only: g0, AIRMW  !load the constants needed for this scheme
+   use catchem_bridge_constants, only: g0, AIRMW  !load the constants needed for this scheme
 
    implicit none
    private

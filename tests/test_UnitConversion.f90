@@ -9,12 +9,12 @@
 !! **Validates: Requirements 3.5**
 !!
 program test_UnitConversion
-   use precision_mod, only: fp
+   use catchem_bridge_precision, only: fp
    use testing_mod, only: assert, assert_close
    use UnitConversion_Mod, only: convert_process_concentration_units, &
       convert_process_flux_units
-   use Error_Mod, only: CC_SUCCESS, CC_FAILURE
-   use Constants, only: RSTARG, AVO
+   use catchem_bridge_error, only: CC_SUCCESS, CC_FAILURE
+   use catchem_bridge_constants, only: RSTARG, AVO
 
    implicit none
 

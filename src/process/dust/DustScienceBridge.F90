@@ -1,7 +1,7 @@
 module DustScienceBridge_Mod
    use iso_c_binding
-   use precision_mod, only: fp
-   use Constants, only: g0
+   use catchem_bridge_precision, only: fp
+   use catchem_bridge_constants, only: g0
    use DustScheme_FENGSHA_Mod, only: compute_fengsha
    use DustScheme_GINOUX_Mod, only: compute_ginoux
    use DustCommon_Mod, only: DustSchemeFENGSHAConfig, DustSchemeGINOUXConfig

@@ -1,40 +1,4 @@
 set(
-  _base_srcs
-  constants.F90
-  error_mod.F90
-  Precision_Mod.F90
-  ExtEmisData_Mod.F90
-)
-
-set(_srcs ${_base_srcs})
-
-add_library(CATChem_core ${_srcs})
-set_target_properties(
-  CATChem_core
-  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
-)
-# Force serial build for this target to avoid Fortran module race conditions
-set_property(TARGET CATChem_core PROPERTY JOB_POOLS compile=serial)
-set_property(TARGET CATChem_core PROPERTY JOB_POOL_COMPILE serial)
-
-foreach(opt IN LISTS _catchem_compiler_options)
-  target_compile_options(
-    CATChem_core
-    PRIVATE "$<$<COMPILE_LANGUAGE:Fortran>:${opt}>"
-  )
-endforeach()
-
-target_link_libraries(CATChem_core PRIVATE catchem_utilities)
-
-# Link GOCART2G library for external process dependencies
-if(TARGET GOCART2G)
-  target_link_libraries(CATChem_core PUBLIC GOCART2G)
-endif()
-
-# C++ core: built in both flavors. With Kokkos it gains device mirrors and
-# parallel dispatch; without it the same sources compile host-only against
-# the standalone mdspan library.
-set(
   _cpp_core_srcs
   catchem_core.cpp
   catchem_api.cpp
@@ -42,6 +6,7 @@ set(
   catchem_config_manager.cpp
   catchem_grid_manager.cpp
   catchem_state_manager.cpp
+  catchem_emission_manager.cpp
   catchem_logger.cpp
 )
 add_library(CATChem_core_cpp STATIC ${_cpp_core_srcs})
@@ -55,12 +20,14 @@ else()
   target_link_libraries(CATChem_core_cpp PUBLIC mdspan::mdspan)
 endif()
 
-target_link_libraries(CATChem_core PUBLIC CATChem_core_cpp)
+# Instead of removing CATChem_core, we make it an INTERFACE library that depends on CATChem_core_cpp
+# and external libraries, so downstream targets still build without modification.
+add_library(CATChem_core INTERFACE)
+target_link_libraries(CATChem_core INTERFACE CATChem_core_cpp catchem_utilities)
 
-if(TARGET musica)
-  target_link_libraries(CATChem_core PUBLIC musica::musica-fortran)
+if(TARGET GOCART2G)
+  target_link_libraries(CATChem_core INTERFACE GOCART2G)
 endif()
-
-set_source_files_properties(metstate_mod.F90 PROPERTIES COMPILE_FLAGS "-cpp")
-
-target_include_directories(CATChem_core PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+if(TARGET musica)
+  target_link_libraries(CATChem_core INTERFACE musica::musica-fortran)
+endif()

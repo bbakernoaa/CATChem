@@ -4,7 +4,7 @@
 !!!>
 program test_Constants
    use testing_mod, only: assert, assert_close
-   use Constants, only: PI, PI_180, AVO, BOLTZ, RSTARG, AIRMW, H2OMW, ATM
+   use catchem_bridge_constants, only: PI, PI_180, AVO, BOLTZ, RSTARG, AIRMW, H2OMW, ATM
 
    implicit none
 

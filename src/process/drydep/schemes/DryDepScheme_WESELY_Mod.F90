@@ -22,10 +22,10 @@
 !! Reference: Wesely, M. L. [1989] Parameterization of surface resistances to gaseous dry deposition...
 module DryDepScheme_WESELY_Mod
 
-   use precision_mod, only: fp, rae
-   use error_mod, only: CC_SUCCESS, CC_Error
+   use catchem_bridge_precision, only: fp, rae
+   use catchem_bridge_error, only: CC_SUCCESS, CC_Error
    use DryDepCommon_Mod, only: DryDepSchemeWESELYConfig
-   use Constants, only: PI, H2OMW, AVO, VON_KARMAN, RSTARG  !load the constants needed for this scheme
+   use catchem_bridge_constants, only: PI, H2OMW, AVO, VON_KARMAN, RSTARG  !load the constants needed for this scheme
 
    implicit none
    private

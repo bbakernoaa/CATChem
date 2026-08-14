@@ -1,7 +1,7 @@
 module SeaSaltScienceBridge_Mod
    use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_null_char, c_bool, c_int
-   use Precision_Mod, only: fp
-   use Constants, only: g0, AIRMW, PI
+   use catchem_bridge_precision, only: fp
+   use catchem_bridge_constants, only: g0, AIRMW, PI
    use SeaSaltCommon_Mod, only: SeaSaltSchemeGONG97Config, SeaSaltSchemeGONG03Config, SeaSaltSchemeGEOS12Config
    use SeaSaltScheme_GONG97_Mod, only: compute_gong97
    use SeaSaltScheme_GONG03_Mod, only: compute_gong03

@@ -22,9 +22,9 @@
 !! Reference: Gong et al. [1997]
 module SeaSaltScheme_GONG97_Mod
 
-   use precision_mod, only: fp,zero, rae
+   use catchem_bridge_precision, only: fp,zero, rae
    use SeaSaltCommon_Mod, only: SeaSaltSchemeGONG97Config
-   use Constants, only: PI  !load the constants needed for this scheme
+   use catchem_bridge_constants, only: PI  !load the constants needed for this scheme
 
    implicit none
    private

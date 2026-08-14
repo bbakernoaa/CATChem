@@ -22,7 +22,7 @@
 !! Reference: Gong [2003]
 module SeaSaltScheme_GONG03_Mod
 
-   use precision_mod, only: fp, zero, rae
+   use catchem_bridge_precision, only: fp, zero, rae
    use SeaSaltCommon_Mod, only: SeaSaltSchemeGONG03Config
 
    implicit none

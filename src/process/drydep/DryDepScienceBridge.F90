@@ -1,6 +1,6 @@
 module DryDepScienceBridge_Mod
    use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_null_char, c_bool, c_int
-   use Precision_Mod, only: fp
+   use catchem_bridge_precision, only: fp
    use DryDepCommon_Mod, only: DryDepSchemeWESELYConfig, DryDepSchemeGOCARTConfig, DryDepSchemeZHANGConfig
    use DryDepScheme_WESELY_Mod, only: compute_wesely
    use DryDepScheme_GOCART_Mod, only: compute_gocart

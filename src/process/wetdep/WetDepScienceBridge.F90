@@ -1,7 +1,7 @@
 module WetDepScienceBridge_Mod
    use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_bool, c_int
-   use Precision_Mod, only: fp
-   use Constants, only: g0, AIRMW
+   use catchem_bridge_precision, only: fp
+   use catchem_bridge_constants, only: g0, AIRMW
    use WetDepCommon_Mod, only: WetDepSchemeJACOBConfig
    use WetDepScheme_JACOB_Mod, only: compute_jacob
    implicit none

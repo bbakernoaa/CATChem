@@ -1,4 +1,4 @@
-!> \file ExtEmisData_Mod.F90
+!> \file catchem_emis_data_mod.F90
 !! \brief Module for external emission data storage
 !!
 !! This module contains the ExtEmisDataType derived type for managing
@@ -10,14 +10,14 @@
 !! \date 2023
 !! \version 1.0
 !!
-MODULE ExtEmisData_Mod
+MODULE catchem_emis_data_mod
 
    !=========================================================================
    ! Module uses
    !=========================================================================
-   USE Error_Mod
+   use catchem_bridge_error
    ! USE logging_mod, only: log_message, LOG_ERROR, LOG_WARNING, LOG_INFO, LOG_DEBUG
-   USE Precision_Mod
+   use catchem_bridge_precision
    USE IEEE_ARITHMETIC
 
    IMPLICIT NONE
@@ -1013,4 +1013,4 @@ CONTAINS
 
    end function extemidata_get_column_ptr
 
-END MODULE ExtEmisData_Mod
+END MODULE catchem_emis_data_mod

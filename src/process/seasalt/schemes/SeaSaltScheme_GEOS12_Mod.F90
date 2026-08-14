@@ -22,7 +22,7 @@
 !! Reference: Jaeglé et al. [2011]
 module SeaSaltScheme_GEOS12_Mod
 
-   use precision_mod, only: fp, zero, rae
+   use catchem_bridge_precision, only: fp, zero, rae
    use SeaSaltCommon_Mod, only: SeaSaltSchemeGEOS12Config
 
    implicit none

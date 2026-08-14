@@ -336,6 +336,7 @@ if(CATCHEM_BUILD_NUOPC)
     drivers/nuopc/catchem_regrid_mod.F90
     drivers/nuopc/catchem_latlon_output_mod.F90
     drivers/nuopc/aqmio.F90
+    drivers/nuopc/catchem_emis_data_mod.F90
     drivers/nuopc/catchem_emis_mod.F90
     drivers/nuopc/catchem_nuopc_cap.F90
     drivers/nuopc/catchem_nuopc_interface.F90
@@ -369,7 +370,6 @@ if(CATCHEM_BUILD_NUOPC)
       $<TARGET_FILE:CATChem_process_settling>
       $<TARGET_FILE:CATChem_process_so4chem>
       $<TARGET_FILE:CATChem_process_carbchem>
-      $<TARGET_FILE:CATChem_core>
       $<TARGET_FILE:CATChem_core_cpp>
       $<TARGET_FILE:catchem_utilities>
   )

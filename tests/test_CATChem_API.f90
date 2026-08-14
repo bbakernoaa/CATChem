@@ -6,7 +6,7 @@
 program test_CATChem_API
    use iso_c_binding, only: c_double
    use CATChem_API, only: CATChem_Model
-   use precision_mod, only: fp
+   use catchem_bridge_precision, only: fp
    implicit none
 
    type(CATChem_Model) :: model

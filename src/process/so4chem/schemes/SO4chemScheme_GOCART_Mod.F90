@@ -22,9 +22,9 @@
 !! Reference: GOCART2G process library SulfateChemDriver function
 module SO4chemScheme_GOCART_Mod
 
-   use precision_mod, only: fp, rae
+   use catchem_bridge_precision, only: fp, rae
    use SO4chemCommon_Mod, only: SO4chemSchemeGOCARTConfig
-   use error_mod, only: CC_SUCCESS, CC_Error
+   use catchem_bridge_error, only: CC_SUCCESS, CC_Error
    use GOCART2G_Process, only: SulfateUpdateOxidants, SulfateChemDriver, DMSemission
 
    implicit none

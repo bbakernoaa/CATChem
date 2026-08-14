@@ -13,8 +13,8 @@ program test_MetState
 
    use testing_mod, only: assert, assert_close
    use MetState_Mod, only: MetStateType
-   use Error_Mod, only: ErrorManagerType, CC_SUCCESS
-   use Precision_Mod, only: fp
+   use catchem_bridge_error, only: ErrorManagerType, CC_SUCCESS
+   use catchem_bridge_precision, only: fp
    implicit none
 
    type(MetStateType) :: metstate

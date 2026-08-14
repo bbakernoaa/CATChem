@@ -6,9 +6,9 @@ module ccpp_catchem_interface
   use iso_c_binding,             only: c_loc, c_null_char, c_double, c_ptr, c_associated, c_int, c_char
   use machine,                   only: kind_phys
   use CATChem_API,               only: CATChem_Model
-  use Error_Mod,                 only: CC_SUCCESS, CC_FAILURE
+  use catchem_bridge_error,                 only: CC_SUCCESS, CC_FAILURE
   use ccpp_constituent_prop_mod, only: ccpp_constituent_properties_t, ccpp_constituent_prop_ptr_t
-  use precision_mod,             only: fp
+  use catchem_bridge_precision,             only: fp
 
   implicit none
 

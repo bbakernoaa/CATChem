@@ -64,17 +64,9 @@ namespace catchem {
 
         EmissionManager() = default;
 
-        void add_category(const EmissionCategory& category) {
-            categories[category.category_name] = category;
-            is_loaded = true;
-        }
-
-        bool has_category(const std::string& name) const { return categories.find(name) != categories.end(); }
-
-        const EmissionCategory* get_category(const std::string& name) const {
-            auto it = categories.find(name);
-            return it != categories.end() ? &it->second : nullptr;
-        }
+        void add_category(const EmissionCategory& category);
+        bool has_category(const std::string& name) const;
+        const EmissionCategory* get_category(const std::string& name) const;
     };
 
 } // namespace catchem

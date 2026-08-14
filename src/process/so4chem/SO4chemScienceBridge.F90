@@ -1,7 +1,7 @@
 module SO4chemScienceBridge_Mod
    use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_bool, c_int
-   use Precision_Mod, only: fp
-   use Constants, only: g0, Cpd, AVO, VON_KARMAN, AIRMW, PI
+   use catchem_bridge_precision, only: fp
+   use catchem_bridge_constants, only: g0, Cpd, AVO, VON_KARMAN, AIRMW, PI
    use SO4chemCommon_Mod, only: SO4chemSchemeGOCARTConfig
    use SO4chemScheme_GOCART_Mod, only: compute_gocart
    implicit none

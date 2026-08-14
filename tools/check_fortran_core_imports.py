@@ -19,7 +19,7 @@ FORBIDDEN_MODULES = {
     "constants",
     "diagnosticinterface_mod",
     "diagnosticmanager_mod",
-    "extemisdata_mod",
+    "catchem_emis_data_mod",
     "gridgeometry_mod",
     "metstate_mod",
     "precision_mod",
@@ -35,12 +35,12 @@ CURRENTLY_ALLOWED_IMPORTS = {
     },
     "drivers/nuopc/catchem_nuopc_interface.F90": {
         "constants",
-        "extemisdata_mod",
+        "catchem_emis_data_mod",
         "precision_mod",
     },
     "drivers/nuopc/catchem_emis_mod.F90": {
         "constants",
-        "extemisdata_mod",
+        "catchem_emis_data_mod",
         "precision_mod",
     },
 }

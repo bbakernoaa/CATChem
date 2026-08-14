@@ -8,7 +8,7 @@
 !!
 module CATChem_API
    use iso_c_binding
-   use precision_mod, only: fp
+   use catchem_bridge_precision, only: fp
 
    implicit none
    private

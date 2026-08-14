@@ -29,7 +29,7 @@ The process interface is the main entry point for the process. It extends `Colum
 `NewProcessInterface_Mod.F90`:
 ```fortran
 module NewProcessInterface_Mod
-  use precision_mod, only: fp
+  use catchem_bridge_precision, only: fp
   use ProcessInterface_Mod, only: ColumnProcessInterface
   use StateManager_Mod, only: StateManagerType
   use VirtualColumn_Mod, only: VirtualColumnType
@@ -119,7 +119,7 @@ The scheme contains the actual scientific algorithm.
 `schemes/NewProcessScheme_Mod.F90`:
 ```fortran
 module NewProcessScheme_Mod
-  use precision_mod, only: fp
+  use catchem_bridge_precision, only: fp
   implicit none
   private
   public :: compute_scheme
@@ -146,7 +146,7 @@ You'll need a way to configure and create your process.
 `NewProcessCommon_Mod.F90`:
 ```fortran
 module NewProcessCommon_Mod
-  use precision_mod, only: fp
+  use catchem_bridge_precision, only: fp
   implicit none
   private
   public :: NewProcessConfigType

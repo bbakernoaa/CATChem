@@ -32,10 +32,10 @@
 !! Reference: Zhang et al., 2001; Emerson et al., 2020
 module DryDepScheme_ZHANG_Mod
 
-   use precision_mod, only: fp, rae, f8
-   use error_mod, only: CC_SUCCESS, CC_Error
+   use catchem_bridge_precision, only: fp, rae, f8
+   use catchem_bridge_error, only: CC_SUCCESS, CC_Error
    use DryDepCommon_Mod, only: DryDepSchemeZHANGConfig
-   use Constants, only: PI, AVO, VON_KARMAN, RSTARG, g0, BOLTZ  !load the constants needed for this scheme
+   use catchem_bridge_constants, only: PI, AVO, VON_KARMAN, RSTARG, g0, BOLTZ  !load the constants needed for this scheme
 
    implicit none
    private
