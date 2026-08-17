@@ -209,26 +209,6 @@ import_fields:
     dimensions: 2
     units: "1"
     optional: false
-  - standard_name: "clay_fraction"
-    catchem_var: "CLAYFRAC"
-    dimensions: 2
-    units: "1"
-    optional: true
-  - standard_name: "sand_fraction"
-    catchem_var: "SNDFRC"
-    dimensions: 2
-    units: "1"
-    optional: true
-  - standard_name: "threshold_friction_velocity_for_dust"
-    catchem_var: "USTAR_THRESHOLD"
-    dimensions: 2
-    units: "m/s"
-    optional: true
-  - standard_name: "threshold_friction_velocity"
-    catchem_var: "USTAR_THRESHOLD"
-    dimensions: 2
-    units: "m/s"
-    optional: true
   - standard_name: "inst_ice_nonconv_tendency_levels"
     catchem_var: "PFILSAN"
     dimensions: 3
