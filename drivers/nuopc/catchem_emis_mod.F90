@@ -280,6 +280,7 @@ contains
       n_categories = catchem_config_get_emission_category_count(core_ptr)
       do icat = 0, n_categories - 1
          call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, 64_c_int)
+         call clean_c_string(category_name)
          if (catchem_config_is_emission_category_active(core_ptr, trim(category_name) // c_null_char) /= 0) then
             call catchem_emis_populate_category(ext_emis_data, core_ptr, category_name, nx, ny, nlev, localrc)
             if (localrc /= CC_SUCCESS) then
@@ -1963,111 +1964,129 @@ contains
       character(len=64), optional, allocatable, intent(out) :: diag_species(:)
 
       integer :: localrc, i, n_diag
-      character(len=EMIS_MAXSTR) :: config_path, item_path, c_buf
+      character(len=EMIS_MAXSTR) :: config_path, item_path, c_buf, clean_cat_name
 
       rc = CC_SUCCESS
 
-      write(config_path, '(A,A)') 'processes/extemis/', trim(category_name)
+      clean_cat_name = category_name
+      call clean_c_string(clean_cat_name)
+
+      config_path = 'processes/extemis/' // trim(clean_cat_name)
 
       ! source_file
-      write(item_path, '(A,A)') trim(config_path), '/source_file'
+      item_path = trim(config_path) // '/source_file'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call clean_c_string(c_buf)
       category%source_file = trim(c_buf)
 
       ! format
-      write(item_path, '(A,A)') trim(config_path), '/format'
+      item_path = trim(config_path) // '/format'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call clean_c_string(c_buf)
       category%format = trim(c_buf)
 
       ! frequency
-      write(item_path, '(A,A)') trim(config_path), '/frequency'
+      item_path = trim(config_path) // '/frequency'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call clean_c_string(c_buf)
       category%frequency = trim(c_buf)
 
       ! gridded
-      write(item_path, '(A,A)') trim(config_path), '/gridded'
+      item_path = trim(config_path) // '/gridded'
       category%gridded = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 1_c_int) /= 0)
 
       ! is_2d
-      write(item_path, '(A,A)') trim(config_path), '/is_2d'
+      item_path = trim(config_path) // '/is_2d'
       category%is_2d = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 1_c_int) /= 0)
 
       ! diagnostics
-      write(item_path, '(A,A)') trim(config_path), '/diagnostics'
+      item_path = trim(config_path) // '/diagnostics'
       category%diagnostic = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
 
       ! scale_factor
-      write(item_path, '(A,A)') trim(config_path), '/scale_factor'
+      item_path = trim(config_path) // '/scale_factor'
       category%global_scale = catchem_config_get_yaml_double(core_ptr, trim(item_path) // c_null_char, 1.0_c_double)
 
       ! lat_name, lon_name, regrid_method, time_interpolation, vertical_dist
-      write(item_path, '(A,A)') trim(config_path), '/lat_name'
+      item_path = trim(config_path) // '/lat_name'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call clean_c_string(c_buf)
       category%latname = trim(c_buf)
 
-      write(item_path, '(A,A)') trim(config_path), '/lon_name'
+      item_path = trim(config_path) // '/lon_name'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call clean_c_string(c_buf)
       category%lonname = trim(c_buf)
 
-      write(item_path, '(A,A)') trim(config_path), '/regrid_method'
+      item_path = trim(config_path) // '/regrid_method'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      call clean_c_string(c_buf)
       category%regrid_method = trim(c_buf)
 
-      write(item_path, '(A,A)') trim(config_path), '/time_interpolation'
+      item_path = trim(config_path) // '/time_interpolation'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      call clean_c_string(c_buf)
       category%time_interpolation = trim(c_buf)
 
-      write(item_path, '(A,A)') trim(config_path), '/vertical_dist'
+      item_path = trim(config_path) // '/vertical_dist'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      call clean_c_string(c_buf)
       category%vertical_dist = trim(c_buf)
 
-      write(item_path, '(A,A)') trim(config_path), '/reverse_vertical'
+      item_path = trim(config_path) // '/reverse_vertical'
       category%reverse_vertical = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
 
       ! Stack parameters
-      write(item_path, '(A,A)') trim(config_path), '/stack_diameter'
+      item_path = trim(config_path) // '/stack_diameter'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call clean_c_string(c_buf)
       category%stkdmname = trim(c_buf)
 
-      write(item_path, '(A,A)') trim(config_path), '/stack_height'
+      item_path = trim(config_path) // '/stack_height'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call clean_c_string(c_buf)
       category%stkhtname = trim(c_buf)
 
-      write(item_path, '(A,A)') trim(config_path), '/stack_temperature'
+      item_path = trim(config_path) // '/stack_temperature'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call clean_c_string(c_buf)
       category%stktkname = trim(c_buf)
 
-      write(item_path, '(A,A)') trim(config_path), '/stack_velocity'
+      item_path = trim(config_path) // '/stack_velocity'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call clean_c_string(c_buf)
       category%stkvename = trim(c_buf)
 
       ! Topfraction and plume rise
-      write(item_path, '(A,A)') trim(config_path), '/topfraction'
+      item_path = trim(config_path) // '/topfraction'
       category%topfraction = catchem_config_get_yaml_double(core_ptr, trim(item_path) // c_null_char, -1.0_c_double)
 
-      write(item_path, '(A,A)') trim(config_path), '/plume_rise'
+      item_path = trim(config_path) // '/plume_rise'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call clean_c_string(c_buf)
       category%plumerise = trim(c_buf)
 
       ! Diurnal / OC / apply_method
-      write(item_path, '(A,A)') trim(config_path), '/use_oc_fbb'
+      item_path = trim(config_path) // '/use_oc_fbb'
       category%use_oc_fbb = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
 
-      write(item_path, '(A,A)') trim(config_path), '/diurnal_bb'
+      item_path = trim(config_path) // '/diurnal_bb'
       category%diurnal_bb = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
 
-      write(item_path, '(A,A)') trim(config_path), '/apply_method'
+      item_path = trim(config_path) // '/apply_method'
       call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'add' // c_null_char)
+      call clean_c_string(c_buf)
       category%apply_method = trim(c_buf)
 
       ! Diagnostic species list
-      write(item_path, '(A,A)') trim(config_path), '/diag_list'
+      item_path = trim(config_path) // '/diag_list'
       n_diag = catchem_config_get_yaml_list_count(core_ptr, trim(item_path) // c_null_char)
       if (present(diag_species)) then
          if (n_diag > 0) then
             allocate(diag_species(n_diag))
             do i = 1, n_diag
                call catchem_config_get_yaml_list_at(core_ptr, trim(item_path) // c_null_char, int(i - 1, c_int), c_buf, 64_c_int)
+               call clean_c_string(c_buf)
                diag_species(i) = trim(c_buf)
             end do
          else
@@ -2107,6 +2126,7 @@ contains
 
       do ispec = 0, n_fields - 1
          call catchem_config_get_emission_field_name_at(core_ptr, trim(category_name) // c_null_char, ispec, field_name, 64_c_int)
+         call clean_c_string(field_name)
          call new_field%init(field_name, nx, ny, nlev, 1, 'kg/m2/s', localrc)
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
@@ -2570,4 +2590,14 @@ contains
       end if
    end function days_in_month_func
 
+
+   !> Helper: Clean C-string null terminator and pad with spaces
+   subroutine clean_c_string(str)
+      character(len=*), intent(inout) :: str
+      integer :: idx
+      idx = index(str, c_null_char)
+      if (idx > 0) then
+         str(idx:) = ' '
+      end if
+   end subroutine clean_c_string
 end module catchem_nuopc_emis_mod
