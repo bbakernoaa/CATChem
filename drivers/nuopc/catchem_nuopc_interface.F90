@@ -167,8 +167,6 @@ module catchem_nuopc_interface
       real(c_double), allocatable :: dust_clayfrac(:,:)
       real(c_double), allocatable :: dust_sandfrac(:,:)
       real(c_double), allocatable :: dust_ustar_threshold(:,:)
-      real(c_double), allocatable :: dust_rdrag(:,:)
-      real(c_double), allocatable :: dust_ssm(:,:)
       logical :: initialized = .false.
       ! Diagnostic output variables (moved from module level for MPI safety)
       type(ESMF_Time) :: last_output_time
@@ -620,12 +618,6 @@ contains
       if (rc /= CC_SUCCESS) return
 
       call bind_static_field(cc_wrap, 'MET_USTAR_THRESHOLD', 'USTAR_THRESHOLD', cc_wrap%dust_ustar_threshold, 1.0_c_double, rc)
-      if (rc /= CC_SUCCESS) return
-
-      call bind_static_field(cc_wrap, 'MET_RDRAG', 'CMM', cc_wrap%dust_rdrag, 1.0_c_double, rc)
-      if (rc /= CC_SUCCESS) return
-
-      call bind_static_field(cc_wrap, 'MET_SSM', 'GWETTOP', cc_wrap%dust_ssm, 1.0_c_double, rc)
 
    end subroutine bind_static_met_from_aqmio
 
@@ -726,8 +718,6 @@ contains
       if (allocated(cc_wrap%dust_clayfrac)) deallocate(cc_wrap%dust_clayfrac)
       if (allocated(cc_wrap%dust_sandfrac)) deallocate(cc_wrap%dust_sandfrac)
       if (allocated(cc_wrap%dust_ustar_threshold)) deallocate(cc_wrap%dust_ustar_threshold)
-      if (allocated(cc_wrap%dust_rdrag)) deallocate(cc_wrap%dust_rdrag)
-      if (allocated(cc_wrap%dust_ssm)) deallocate(cc_wrap%dust_ssm)
 
       ! Clean up lat/lon stitched output resources
       call AQMIO_LatlonCleanup(rc=rc)
