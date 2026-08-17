@@ -44,13 +44,15 @@ int main(int argc, char* argv[]) {
         state->load_species_config(species_path);
 
         std::vector<double> temperature(n_cols * n_levels, 280.0);
-        std::vector<double> airden(n_cols * n_levels, 1.2);
-        std::vector<double> bxheight(n_cols * n_levels, 100.0);
+        std::vector<double> airden_dry(n_cols * n_levels, 1.2);
+        std::vector<double> delp(n_cols * n_levels, 1000.0);
+        std::vector<double> pmid(n_cols * n_levels, 90000.0);
         std::vector<double> chem_conc(n_cols * n_levels * n_species, 1.0e-8);
 
         state->bind_met_field_3d("T", temperature.data());
-        state->bind_met_field_3d("AIRDEN", airden.data());
-        state->bind_met_field_3d("BXHEIGHT", bxheight.data());
+        state->bind_met_field_3d("AIRDEN_DRY", airden_dry.data());
+        state->bind_met_field_3d("DELP", delp.data());
+        state->bind_met_field_3d("PMID", pmid.data());
         state->bind_unified_chemistry(chem_conc.data());
 
         auto carbchem = catchem::ProcessRegistry::get_instance().create("carbchem");

@@ -2,6 +2,8 @@
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_process_registry.hpp"
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
 extern "C" {
 void run_drydep_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* gas_scheme,
@@ -58,6 +60,26 @@ namespace catchem {
         double* obk_ptr = state->met.OBK ? state->met.OBK->host_data() : nullptr;
         double* pblh_ptr = state->met.PBLH ? state->met.PBLH->host_data() : nullptr;
 
+        auto require_pointer = [](const char* name, const double* ptr) {
+            if (ptr == nullptr) {
+                throw std::runtime_error(std::string("FATAL ERROR: DryDep process missing required field ") + name);
+            }
+        };
+
+        require_pointer("BXHEIGHT", bxheight_ptr);
+        require_pointer("AIRDEN", airden_ptr);
+        require_pointer("T", t_ptr);
+        require_pointer("PEDGE", pedge_ptr);
+        require_pointer("RH", rh_ptr);
+        require_pointer("PS", ps_ptr);
+        require_pointer("TS", ts_ptr);
+        require_pointer("LAT", lat_ptr);
+        require_pointer("LON", lon_ptr);
+        require_pointer("USTAR", ustar_ptr);
+        require_pointer("HFLUX", hflux_ptr);
+        require_pointer("OBK", obk_ptr);
+        require_pointer("PBLH", pblh_ptr);
+
         // Mock/Fallbacks for remaining metadata arrays - Using char for bool to support standard .data()
         std::vector<double> cldfrc(state->n_cols, 0.1);
 
@@ -90,6 +112,7 @@ namespace catchem {
 
         // 3. Extract chemical arrays & C++ allocated diagnostics
         double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
+        require_pointer("CHEM_CONC", conc_ptr);
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);

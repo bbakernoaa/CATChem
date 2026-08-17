@@ -2,6 +2,8 @@
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_process_registry.hpp"
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
 extern "C" {
 void run_seasalt_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* active_scheme,
@@ -62,6 +64,20 @@ namespace catchem {
         double* delp_ptr = (delp_it != state->met.fields_3d.end()) ? delp_it->second->host_data() : nullptr;
 
         double* ustar_ptr = state->met.USTAR ? state->met.USTAR->host_data() : nullptr;
+
+        auto require_pointer = [](const char* name, const double* ptr) {
+            if (ptr == nullptr) {
+                throw std::runtime_error(std::string("FATAL ERROR: SeaSalt process missing required met field ") + name);
+            }
+        };
+
+        require_pointer("FROCEAN", frocean_ptr);
+        require_pointer("FRSEAICE", frseaice_ptr);
+        require_pointer("LAT", lat_ptr);
+        require_pointer("LON", lon_ptr);
+        require_pointer("SST", sst_ptr);
+        require_pointer("USTAR", ustar_ptr);
+        require_pointer("DELP", delp_ptr);
 
         // Local fallbacks for winds if not bound
         std::vector<double> u10m(state->n_cols, 5.0);

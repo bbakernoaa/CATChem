@@ -2,6 +2,8 @@
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_process_registry.hpp"
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
 extern "C" {
 void run_wetdep_science_bridge(int n_cols, int n_levels, int n_species, double dt, int diagnostics, double* airden_dry,
@@ -55,8 +57,23 @@ namespace catchem {
         auto reevapls_it = state->met.fields_3d.find("REEVAPLS");
         double* reevapls_ptr = (reevapls_it != state->met.fields_3d.end()) ? reevapls_it->second->host_data() : nullptr;
 
+        auto require_pointer = [](const char* name, const double* ptr) {
+            if (ptr == nullptr) {
+                throw std::runtime_error(std::string("FATAL ERROR: WetDep process missing required field ") + name);
+            }
+        };
+
+        require_pointer("AIRDEN_DRY", airden_dry_ptr);
+        require_pointer("AIRDEN", mairden_ptr);
+        require_pointer("PEDGE", pedge_ptr);
+        require_pointer("PFILSAN", pfilsan_ptr);
+        require_pointer("PFLLSAN", pfllsan_ptr);
+        require_pointer("REEVAPLS", reevapls_ptr);
+        require_pointer("T", t_ptr);
+
         // 2. Extract chemical arrays & C++ allocated diagnostics
         double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
+        require_pointer("CHEM_CONC", conc_ptr);
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);

@@ -11,8 +11,11 @@ program test_CATChem_API
 
    type(CATChem_Model) :: model
    real(c_double), target, allocatable :: lat(:,:), lon(:,:), temp(:,:,:)
+   real(c_double), target, allocatable :: sst(:,:), frocean(:,:), frseaice(:,:), ustar(:,:)
+   real(c_double), target, allocatable :: delp(:,:,:), chem_conc(:,:,:)
    integer :: rc, g_nx, g_ny, g_nz
    integer, parameter :: nx = 4, ny = 2, nz = 5
+   integer, parameter :: n_species = 22
    character(len=*), parameter :: config_file = 'CATChem_new_config.yml'
    logical :: exists
 
@@ -53,15 +56,33 @@ program test_CATChem_API
    ! 3. Bind 2D and 3D meteorology arrays directly
    allocate(lat(nx, ny))
    allocate(lon(nx, ny))
+   allocate(sst(nx, ny))
+   allocate(frocean(nx, ny))
+   allocate(frseaice(nx, ny))
+   allocate(ustar(nx, ny))
    allocate(temp(nx*ny, 1, nz))
+   allocate(delp(nx*ny, 1, nz))
+   allocate(chem_conc(nx*ny, nz, n_species))
 
    lat = 40.0_c_double
    lon = 250.0_c_double
+   sst = 290.0_c_double
+   frocean = 1.0_c_double
+   frseaice = 0.0_c_double
+   ustar = 0.5_c_double
    temp = 290.0_c_double
+   delp = 1000.0_c_double
+   chem_conc = 0.0_c_double
 
    call model%bind_met_2d('LAT', lat)
    call model%bind_met_2d('LON', lon)
+   call model%bind_met_2d('SST', sst)
+   call model%bind_met_2d('FROCEAN', frocean)
+   call model%bind_met_2d('FRSEAICE', frseaice)
+   call model%bind_met_2d('USTAR', ustar)
    call model%bind_met_3d('T', temp)
+   call model%bind_met_3d('DELP', delp)
+   call model%bind_unified_chemistry(chem_conc)
    print *, 'PASS: met arrays bound directly to C++ core'
 
    ! 4. A timestep runs
@@ -80,7 +101,7 @@ program test_CATChem_API
    end if
    print *, 'PASS: finalize'
 
-   deallocate(lat, lon, temp)
+   deallocate(lat, lon, sst, frocean, frseaice, ustar, temp, delp, chem_conc)
 
    print *, 'All CATChem_API init-sequence tests passed!'
 end program test_CATChem_API

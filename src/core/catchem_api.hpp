@@ -90,7 +90,7 @@ double* catchem_state_get_species_conc_pointer(void* state_ptr, int species_inde
  * @param core_ptr Core pointer.
  * @param dt Step size in seconds.
  */
-void catchem_core_run_timestep(void* core_ptr, double dt);
+int catchem_core_run_timestep(void* core_ptr, double dt);
 
 /** @brief Registers and attaches an active physics process handler. */
 void catchem_core_add_process_by_name(void* core_ptr, const char* name);

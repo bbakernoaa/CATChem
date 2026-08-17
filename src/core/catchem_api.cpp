@@ -172,12 +172,14 @@ double* catchem_state_get_species_conc_pointer(void* state_ptr, int species_inde
     return nullptr;
 }
 
-void catchem_core_run_timestep(void* core_ptr, double dt) {
+int catchem_core_run_timestep(void* core_ptr, double dt) {
     try {
         auto* core = static_cast<catchem::Core*>(core_ptr);
         core->run_timestep(dt);
+        return 0;
     } catch (const std::exception& e) {
         std::cerr << "CATChem API Error: Exception caught during core run_timestep: " << e.what() << std::endl;
+        return -1;
     }
 }
 

@@ -9,6 +9,7 @@
 module CATChem_API
    use iso_c_binding
    use catchem_bridge_precision, only: fp
+   use catchem_bridge_error, only: CC_SUCCESS, CC_FAILURE
 
    implicit none
    private
@@ -73,11 +74,11 @@ module CATChem_API
          type(c_ptr), value :: core_ptr
       end function
 
-      subroutine catchem_core_run_timestep(core_ptr, dt) bind(C, name="catchem_core_run_timestep")
-         import :: c_ptr, c_double
+      integer(c_int) function catchem_core_run_timestep(core_ptr, dt) bind(C, name="catchem_core_run_timestep")
+         import :: c_ptr, c_double, c_int
          type(c_ptr), value :: core_ptr
          real(c_double), value :: dt
-      end subroutine
+      end function
 
       subroutine catchem_state_bind_met_3d(state_ptr, name, ptr) bind(C, name="catchem_state_bind_met_3d")
          import :: c_ptr, c_char
@@ -322,7 +323,7 @@ contains
       this%cpp_core_ptr = catchem_core_create_from_config_with_grid( &
          c_filename, int(nx*ny, c_int), int(nz, c_int))
       if (.not. c_associated(this%cpp_core_ptr)) then
-         rc = -1
+         rc = CC_FAILURE
          return
       end if
 
@@ -334,7 +335,7 @@ contains
       this%nz = nz
 
       this%initialized = .true.
-      rc = 0
+      rc = CC_SUCCESS
    end subroutine model_initialize
 
    ! Finalize model and release memory
@@ -348,7 +349,7 @@ contains
          this%state_mgr_ptr = c_null_ptr
       end if
       this%initialized = .false.
-      rc = 0
+      rc = CC_SUCCESS
    end subroutine model_finalize
 
    ! Register process list
@@ -357,9 +358,9 @@ contains
       integer, intent(out) :: rc
 
       if (c_associated(this%cpp_core_ptr)) then
-         rc = 0
+         rc = CC_SUCCESS
       else
-         rc = -1
+         rc = CC_FAILURE
       end if
    end subroutine model_add_process
 
@@ -380,11 +381,12 @@ contains
 
       if (c_associated(this%cpp_core_ptr)) then
          call catchem_state_sync_to_device(this%state_mgr_ptr)
-         call catchem_core_run_timestep(this%cpp_core_ptr, real(dt, c_double))
-         call catchem_state_sync_to_host(this%state_mgr_ptr)
-         rc = 0
+         rc = catchem_core_run_timestep(this%cpp_core_ptr, real(dt, c_double))
+         if (rc == CC_SUCCESS) then
+            call catchem_state_sync_to_host(this%state_mgr_ptr)
+         end if
       else
-         rc = -1
+         rc = CC_FAILURE
       end if
    end subroutine model_run_timestep
 
@@ -417,7 +419,7 @@ contains
          if (present(diagnostic_fields)) diagnostic_fields(i) = trim(f_name)
       end do
 
-      rc = 0
+      rc = CC_SUCCESS
    end subroutine model_get_diagnostic_names
 
    ! Retrieve individual diagnostic data mapped directly from C++ heap
@@ -435,7 +437,7 @@ contains
       raw_ptr = catchem_diag_get_pointer(this%cpp_core_ptr, c_name)
 
       if (.not. c_associated(raw_ptr)) then
-         rc = -1
+         rc = CC_FAILURE
          return
       end if
 
@@ -444,7 +446,7 @@ contains
 
       allocate(diagnostic_data(this%nx, this%ny, this%nz))
       diagnostic_data = real(f_ptr, fp)
-      rc = 0
+      rc = CC_SUCCESS
    end subroutine model_get_diagnostic
 
    ! Find index of registered diagnostic name
@@ -544,14 +546,14 @@ contains
 
       character(kind=c_char) :: c_name(64), c_desc(128), c_units(64)
 
-      rc = -1
+      rc = CC_FAILURE
       if (.not. c_associated(this%cpp_core_ptr)) return
       call to_c_string(name, c_name)
       call to_c_string(desc, c_desc)
       call to_c_string(units, c_units)
       call catchem_diag_register(this%cpp_core_ptr, c_name, c_desc, c_units, &
          3_c_int, int(dims(1), c_int), int(dims(2), c_int), int(dims(3), c_int))
-      rc = 0
+      rc = CC_SUCCESS
    end subroutine model_register_diagnostic
 
    subroutine model_get_species_conc_ptr(this, species_index, ptr3d, dims, rc)
@@ -562,13 +564,13 @@ contains
       integer, intent(out) :: rc
       type(c_ptr) :: raw_ptr
 
-      rc = -1
+      rc = CC_FAILURE
       nullify(ptr3d)
       if (.not. c_associated(this%state_mgr_ptr)) return
       raw_ptr = catchem_state_get_species_conc_pointer(this%state_mgr_ptr, int(species_index, c_int))
       if (.not. c_associated(raw_ptr)) return
       call c_f_pointer(raw_ptr, ptr3d, dims)
-      rc = 0
+      rc = CC_SUCCESS
    end subroutine model_get_species_conc_ptr
 
    ! Map the C++-owned storage of a registered 3D diagnostic for in-place
@@ -583,14 +585,14 @@ contains
       character(kind=c_char) :: c_name(64)
       type(c_ptr) :: raw_ptr
 
-      rc = -1
+      rc = CC_FAILURE
       nullify(ptr3d)
       if (.not. c_associated(this%cpp_core_ptr)) return
       call to_c_string(name, c_name)
       raw_ptr = catchem_diag_get_pointer(this%cpp_core_ptr, c_name)
       if (.not. c_associated(raw_ptr)) return
       call c_f_pointer(raw_ptr, ptr3d, dims)
-      rc = 0
+      rc = CC_SUCCESS
    end subroutine model_get_diagnostic_ptr
 
    function model_get_output_frequency(this) result(freq)
