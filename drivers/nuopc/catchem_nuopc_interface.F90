@@ -897,6 +897,7 @@ contains
          call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
+         if (.not. associated(fptr2d)) return
 
          ! Standard direct zero-copy pointer mapping to C++ core
          if (trim(field_map%catchem_var) == 'Z0') then
@@ -922,6 +923,7 @@ contains
          call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
+         if (.not. associated(fptr3d)) return
 
          ! Direct zero-copy 3D volumetric array pointer mapping to C++ core StateManager
          call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var) // c_null_char, fptr3d)
@@ -939,6 +941,7 @@ contains
          call ESMF_FieldGet(field, farrayPtr=fptr4d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
+         if (.not. associated(fptr4d)) return
 
          ! Direct zero-copy 4D chemistry concentration array mapping to C++ core StateManager
          call cc_wrap%catchem_model%bind_unified_chemistry(fptr4d)
@@ -989,6 +992,7 @@ contains
          call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
+         if (.not. associated(fptr2d)) return
          !find index of diagnostic name in the format of process_name.field_name
          found_index = cc_wrap%catchem_model%get_diag_index_from_field(field_map%catchem_var)
          if (found_index > 0) then
@@ -1015,6 +1019,7 @@ contains
          call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
+         if (.not. associated(fptr3d)) return
          !find index of diagnostic name in the format of process_name.field_name
          found_index = cc_wrap%catchem_model%get_diag_index_from_field(field_map%catchem_var)
          if (found_index > 0) then
@@ -1053,6 +1058,7 @@ contains
          call ESMF_FieldGet(field, farrayPtr=fptr4d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
+         if (.not. associated(fptr4d)) return
 
          ni = size(fptr4d, 1)
          nj = size(fptr4d, 2)
