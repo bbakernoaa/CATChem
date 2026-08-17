@@ -10,7 +10,7 @@
 !! \date 2023
 !! \version 1.0
 !!
-MODULE catchem_emis_data_mod
+MODULE catchem_nuopc_emis_data_mod
 
    !=========================================================================
    ! Module uses
@@ -1013,4 +1013,4 @@ CONTAINS
 
    end function extemidata_get_column_ptr
 
-END MODULE catchem_emis_data_mod
+END MODULE catchem_nuopc_emis_data_mod

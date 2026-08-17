@@ -55,13 +55,17 @@ namespace catchem {
 
         auto reevapls_it = state->met.fields_3d.find("REEVAPLS");
         double* reevapls_ptr = (reevapls_it != state->met.fields_3d.end()) ? reevapls_it->second->host_data() : nullptr;
+        std::vector<double> reevapls_fallback;
+        if (reevapls_ptr == nullptr) {
+            reevapls_fallback.assign(static_cast<size_t>(state->n_cols) * state->n_levels, 0.0);
+            reevapls_ptr = reevapls_fallback.data();
+        }
 
         require_field_pointer("WetDep", "AIRDEN_DRY", airden_dry_ptr);
         require_field_pointer("WetDep", "AIRDEN", mairden_ptr);
         require_field_pointer("WetDep", "PEDGE", pedge_ptr);
         require_field_pointer("WetDep", "PFILSAN", pfilsan_ptr);
         require_field_pointer("WetDep", "PFLLSAN", pfllsan_ptr);
-        require_field_pointer("WetDep", "REEVAPLS", reevapls_ptr);
         require_field_pointer("WetDep", "T", t_ptr);
 
         // 2. Extract chemical arrays & C++ allocated diagnostics

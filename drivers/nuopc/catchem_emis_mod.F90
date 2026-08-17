@@ -29,7 +29,7 @@
 !! call catchem_emis_finalize(cc_wrap, rc)
 !! \endcode
 
-module catchem_emis_mod
+module catchem_nuopc_emis_mod
 
    use iso_c_binding, only: c_ptr, c_char, c_int, c_double, c_null_char, c_associated, c_f_pointer
    use ESMF
@@ -39,7 +39,7 @@ module catchem_emis_mod
    use catchem_regrid_mod, only: RegridCache, catchem_regrid_field, catchem_regrid_cleanup
    use catchem_bridge_precision, only: fp
    use catchem_bridge_error, only: CC_SUCCESS, CC_FAILURE
-   use catchem_emis_data_mod, only: ExtEmisDataType, ExtEmisCategoryType, ExtEmisFieldType
+   use catchem_nuopc_emis_data_mod, only: ExtEmisDataType, ExtEmisCategoryType, ExtEmisFieldType
 
    implicit none
    private
@@ -2570,4 +2570,4 @@ contains
       end if
    end function days_in_month_func
 
-end module catchem_emis_mod
+end module catchem_nuopc_emis_mod

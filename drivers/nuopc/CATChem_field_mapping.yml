@@ -54,11 +54,21 @@ import_fields:
     dimensions: 2
     units: "m/s"
     optional: false
+  - standard_name: "surface_friction_velocity"
+    catchem_var: "USTAR"
+    dimensions: 2
+    units: "m/s"
+    optional: true
   - standard_name: "inst_aerodynamic_conductance"
     catchem_var: "CMM"
     dimensions: 2
     units: "s/m"
     optional: false
+  - standard_name: "inst_drag_mass_flux_for_heat_and_moisture"
+    catchem_var: "CMM"
+    dimensions: 2
+    units: "s/m"
+    optional: true
   - standard_name: "inst_zonal_wind_height10m"
     catchem_var: "U10M"
     dimensions: 2
@@ -69,6 +79,11 @@ import_fields:
     dimensions: 2
     units: "m"
     optional: false
+  - standard_name: "wave_z0_roughness_length"
+    catchem_var: "Z0"
+    dimensions: 2
+    units: "m"
+    optional: true
   - standard_name: "inst_merid_wind_height10m"
     catchem_var: "V10M"
     dimensions: 2
@@ -79,6 +94,16 @@ import_fields:
     dimensions: 2
     units: "K"
     optional: false
+  - standard_name: "sea_surface_temperature"
+    catchem_var: "SST"
+    dimensions: 2
+    units: "K"
+    optional: true
+  - standard_name: "sea_ice_surface_temperature"
+    catchem_var: "SST"
+    dimensions: 2
+    units: "K"
+    optional: true
   - standard_name: "inst_pres_height_surface"
     catchem_var: "PS"
     dimensions: 2
@@ -129,7 +154,7 @@ import_fields:
     dimensions: 2
     units: "s/m"
     optional: true
-  - standard_name: "surface_cell_area "
+  - standard_name: "surface_cell_area"
     catchem_var: "AREA_M2"
     dimensions: 2
     units: "m2"
@@ -139,11 +164,16 @@ import_fields:
     dimensions: 2
     units: "frac"
     optional: false
-  - standard_name: "sea_ice_area_fraction"
+  - standard_name: "ice_fraction_in_atm"
     catchem_var: "FRSEAICE"
     dimensions: 2
     units: "frac"
     optional: false
+  - standard_name: "ice_fraction"
+    catchem_var: "FRSEAICE"
+    dimensions: 2
+    units: "frac"
+    optional: true
   - standard_name: "leaf_area_index"
     catchem_var: "LAI"
     dimensions: 2
@@ -159,6 +189,11 @@ import_fields:
     dimensions: 2
     units: "frac"
     optional: false
+  - standard_name: "openwater_frac_in_atm"
+    catchem_var: "FROCEAN"
+    dimensions: 2
+    units: "frac"
+    optional: true
   - standard_name: "vegetation_type"
     catchem_var: "DLUSE"
     dimensions: 2
@@ -174,6 +209,26 @@ import_fields:
     dimensions: 2
     units: "1"
     optional: false
+  - standard_name: "clay_fraction"
+    catchem_var: "CLAYFRAC"
+    dimensions: 2
+    units: "1"
+    optional: true
+  - standard_name: "sand_fraction"
+    catchem_var: "SNDFRC"
+    dimensions: 2
+    units: "1"
+    optional: true
+  - standard_name: "threshold_friction_velocity_for_dust"
+    catchem_var: "USTAR_THRESHOLD"
+    dimensions: 2
+    units: "m/s"
+    optional: true
+  - standard_name: "threshold_friction_velocity"
+    catchem_var: "USTAR_THRESHOLD"
+    dimensions: 2
+    units: "m/s"
+    optional: true
   - standard_name: "inst_ice_nonconv_tendency_levels"
     catchem_var: "PFILSAN"
     dimensions: 3
@@ -194,6 +249,11 @@ import_fields:
     dimensions: 2
     units: "1"
     optional: false
+  - standard_name: "land_mask"
+    catchem_var: "LWI"
+    dimensions: 2
+    units: "1"
+    optional: true
   - standard_name: "inst_soil_moisture_content"
     catchem_var: "SOILM"
     dimensions: 3

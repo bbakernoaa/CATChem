@@ -50,62 +50,61 @@ namespace catchem {
     void DustProcess::run(std::shared_ptr<StateManager> state) {
         state->sync_to_host();
 
-        // 1. Retrieve Meteorological state pointers
-        auto airden_ptr_it = state->met.fields_3d.find("air_density_dry");
-        double* airden_ptr =
-            (airden_ptr_it != state->met.fields_3d.end()) ? airden_ptr_it->second->host_data() : nullptr;
-        auto clayfrac_ptr_it = state->met.fields_2d.find("clay_fraction");
-        double* clayfrac_ptr =
-            (clayfrac_ptr_it != state->met.fields_2d.end()) ? clayfrac_ptr_it->second->host_data() : nullptr;
-        auto frlake_ptr_it = state->met.fields_2d.find("lake_fraction");
-        double* frlake_ptr =
-            (frlake_ptr_it != state->met.fields_2d.end()) ? frlake_ptr_it->second->host_data() : nullptr;
-        auto frsno_ptr_it = state->met.fields_2d.find("snow_fraction");
-        double* frsno_ptr = (frsno_ptr_it != state->met.fields_2d.end()) ? frsno_ptr_it->second->host_data() : nullptr;
-        auto gvf_ptr_it = state->met.fields_2d.find("vegetation_fraction");
-        double* gvf_ptr = (gvf_ptr_it != state->met.fields_2d.end()) ? gvf_ptr_it->second->host_data() : nullptr;
-        auto lai_ptr_it = state->met.fields_2d.find("leaf_area_index");
-        double* lai_ptr = (lai_ptr_it != state->met.fields_2d.end()) ? lai_ptr_it->second->host_data() : nullptr;
-        int* lwi_ptr = nullptr;
-        auto rdrag_ptr_it = state->met.fields_2d.find("drag_coefficient");
-        double* rdrag_ptr = (rdrag_ptr_it != state->met.fields_2d.end()) ? rdrag_ptr_it->second->host_data() : nullptr;
-        auto sandfrac_ptr_it = state->met.fields_2d.find("sand_fraction");
-        double* sandfrac_ptr =
-            (sandfrac_ptr_it != state->met.fields_2d.end()) ? sandfrac_ptr_it->second->host_data() : nullptr;
-        auto soilm_ptr_it = state->met.fields_3d.find("soil_moisture");
-        double* soilm_ptr = (soilm_ptr_it != state->met.fields_3d.end()) ? soilm_ptr_it->second->host_data() : nullptr;
-        auto ssm_ptr_it = state->met.fields_2d.find("surface_soil_moisture");
-        double* ssm_ptr = (ssm_ptr_it != state->met.fields_2d.end()) ? ssm_ptr_it->second->host_data() : nullptr;
-        auto tskin_ptr_it = state->met.fields_2d.find("skin_temperature");
-        double* tskin_ptr = (tskin_ptr_it != state->met.fields_2d.end()) ? tskin_ptr_it->second->host_data() : nullptr;
-        auto u10m_ptr_it = state->met.fields_2d.find("u_10m");
-        double* u10m_ptr = (u10m_ptr_it != state->met.fields_2d.end()) ? u10m_ptr_it->second->host_data() : nullptr;
-        auto v10m_ptr_it = state->met.fields_2d.find("v_10m");
-        double* v10m_ptr = (v10m_ptr_it != state->met.fields_2d.end()) ? v10m_ptr_it->second->host_data() : nullptr;
-        auto ustar_ptr_it = state->met.fields_2d.find("friction_velocity");
-        double* ustar_ptr = (ustar_ptr_it != state->met.fields_2d.end()) ? ustar_ptr_it->second->host_data() : nullptr;
-        auto ustar_th_ptr_it = state->met.fields_2d.find("threshold_friction_velocity");
-        double* ustar_th_ptr =
-            (ustar_th_ptr_it != state->met.fields_2d.end()) ? ustar_th_ptr_it->second->host_data() : nullptr;
-        auto z0_ptr_it = state->met.fields_2d.find("roughness_length");
-        double* z0_ptr = (z0_ptr_it != state->met.fields_2d.end()) ? z0_ptr_it->second->host_data() : nullptr;
+        auto find_3d_ptr = [&](std::initializer_list<const char*> names) -> double* {
+            for (const char* name : names) {
+                auto it = state->met.fields_3d.find(name);
+                if (it != state->met.fields_3d.end()) {
+                    return it->second->host_data();
+                }
+            }
+            return nullptr;
+        };
 
-        require_field_pointer("Dust", "air_density_dry", airden_ptr);
-        require_field_pointer("Dust", "clay_fraction", clayfrac_ptr);
-        require_field_pointer("Dust", "lake_fraction", frlake_ptr);
-        require_field_pointer("Dust", "snow_fraction", frsno_ptr);
-        require_field_pointer("Dust", "vegetation_fraction", gvf_ptr);
-        require_field_pointer("Dust", "leaf_area_index", lai_ptr);
-        require_field_pointer("Dust", "drag_coefficient", rdrag_ptr);
-        require_field_pointer("Dust", "sand_fraction", sandfrac_ptr);
-        require_field_pointer("Dust", "soil_moisture", soilm_ptr);
-        require_field_pointer("Dust", "surface_soil_moisture", ssm_ptr);
-        require_field_pointer("Dust", "skin_temperature", tskin_ptr);
-        require_field_pointer("Dust", "u_10m", u10m_ptr);
-        require_field_pointer("Dust", "v_10m", v10m_ptr);
-        require_field_pointer("Dust", "friction_velocity", ustar_ptr);
-        require_field_pointer("Dust", "threshold_friction_velocity", ustar_th_ptr);
-        require_field_pointer("Dust", "roughness_length", z0_ptr);
+        auto find_2d_ptr = [&](std::initializer_list<const char*> names) -> double* {
+            for (const char* name : names) {
+                auto it = state->met.fields_2d.find(name);
+                if (it != state->met.fields_2d.end()) {
+                    return it->second->host_data();
+                }
+            }
+            return nullptr;
+        };
+
+        // 1. Retrieve Meteorological state pointers
+        double* airden_ptr = find_3d_ptr({"AIRDEN_DRY", "air_density_dry"});
+        double* clayfrac_ptr = find_2d_ptr({"CLAYFRAC", "clay_fraction"});
+        double* frlake_ptr = find_2d_ptr({"FRLAKE", "lake_fraction"});
+        double* frsno_ptr = find_2d_ptr({"FRSNO", "snow_fraction"});
+        double* gvf_ptr = find_2d_ptr({"GVF", "vegetation_fraction"});
+        double* lai_ptr = find_2d_ptr({"LAI", "leaf_area_index"});
+        int* lwi_ptr = nullptr;
+        double* rdrag_ptr = find_2d_ptr({"CMM", "drag_coefficient"});
+        double* sandfrac_ptr = find_2d_ptr({"SNDFRC", "sand_fraction"});
+        double* soilm_ptr = find_3d_ptr({"SOILM", "soil_moisture"});
+        double* ssm_ptr = find_2d_ptr({"GWETTOP", "surface_soil_moisture"});
+        double* tskin_ptr = find_2d_ptr({"TS", "skin_temperature"});
+        double* u10m_ptr = find_2d_ptr({"U10M", "u_10m"});
+        double* v10m_ptr = find_2d_ptr({"V10M", "v_10m"});
+        double* ustar_ptr = find_2d_ptr({"USTAR", "friction_velocity"});
+        double* ustar_th_ptr = find_2d_ptr({"USTAR_THRESHOLD", "threshold_friction_velocity"});
+        double* z0_ptr = find_2d_ptr({"Z0", "roughness_length"});
+
+        require_field_pointer("Dust", "AIRDEN_DRY", airden_ptr);
+        require_field_pointer("Dust", "CLAYFRAC", clayfrac_ptr);
+        require_field_pointer("Dust", "FRLAKE", frlake_ptr);
+        require_field_pointer("Dust", "FRSNO", frsno_ptr);
+        require_field_pointer("Dust", "GVF", gvf_ptr);
+        require_field_pointer("Dust", "LAI", lai_ptr);
+        require_field_pointer("Dust", "CMM", rdrag_ptr);
+        require_field_pointer("Dust", "SNDFRC", sandfrac_ptr);
+        require_field_pointer("Dust", "SOILM", soilm_ptr);
+        require_field_pointer("Dust", "GWETTOP", ssm_ptr);
+        require_field_pointer("Dust", "TS", tskin_ptr);
+        require_field_pointer("Dust", "U10M", u10m_ptr);
+        require_field_pointer("Dust", "V10M", v10m_ptr);
+        require_field_pointer("Dust", "USTAR", ustar_ptr);
+        require_field_pointer("Dust", "USTAR_THRESHOLD", ustar_th_ptr);
+        require_field_pointer("Dust", "Z0", z0_ptr);
 
         // Provide dummy variables for non-existent ones so tests pass
         std::vector<int> dummy_1d_int(state->n_cols, 1); // default land

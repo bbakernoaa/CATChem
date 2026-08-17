@@ -48,6 +48,21 @@ namespace catchem {
             (airden_ptr_it != state->met.fields_3d.end()) ? airden_ptr_it->second->host_data() : nullptr;
         auto delp_ptr_it = state->met.fields_3d.find("DELP");
         double* delp_ptr = (delp_ptr_it != state->met.fields_3d.end()) ? delp_ptr_it->second->host_data() : nullptr;
+        std::vector<double> derived_delp;
+        if (delp_ptr == nullptr && state->met.PEDGE) {
+            auto pedge = state->met.PEDGE->host_data();
+            if (pedge != nullptr) {
+                derived_delp.assign(static_cast<size_t>(state->n_cols) * state->n_levels, 0.0);
+                for (int lev = 0; lev < state->n_levels; ++lev) {
+                    for (int col = 0; col < state->n_cols; ++col) {
+                        const int lower_idx = col + lev * state->n_cols;
+                        const int upper_idx = col + (lev + 1) * state->n_cols;
+                        derived_delp[lower_idx] = pedge[lower_idx] - pedge[upper_idx];
+                    }
+                }
+                delp_ptr = derived_delp.data();
+            }
+        }
         auto pmid_ptr_it = state->met.fields_3d.find("PMID");
         double* pmid_ptr = (pmid_ptr_it != state->met.fields_3d.end()) ? pmid_ptr_it->second->host_data() : nullptr;
 

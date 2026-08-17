@@ -34,11 +34,11 @@ module catchem_nuopc_interface
    use catchem_bridge_constants, only: g0, Rd, Re
    use catchem_bridge_error, only : CC_SUCCESS, CC_FAILURE
    use catchem_bridge_error, only: ErrorManagerType
-   use catchem_emis_data_mod, only: ExtEmisDataType  ! External emissions data type
+   use catchem_nuopc_emis_data_mod, only: ExtEmisDataType, ExtEmisFieldType  ! External emissions data types
    use aqmio, only: AQMIO_Create, AQMIO_Destroy, AQMIO_Write, AQMIO_Close, AQMIO_Write1D, AQMIO_FMT_NETCDF, &
       AQMIO_LatlonInit, AQMIO_LatlonCleanup
    use catchem_latlon_output_mod, only: latlon_diag_set_time, latlon_diag_is_init
-   use catchem_emis_mod
+   use catchem_nuopc_emis_mod
 
    implicit none
 
@@ -164,6 +164,11 @@ module catchem_nuopc_interface
       type(ESMF_Grid) :: grid
       real(c_double), allocatable :: area_m2(:,:)
       real(c_double), allocatable :: z0_m(:,:)
+      real(c_double), allocatable :: dust_clayfrac(:,:)
+      real(c_double), allocatable :: dust_sandfrac(:,:)
+      real(c_double), allocatable :: dust_ustar_threshold(:,:)
+      real(c_double), allocatable :: dust_rdrag(:,:)
+      real(c_double), allocatable :: dust_ssm(:,:)
       logical :: initialized = .false.
       ! Diagnostic output variables (moved from module level for MPI safety)
       type(ESMF_Time) :: last_output_time
@@ -524,6 +529,14 @@ contains
          line=__LINE__, file=__FILE__)) return
 #endif
       call catchem_emis_update(cc_wrap%ext_emis, current_time, cc_wrap%catchem_model%nz, cc_wrap%iocomp, cc_wrap%grid, real(dt, fp), rc)
+
+      if (rc == CC_SUCCESS) then
+         call bind_static_met_from_aqmio(cc_wrap, rc)
+      end if
+      if (rc /= CC_SUCCESS) then
+         errmsg = 'Error binding AQMIO static met fields'
+         return
+      end if
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionExit("catchem_emis_update", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -587,6 +600,78 @@ contains
 
    end subroutine catchem_nuopc_run
 
+   !> \brief Bind static dust-support met fields from AQMIO-loaded data.
+   !!
+   !! Some dust inputs (e.g., clay/sand fractions and threshold friction
+   !! velocity) come from static files handled via the external-emissions AQMIO
+   !! path. This routine maps those fields into CATChem met state when present.
+   subroutine bind_static_met_from_aqmio(cc_wrap, rc)
+
+      type(cc_wrap_type), intent(inout) :: cc_wrap
+      integer, intent(out) :: rc
+
+      rc = CC_SUCCESS
+      if (cc_wrap%ext_emis%n_categories == 0) return
+
+      call bind_static_field(cc_wrap, 'MET_CLAYFRAC', 'CLAYFRAC', cc_wrap%dust_clayfrac, 1.0_c_double, rc)
+      if (rc /= CC_SUCCESS) return
+
+      call bind_static_field(cc_wrap, 'MET_SANDFRAC', 'SNDFRC', cc_wrap%dust_sandfrac, 1.0_c_double, rc)
+      if (rc /= CC_SUCCESS) return
+
+      call bind_static_field(cc_wrap, 'MET_USTAR_THRESHOLD', 'USTAR_THRESHOLD', cc_wrap%dust_ustar_threshold, 1.0_c_double, rc)
+      if (rc /= CC_SUCCESS) return
+
+      call bind_static_field(cc_wrap, 'MET_RDRAG', 'CMM', cc_wrap%dust_rdrag, 1.0_c_double, rc)
+      if (rc /= CC_SUCCESS) return
+
+      call bind_static_field(cc_wrap, 'MET_SSM', 'GWETTOP', cc_wrap%dust_ssm, 1.0_c_double, rc)
+
+   end subroutine bind_static_met_from_aqmio
+
+   !> \brief Helper: bind one static AQMIO field into CATChem met state.
+   subroutine bind_static_field(cc_wrap, source_name, met_name, met_buffer, scale, rc)
+
+      type(cc_wrap_type), intent(inout) :: cc_wrap
+      character(len=*), intent(in) :: source_name
+      character(len=*), intent(in) :: met_name
+      real(c_double), allocatable, intent(inout) :: met_buffer(:,:)
+      real(c_double), intent(in) :: scale
+      integer, intent(out) :: rc
+
+      type(ExtEmisFieldType), pointer :: src_field
+      integer :: nx, ny
+
+      rc = CC_SUCCESS
+      src_field => cc_wrap%ext_emis%find_emission_field(trim(source_name))
+      if (.not. associated(src_field)) return
+
+      if (allocated(src_field%interp_data_t1)) then
+         nx = size(src_field%interp_data_t1, 1)
+         ny = size(src_field%interp_data_t1, 2)
+         if (size(src_field%interp_data_t1, 3) < 1 .or. size(src_field%interp_data_t1, 4) < 1) return
+         if (.not. allocated(met_buffer) .or. size(met_buffer, 1) /= nx .or. size(met_buffer, 2) /= ny) then
+            if (allocated(met_buffer)) deallocate(met_buffer)
+            allocate(met_buffer(nx, ny))
+         end if
+         met_buffer = real(src_field%interp_data_t1(:,:,1,1), c_double) * scale
+      else if (allocated(src_field%emission_data)) then
+         nx = size(src_field%emission_data, 1)
+         ny = size(src_field%emission_data, 2)
+         if (size(src_field%emission_data, 3) < 1 .or. size(src_field%emission_data, 4) < 1) return
+         if (.not. allocated(met_buffer) .or. size(met_buffer, 1) /= nx .or. size(met_buffer, 2) /= ny) then
+            if (allocated(met_buffer)) deallocate(met_buffer)
+            allocate(met_buffer(nx, ny))
+         end if
+         met_buffer = real(src_field%emission_data(:,:,1,1), c_double) * scale
+      else
+         return
+      end if
+
+      call cc_wrap%catchem_model%bind_met_2d(trim(met_name) // c_null_char, met_buffer)
+
+   end subroutine bind_static_field
+
    ! Finalize CATChem for NUOPC interface
    !!
    !! \param catchem_states CATChem container
@@ -636,6 +721,13 @@ contains
       if (allocated(cc_wrap%tracer_map%nuopc_to_cc)) deallocate(cc_wrap%tracer_map%nuopc_to_cc)
       if (allocated(cc_wrap%tracer_map%names)) deallocate(cc_wrap%tracer_map%names)
       if (allocated(cc_wrap%tracer_map%units)) deallocate(cc_wrap%tracer_map%units)
+
+      if (allocated(cc_wrap%z0_m)) deallocate(cc_wrap%z0_m)
+      if (allocated(cc_wrap%dust_clayfrac)) deallocate(cc_wrap%dust_clayfrac)
+      if (allocated(cc_wrap%dust_sandfrac)) deallocate(cc_wrap%dust_sandfrac)
+      if (allocated(cc_wrap%dust_ustar_threshold)) deallocate(cc_wrap%dust_ustar_threshold)
+      if (allocated(cc_wrap%dust_rdrag)) deallocate(cc_wrap%dust_rdrag)
+      if (allocated(cc_wrap%dust_ssm)) deallocate(cc_wrap%dust_ssm)
 
       ! Clean up lat/lon stitched output resources
       call AQMIO_LatlonCleanup(rc=rc)
@@ -1956,7 +2048,7 @@ contains
       integer :: unit_num, io_stat, indent_level, section_indent
       character(len=256) :: line, trimmed_line, field_name, field_value
       logical :: in_section, found_section
-      integer :: line_number, field_idx, colon_pos
+      integer :: line_number, colon_pos
       type(field_mapping_type), allocatable :: temp_fields(:)
       type(field_mapping_type) :: current_field
       logical :: in_field_item, field_already_saved
@@ -1968,7 +2060,6 @@ contains
       found_section = .false.
       section_indent = -1
       line_number = 0
-      field_idx = 0
       in_field_item = .false.
       field_already_saved = .false.
 
@@ -1987,8 +2078,8 @@ contains
          return
       endif
 
-      ! Allocate temporary storage for up to 50 fields
-      allocate(temp_fields(50))
+      ! Allocate temporary storage and grow as needed for large mapping files
+      allocate(temp_fields(64))
 
       ! Read file line by line
       do
@@ -2031,10 +2122,11 @@ contains
             if (in_section .and. indent_level == 0 .and. trim(field_name) /= trim(section_name)) then
                ! Save the last field if we're still processing one
                if (in_field_item .and. current_field%standard_name /= '') then
-                  n_fields = n_fields + 1
-                  if (n_fields <= size(temp_fields)) then
-                     temp_fields(n_fields) = current_field
-                  endif
+                  call append_parsed_field(temp_fields, n_fields, current_field, errflg, errmsg)
+                  if (errflg /= CC_SUCCESS) then
+                     close(unit_num)
+                     return
+                  end if
                   field_already_saved = .true.  ! Mark that we've saved the field
                endif
                exit
@@ -2047,10 +2139,11 @@ contains
                if (index(trimmed_line, '- ') == 1) then
                   ! Save previous field if we have one
                   if (in_field_item .and. current_field%standard_name /= '') then
-                     n_fields = n_fields + 1
-                     if (n_fields <= size(temp_fields)) then
-                        temp_fields(n_fields) = current_field
-                     endif
+                     call append_parsed_field(temp_fields, n_fields, current_field, errflg, errmsg)
+                     if (errflg /= CC_SUCCESS) then
+                        close(unit_num)
+                        return
+                     end if
                   endif
 
                   ! Start new field item
@@ -2085,10 +2178,11 @@ contains
             elseif (in_section .and. indent_level <= section_indent) then
                ! We've left our section
                if (in_field_item .and. current_field%standard_name /= '') then
-                  n_fields = n_fields + 1
-                  if (n_fields <= size(temp_fields)) then
-                     temp_fields(n_fields) = current_field
-                  endif
+                  call append_parsed_field(temp_fields, n_fields, current_field, errflg, errmsg)
+                  if (errflg /= CC_SUCCESS) then
+                     close(unit_num)
+                     return
+                  end if
                   field_already_saved = .true.  ! Mark that we've saved the field
                endif
                exit
@@ -2098,10 +2192,11 @@ contains
 
       ! Save the last field if we're still processing one AND it hasn't been saved yet
       if (in_field_item .and. current_field%standard_name /= '' .and. .not. field_already_saved) then
-         n_fields = n_fields + 1
-         if (n_fields <= size(temp_fields)) then
-            temp_fields(n_fields) = current_field
-         endif
+         call append_parsed_field(temp_fields, n_fields, current_field, errflg, errmsg)
+         if (errflg /= CC_SUCCESS) then
+            close(unit_num)
+            return
+         end if
       endif
 
       close(unit_num)
@@ -2123,6 +2218,37 @@ contains
       deallocate(temp_fields)
 
    end subroutine parse_field_section
+
+   !> \brief Append one parsed field to a dynamically growing temporary array.
+   subroutine append_parsed_field(temp_fields, n_fields, current_field, errflg, errmsg)
+      type(field_mapping_type), allocatable, intent(inout) :: temp_fields(:)
+      integer, intent(inout) :: n_fields
+      type(field_mapping_type), intent(in) :: current_field
+      integer, intent(out) :: errflg
+      character(len=*), intent(out) :: errmsg
+
+      type(field_mapping_type), allocatable :: expanded_fields(:)
+      integer :: old_size, new_size, stat
+
+      errflg = CC_SUCCESS
+      errmsg = ''
+
+      n_fields = n_fields + 1
+      if (n_fields > size(temp_fields)) then
+         old_size = size(temp_fields)
+         new_size = max(old_size * 2, n_fields)
+         allocate(expanded_fields(new_size), stat=stat)
+         if (stat /= 0) then
+            errflg = CC_FAILURE
+            errmsg = 'Unable to grow temporary field mapping storage'
+            return
+         end if
+         expanded_fields(1:old_size) = temp_fields(1:old_size)
+         call move_alloc(expanded_fields, temp_fields)
+      end if
+
+      temp_fields(n_fields) = current_field
+   end subroutine append_parsed_field
 
    !> Parse a field property and set it in the field structure
    !!
