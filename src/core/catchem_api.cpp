@@ -111,16 +111,19 @@ void catchem_state_bind_3d(void* state_ptr, const char* name, double* ptr) {
 }
 
 void catchem_state_bind_met_2d(void* state_ptr, const char* name, double* ptr) {
+    std::cout << "[C++ DEBUG] catchem_state_bind_met_2d: name=" << (name ? name : "null") << " ptr=" << (void*)ptr << std::endl;
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     state->bind_met_field_2d(name, ptr);
 }
 
 void catchem_state_bind_met_3d(void* state_ptr, const char* name, double* ptr) {
+    std::cout << "[C++ DEBUG] catchem_state_bind_met_3d: name=" << (name ? name : "null") << " ptr=" << (void*)ptr << std::endl;
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     state->bind_met_field_3d(name, ptr);
 }
 
 void catchem_state_bind_unified_chemistry(void* state_ptr, double* ptr) {
+    std::cout << "[C++ DEBUG] catchem_state_bind_unified_chemistry: ptr=" << (void*)ptr << std::endl;
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     state->bind_unified_chemistry(ptr);
 }

@@ -897,7 +897,21 @@ contains
          call ESMF_FieldGet(field, farrayPtr=fptr2d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
-         if (.not. associated(fptr2d)) return
+         if (.not. associated(fptr2d)) then
+            write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 2D UNASSOCIATED: ', &
+               trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
+            call flush(6)
+            call ESMF_LogWrite("transform_field_to_catchem: fptr2d NOT associated for "// &
+               trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
+               ESMF_LOGMSG_WARNING, rc=rc)
+            return
+         end if
+
+         write(*, '(A,A,A,A,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 2D: ', &
+            trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
+            ' shape=[', size(fptr2d, 1), ',', size(fptr2d, 2), '] ptr=', c_loc(fptr2d(1,1)), &
+            ' min=', minval(fptr2d), ' max=', maxval(fptr2d)
+         call flush(6)
 
          ! Standard direct zero-copy pointer mapping to C++ core
          if (trim(field_map%catchem_var) == 'Z0') then
@@ -923,7 +937,21 @@ contains
          call ESMF_FieldGet(field, farrayPtr=fptr3d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
-         if (.not. associated(fptr3d)) return
+         if (.not. associated(fptr3d)) then
+            write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 3D UNASSOCIATED: ', &
+               trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
+            call flush(6)
+            call ESMF_LogWrite("transform_field_to_catchem: fptr3d NOT associated for "// &
+               trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
+               ESMF_LOGMSG_WARNING, rc=rc)
+            return
+         end if
+
+         write(*, '(A,A,A,A,A,I0,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 3D: ', &
+            trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
+            ' shape=[', size(fptr3d, 1), ',', size(fptr3d, 2), ',', size(fptr3d, 3), '] ptr=', c_loc(fptr3d(1,1,1)), &
+            ' min=', minval(fptr3d), ' max=', maxval(fptr3d)
+         call flush(6)
 
          ! Direct zero-copy 3D volumetric array pointer mapping to C++ core StateManager
          call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var) // c_null_char, fptr3d)
@@ -941,7 +969,21 @@ contains
          call ESMF_FieldGet(field, farrayPtr=fptr4d, rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
-         if (.not. associated(fptr4d)) return
+         if (.not. associated(fptr4d)) then
+            write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 4D UNASSOCIATED: ', &
+               trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
+            call flush(6)
+            call ESMF_LogWrite("transform_field_to_catchem: fptr4d NOT associated for "// &
+               trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
+               ESMF_LOGMSG_WARNING, rc=rc)
+            return
+         end if
+
+         write(*, '(A,A,A,A,A,I0,A,I0,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 4D: ', &
+            trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
+            ' shape=[', size(fptr4d, 1), ',', size(fptr4d, 2), ',', size(fptr4d, 3), ',', size(fptr4d, 4), &
+            '] ptr=', c_loc(fptr4d(1,1,1,1)), ' min=', minval(fptr4d), ' max=', maxval(fptr4d)
+         call flush(6)
 
          ! Direct zero-copy 4D chemistry concentration array mapping to C++ core StateManager
          call cc_wrap%catchem_model%bind_unified_chemistry(fptr4d)

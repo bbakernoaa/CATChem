@@ -501,40 +501,56 @@ contains
    subroutine model_bind_met_3d(this, name, arr)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: name
-      real(c_double), target, contiguous, intent(in) :: arr(:,:,:)
+      real(c_double), target, intent(in) :: arr(:,:,:)
 
       character(kind=c_char) :: c_name(64)
 
+      write(*, '(A,A,A,I0,A,I0,A,I0,A,Z16)') '[API DEBUG] model_bind_met_3d: ', trim(name), &
+         ' shape=[', size(arr,1), ',', size(arr,2), ',', size(arr,3), '] loc=', c_loc(arr(1,1,1))
+      call flush(6)
+
       call to_c_string(name, c_name)
-      call catchem_state_bind_met_3d(this%state_mgr_ptr, c_name, c_loc(arr))
+      call catchem_state_bind_met_3d(this%state_mgr_ptr, c_name, c_loc(arr(1,1,1)))
    end subroutine model_bind_met_3d
 
    ! Bind a 2D meteorological field
    subroutine model_bind_met_2d(this, name, arr)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: name
-      real(c_double), target, contiguous, intent(in) :: arr(:,:)
+      real(c_double), target, intent(in) :: arr(:,:)
 
       character(kind=c_char) :: c_name(64)
 
+      write(*, '(A,A,A,I0,A,I0,A,Z16)') '[API DEBUG] model_bind_met_2d: ', trim(name), &
+         ' shape=[', size(arr,1), ',', size(arr,2), '] loc=', c_loc(arr(1,1))
+      call flush(6)
+
       call to_c_string(name, c_name)
-      call catchem_state_bind_met_2d(this%state_mgr_ptr, c_name, c_loc(arr))
+      call catchem_state_bind_met_2d(this%state_mgr_ptr, c_name, c_loc(arr(1,1)))
    end subroutine model_bind_met_2d
 
    ! Bind unified chemical concentrations 3D array
    subroutine model_bind_unified_chemistry_3d(this, arr)
       class(CATChem_Model), intent(inout) :: this
-      real(c_double), target, contiguous, intent(in) :: arr(:,:,:)
+      real(c_double), target, intent(in) :: arr(:,:,:)
 
-      call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr))
+      write(*, '(A,I0,A,I0,A,I0,A,Z16)') '[API DEBUG] model_bind_unified_chem_3d: shape=[', &
+         size(arr,1), ',', size(arr,2), ',', size(arr,3), '] loc=', c_loc(arr(1,1,1))
+      call flush(6)
+
+      call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr(1,1,1)))
    end subroutine model_bind_unified_chemistry_3d
 
    ! Bind unified chemical concentrations 4D array
    subroutine model_bind_unified_chemistry_4d(this, arr)
       class(CATChem_Model), intent(inout) :: this
-      real(c_double), target, contiguous, intent(in) :: arr(:,:,:,:)
+      real(c_double), target, intent(in) :: arr(:,:,:,:)
 
-      call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr))
+      write(*, '(A,I0,A,I0,A,I0,A,I0,A,Z16)') '[API DEBUG] model_bind_unified_chem_4d: shape=[', &
+         size(arr,1), ',', size(arr,2), ',', size(arr,3), ',', size(arr,4), '] loc=', c_loc(arr(1,1,1,1))
+      call flush(6)
+
+      call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr(1,1,1,1)))
    end subroutine model_bind_unified_chemistry_4d
 
    ! Register a 3D diagnostic field in the C++ DiagnosticManager

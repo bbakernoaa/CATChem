@@ -43,6 +43,7 @@ namespace catchem {
         void load_species_config(const std::string& filename) { chem.load_species_config(filename); }
 
         void bind_met_field_2d(const std::string& name, double* ptr) {
+            std::cout << "[C++ DEBUG] StateManager::bind_met_field_2d: name=" << name << " ptr=" << (void*)ptr << " n_cols=" << n_cols << " n_levels=" << n_levels << std::endl;
             auto it = met.fields_2d.find(name);
             if (it != met.fields_2d.end() && it->second) {
                 it->second->update_host_pointer(ptr);
@@ -69,6 +70,7 @@ namespace catchem {
         }
 
         void bind_met_field_3d(const std::string& name, double* ptr) {
+            std::cout << "[C++ DEBUG] StateManager::bind_met_field_3d: name=" << name << " ptr=" << (void*)ptr << " n_cols=" << n_cols << " n_levels=" << n_levels << std::endl;
             auto it = met.fields_3d.find(name);
             if (it != met.fields_3d.end() && it->second) {
                 it->second->update_host_pointer(ptr);
@@ -97,6 +99,7 @@ namespace catchem {
         }
 
         void bind_unified_chemistry(double* ptr) {
+            std::cout << "[C++ DEBUG] StateManager::bind_unified_chemistry: ptr=" << (void*)ptr << " n_cols=" << n_cols << " n_levels=" << n_levels << " n_species=" << n_species << std::endl;
             if (chem.conc) {
                 chem.conc->update_host_pointer(ptr);
             } else {

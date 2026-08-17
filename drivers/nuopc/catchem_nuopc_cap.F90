@@ -326,6 +326,9 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
 
+      write(*, '(A,I0,A,I0)') '[CAP DEBUG] InitializeP2 localPet=', localPet, ' petCount=', petCount
+      call flush(6)
+
       ! Get import and export states
       call NUOPC_ModelGet(model, importState=importState, exportState=exportState, modelClock=clock, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -516,12 +519,17 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__,  file=__FILE__))  return  ! bail out
 
+      write(*, '(A,I0,A,G12.4)') '[CAP DEBUG] ModelAdvance enter localPet=', localPet, ' dt_seconds=', dt_seconds
+      call flush(6)
+
       ! Import meteorological data from other components
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionEnter("transform_nuopc_to_catchem", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
 #endif
+      write(*, '(A,I0)') '[CAP DEBUG] ModelAdvance: calling transform_nuopc_to_catchem localPet=', localPet
+      call flush(6)
       call transform_nuopc_to_catchem(is%wrap, importState, currTime, rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
@@ -537,6 +545,8 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
 #endif
+      write(*, '(A,I0)') '[CAP DEBUG] ModelAdvance: calling catchem_nuopc_run localPet=', localPet
+      call flush(6)
       call catchem_nuopc_run(is%wrap, dt_seconds, currTime, errmsg, rc)
       if (rc /= ESMF_SUCCESS) then
          call ESMF_LogWrite("CATChem: Failed to run CATChem - " // trim(errmsg), &
@@ -556,8 +566,19 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
 #endif
+      write(*, '(A,I0)') '[CAP DEBUG] ModelAdvance: calling transform_catchem_to_nuopc localPet=', localPet
+      call flush(6)
       call transform_catchem_to_nuopc(is%wrap, exportState, rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+#ifdef CATCHEM_TRACE_NUOPC
+      call ESMF_TraceRegionExit("transform_catchem_to_nuopc", rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+#endif
+
+      write(*, '(A,I0)') '[CAP DEBUG] ModelAdvance completed successfully localPet=', localPet
+      call flush(6)
          line=__LINE__, file=__FILE__)) return
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionExit("transform_catchem_to_nuopc", rc=rc)
