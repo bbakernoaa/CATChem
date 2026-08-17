@@ -90,6 +90,8 @@ namespace catchem {
         require_field_pointer("SeaSalt", "USTAR", ustar_ptr);
         require_field_pointer("SeaSalt", "DELP", delp_ptr);
 
+        require_field_pointer("SeaSalt", "DELP", delp_ptr);
+
         // Local fallbacks for winds if not bound
         std::vector<double> u10m(state->n_cols, 5.0);
         std::vector<double> v10m(state->n_cols, 2.0);

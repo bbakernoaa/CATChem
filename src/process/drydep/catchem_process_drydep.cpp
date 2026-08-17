@@ -73,6 +73,11 @@ namespace catchem {
         require_field_pointer("DryDep", "OBK", obk_ptr);
         require_field_pointer("DryDep", "PBLH", pblh_ptr);
 
+        require_field_pointer("DryDep", "BXHEIGHT", bxheight_ptr);
+        require_field_pointer("DryDep", "AIRDEN", airden_ptr);
+        require_field_pointer("DryDep", "T", t_ptr);
+        require_field_pointer("DryDep", "PEDGE", pedge_ptr);
+
         // Mock/Fallbacks for remaining metadata arrays - Using char for bool to support standard .data()
         std::vector<double> cldfrc(state->n_cols, 0.1);
 

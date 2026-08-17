@@ -109,6 +109,13 @@ namespace catchem {
         require_field_pointer("SO4chem", "PBLH", pblh_ptr);
         require_field_pointer("SO4chem", "USTAR", ustar_ptr);
 
+        require_field_pointer("SO4chem", "AIRDEN", airden_ptr);
+        require_field_pointer("SO4chem", "PMID", pmid_ptr);
+        require_field_pointer("SO4chem", "T", t_ptr);
+        require_field_pointer("SO4chem", "PEDGE", z_ptr);
+        require_field_pointer("SO4chem", "CLDF", cldf_ptr);
+        require_field_pointer("SO4chem", "DELP", delp_ptr);
+
         std::vector<int> lwi(state->n_cols, 1);
         std::vector<double> u10m(state->n_cols, 5.0);
         std::vector<double> v10m(state->n_cols, 2.0);

@@ -106,6 +106,8 @@ namespace catchem {
         require_field_pointer("Dust", "USTAR_THRESHOLD", ustar_th_ptr);
         require_field_pointer("Dust", "Z0", z0_ptr);
 
+        require_field_pointer("Dust", "AIRDEN_DRY", airden_ptr);
+
         // Provide dummy variables for non-existent ones so tests pass
         std::vector<int> dummy_1d_int(state->n_cols, 1); // default land
         if (!lwi_ptr)
