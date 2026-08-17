@@ -448,22 +448,19 @@ contains
          filename = trim(category%source_file)
       end if
 
-      if (len_trim(filename) == 0) then
-         write(msg, '(A,A,A)') trim(pName), ': No source file specified for category: ', trim(category_name)
-         call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-         rc = CC_FAILURE
+      if (is_null_filename(filename)) then
+         write(msg, '(A,A,A)') trim(pName), ': No valid source file specified for category: ', trim(category_name)
+         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_WARNING, rc=localrc)
          return
       end if
 
-      ! For template-resolved filenames, check that the file exists before attempting I/O.
+      ! Check that the file exists before attempting I/O.
       ! If missing, log a warning and keep the last loaded data unchanged.
-      if (index(trim(category%source_file), '%') > 0) then
-         inquire(file=trim(filename), exist=file_exists)
-         if (.not. file_exists) then
-            write(msg, '(A,A,A)') trim(pName), ': File not found (holding last data): ', trim(filename)
-            call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_WARNING, rc=localrc)
-            return
-         end if
+      inquire(file=trim(filename), exist=file_exists)
+      if (.not. file_exists) then
+         write(msg, '(A,A,A)') trim(pName), ': File not found (holding last data or skipping): ', trim(filename)
+         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_WARNING, rc=localrc)
+         return
       end if
 
       ! Populate time-coordinate cache if the file has changed (or first call)
@@ -2186,7 +2183,7 @@ contains
       ! contains more time slices than the arithmetic assumption (e.g. 14-month files).
       if (trim(category%frequency) /= 'static' .and. &
          index(trim(category%source_file), '%') == 0 .and. &
-         len_trim(category%source_file) > 0 .and. &
+         .not. is_null_filename(category%source_file) .and. &
          category%n_times == 0) then
          call catchem_emis_read_time_coord(trim(category%source_file), category, localrc)
          ! Non-fatal: if time coord read fails, fall through to arithmetic below
@@ -2344,10 +2341,20 @@ contains
       integer :: localrc, nt
       integer, allocatable :: dates(:), secs(:)
       character(len=EMIS_MAXSTR) :: msg
+      logical :: file_exists
       character(len=*), parameter :: pName = 'catchem_emis_read_time_coord'
 
       rc = CC_SUCCESS
       category%n_times = 0
+
+      if (is_null_filename(filename)) return
+
+      inquire(file=trim(filename), exist=file_exists)
+      if (.not. file_exists) then
+         write(msg, '(A,A,A)') trim(pName), ': File not found for time coord: ', trim(filename)
+         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=localrc)
+         return
+      end if
 
       call AQMIO_ReadTimeCoord(trim(filename), nt, dates, secs, rc=localrc)
       if (localrc /= ESMF_SUCCESS) then
@@ -2600,4 +2607,14 @@ contains
          str(idx:) = ' '
       end if
    end subroutine clean_c_string
+
+   !> Helper: Check if filename is empty, null, or none
+   elemental logical function is_null_filename(fn)
+      character(len=*), intent(in) :: fn
+      character(len=EMIS_MAXSTR) :: s
+      s = adjustl(fn)
+      is_null_filename = (len_trim(s) == 0 .or. &
+                          trim(s) == 'null' .or. trim(s) == 'NULL' .or. trim(s) == 'Null' .or. &
+                          trim(s) == 'none' .or. trim(s) == 'NONE' .or. trim(s) == 'None')
+   end function is_null_filename
 end module catchem_nuopc_emis_mod

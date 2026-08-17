@@ -3904,6 +3904,13 @@ contains
       if (present(rc)) rc = ESMF_SUCCESS
       n_times = 0
 
+      if (len_trim(filename) == 0 .or. trim(filename) == 'null' .or. &
+          trim(filename) == 'NULL' .or. trim(filename) == 'none' .or. &
+          trim(filename) == 'NONE') then
+         if (present(rc)) rc = ESMF_FAILURE
+         return
+      end if
+
       ! Open file read-only
       localrc = nf90_open(trim(filename), NF90_NOWRITE, ncid)
       if (localrc /= NF90_NOERR) then
