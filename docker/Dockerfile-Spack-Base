@@ -75,6 +75,12 @@ RUN <<INSTALL_ALL
 
   spack config add "packages:esmf:require:^openmpi"
 
+  # Build for the generic CPU family, not the detected microarch: containers may
+  # run on hosts lacking ISA extensions of the build host (e.g. spack detects
+  # neoverse_v1 on Apple-Silicon Docker and emits SVE, which SIGILLs at runtime).
+  # Adjust to x86_64 when building on an x86 host.
+  spack config add "packages:all:require:target=aarch64"
+
   spack env create ufschem
   spack env activate ufschem
   spack add esmf yaml-cpp parallelio+pnetcdf py-pip kokkos+openmp+serial kokkos-kernels+openmp+serial arborx@2.1:+mpi+openmp+serial
