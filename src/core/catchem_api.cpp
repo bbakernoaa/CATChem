@@ -663,7 +663,7 @@ void catchem_config_get_emission_species_map_at(void* core_ptr, const char* cate
 }
 
 static YAML::Node resolve_yaml_node_path(const YAML::Node& root, const std::string& path) {
-    if (!root)
+    if (!root || root.IsNull())
         return YAML::Node();
     std::stringstream ss(path);
     std::string key;
@@ -671,7 +671,7 @@ static YAML::Node resolve_yaml_node_path(const YAML::Node& root, const std::stri
     while (std::getline(ss, key, '/')) {
         if (key.empty())
             continue;
-        if (!curr[key])
+        if (!curr.IsMap() || !curr[key] || curr[key].IsNull())
             return YAML::Node();
         curr = curr[key];
     }
@@ -683,7 +683,7 @@ int catchem_config_get_yaml_bool(void* core_ptr, const char* yaml_path, int defa
         return default_val;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
-    if (node) {
+    if (node && !node.IsNull()) {
         try {
             return node.as<bool>() ? 1 : 0;
         } catch (...) {
@@ -698,7 +698,7 @@ double catchem_config_get_yaml_double(void* core_ptr, const char* yaml_path, dou
         return default_val;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
-    if (node) {
+    if (node && !node.IsNull()) {
         try {
             return node.as<double>();
         } catch (...) {
@@ -713,7 +713,7 @@ int catchem_config_get_yaml_int(void* core_ptr, const char* yaml_path, int defau
         return default_val;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
-    if (node) {
+    if (node && !node.IsNull()) {
         try {
             return node.as<int>();
         } catch (...) {
@@ -731,10 +731,13 @@ void catchem_config_get_yaml_string(void* core_ptr, const char* yaml_path, char*
     }
     auto* core = static_cast<catchem::Core*>(core_ptr);
     YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
-    if (node) {
+    if (node && !node.IsNull()) {
         try {
-            copy_string_to_buffer(node.as<std::string>(), val_out, max_len);
-            return;
+            std::string str_val = node.as<std::string>();
+            if (str_val != "null" && str_val != "NULL" && str_val != "Null" && str_val != "~") {
+                copy_string_to_buffer(str_val, val_out, max_len);
+                return;
+            }
         } catch (...) {
         }
     }
