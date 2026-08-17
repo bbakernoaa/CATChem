@@ -291,6 +291,12 @@ contains
             end if
 
             call catchem_emis_setup_timing(ext_emis_data%categories(icat + 1), clock, localrc)
+            if (localrc /= CC_SUCCESS) then
+               write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed timing setup for category: ', trim(category_name)
+               call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+               rc = CC_FAILURE
+               return
+            end if
          end if
       end do
 
@@ -367,9 +373,11 @@ contains
             call catchem_emis_read(ext_emis_data%categories(i), IO, grid, &
                nlev, current_time, localrc)
             if (localrc /= CC_SUCCESS) then
-               write(msg, '(A,A,A)') trim(pName), ': Failed to read data for category: ', &
+               write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed to read data for category: ', &
                   trim(ext_emis_data%categories(i)%category_name)
-               call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
+               call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+               rc = CC_FAILURE
+               return
             end if
 
             ext_emis_data%categories(i)%last_period_key = period_key
@@ -378,17 +386,21 @@ contains
          if (ext_emis_data%categories(i)%needs_time_blend) then
             call catchem_emis_blend_time(ext_emis_data%categories(i), current_time, localrc)
             if (localrc /= CC_SUCCESS) then
-               write(msg, '(A,A,A)') trim(pName), ': Failed to blend time for category: ', &
+               write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed to blend time for category: ', &
                   trim(ext_emis_data%categories(i)%category_name)
-               call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
+               call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+               rc = CC_FAILURE
+               return
             end if
          end if
 
          call catchem_emis_apply(ext_emis_data%categories(i), i, ext_emis_data%global_scale, dt=dt, current_time=current_time, rc=localrc)
          if (localrc /= CC_SUCCESS) then
-            write(msg, '(A,A,A)') trim(pName), ': Failed to apply emissions for category: ', &
+            write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed to apply emissions for category: ', &
                trim(ext_emis_data%categories(i)%category_name)
-            call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
+            call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+            rc = CC_FAILURE
+            return
          end if
       end do
 
@@ -449,17 +461,18 @@ contains
       end if
 
       if (is_null_filename(filename)) then
-         write(msg, '(A,A,A)') trim(pName), ': No valid source file specified for category: ', trim(category_name)
-         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_WARNING, rc=localrc)
+         write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: No valid source file specified for category: ', trim(category_name)
+         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+         rc = CC_FAILURE
          return
       end if
 
       ! Check that the file exists before attempting I/O.
-      ! If missing, log a warning and keep the last loaded data unchanged.
       inquire(file=trim(filename), exist=file_exists)
       if (.not. file_exists) then
-         write(msg, '(A,A,A)') trim(pName), ': File not found (holding last data or skipping): ', trim(filename)
-         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_WARNING, rc=localrc)
+         write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Source file not found: ', trim(filename)
+         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+         rc = CC_FAILURE
          return
       end if
 
@@ -2347,19 +2360,26 @@ contains
       rc = CC_SUCCESS
       category%n_times = 0
 
-      if (is_null_filename(filename)) return
+      if (is_null_filename(filename)) then
+         write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: No valid filename specified for category: ', trim(category%category_name)
+         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+         rc = CC_FAILURE
+         return
+      end if
 
       inquire(file=trim(filename), exist=file_exists)
       if (.not. file_exists) then
-         write(msg, '(A,A,A)') trim(pName), ': File not found for time coord: ', trim(filename)
-         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=localrc)
+         write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: File not found for time coord: ', trim(filename)
+         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+         rc = CC_FAILURE
          return
       end if
 
       call AQMIO_ReadTimeCoord(trim(filename), nt, dates, secs, rc=localrc)
       if (localrc /= ESMF_SUCCESS) then
-         write(msg, '(A,A,A)') trim(pName), ': Failed reading time coord from: ', trim(filename)
-         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_WARNING, rc=localrc)
+         write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed reading time coord from: ', trim(filename)
+         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+         rc = CC_FAILURE
          return
       end if
 

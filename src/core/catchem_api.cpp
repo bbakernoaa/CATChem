@@ -5,6 +5,7 @@
 #include "catchem_state_manager.hpp"
 #include "catchem_unit_conversion.hpp"
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 
@@ -570,13 +571,54 @@ void catchem_config_get_emission_category_name_at(void* core_ptr, int index, cha
     }
 }
 
+static YAML::Node resolve_yaml_node_path(const YAML::Node& root, const std::string& path) {
+    if (!root || root.IsNull())
+        return YAML::Node();
+    std::stringstream ss(path);
+    std::string key;
+    YAML::Node curr = root;
+    while (std::getline(ss, key, '/')) {
+        if (key.empty())
+            continue;
+        if (!curr.IsMap() || !curr[key] || curr[key].IsNull())
+            return YAML::Node();
+        curr = curr[key];
+    }
+    return curr;
+}
+
+static std::string resolve_against_config_path(const std::string& config_file, const std::string& path) {
+    if (path.empty() || path.front() == '/' || path == "none" || path == "NONE" || path == "null" || path == "NULL")
+        return path;
+    if (config_file.empty())
+        return path;
+    auto slash = config_file.find_last_of('/');
+    if (slash == std::string::npos)
+        return path;
+    return config_file.substr(0, slash + 1) + path;
+}
+
 int catchem_config_is_emission_category_active(void* core_ptr, const char* category_name) {
     if (core_ptr == nullptr || category_name == nullptr)
         return 0;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     const auto& mappings = core->get_config_manager()->data.emission_mappings;
-    auto it = mappings.find(std::string(category_name));
-    if (it != mappings.end()) {
+    if (mappings.find(std::string(category_name)) == mappings.end()) {
+        return 0;
+    }
+    std::string path = "processes/extemis/" + std::string(category_name);
+    YAML::Node category_node = resolve_yaml_node_path(core->get_config_manager()->root_node, path);
+    if (!category_node || category_node.IsNull()) {
+        return 0;
+    }
+    if (category_node.IsMap()) {
+        if (category_node["activate"]) {
+            try {
+                return category_node["activate"].as<bool>() ? 1 : 0;
+            } catch (...) {
+                return 1;
+            }
+        }
         return 1;
     }
     return 0;
@@ -662,22 +704,6 @@ void catchem_config_get_emission_species_map_at(void* core_ptr, const char* cate
         *species_idx_out = -1;
 }
 
-static YAML::Node resolve_yaml_node_path(const YAML::Node& root, const std::string& path) {
-    if (!root || root.IsNull())
-        return YAML::Node();
-    std::stringstream ss(path);
-    std::string key;
-    YAML::Node curr = root;
-    while (std::getline(ss, key, '/')) {
-        if (key.empty())
-            continue;
-        if (!curr.IsMap() || !curr[key] || curr[key].IsNull())
-            return YAML::Node();
-        curr = curr[key];
-    }
-    return curr;
-}
-
 int catchem_config_get_yaml_bool(void* core_ptr, const char* yaml_path, int default_val) {
     if (core_ptr == nullptr || yaml_path == nullptr)
         return default_val;
@@ -735,6 +761,17 @@ void catchem_config_get_yaml_string(void* core_ptr, const char* yaml_path, char*
         try {
             std::string str_val = node.as<std::string>();
             if (str_val != "null" && str_val != "NULL" && str_val != "Null" && str_val != "~") {
+                std::string path_str = std::string(yaml_path);
+                if (path_str.find("source_file") != std::string::npos || path_str.find("filename") != std::string::npos) {
+                    std::string config_path = core->get_config_manager()->config_file_path;
+                    if (!config_path.empty()) {
+                        std::string resolved = resolve_against_config_path(config_path, str_val);
+                        std::ifstream f_cwd(str_val.c_str());
+                        if (!f_cwd.good()) {
+                            str_val = resolved;
+                        }
+                    }
+                }
                 copy_string_to_buffer(str_val, val_out, max_len);
                 return;
             }
