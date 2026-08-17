@@ -202,10 +202,17 @@ contains
                line=__LINE__, file=__FILE__)) return
          end if
 
-         call NUOPC_Advertise(importState, &
-            StandardName=trim(field_config%import_fields(i)%standard_name), &
-            TransferOfferGeomObject="cannot provide", &
-            SharePolicyField="share", rc=rc)
+         if (field_config%import_fields(i)%optional) then
+            call NUOPC_Advertise(importState, &
+               StandardName=trim(field_config%import_fields(i)%standard_name), &
+               TransferOfferGeomObject="cannot provide", &
+               SharePolicyField="not share", rc=rc)
+         else
+            call NUOPC_Advertise(importState, &
+               StandardName=trim(field_config%import_fields(i)%standard_name), &
+               TransferOfferGeomObject="cannot provide", &
+               SharePolicyField="share", rc=rc)
+         end if
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
       end do
@@ -225,10 +232,17 @@ contains
                line=__LINE__, file=__FILE__)) return
          end if
 
-         call NUOPC_Advertise(exportState, &
-            StandardName=trim(field_config%export_fields(i)%standard_name), &
-            TransferOfferGeomObject="cannot provide", &
-            SharePolicyField="share", rc=rc)
+         if (field_config%export_fields(i)%optional) then
+            call NUOPC_Advertise(exportState, &
+               StandardName=trim(field_config%export_fields(i)%standard_name), &
+               TransferOfferGeomObject="cannot provide", &
+               SharePolicyField="not share", rc=rc)
+         else
+            call NUOPC_Advertise(exportState, &
+               StandardName=trim(field_config%export_fields(i)%standard_name), &
+               TransferOfferGeomObject="cannot provide", &
+               SharePolicyField="share", rc=rc)
+         end if
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
       end do
