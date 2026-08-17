@@ -189,47 +189,49 @@ contains
       !if (size(fieldList) == 0) then
       ! Advertise import fields using MPI-safe accessor functions
       do i = 1, size(field_config%import_fields)
-         !   block
-         !     character(len=128) :: standard_name
-         !     logical :: optional
-         !     if (get_import_field_info(i, standard_name, optional)) then
+         if (.not. NUOPC_FieldDictionaryHasEntry(trim(field_config%import_fields(i)%standard_name), rc=rc)) then
+            block
+               character(len=64) :: units_to_use
+               units_to_use = trim(field_config%import_fields(i)%units)
+               if (len_trim(units_to_use) == 0) units_to_use = '1'
+               call NUOPC_FieldDictionaryAddEntry( &
+                  StandardName=trim(field_config%import_fields(i)%standard_name), &
+                  CanonicalUnits=trim(units_to_use), rc=rc)
+            end block
+            if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__)) return
+         end if
+
          call NUOPC_Advertise(importState, &
             StandardName=trim(field_config%import_fields(i)%standard_name), &
             TransferOfferGeomObject="cannot provide", &
             SharePolicyField="share", rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
-         !     end if
-         !   end block
       end do
-      !end if
 
-      ! retrieve member list from export state, if any
-      !nullify(fieldList)
-      !call NUOPC_GetStateMemberLists(exportState, fieldList=fieldList, nestedFlag=.true., rc=rc)
-      !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      !  line=__LINE__,  file=__FILE__)) return
-
-      !call ESMF_LogWrite("Export fields number: "//real_to_string(real(size(fieldList),ESMF_KIND_R8)), ESMF_LOGMSG_INFO, rc=rc)
-
-      ! Advertise export fields only when it has nothing
-      !if (size(fieldList) == 0) then
       ! Advertise export fields using MPI-safe accessor functions
       do i = 1, size(field_config%export_fields)
-         !   block
-         !     character(len=128) :: standard_name
-         !     logical :: optional
-         !     if (get_export_field_info(i, standard_name, optional)) then
+         if (.not. NUOPC_FieldDictionaryHasEntry(trim(field_config%export_fields(i)%standard_name), rc=rc)) then
+            block
+               character(len=64) :: units_to_use
+               units_to_use = trim(field_config%export_fields(i)%units)
+               if (len_trim(units_to_use) == 0) units_to_use = '1'
+               call NUOPC_FieldDictionaryAddEntry( &
+                  StandardName=trim(field_config%export_fields(i)%standard_name), &
+                  CanonicalUnits=trim(units_to_use), rc=rc)
+            end block
+            if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__)) return
+         end if
+
          call NUOPC_Advertise(exportState, &
             StandardName=trim(field_config%export_fields(i)%standard_name), &
             TransferOfferGeomObject="cannot provide", &
             SharePolicyField="share", rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
-         !     end if
-         !   end block
       end do
-      !end if
 
       ! Log successful completion
       call ESMF_LogWrite("CATChem: Completed "//routine, ESMF_LOGMSG_INFO, rc=rc)
