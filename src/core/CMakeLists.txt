@@ -10,7 +10,7 @@ set(
   catchem_logger.cpp
 )
 add_library(CATChem_core_cpp STATIC ${_cpp_core_srcs})
-target_link_libraries(CATChem_core_cpp PUBLIC yaml-cpp)
+target_link_libraries(CATChem_core_cpp PUBLIC yaml-cpp::yaml-cpp)
 target_include_directories(CATChem_core_cpp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(CATCHEM_ENABLE_KOKKOS)

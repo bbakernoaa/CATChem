@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -27,5 +28,12 @@ namespace catchem {
             std::cerr << "End\n";
         }
     };
+
+    inline void require_field_pointer(const char* process_name, const char* field_name, const void* ptr) {
+        if (ptr == nullptr) {
+            throw std::runtime_error(std::string("FATAL ERROR: ") + process_name +
+                                     " process missing required field " + field_name);
+        }
+    }
 
 } // namespace catchem

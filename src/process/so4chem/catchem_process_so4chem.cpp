@@ -1,9 +1,8 @@
 #include "catchem_process_so4chem.hpp"
 #include "catchem_diagnostic_manager.hpp"
+#include "catchem_error.hpp"
 #include "catchem_process_registry.hpp"
 #include <iostream>
-#include <stdexcept>
-#include <string>
 
 extern "C" {
 void run_so4chem_science_bridge(int n_cols, int n_levels, int n_species, double dt, int diagnostics, int year,
@@ -83,23 +82,17 @@ namespace catchem {
         double* pblh_ptr = state->met.PBLH ? state->met.PBLH->host_data() : nullptr;
         double* ustar_ptr = state->met.USTAR ? state->met.USTAR->host_data() : nullptr;
 
-        auto require_pointer = [](const char* name, const double* ptr) {
-            if (ptr == nullptr) {
-                throw std::runtime_error(std::string("FATAL ERROR: SO4chem process missing required field ") + name);
-            }
-        };
-
-        require_pointer("AIRDEN", airden_ptr);
-        require_pointer("PMID", pmid_ptr);
-        require_pointer("T", t_ptr);
-        require_pointer("PEDGE", z_ptr);
-        require_pointer("CLDF", cldf_ptr);
-        require_pointer("DELP", delp_ptr);
-        require_pointer("HFLUX", hflux_ptr);
-        require_pointer("LAT", lat_ptr);
-        require_pointer("LON", lon_ptr);
-        require_pointer("PBLH", pblh_ptr);
-        require_pointer("USTAR", ustar_ptr);
+        require_field_pointer("SO4chem", "AIRDEN", airden_ptr);
+        require_field_pointer("SO4chem", "PMID", pmid_ptr);
+        require_field_pointer("SO4chem", "T", t_ptr);
+        require_field_pointer("SO4chem", "PEDGE", z_ptr);
+        require_field_pointer("SO4chem", "CLDF", cldf_ptr);
+        require_field_pointer("SO4chem", "DELP", delp_ptr);
+        require_field_pointer("SO4chem", "HFLUX", hflux_ptr);
+        require_field_pointer("SO4chem", "LAT", lat_ptr);
+        require_field_pointer("SO4chem", "LON", lon_ptr);
+        require_field_pointer("SO4chem", "PBLH", pblh_ptr);
+        require_field_pointer("SO4chem", "USTAR", ustar_ptr);
 
         std::vector<int> lwi(state->n_cols, 1);
         std::vector<double> u10m(state->n_cols, 5.0);
@@ -108,7 +101,7 @@ namespace catchem {
 
         // 3. Chemical and Tendency Views
         double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
-        require_pointer("CHEM_CONC", conc_ptr);
+        require_field_pointer("SO4chem", "CHEM_CONC", conc_ptr);
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);

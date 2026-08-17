@@ -179,6 +179,8 @@ specs/
 specify/
 .specify/
 docs/superpowers/
+docs/superpowers/plans/
+docs/superpowers/specs/
 .gemini/
 .github/agents/
 .github/prompts/

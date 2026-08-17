@@ -1,10 +1,9 @@
 #include "catchem_process_dust.hpp"
 #include "catchem_diagnostic_manager.hpp"
+#include "catchem_error.hpp"
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <iostream>
-#include <stdexcept>
-#include <string>
 
 extern "C" {
 void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil, double dt, const char* active_scheme,
@@ -91,28 +90,22 @@ namespace catchem {
         auto z0_ptr_it = state->met.fields_2d.find("roughness_length");
         double* z0_ptr = (z0_ptr_it != state->met.fields_2d.end()) ? z0_ptr_it->second->host_data() : nullptr;
 
-        auto require_pointer = [](const char* name, const double* ptr) {
-            if (ptr == nullptr) {
-                throw std::runtime_error(std::string("FATAL ERROR: Dust process missing required field ") + name);
-            }
-        };
-
-        require_pointer("air_density_dry", airden_ptr);
-        require_pointer("clay_fraction", clayfrac_ptr);
-        require_pointer("lake_fraction", frlake_ptr);
-        require_pointer("snow_fraction", frsno_ptr);
-        require_pointer("vegetation_fraction", gvf_ptr);
-        require_pointer("leaf_area_index", lai_ptr);
-        require_pointer("drag_coefficient", rdrag_ptr);
-        require_pointer("sand_fraction", sandfrac_ptr);
-        require_pointer("soil_moisture", soilm_ptr);
-        require_pointer("surface_soil_moisture", ssm_ptr);
-        require_pointer("skin_temperature", tskin_ptr);
-        require_pointer("u_10m", u10m_ptr);
-        require_pointer("v_10m", v10m_ptr);
-        require_pointer("friction_velocity", ustar_ptr);
-        require_pointer("threshold_friction_velocity", ustar_th_ptr);
-        require_pointer("roughness_length", z0_ptr);
+        require_field_pointer("Dust", "air_density_dry", airden_ptr);
+        require_field_pointer("Dust", "clay_fraction", clayfrac_ptr);
+        require_field_pointer("Dust", "lake_fraction", frlake_ptr);
+        require_field_pointer("Dust", "snow_fraction", frsno_ptr);
+        require_field_pointer("Dust", "vegetation_fraction", gvf_ptr);
+        require_field_pointer("Dust", "leaf_area_index", lai_ptr);
+        require_field_pointer("Dust", "drag_coefficient", rdrag_ptr);
+        require_field_pointer("Dust", "sand_fraction", sandfrac_ptr);
+        require_field_pointer("Dust", "soil_moisture", soilm_ptr);
+        require_field_pointer("Dust", "surface_soil_moisture", ssm_ptr);
+        require_field_pointer("Dust", "skin_temperature", tskin_ptr);
+        require_field_pointer("Dust", "u_10m", u10m_ptr);
+        require_field_pointer("Dust", "v_10m", v10m_ptr);
+        require_field_pointer("Dust", "friction_velocity", ustar_ptr);
+        require_field_pointer("Dust", "threshold_friction_velocity", ustar_th_ptr);
+        require_field_pointer("Dust", "roughness_length", z0_ptr);
 
         // Provide dummy variables for non-existent ones so tests pass
         std::vector<int> dummy_1d_int(state->n_cols, 1); // default land
@@ -137,7 +130,7 @@ namespace catchem {
         }
 
         double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
-        require_pointer("CHEM_CONC", conc_ptr);
+        require_field_pointer("Dust", "CHEM_CONC", conc_ptr);
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);

@@ -374,16 +374,13 @@ if(CATCHEM_BUILD_NUOPC)
       $<TARGET_FILE:catchem_utilities>
   )
 
-  # yaml-cpp for the C++ core's config parsing, after CATChem_core_cpp in
-  # resolution order. Two provisioning modes (src/external/CMakeLists.txt):
-  # the vendored in-tree copy (plain `yaml-cpp` target, which also aliases
-  # yaml-cpp::yaml-cpp) or a system/spack install (imported
-  # yaml-cpp::yaml-cpp only). Link the library file in both modes to stay
-  # consistent with the export-safe path pattern above.
-  if(TARGET yaml-cpp)
-    target_link_libraries(cc_nuopc PRIVATE $<TARGET_FILE:yaml-cpp>)
-  else()
-    target_link_libraries(cc_nuopc PRIVATE $<TARGET_FILE:yaml-cpp::yaml-cpp>)
+  # yaml-cpp for the C++ core's config parsing. Prefer target-based linking
+  # here (not $<TARGET_FILE:...>) so both real and ALIAS/imported targets work
+  # across vendored and system/spack provisioning modes.
+  if(TARGET yaml-cpp::yaml-cpp)
+    target_link_libraries(cc_nuopc PRIVATE yaml-cpp::yaml-cpp)
+  elseif(TARGET yaml-cpp)
+    target_link_libraries(cc_nuopc PRIVATE yaml-cpp)
   endif()
 
   # Link GOCART2G library if available (needed for drydep process)

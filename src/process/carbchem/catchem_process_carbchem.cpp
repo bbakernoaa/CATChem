@@ -1,10 +1,9 @@
 #include "catchem_process_carbchem.hpp"
 #include "catchem_diagnostic_manager.hpp"
+#include "catchem_error.hpp"
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <iostream>
-#include <stdexcept>
-#include <string>
 
 extern "C" {
 void run_carbchem_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* active_scheme,
@@ -52,15 +51,9 @@ namespace catchem {
         auto pmid_ptr_it = state->met.fields_3d.find("PMID");
         double* pmid_ptr = (pmid_ptr_it != state->met.fields_3d.end()) ? pmid_ptr_it->second->host_data() : nullptr;
 
-        auto require_pointer = [](const char* name, const double* ptr) {
-            if (ptr == nullptr) {
-                throw std::runtime_error(std::string("FATAL ERROR: CarbChem process missing required field ") + name);
-            }
-        };
-
-        require_pointer("AIRDEN_DRY", airden_ptr);
-        require_pointer("DELP", delp_ptr);
-        require_pointer("PMID", pmid_ptr);
+        require_field_pointer("CarbChem", "AIRDEN_DRY", airden_ptr);
+        require_field_pointer("CarbChem", "DELP", delp_ptr);
+        require_field_pointer("CarbChem", "PMID", pmid_ptr);
 
         // 2. Diagnostic Views
         double* diag_prod_mass = nullptr;
@@ -76,7 +69,7 @@ namespace catchem {
         }
 
         double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
-        require_pointer("CHEM_CONC", conc_ptr);
+        require_field_pointer("CarbChem", "CHEM_CONC", conc_ptr);
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);
