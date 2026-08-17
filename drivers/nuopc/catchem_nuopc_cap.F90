@@ -44,6 +44,7 @@ module cc_nuopc
       SetVM, &
       modelSS        => SetServices, &
       model_label_Advertise       => label_Advertise,      &
+      model_label_SetClock        => label_SetClock,       &
       model_label_DataInitialize  => label_DataInitialize, &
       model_label_Advance => label_Advance, &
       model_label_CheckImport => label_CheckImport, &
@@ -110,6 +111,11 @@ contains
       !Note NUOPC_CompSetEntryPoint is deprecated for newer version of ESMF
       call NUOPC_CompSpecialize(model, specLabel=model_label_Advertise, &
          specRoutine=InitializeP1, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+
+      call NUOPC_CompSpecialize(model, specLabel=model_label_SetClock, &
+         specRoutine=SetClock, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
 
@@ -238,6 +244,48 @@ contains
 
    end subroutine InitializeP1
 
+   !> \brief SetClock specialization - Remove unconnected fields before connection verification
+   !!
+   !! \param[inout] model NUOPC model component
+   !! \param[out] rc ESMF return code
+   subroutine SetClock(model, rc)
+      type(ESMF_GridComp)  :: model
+      integer, intent(out) :: rc
+
+      type(ESMF_State) :: importState, exportState
+      type(ESMF_Field) :: field
+      integer :: localrc, i
+
+      rc = ESMF_SUCCESS
+
+      call ESMF_LogWrite("CATChem: Enter SetClock (cleaning unconnected fields)", ESMF_LOGMSG_INFO, rc=rc)
+
+      call NUOPC_ModelGet(model, importState=importState, exportState=exportState, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+
+      ! Remove unconnected fields to prevent NUOPC from aborting during IPDvXp07
+      do i = 1, size(field_config%import_fields)
+         call ESMF_StateGet(importState, itemName=trim(field_config%import_fields(i)%standard_name), field=field, rc=localrc)
+         if (localrc == ESMF_SUCCESS) then
+            if (.not. NUOPC_IsConnected(field, rc=localrc)) then
+               call ESMF_StateRemove(importState, (/trim(field_config%import_fields(i)%standard_name)/), rc=localrc)
+            end if
+         end if
+      end do
+
+      do i = 1, size(field_config%export_fields)
+         call ESMF_StateGet(exportState, itemName=trim(field_config%export_fields(i)%standard_name), field=field, rc=localrc)
+         if (localrc == ESMF_SUCCESS) then
+            if (.not. NUOPC_IsConnected(field, rc=localrc)) then
+               call ESMF_StateRemove(exportState, (/trim(field_config%export_fields(i)%standard_name)/), rc=localrc)
+            end if
+         end if
+      end do
+
+      call ESMF_LogWrite("CATChem: Completed SetClock", ESMF_LOGMSG_INFO, rc=rc)
+   end subroutine SetClock
+
    !> \brief Initialize Phase 2 - Realize fields and initialize CATChem model
    !!
    !! In this phase, the component creates the actual ESMF fields for the
@@ -285,10 +333,9 @@ contains
       real(ESMF_KIND_R8), parameter :: rad_to_deg = 180._ESMF_KIND_R8 / 3.14159265358979323846_ESMF_KIND_R8
       real(ESMF_KIND_R8) :: convet_unit
       integer :: localPet, petCount
-      integer :: item, coord_item, rank, localDeCount, numLevels, localDe, localrc, stat, i
+      integer :: item, coord_item, rank, localDeCount, numLevels, localDe, localrc, stat
       integer, dimension(2) :: lb, ub
       logical :: has_tracer_array
-      type(ESMF_Field) :: field
 
       rc = ESMF_SUCCESS
       has_tracer_array = .false.
@@ -304,25 +351,6 @@ contains
       call NUOPC_ModelGet(model, importState=importState, exportState=exportState, modelClock=clock, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
-
-      ! Remove unconnected fields to prevent NUOPC from aborting during IPDvXp07
-      do i = 1, size(field_config%import_fields)
-         call ESMF_StateGet(importState, itemName=trim(field_config%import_fields(i)%standard_name), field=field, rc=localrc)
-         if (localrc == ESMF_SUCCESS) then
-            if (.not. NUOPC_IsConnected(field, rc=localrc)) then
-               call ESMF_StateRemove(importState, (/trim(field_config%import_fields(i)%standard_name)/), rc=localrc)
-            end if
-         end if
-      end do
-
-      do i = 1, size(field_config%export_fields)
-         call ESMF_StateGet(exportState, itemName=trim(field_config%export_fields(i)%standard_name), field=field, rc=localrc)
-         if (localrc == ESMF_SUCCESS) then
-            if (.not. NUOPC_IsConnected(field, rc=localrc)) then
-               call ESMF_StateRemove(exportState, (/trim(field_config%export_fields(i)%standard_name)/), rc=localrc)
-            end if
-         end if
-      end do
 
       ! -- get clock information
       call ESMF_ClockGet(clock, startTime=startTime, stopTime=stopTime, timeStep=timeStep, rc=rc)
