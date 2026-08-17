@@ -253,35 +253,14 @@ contains
       integer, intent(out) :: rc
 
       type(ESMF_State) :: importState, exportState
-      type(ESMF_Field) :: field
-      integer :: localrc, i
 
       rc = ESMF_SUCCESS
 
-      call ESMF_LogWrite("CATChem: Enter SetClock (cleaning unconnected fields)", ESMF_LOGMSG_INFO, rc=rc)
+      call ESMF_LogWrite("CATChem: Enter SetClock", ESMF_LOGMSG_INFO, rc=rc)
 
       call NUOPC_ModelGet(model, importState=importState, exportState=exportState, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
-
-      ! Remove unconnected fields to prevent NUOPC from aborting during IPDvXp07
-      do i = 1, size(field_config%import_fields)
-         call ESMF_StateGet(importState, itemName=trim(field_config%import_fields(i)%standard_name), field=field, rc=localrc)
-         if (localrc == ESMF_SUCCESS) then
-            if (.not. NUOPC_IsConnected(field, rc=localrc)) then
-               call ESMF_StateRemove(importState, (/trim(field_config%import_fields(i)%standard_name)/), rc=localrc)
-            end if
-         end if
-      end do
-
-      do i = 1, size(field_config%export_fields)
-         call ESMF_StateGet(exportState, itemName=trim(field_config%export_fields(i)%standard_name), field=field, rc=localrc)
-         if (localrc == ESMF_SUCCESS) then
-            if (.not. NUOPC_IsConnected(field, rc=localrc)) then
-               call ESMF_StateRemove(exportState, (/trim(field_config%export_fields(i)%standard_name)/), rc=localrc)
-            end if
-         end if
-      end do
 
       call ESMF_LogWrite("CATChem: Completed SetClock", ESMF_LOGMSG_INFO, rc=rc)
    end subroutine SetClock
@@ -413,14 +392,21 @@ contains
                         return  ! bail out
                      end if
 
-                     select case (coord_item)
-                      case(1)
-                        lon = coord * convet_unit
-                      case(2)
-                        lat = coord * convet_unit
-                      case default
-                        !do nothing
-                     end select
+                     if (associated(coord)) then
+                        select case (coord_item)
+                         case(1)
+                           lon = coord * convet_unit
+                         case(2)
+                           lat = coord * convet_unit
+                         case default
+                           !do nothing
+                        end select
+                     else
+                        call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+                           msg="Grid coordinate arrays are not fully allocated/associated before CATChem init", &
+                           line=__LINE__, file=__FILE__, rcToReturn=rc)
+                        return  ! bail out
+                     end if
                   end do ! loop over coordinate dimensions
                end do ! loop over local DEs
 
