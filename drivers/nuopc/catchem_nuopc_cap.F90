@@ -202,17 +202,10 @@ contains
                line=__LINE__, file=__FILE__)) return
          end if
 
-         if (field_config%import_fields(i)%optional) then
-            call NUOPC_Advertise(importState, &
-               StandardName=trim(field_config%import_fields(i)%standard_name), &
-               TransferOfferGeomObject="cannot provide", &
-               SharePolicyField="not share", rc=rc)
-         else
-            call NUOPC_Advertise(importState, &
-               StandardName=trim(field_config%import_fields(i)%standard_name), &
-               TransferOfferGeomObject="cannot provide", &
-               SharePolicyField="share", rc=rc)
-         end if
+         call NUOPC_Advertise(importState, &
+            StandardName=trim(field_config%import_fields(i)%standard_name), &
+            TransferOfferGeomObject="cannot provide", &
+            SharePolicyField="share", rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
       end do
@@ -232,17 +225,10 @@ contains
                line=__LINE__, file=__FILE__)) return
          end if
 
-         if (field_config%export_fields(i)%optional) then
-            call NUOPC_Advertise(exportState, &
-               StandardName=trim(field_config%export_fields(i)%standard_name), &
-               TransferOfferGeomObject="cannot provide", &
-               SharePolicyField="not share", rc=rc)
-         else
-            call NUOPC_Advertise(exportState, &
-               StandardName=trim(field_config%export_fields(i)%standard_name), &
-               TransferOfferGeomObject="cannot provide", &
-               SharePolicyField="share", rc=rc)
-         end if
+         call NUOPC_Advertise(exportState, &
+            StandardName=trim(field_config%export_fields(i)%standard_name), &
+            TransferOfferGeomObject="cannot provide", &
+            SharePolicyField="share", rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
       end do
@@ -299,9 +285,10 @@ contains
       real(ESMF_KIND_R8), parameter :: rad_to_deg = 180._ESMF_KIND_R8 / 3.14159265358979323846_ESMF_KIND_R8
       real(ESMF_KIND_R8) :: convet_unit
       integer :: localPet, petCount
-      integer :: item, coord_item, rank, localDeCount, numLevels, localDe, localrc, stat
+      integer :: item, coord_item, rank, localDeCount, numLevels, localDe, localrc, stat, i
       integer, dimension(2) :: lb, ub
       logical :: has_tracer_array
+      type(ESMF_Field) :: field
 
       rc = ESMF_SUCCESS
       has_tracer_array = .false.
@@ -317,6 +304,25 @@ contains
       call NUOPC_ModelGet(model, importState=importState, exportState=exportState, modelClock=clock, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
+
+      ! Remove unconnected fields to prevent NUOPC from aborting during IPDvXp07
+      do i = 1, size(field_config%import_fields)
+         call ESMF_StateGet(importState, itemName=trim(field_config%import_fields(i)%standard_name), field=field, rc=localrc)
+         if (localrc == ESMF_SUCCESS) then
+            if (.not. NUOPC_IsConnected(field, rc=localrc)) then
+               call ESMF_StateRemove(importState, (/trim(field_config%import_fields(i)%standard_name)/), rc=localrc)
+            end if
+         end if
+      end do
+
+      do i = 1, size(field_config%export_fields)
+         call ESMF_StateGet(exportState, itemName=trim(field_config%export_fields(i)%standard_name), field=field, rc=localrc)
+         if (localrc == ESMF_SUCCESS) then
+            if (.not. NUOPC_IsConnected(field, rc=localrc)) then
+               call ESMF_StateRemove(exportState, (/trim(field_config%export_fields(i)%standard_name)/), rc=localrc)
+            end if
+         end if
+      end do
 
       ! -- get clock information
       call ESMF_ClockGet(clock, startTime=startTime, stopTime=stopTime, timeStep=timeStep, rc=rc)
