@@ -417,6 +417,21 @@ if(CATCHEM_BUILD_NUOPC)
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
   )
+
+  # If CATChem builds an in-tree yaml-cpp target, export it with cc_nuopc so
+  # parent install(EXPORT ufs-config ...) does not fail on missing export-set
+  # dependencies. Imported/system yaml-cpp targets are excluded.
+  if(TARGET yaml-cpp)
+    get_target_property(_catchem_yamlcpp_is_imported yaml-cpp IMPORTED)
+    if(NOT _catchem_yamlcpp_is_imported)
+      install(
+        TARGETS yaml-cpp
+        EXPORT ufs-config
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+      )
+    endif()
+  endif()
 endif()
 
 # Install module files to both locations for compatibility
