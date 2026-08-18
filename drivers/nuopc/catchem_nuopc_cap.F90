@@ -446,29 +446,29 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return  ! bail out
 
-      ! Replace the unrealized placeholder for inst_tracer_mass_frac in exportState
-      ! with the actual 4D tracer field from importState.
-      block
-         type(ESMF_Field) :: tracerField
-         integer :: localrc
-         call ESMF_StateGet(importState, "inst_tracer_mass_frac", tracerField, rc=localrc)
-         if (localrc == ESMF_SUCCESS) then
-            ! Remove unrealized/placeholder field if present in exportState
-            call ESMF_StateRemove(exportState, (/"inst_tracer_mass_frac"/), rc=localrc)
-            ! Add the realized 4D tracer field from importState to exportState
-            call ESMF_StateAdd(exportState, (/tracerField/), rc=localrc)
-            write(*, '(A,I0)') '[CAP DEBUG] Replaced inst_tracer_mass_frac in exportState with 4D import field localPet=', localPet
-            call flush(6)
-         end if
-      end block
-
-      ! Realize any remaining unrealized export fields on the computational grid
+      ! Realize all advertised 2D export diagnostic fields on the computational grid
       call NUOPC_Realize(exportState, grid=grid, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return  ! bail out
 
       write(*, '(A,I0)') '[CAP DEBUG] Completed NUOPC_Realize exportState localPet=', localPet
       call flush(6)
+
+      ! Replace the 2D field created by NUOPC_Realize for inst_tracer_mass_frac in exportState
+      ! with the actual 4D tracer field from importState.
+      block
+         type(ESMF_Field) :: tracerField
+         integer :: localrc
+         call ESMF_StateGet(importState, "inst_tracer_mass_frac", tracerField, rc=localrc)
+         if (localrc == ESMF_SUCCESS) then
+            ! Remove 2D field from exportState
+            call ESMF_StateRemove(exportState, (/"inst_tracer_mass_frac"/), rc=localrc)
+            ! Add the actual 4D tracer field from importState to exportState
+            call ESMF_StateAdd(exportState, (/tracerField/), rc=localrc)
+            write(*, '(A,I0)') '[CAP DEBUG] Replaced 2D inst_tracer_mass_frac in exportState with 4D import field localPet=', localPet
+            call flush(6)
+         end if
+      end block
 
       ! Populate export fields with initial CATChem states and diagnostics
       call transform_catchem_to_nuopc(is%wrap, exportState, rc)
