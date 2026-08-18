@@ -305,6 +305,7 @@ contains
       type(ESMF_Clock)          :: clock
       type(ESMF_Time)           :: startTime, stopTime
       type(ESMF_TimeInterval)   :: timeStep
+      type(CATChem_InternalState) :: is
       real(ESMF_KIND_R8), dimension(:,:), pointer :: coord
       real(ESMF_KIND_R8), dimension(:,:), allocatable :: lon
       real(ESMF_KIND_R8), dimension(:,:), allocatable :: lat
@@ -433,6 +434,18 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return  ! bail out
 
+      ! Get internal state pointer for binding and export transformations
+      call ESMF_GridCompGetInternalState(model, is, rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return  ! bail out
+
+      ! Bind all available imported fields (including 4D tracer mass fraction) to StateManager
+      write(*, '(A,I0)') '[CAP DEBUG] InitializeP2 calling transform_nuopc_to_catchem localPet=', localPet
+      call flush(6)
+      call transform_nuopc_to_catchem(is%wrap, importState, startTime, rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return  ! bail out
+
       ! Ensure 4D tracer mass fraction field from importState is shared to exportState if not present
       block
          type(ESMF_Field) :: tracerField, expTracerField
@@ -455,6 +468,11 @@ contains
 
       write(*, '(A,I0)') '[CAP DEBUG] Completed NUOPC_Realize exportState localPet=', localPet
       call flush(6)
+
+      ! Populate export fields with initial CATChem states and diagnostics
+      call transform_catchem_to_nuopc(is%wrap, exportState, rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return  ! bail out
 
       ! -- indicate that data initialization is complete (breaking out of init-loop)
       call NUOPC_CompAttributeSet(model, &
