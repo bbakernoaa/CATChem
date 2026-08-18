@@ -135,6 +135,8 @@ void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int 
 void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1,
                            int dim2, int dim3);
 void* catchem_diag_get_pointer(void* core_ptr, const char* name);
+int catchem_diag_get_rank(void* core_ptr, const char* name);
+void catchem_diag_get_dims(void* core_ptr, const char* name, int* dims_out);
 void catchem_diag_sync_to_host(void* core_ptr);
 void catchem_diag_reset(void* core_ptr);
 int catchem_diag_get_count(void* core_ptr);

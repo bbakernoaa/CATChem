@@ -202,6 +202,19 @@ module CATChem_API
          character(kind=c_char), intent(in) :: name(*)
       end function
 
+      integer(c_int) function catchem_diag_get_rank(core_ptr, name) bind(C, name="catchem_diag_get_rank")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+      end function
+
+      subroutine catchem_diag_get_dims(core_ptr, name, dims_out) bind(C, name="catchem_diag_get_dims")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), intent(out) :: dims_out(*)
+      end subroutine
+
       subroutine catchem_diag_register(core_ptr, name, desc, units, rank, dim1, dim2, dim3) &
          bind(C, name="catchem_diag_register")
          import :: c_ptr, c_char, c_int
@@ -431,7 +444,9 @@ contains
 
       character(kind=c_char) :: c_name(64)
       type(c_ptr) :: raw_ptr
-      real(c_double), pointer :: f_ptr(:,:,:) => null()
+      integer(c_int) :: rank, dims(3)
+      real(c_double), pointer :: f_ptr_2d(:,:) => null()
+      real(c_double), pointer :: f_ptr_3d(:,:,:) => null()
 
       call to_c_string(diagnostic_name, c_name)
       raw_ptr = catchem_diag_get_pointer(this%cpp_core_ptr, c_name)
@@ -441,11 +456,29 @@ contains
          return
       end if
 
-      ! Direct zero-copy slice map using ISO_C_BINDING!
-      call c_f_pointer(raw_ptr, f_ptr, [this%nx, this%ny, this%nz])
+      rank = catchem_diag_get_rank(this%cpp_core_ptr, c_name)
+      dims = 0
+      call catchem_diag_get_dims(this%cpp_core_ptr, c_name, dims)
 
       allocate(diagnostic_data(this%nx, this%ny, this%nz))
-      diagnostic_data = real(f_ptr, fp)
+      diagnostic_data = 0.0_fp
+
+      if (rank == 2) then
+         call c_f_pointer(raw_ptr, f_ptr_2d, [dims(1), dims(2)])
+         if (dims(2) == this%nz .and. dims(1) == this%nx * this%ny) then
+            diagnostic_data = real(reshape(f_ptr_2d, [this%nx, this%ny, this%nz]), fp)
+         else if (dims(1) == this%nx * this%ny) then
+            diagnostic_data(:,:,1) = real(reshape(f_ptr_2d(:,1), [this%nx, this%ny]), fp)
+         end if
+      else if (rank == 3) then
+         call c_f_pointer(raw_ptr, f_ptr_3d, [dims(1), dims(2), dims(3)])
+         if (dims(1) == this%nx * this%ny .and. dims(2) == this%nz) then
+            diagnostic_data = real(reshape(f_ptr_3d(:,:,1), [this%nx, this%ny, this%nz]), fp)
+         else if (dims(1) == this%nx .and. dims(2) == this%ny .and. dims(3) == this%nz) then
+            diagnostic_data = real(f_ptr_3d, fp)
+         end if
+      end if
+
       rc = CC_SUCCESS
    end subroutine model_get_diagnostic
 
@@ -501,7 +534,7 @@ contains
    subroutine model_bind_met_3d(this, name, arr)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: name
-      real(c_double), target, intent(in) :: arr(:,:,:)
+      real(c_double), target, contiguous, intent(in) :: arr(:,:,:)
 
       character(kind=c_char) :: c_name(64)
 
@@ -517,7 +550,7 @@ contains
    subroutine model_bind_met_2d(this, name, arr)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: name
-      real(c_double), target, intent(in) :: arr(:,:)
+      real(c_double), target, contiguous, intent(in) :: arr(:,:)
 
       character(kind=c_char) :: c_name(64)
 
@@ -532,7 +565,7 @@ contains
    ! Bind unified chemical concentrations 3D array
    subroutine model_bind_unified_chemistry_3d(this, arr)
       class(CATChem_Model), intent(inout) :: this
-      real(c_double), target, intent(in) :: arr(:,:,:)
+      real(c_double), target, contiguous, intent(in) :: arr(:,:,:)
 
       write(*, '(A,I0,A,I0,A,I0,A,Z16)') '[API DEBUG] model_bind_unified_chem_3d: shape=[', &
          size(arr,1), ',', size(arr,2), ',', size(arr,3), '] loc=', transfer(c_loc(arr(1,1,1)), 0_c_intptr_t)
@@ -544,7 +577,7 @@ contains
    ! Bind unified chemical concentrations 4D array
    subroutine model_bind_unified_chemistry_4d(this, arr)
       class(CATChem_Model), intent(inout) :: this
-      real(c_double), target, intent(in) :: arr(:,:,:,:)
+      real(c_double), target, contiguous, intent(in) :: arr(:,:,:,:)
 
       write(*, '(A,I0,A,I0,A,I0,A,I0,A,Z16)') '[API DEBUG] model_bind_unified_chem_4d: shape=[', &
          size(arr,1), ',', size(arr,2), ',', size(arr,3), ',', size(arr,4), '] loc=', transfer(c_loc(arr(1,1,1,1)), 0_c_intptr_t)

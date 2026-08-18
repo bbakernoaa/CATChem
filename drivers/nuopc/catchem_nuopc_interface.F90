@@ -919,6 +919,15 @@ contains
             ' min=', minval(fptr2d), ' max=', maxval(fptr2d)
          call flush(6)
 
+         if (allocated(cc_wrap%lat)) then
+            if (size(fptr2d, 1) /= size(cc_wrap%lat, 1) .or. size(fptr2d, 2) /= size(cc_wrap%lat, 2)) then
+               call ESMF_LogWrite("Shape mismatch for 2D import field: " // trim(field_map%standard_name) // &
+                  " -> " // trim(field_map%catchem_var), &
+                  ESMF_LOGMSG_WARNING, rc=rc)
+               return
+            end if
+         end if
+
          ! Standard direct zero-copy pointer mapping to C++ core
          if (trim(field_map%catchem_var) == 'Z0') then
             if (.not. allocated(cc_wrap%z0_m)) then
@@ -1046,8 +1055,14 @@ contains
          if (found_index > 0) then
             call cc_wrap%catchem_model%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
             if (rc == ESMF_SUCCESS .and. allocated(cc_diag_data)) then
-               !assign data back to NUOPC
-               fptr2d = cc_diag_data(:,:,1)
+               if (size(cc_diag_data, 1) /= size(fptr2d, 1) .or. size(cc_diag_data, 2) /= size(fptr2d, 2)) then
+                  call ESMF_LogWrite("Shape mismatch for 2D export field: " // trim(field_map%catchem_var) // "; zeroing field", &
+                     ESMF_LOGMSG_WARNING, rc=rc)
+                  fptr2d = 0.0_ESMF_KIND_R8
+                  rc = ESMF_SUCCESS
+               else
+                  fptr2d = cc_diag_data(:,:,1)
+               end if
             else
                call ESMF_LogWrite("Could not retrieve diagnostic data for: " // trim(diagnostic_names(found_index)) // "; zeroing field", &
                   ESMF_LOGMSG_WARNING, rc=rc)
@@ -1076,16 +1091,21 @@ contains
                ni = size(fptr3d, 1)
                nj = size(fptr3d, 2)
                nk = size(fptr3d, 3)
-               !revserse vertical layers
-               do k = 1, nk
-                  !kk = nk - k + 1 !no need to reverse
-                  kk = k
-                  do j = 1, nj
-                     do i = 1, ni
-                        fptr3d(i,j,kk) = cc_diag_data(i,j,k)
+               if (size(cc_diag_data, 1) /= ni .or. size(cc_diag_data, 2) /= nj .or. size(cc_diag_data, 3) /= nk) then
+                  call ESMF_LogWrite("Shape mismatch for 3D export field: " // trim(field_map%catchem_var) // "; zeroing field", &
+                     ESMF_LOGMSG_WARNING, rc=rc)
+                  fptr3d = 0.0_ESMF_KIND_R8
+                  rc = ESMF_SUCCESS
+               else
+                  do k = 1, nk
+                     kk = k
+                     do j = 1, nj
+                        do i = 1, ni
+                           fptr3d(i,j,kk) = cc_diag_data(i,j,k)
+                        end do
                      end do
                   end do
-               end do
+               end if
             else
                call ESMF_LogWrite("Could not retrieve diagnostic data for: " // trim(diagnostic_names(found_index)) // "; zeroing field", &
                   ESMF_LOGMSG_WARNING, rc=rc)

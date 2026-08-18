@@ -48,7 +48,7 @@ namespace catchem {
             if (it != met.fields_2d.end() && it->second) {
                 it->second->update_host_pointer(ptr);
             } else {
-                auto field = std::make_shared<InteropField<double, 2>>(ptr, std::vector<int>{n_cols, n_levels});
+                auto field = std::make_shared<InteropField<double, 2>>(ptr, std::vector<int>{n_cols, 1});
                 if (name == "PS")
                     met.PS = field;
                 else if (name == "TS")
@@ -270,7 +270,7 @@ namespace catchem {
             if (it != fields_2d.end() && it->second) {
                 it->second->update_host_pointer(ptr);
             } else {
-                fields_2d[name] = std::make_shared<InteropField<double, 2>>(ptr, std::vector<int>{n_cols, n_levels});
+                fields_2d[name] = std::make_shared<InteropField<double, 2>>(ptr, std::vector<int>{n_cols, 1});
             }
         }
 

@@ -225,6 +225,27 @@ void* catchem_diag_get_pointer(void* core_ptr, const char* name) {
     return core->get_diagnostic_manager()->get_host_pointer(name);
 }
 
+int catchem_diag_get_rank(void* core_ptr, const char* name) {
+    if (!core_ptr || !name) return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    auto diag_mgr = core->get_diagnostic_manager();
+    if (!diag_mgr || !diag_mgr->has_field(name)) return 0;
+    auto field = diag_mgr->get_field(name);
+    return field ? static_cast<int>(field->dimensions.size()) : 0;
+}
+
+void catchem_diag_get_dims(void* core_ptr, const char* name, int* dims_out) {
+    if (!core_ptr || !name || !dims_out) return;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    auto diag_mgr = core->get_diagnostic_manager();
+    if (!diag_mgr || !diag_mgr->has_field(name)) return;
+    auto field = diag_mgr->get_field(name);
+    if (!field) return;
+    for (size_t i = 0; i < field->dimensions.size(); ++i) {
+        dims_out[i] = field->dimensions[i];
+    }
+}
+
 void catchem_diag_sync_to_host(void* core_ptr) {
     auto* core = static_cast<catchem::Core*>(core_ptr);
     core->get_diagnostic_manager()->sync_to_host();
