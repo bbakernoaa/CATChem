@@ -11,7 +11,7 @@ program test_nuopc_transform
    use iso_c_binding, only: c_ptr, c_char, c_double, c_associated, c_f_pointer, c_null_char
    use ESMF
    use catchem_nuopc_interface, only: load_field_config, transform_nuopc_to_catchem, &
-      field_config, cc_wrap_type, update_pm_diagnostics
+      transform_catchem_to_nuopc, field_config, cc_wrap_type, update_pm_diagnostics
    use catchem_bridge_error, only: CC_SUCCESS
    use catchem_bridge_precision, only: fp
 
@@ -28,7 +28,7 @@ program test_nuopc_transform
    integer, parameter :: nx = 4, ny = 2, nz = 5, ntr = 2
    type(cc_wrap_type) :: cc_wrap
    type(ESMF_Grid) :: grid
-   type(ESMF_State) :: importState
+   type(ESMF_State) :: importState, exportState
    type(ESMF_Field) :: field
    type(ESMF_Time) :: currTime
    real(ESMF_KIND_R8), pointer :: fptr2(:, :), fptr3(:, :, :), fptr4(:, :, :, :)
@@ -150,6 +150,40 @@ program test_nuopc_transform
       end if
    end block
    print *, 'PASS: PM2.5/PM10 diagnostics updated and registered'
+
+   ! 7. Test transform_catchem_to_nuopc (full C++ Core -> C API -> Fortran export state)
+   exportState = ESMF_StateCreate(name="export", rc=rc)
+   call check(rc, "StateCreate export")
+
+   do i = 1, cc_wrap%field_config%n_export_fields
+      select case (cc_wrap%field_config%export_fields(i)%dimensions)
+       case (2)
+         field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
+            name=trim(cc_wrap%field_config%export_fields(i)%standard_name), rc=rc)
+         call check(rc, "Export FieldCreate 2d")
+       case (3)
+         field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
+            ungriddedLBound=(/1/), ungriddedUBound=(/nz/), &
+            name=trim(cc_wrap%field_config%export_fields(i)%standard_name), rc=rc)
+         call check(rc, "Export FieldCreate 3d")
+       case (4)
+         field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
+            ungriddedLBound=(/1, 1/), ungriddedUBound=(/nz, ntr/), &
+            name=trim(cc_wrap%field_config%export_fields(i)%standard_name), rc=rc)
+         call check(rc, "Export FieldCreate 4d")
+       case default
+         cycle
+      end select
+      call ESMF_StateAdd(exportState, (/field/), rc=rc)
+      call check(rc, "Export StateAdd")
+   end do
+
+   call transform_catchem_to_nuopc(cc_wrap, exportState, rc)
+   if (rc /= ESMF_SUCCESS) then
+      print *, 'FAIL: transform_catchem_to_nuopc rc=', rc
+      error stop 1
+   end if
+   print *, 'PASS: transform_catchem_to_nuopc over export state'
 
    call ESMF_Finalize(rc=rc)
    print *, 'All NUOPC transform tests passed!'
