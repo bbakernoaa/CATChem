@@ -579,12 +579,6 @@ contains
 
       write(*, '(A,I0)') '[CAP DEBUG] ModelAdvance completed successfully localPet=', localPet
       call flush(6)
-         line=__LINE__, file=__FILE__)) return
-#ifdef CATCHEM_TRACE_NUOPC
-      call ESMF_TraceRegionExit("transform_catchem_to_nuopc", rc=rc)
-      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-         line=__LINE__, file=__FILE__)) return
-#endif
 
       ! Log successful completion
       if (localPet == 0) then
