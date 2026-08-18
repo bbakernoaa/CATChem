@@ -162,14 +162,14 @@ import_fields:
   - standard_name: "inst_tracer_mass_frac"
     catchem_var: "chem"
     dimensions: 4
-    units: "ug/kg"
+    units: "1"
     optional: false
 
 export_fields:
   - standard_name: "inst_tracer_mass_frac"
     catchem_var: "chem"
     dimensions: 4
-    units: "ug/kg"
+    units: "1"
     optional: false
   - standard_name: "inst_tracer_diag_aod"
     catchem_var: "AOD"

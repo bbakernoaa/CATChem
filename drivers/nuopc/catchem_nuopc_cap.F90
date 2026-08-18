@@ -433,6 +433,29 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return  ! bail out
 
+      ! Ensure 4D tracer mass fraction field from importState is shared to exportState if not present
+      block
+         type(ESMF_Field) :: tracerField, expTracerField
+         integer :: localrc
+         call ESMF_StateGet(exportState, "inst_tracer_mass_frac", expTracerField, rc=localrc)
+         if (localrc /= ESMF_SUCCESS) then
+            call ESMF_StateGet(importState, "inst_tracer_mass_frac", tracerField, rc=localrc)
+            if (localrc == ESMF_SUCCESS) then
+               call ESMF_StateAdd(exportState, (/tracerField/), rc=localrc)
+               write(*, '(A,I0)') '[CAP DEBUG] Shared inst_tracer_mass_frac from importState to exportState localPet=', localPet
+               call flush(6)
+            end if
+         end if
+      end block
+
+      ! Realize any remaining unrealized export fields on the computational grid
+      call NUOPC_Realize(exportState, grid=grid, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return  ! bail out
+
+      write(*, '(A,I0)') '[CAP DEBUG] Completed NUOPC_Realize exportState localPet=', localPet
+      call flush(6)
+
       ! -- indicate that data initialization is complete (breaking out of init-loop)
       call NUOPC_CompAttributeSet(model, &
          name="InitializeDataComplete", value="true", rc=rc)
