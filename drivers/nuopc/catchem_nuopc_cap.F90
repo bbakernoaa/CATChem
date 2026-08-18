@@ -446,18 +446,19 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return  ! bail out
 
-      ! Ensure 4D tracer mass fraction field from importState is shared to exportState if not present
+      ! Replace the unrealized placeholder for inst_tracer_mass_frac in exportState
+      ! with the actual 4D tracer field from importState.
       block
-         type(ESMF_Field) :: tracerField, expTracerField
+         type(ESMF_Field) :: tracerField
          integer :: localrc
-         call ESMF_StateGet(exportState, "inst_tracer_mass_frac", expTracerField, rc=localrc)
-         if (localrc /= ESMF_SUCCESS) then
-            call ESMF_StateGet(importState, "inst_tracer_mass_frac", tracerField, rc=localrc)
-            if (localrc == ESMF_SUCCESS) then
-               call ESMF_StateAdd(exportState, (/tracerField/), rc=localrc)
-               write(*, '(A,I0)') '[CAP DEBUG] Shared inst_tracer_mass_frac from importState to exportState localPet=', localPet
-               call flush(6)
-            end if
+         call ESMF_StateGet(importState, "inst_tracer_mass_frac", tracerField, rc=localrc)
+         if (localrc == ESMF_SUCCESS) then
+            ! Remove unrealized/placeholder field if present in exportState
+            call ESMF_StateRemove(exportState, (/"inst_tracer_mass_frac"/), rc=localrc)
+            ! Add the realized 4D tracer field from importState to exportState
+            call ESMF_StateAdd(exportState, (/tracerField/), rc=localrc)
+            write(*, '(A,I0)') '[CAP DEBUG] Replaced inst_tracer_mass_frac in exportState with 4D import field localPet=', localPet
+            call flush(6)
          end if
       end block
 
