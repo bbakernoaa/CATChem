@@ -77,7 +77,14 @@ program test_nuopc_transform
          if (trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'Z0') then
             fptr2 = 150.0_ESMF_KIND_R8 ! cm; the transform converts to 1.5 m
          else
-            fptr2 = 1.0_ESMF_KIND_R8
+            block
+               integer :: ix, iy
+               do iy = 1, ny
+                  do ix = 1, nx
+                     fptr2(ix, iy) = real(ix + 10 * iy, ESMF_KIND_R8)
+                  end do
+               end do
+            end block
          end if
        case (3)
          nzf = nz
@@ -88,7 +95,16 @@ program test_nuopc_transform
          call check(rc, "FieldCreate 3d")
          call ESMF_FieldGet(field, farrayPtr=fptr3, rc=rc)
          call check(rc, "FieldGet 3d")
-         fptr3 = 1.0_ESMF_KIND_R8
+         block
+            integer :: ix, iy, iz
+            do iz = 1, nzf
+               do iy = 1, ny
+                  do ix = 1, nx
+                     fptr3(ix, iy, iz) = real(ix + 10 * iy + 100 * iz, ESMF_KIND_R8)
+                  end do
+               end do
+            end do
+         end block
        case (4)
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
             ungriddedLBound=(/1, 1/), ungriddedUBound=(/nz, ntr/), &
@@ -96,7 +112,18 @@ program test_nuopc_transform
          call check(rc, "FieldCreate 4d")
          call ESMF_FieldGet(field, farrayPtr=fptr4, rc=rc)
          call check(rc, "FieldGet 4d")
-         fptr4 = 1.0_ESMF_KIND_R8
+         block
+            integer :: ix, iy, iz, itr
+            do itr = 1, ntr
+               do iz = 1, nz
+                  do iy = 1, ny
+                     do ix = 1, nx
+                        fptr4(ix, iy, iz, itr) = real(ix + 10 * iy + 100 * iz + 1000 * itr, ESMF_KIND_R8)
+                     end do
+                  end do
+               end do
+            end do
+         end block
        case default
          cycle
       end select

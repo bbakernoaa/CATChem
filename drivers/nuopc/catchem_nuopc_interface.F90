@@ -1136,23 +1136,25 @@ contains
          ! directly to standard C++ unmanaged LayoutLeft Views, the computed concentrations are already
          ! updated in-place! No copying of individual tracers is needed. We only need to populate
          ! computed diagnostic tracers (like pm25, pm10) that do not map directly to dynamic tracers.
-         do v = 1, nv
-            if (trim(cc_wrap%tracer_map%names(v)) == 'pm25' .or. &
-               trim(cc_wrap%tracer_map%names(v)) == 'pm10') then
-               found_index = cc_wrap%catchem_model%get_diag_index_from_field(trim(cc_wrap%tracer_map%names(v)))
-               if (found_index > 0) then
-                  if (allocated(cc_diag_data)) deallocate(cc_diag_data)
-                  call cc_wrap%catchem_model%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
-                  if (rc /= ESMF_SUCCESS) then
-                     call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-                        msg="Failed to get diagnostic data for: " // trim(diagnostic_names(found_index)), &
-                        line=__LINE__, file=__FILE__, rcToReturn=rc)
-                     return
+         if (allocated(cc_wrap%tracer_map%names)) then
+            do v = 1, min(nv, size(cc_wrap%tracer_map%names))
+               if (trim(cc_wrap%tracer_map%names(v)) == 'pm25' .or. &
+                  trim(cc_wrap%tracer_map%names(v)) == 'pm10') then
+                  found_index = cc_wrap%catchem_model%get_diag_index_from_field(trim(cc_wrap%tracer_map%names(v)))
+                  if (found_index > 0) then
+                     if (allocated(cc_diag_data)) deallocate(cc_diag_data)
+                     call cc_wrap%catchem_model%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
+                     if (rc /= ESMF_SUCCESS) then
+                        call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+                           msg="Failed to get diagnostic data for: " // trim(diagnostic_names(found_index)), &
+                           line=__LINE__, file=__FILE__, rcToReturn=rc)
+                        return
+                     end if
+                     fptr4d(:,:,:,v) = cc_diag_data(:,:,:)
                   end if
-                  fptr4d(:,:,:,v) = cc_diag_data(:,:,:)
                end if
-            end if
-         end do   !nv
+            end do   !nv
+         end if
 
        case default
          call ESMF_LogWrite("Unknown export field dimension for: "//trim(field_map%catchem_var), &
