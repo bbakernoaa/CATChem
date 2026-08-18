@@ -162,6 +162,8 @@ module catchem_nuopc_interface
       type(field_config_type) :: field_config  ! Moved from module level for MPI safety
       type(tracer_index_map) :: tracer_map
       type(ESMF_Grid) :: grid
+      real(c_double), allocatable :: lat(:,:)
+      real(c_double), allocatable :: lon(:,:)
       real(c_double), allocatable :: area_m2(:,:)
       real(c_double), allocatable :: z0_m(:,:)
       real(c_double), allocatable :: dust_clayfrac(:,:)
@@ -247,7 +249,6 @@ contains
       integer(ESMF_KIND_I8) :: tstep_seconds
       character(len=128), allocatable :: tracer_names(:) !< NUOPC tracer name
       character(len=128), allocatable :: tracer_units(:) !< NUOPC tracer unit
-      real(c_double), allocatable :: lon_m180(:,:)
       type(CATChem_InternalState) :: is
       type(cc_wrap_type), pointer:: cc_wrap
 
@@ -279,14 +280,16 @@ contains
          return  ! bail out
       end if
 
-      !assign lat and lon directly to C++ StateManager
-      allocate(lon_m180(nx, ny))
-      lon_m180 = real(lon, c_double)
-      where (lon_m180 > 180.0_c_double)
-         lon_m180 = lon_m180 - 360.0_c_double
+      !assign lat and lon directly to C++ StateManager persistently in cc_wrap
+      allocate(cc_wrap%lat(nx, ny))
+      allocate(cc_wrap%lon(nx, ny))
+      cc_wrap%lat = real(lat, c_double)
+      cc_wrap%lon = real(lon, c_double)
+      where (cc_wrap%lon > 180.0_c_double)
+         cc_wrap%lon = cc_wrap%lon - 360.0_c_double
       end where
-      call cc_wrap%catchem_model%bind_met_2d("LAT" // c_null_char, real(lat, c_double))
-      call cc_wrap%catchem_model%bind_met_2d("LON" // c_null_char, lon_m180)
+      call cc_wrap%catchem_model%bind_met_2d("LAT" // c_null_char, cc_wrap%lat)
+      call cc_wrap%catchem_model%bind_met_2d("LON" // c_null_char, cc_wrap%lon)
 
       ! Populate grid-cell areas [m2] used for point-source emissions
       allocate(cc_wrap%area_m2(nx, ny))
@@ -714,6 +717,9 @@ contains
       if (allocated(cc_wrap%tracer_map%names)) deallocate(cc_wrap%tracer_map%names)
       if (allocated(cc_wrap%tracer_map%units)) deallocate(cc_wrap%tracer_map%units)
 
+      if (allocated(cc_wrap%lat)) deallocate(cc_wrap%lat)
+      if (allocated(cc_wrap%lon)) deallocate(cc_wrap%lon)
+      if (allocated(cc_wrap%area_m2)) deallocate(cc_wrap%area_m2)
       if (allocated(cc_wrap%z0_m)) deallocate(cc_wrap%z0_m)
       if (allocated(cc_wrap%dust_clayfrac)) deallocate(cc_wrap%dust_clayfrac)
       if (allocated(cc_wrap%dust_sandfrac)) deallocate(cc_wrap%dust_sandfrac)
