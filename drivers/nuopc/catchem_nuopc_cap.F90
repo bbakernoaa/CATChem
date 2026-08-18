@@ -302,6 +302,7 @@ contains
       type(ESMF_Array) :: array
       type(ESMF_Info) :: tracerInfo
       type(ESMF_Field), pointer :: fieldList(:)
+      type(ESMF_Field) :: tracer4DField
       type(ESMF_Clock)          :: clock
       type(ESMF_Time)           :: startTime, stopTime
       type(ESMF_TimeInterval)   :: timeStep
@@ -361,6 +362,7 @@ contains
 
             if (rank == 4) then !use tracer array to get domain
                has_tracer_array = .true.
+               tracer4DField = fieldList(item)
                call ESMF_FieldGet(fieldList(item), array=array, grid=grid, &
                   ungriddedLBound=lb, ungriddedUBound=ub, rc=rc)
                if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -446,6 +448,18 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return  ! bail out
 
+      ! Ensure exportState uses the 4D tracer field from importState BEFORE calling NUOPC_Realize,
+      ! so NUOPC_Realize skips inst_tracer_mass_frac and only realizes 2D diagnostic fields.
+      if (has_tracer_array) then
+         block
+            integer :: localrc
+            call ESMF_StateRemove(exportState, (/"inst_tracer_mass_frac"/), rc=localrc)
+            call ESMF_StateAdd(exportState, (/tracer4DField/), rc=localrc)
+            write(*, '(A,I0)') '[CAP DEBUG] Added 4D tracerField to exportState localPet=', localPet
+            call flush(6)
+         end block
+      end if
+
       ! Realize all advertised 2D export diagnostic fields on the computational grid
       call NUOPC_Realize(exportState, grid=grid, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -453,22 +467,6 @@ contains
 
       write(*, '(A,I0)') '[CAP DEBUG] Completed NUOPC_Realize exportState localPet=', localPet
       call flush(6)
-
-      ! Replace the 2D field created by NUOPC_Realize for inst_tracer_mass_frac in exportState
-      ! with the actual 4D tracer field from importState.
-      block
-         type(ESMF_Field) :: tracerField
-         integer :: localrc
-         call ESMF_StateGet(importState, "inst_tracer_mass_frac", tracerField, rc=localrc)
-         if (localrc == ESMF_SUCCESS) then
-            ! Remove 2D field from exportState
-            call ESMF_StateRemove(exportState, (/"inst_tracer_mass_frac"/), rc=localrc)
-            ! Add the actual 4D tracer field from importState to exportState
-            call ESMF_StateAdd(exportState, (/tracerField/), rc=localrc)
-            write(*, '(A,I0)') '[CAP DEBUG] Replaced 2D inst_tracer_mass_frac in exportState with 4D import field localPet=', localPet
-            call flush(6)
-         end if
-      end block
 
       ! Populate export fields with initial CATChem states and diagnostics
       call transform_catchem_to_nuopc(is%wrap, exportState, rc)
