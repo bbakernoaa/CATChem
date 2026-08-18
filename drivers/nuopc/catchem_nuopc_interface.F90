@@ -1045,15 +1045,15 @@ contains
          found_index = cc_wrap%catchem_model%get_diag_index_from_field(field_map%catchem_var)
          if (found_index > 0) then
             call cc_wrap%catchem_model%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
-            if (rc /= ESMF_SUCCESS) then
-               call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-                  msg="Failed to get diagnostic data for: " // trim(diagnostic_names(found_index)), &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)
-               return
+            if (rc == ESMF_SUCCESS .and. allocated(cc_diag_data)) then
+               !assign data back to NUOPC
+               fptr2d = cc_diag_data(:,:,1)
+            else
+               call ESMF_LogWrite("Could not retrieve diagnostic data for: " // trim(diagnostic_names(found_index)) // "; zeroing field", &
+                  ESMF_LOGMSG_WARNING, rc=rc)
+               fptr2d = 0.0_ESMF_KIND_R8
+               rc = ESMF_SUCCESS
             end if
-
-            !assign data back to NUOPC
-            fptr2d = cc_diag_data(:,:,1)
 
          else
             fptr2d = 0.0_ESMF_KIND_R8  ! Species not found
@@ -1072,27 +1072,26 @@ contains
          found_index = cc_wrap%catchem_model%get_diag_index_from_field(field_map%catchem_var)
          if (found_index > 0) then
             call cc_wrap%catchem_model%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
-            if (rc /= ESMF_SUCCESS) then
-               call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-                  msg="Failed to get diagnostic data for: " // trim(diagnostic_names(found_index)), &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)
-               return
-            end if
-
-            !assign data back to NUOPC
-            ni = size(fptr3d, 1)
-            nj = size(fptr3d, 2)
-            nk = size(fptr3d, 3)
-            !revserse vertical layers
-            do k = 1, nk
-               !kk = nk - k + 1 !no need to reverse
-               kk = k
-               do j = 1, nj
-                  do i = 1, ni
-                     fptr3d(i,j,kk) = cc_diag_data(i,j,k)
+            if (rc == ESMF_SUCCESS .and. allocated(cc_diag_data)) then
+               ni = size(fptr3d, 1)
+               nj = size(fptr3d, 2)
+               nk = size(fptr3d, 3)
+               !revserse vertical layers
+               do k = 1, nk
+                  !kk = nk - k + 1 !no need to reverse
+                  kk = k
+                  do j = 1, nj
+                     do i = 1, ni
+                        fptr3d(i,j,kk) = cc_diag_data(i,j,k)
+                     end do
                   end do
                end do
-            end do
+            else
+               call ESMF_LogWrite("Could not retrieve diagnostic data for: " // trim(diagnostic_names(found_index)) // "; zeroing field", &
+                  ESMF_LOGMSG_WARNING, rc=rc)
+               fptr3d = 0.0_ESMF_KIND_R8
+               rc = ESMF_SUCCESS
+            end if
 
          else
             fptr3d = 0.0_ESMF_KIND_R8  ! Species not found

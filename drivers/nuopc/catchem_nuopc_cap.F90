@@ -468,11 +468,6 @@ contains
       write(*, '(A,I0)') '[CAP DEBUG] Completed NUOPC_Realize exportState localPet=', localPet
       call flush(6)
 
-      ! Populate export fields with initial CATChem states and diagnostics
-      call transform_catchem_to_nuopc(is%wrap, exportState, rc)
-      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-         line=__LINE__, file=__FILE__)) return  ! bail out
-
       ! -- indicate that data initialization is complete (breaking out of init-loop)
       call NUOPC_CompAttributeSet(model, &
          name="InitializeDataComplete", value="true", rc=rc)
