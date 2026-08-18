@@ -288,8 +288,8 @@ contains
       where (cc_wrap%lon > 180.0_c_double)
          cc_wrap%lon = cc_wrap%lon - 360.0_c_double
       end where
-      call cc_wrap%catchem_model%bind_met_2d("LAT" // c_null_char, cc_wrap%lat)
-      call cc_wrap%catchem_model%bind_met_2d("LON" // c_null_char, cc_wrap%lon)
+      call cc_wrap%catchem_model%bind_met_2d("LAT", cc_wrap%lat)
+      call cc_wrap%catchem_model%bind_met_2d("LON", cc_wrap%lon)
 
       ! Populate grid-cell areas [m2] used for point-source emissions
       allocate(cc_wrap%area_m2(nx, ny))
@@ -331,7 +331,7 @@ contains
             end if
             call ESMF_FieldDestroy(areaField, rc=arc)
          end if
-         call cc_wrap%catchem_model%bind_met_2d("AREA_M2" // c_null_char, cc_wrap%area_m2)
+         call cc_wrap%catchem_model%bind_met_2d("AREA_M2", cc_wrap%area_m2)
       end block
 
       !initialize extemission data here
@@ -663,7 +663,7 @@ contains
          return
       end if
 
-      call cc_wrap%catchem_model%bind_met_2d(trim(met_name) // c_null_char, met_buffer)
+      call cc_wrap%catchem_model%bind_met_2d(trim(met_name), met_buffer)
 
    end subroutine bind_static_field
 
@@ -934,9 +934,9 @@ contains
                allocate(cc_wrap%z0_m(size(fptr2d, 1), size(fptr2d, 2)))
             end if
             cc_wrap%z0_m = real(fptr2d, c_double) * 0.01_c_double
-            call cc_wrap%catchem_model%bind_met_2d("Z0" // c_null_char, cc_wrap%z0_m)
+            call cc_wrap%catchem_model%bind_met_2d("Z0", cc_wrap%z0_m)
          else
-            call cc_wrap%catchem_model%bind_met_2d(trim(field_map%catchem_var) // c_null_char, fptr2d)
+            call cc_wrap%catchem_model%bind_met_2d(trim(field_map%catchem_var), fptr2d)
          end if
 
          if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(is_met_set)) then
@@ -969,7 +969,7 @@ contains
          call flush(6)
 
          ! Direct zero-copy 3D volumetric array pointer mapping to C++ core StateManager
-         call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var) // c_null_char, fptr3d)
+         call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var), fptr3d)
 
          if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(is_met_set)) then
             met_index = cc_wrap%catchem_model%get_required_met_index( trim(field_map%catchem_var) )

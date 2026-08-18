@@ -306,6 +306,10 @@ contains
       integer :: i, f_len
 
       f_len = len_trim(f_str)
+      ! Strip any trailing c_null_char if present in f_str
+      if (f_len > 0) then
+         if (f_str(f_len:f_len) == c_null_char) f_len = f_len - 1
+      end if
       do i = 1, f_len
          c_arr(i) = f_str(i:i)
       end do
