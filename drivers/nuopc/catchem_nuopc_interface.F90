@@ -25,7 +25,7 @@
 
 module catchem_nuopc_interface
 
-   use iso_c_binding, only: c_loc, c_null_char, c_char, c_double, c_ptr, c_int, c_associated, c_f_pointer
+   use iso_c_binding, only: c_loc, c_null_char, c_char, c_double, c_ptr, c_int, c_associated, c_f_pointer, c_intptr_t
    use ESMF
    use NUOPC
    use MPI
@@ -909,7 +909,7 @@ contains
 
          write(*, '(A,A,A,A,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 2D: ', &
             trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
-            ' shape=[', size(fptr2d, 1), ',', size(fptr2d, 2), '] ptr=', c_loc(fptr2d(1,1)), &
+            ' shape=[', size(fptr2d, 1), ',', size(fptr2d, 2), '] ptr=', transfer(c_loc(fptr2d(1,1)), 0_c_intptr_t), &
             ' min=', minval(fptr2d), ' max=', maxval(fptr2d)
          call flush(6)
 
@@ -949,7 +949,7 @@ contains
 
          write(*, '(A,A,A,A,A,I0,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 3D: ', &
             trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
-            ' shape=[', size(fptr3d, 1), ',', size(fptr3d, 2), ',', size(fptr3d, 3), '] ptr=', c_loc(fptr3d(1,1,1)), &
+            ' shape=[', size(fptr3d, 1), ',', size(fptr3d, 2), ',', size(fptr3d, 3), '] ptr=', transfer(c_loc(fptr3d(1,1,1)), 0_c_intptr_t), &
             ' min=', minval(fptr3d), ' max=', maxval(fptr3d)
          call flush(6)
 
@@ -982,7 +982,7 @@ contains
          write(*, '(A,A,A,A,A,I0,A,I0,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 4D: ', &
             trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
             ' shape=[', size(fptr4d, 1), ',', size(fptr4d, 2), ',', size(fptr4d, 3), ',', size(fptr4d, 4), &
-            '] ptr=', c_loc(fptr4d(1,1,1,1)), ' min=', minval(fptr4d), ' max=', maxval(fptr4d)
+            '] ptr=', transfer(c_loc(fptr4d(1,1,1,1)), 0_c_intptr_t), ' min=', minval(fptr4d), ' max=', maxval(fptr4d)
          call flush(6)
 
          ! Direct zero-copy 4D chemistry concentration array mapping to C++ core StateManager
