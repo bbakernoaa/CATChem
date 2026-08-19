@@ -326,10 +326,77 @@ contains
          end if
       end do
 
+      call populate_species_list_category_if_needed(ext_emis_data, core_ptr, 'fengsha', nx, ny, nlev, clock, rc)
+      if (rc /= CC_SUCCESS) return
+
       call ESMF_LogWrite(trim(pName)//': Emission initialization completed', &
          ESMF_LOGMSG_INFO, rc=localrc)
 
    end subroutine catchem_emis_init
+
+   !> \brief Populate an AQMIO category defined only by a config species list.
+   subroutine populate_species_list_category_if_needed(ext_emis_data, core_ptr, category_name, nx, ny, nlev, clock, rc)
+      implicit none
+
+      type(ExtEmisDataType), intent(inout) :: ext_emis_data
+      type(c_ptr), intent(in) :: core_ptr
+      character(len=*), intent(in) :: category_name
+      integer, intent(in) :: nx, ny, nlev
+      type(ESMF_Clock), intent(in) :: clock
+      integer, intent(out) :: rc
+
+      integer :: localrc, n, species_count, active_category_index
+      character(len=EMIS_MAXSTR) :: msg, source_file, species_list_path
+      character(len=*), parameter :: pName = 'populate_species_list_category_if_needed'
+
+      rc = CC_SUCCESS
+      if (allocated(ext_emis_data%categories)) then
+         do n = 1, ext_emis_data%n_categories
+            if (trim(ext_emis_data%categories(n)%category_name) == trim(category_name)) return
+         end do
+      end if
+
+      species_list_path = 'processes/extemis/' // trim(category_name) // '/species'
+      species_count = catchem_config_get_yaml_list_count(core_ptr, trim(species_list_path) // c_null_char)
+      if (species_count == 0) then
+         species_list_path = 'process/extemis/' // trim(category_name) // '/species'
+         species_count = catchem_config_get_yaml_list_count(core_ptr, trim(species_list_path) // c_null_char)
+      end if
+      if (species_count == 0) return
+
+      call catchem_config_get_yaml_string(core_ptr, 'processes/extemis/' // trim(category_name) // '/source_file' // c_null_char, &
+         source_file, 256_c_int, '' // c_null_char)
+      call clean_c_string(source_file)
+      if (len_trim(source_file) == 0) then
+         call catchem_config_get_yaml_string(core_ptr, 'process/extemis/' // trim(category_name) // '/source_file' // c_null_char, &
+            source_file, 256_c_int, '' // c_null_char)
+         call clean_c_string(source_file)
+      end if
+      if (len_trim(source_file) == 0) return
+
+      call catchem_emis_populate_category(ext_emis_data, core_ptr, category_name, nx, ny, nlev, localrc)
+      if (localrc /= CC_SUCCESS) then
+         write(msg, '(A,A,A)') trim(pName), ': Failed to populate category ', trim(category_name)
+         call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+         rc = CC_FAILURE
+         return
+      end if
+
+      active_category_index = ext_emis_data%n_categories
+      ext_emis_data%categories(active_category_index)%is_active = .true.
+      if (len_trim(ext_emis_data%categories(active_category_index)%source_file) == 0) then
+         ext_emis_data%categories(active_category_index)%source_file = trim(source_file)
+      end if
+
+      call catchem_emis_setup_timing(ext_emis_data%categories(active_category_index), clock, localrc)
+      if (localrc /= CC_SUCCESS) then
+         write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed timing setup for category: ', trim(category_name)
+         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+         rc = CC_FAILURE
+         return
+      end if
+
+   end subroutine populate_species_list_category_if_needed
 
    !> \brief Update emission data for current time
    !!
@@ -600,6 +667,11 @@ contains
          end if
 
          category%fields(ifield)%is_loaded = .true.   !set to true; otherwise diagnostics will not be saved.
+         write(*,'(A,A,A,A,A,L1,A,L1)') '[CATCHEM DEBUG] AQMIO read category=', trim(category_name), &
+            ' field=', trim(category%fields(ifield)%field_name), &
+            ' emission_data=', allocated(category%fields(ifield)%emission_data), &
+            ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1)
+         call flush(6)
 
          ! Clean up ESMF field after data transfer
          call ESMF_FieldDestroy(esmf_field, rc=localrc)
@@ -912,6 +984,11 @@ contains
          end if
 
          category%fields(ifield)%is_loaded = .true.
+         write(*,'(A,A,A,A,A,L1,A,L1)') '[CATCHEM DEBUG] AQMIO regrid read category=', trim(category_name), &
+            ' field=', trim(category%fields(ifield)%field_name), &
+            ' emission_data=', allocated(category%fields(ifield)%emission_data), &
+            ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1)
+         call flush(6)
 
          call ESMF_FieldDestroy(esmf_field, rc=localrc)
          if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -2142,8 +2219,8 @@ contains
       integer, intent(out) :: rc
 
       ! Local variables
-      integer :: localrc, ispec, i_diag, n_fields
-      character(len=EMIS_MAXSTR) :: msg, field_name
+      integer :: localrc, ispec, i_diag, n_fields, n_species_fields
+      character(len=EMIS_MAXSTR) :: msg, field_name, species_list_path
       type(ExtEmisCategoryType) :: new_category
       type(ExtEmisFieldType) :: new_field
       character(len=64), allocatable :: diag_species_list(:)
@@ -2166,6 +2243,9 @@ contains
          call new_field%init(field_name, nx, ny, nlev, 1, 'kg/m2/s', localrc)
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
+            write(*,'(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate category=', trim(category_name), &
+               ' field=', trim(field_name)
+            call flush(6)
             if (ext_emis_data%diagnostic .and. new_category%diagnostic) then
                if (allocated(diag_species_list)) then
                   if (size(diag_species_list) == 1 .and. trim(diag_species_list(1)) == 'All') then
@@ -2181,6 +2261,30 @@ contains
                end if
             end if
 
+            call new_category%add_field(new_field, localrc)
+         end if
+      end do
+
+      species_list_path = 'processes/extemis/' // trim(category_name) // '/species'
+      n_species_fields = catchem_config_get_yaml_list_count(core_ptr, trim(species_list_path) // c_null_char)
+      if (n_species_fields == 0) then
+         species_list_path = 'process/extemis/' // trim(category_name) // '/species'
+         n_species_fields = catchem_config_get_yaml_list_count(core_ptr, trim(species_list_path) // c_null_char)
+      end if
+
+      do ispec = 0, n_species_fields - 1
+         call catchem_config_get_yaml_list_at(core_ptr, trim(species_list_path) // c_null_char, &
+            int(ispec, c_int), field_name, 64_c_int)
+         call clean_c_string(field_name)
+         if (len_trim(field_name) == 0) cycle
+         if (new_category%find_field(trim(field_name)) > 0) cycle
+
+         call new_field%init(field_name, nx, ny, nlev, 1, 'kg/m2/s', localrc)
+         if (localrc == CC_SUCCESS) then
+            new_field%long_name = trim(field_name)
+            write(*,'(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate species-list category=', trim(category_name), &
+               ' field=', trim(field_name)
+            call flush(6)
             call new_category%add_field(new_field, localrc)
          end if
       end do

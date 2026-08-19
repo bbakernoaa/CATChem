@@ -662,6 +662,9 @@ contains
          if (associated(src_field)) exit
       end do
       if (associated(src_field)) then
+         write(*,'(A,A,A,A)') '[CATCHEM DEBUG] bind_static_field exact met=', trim(met_name), &
+            ' source=', trim(src_field%field_name)
+         call flush(6)
          call bind_static_field_data(cc_wrap, src_field, met_name, met_buffer, scale, rc)
          return
       end if
@@ -671,10 +674,31 @@ contains
          if (.not. allocated(cc_wrap%ext_emis%categories(i)%fields)) cycle
          do j = 1, cc_wrap%ext_emis%categories(i)%n_fields
             if (field_name_matches(cc_wrap%ext_emis%categories(i)%fields(j)%field_name, search_tokens)) then
+               write(*,'(A,A,A,A,A,A)') '[CATCHEM DEBUG] bind_static_field token met=', trim(met_name), &
+                  ' category=', trim(cc_wrap%ext_emis%categories(i)%category_name), &
+                  ' source=', trim(cc_wrap%ext_emis%categories(i)%fields(j)%field_name)
+               call flush(6)
                call bind_static_field_data(cc_wrap, cc_wrap%ext_emis%categories(i)%fields(j), &
                   met_name, met_buffer, scale, rc)
                return
             end if
+         end do
+      end do
+
+      write(*,'(A,A,A,I0)') '[CATCHEM DEBUG] bind_static_field missing met=', trim(met_name), &
+         ' n_categories=', cc_wrap%ext_emis%n_categories
+      call flush(6)
+      do i = 1, cc_wrap%ext_emis%n_categories
+         write(*,'(A,A,A,I0)') '[CATCHEM DEBUG]   category=', trim(cc_wrap%ext_emis%categories(i)%category_name), &
+            ' n_fields=', cc_wrap%ext_emis%categories(i)%n_fields
+         call flush(6)
+         if (.not. allocated(cc_wrap%ext_emis%categories(i)%fields)) cycle
+         do j = 1, cc_wrap%ext_emis%categories(i)%n_fields
+            write(*,'(A,A,A,L1,A,L1)') '[CATCHEM DEBUG]     field=', &
+               trim(cc_wrap%ext_emis%categories(i)%fields(j)%field_name), &
+               ' emission_data=', allocated(cc_wrap%ext_emis%categories(i)%fields(j)%emission_data), &
+               ' interp_t1=', allocated(cc_wrap%ext_emis%categories(i)%fields(j)%interp_data_t1)
+            call flush(6)
          end do
       end do
 
@@ -716,6 +740,9 @@ contains
          return
       end if
 
+      write(*,'(A,A,A,A,A,I0,A,I0)') '[CATCHEM DEBUG] bind_static_field_data met=', trim(met_name), &
+         ' source=', trim(src_field%field_name), ' shape=[', size(met_buffer, 1), ',', size(met_buffer, 2), ']'
+      call flush(6)
       call cc_wrap%catchem_model%bind_met_2d(trim(met_name), met_buffer)
 
    end subroutine bind_static_field_data
