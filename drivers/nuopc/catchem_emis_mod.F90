@@ -240,9 +240,9 @@ contains
       integer, intent(out) :: rc
 
       ! Local variables
-      integer :: localrc, icat, n_categories
-      logical :: extemis_activate
-      character(len=EMIS_MAXSTR) :: msg, category_name
+      integer :: localrc, icat, n_categories, active_category_index
+      logical :: extemis_activate, category_active, force_static_dust_category
+      character(len=EMIS_MAXSTR) :: msg, category_name, source_file
       character(len=*), parameter :: pName = 'catchem_emis_init'
 
       ! Initialize
@@ -281,7 +281,18 @@ contains
       do icat = 0, n_categories - 1
          call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, 64_c_int)
          call clean_c_string(category_name)
-         if (catchem_config_is_emission_category_active(core_ptr, trim(category_name) // c_null_char) /= 0) then
+         category_active = (catchem_config_is_emission_category_active(core_ptr, trim(category_name) // c_null_char) /= 0)
+         force_static_dust_category = .false.
+         if (trim(category_name) == 'dust') then
+            call catchem_config_get_yaml_string(core_ptr, 'processes/extemis/dust/source_file' // c_null_char, &
+               source_file, 256_c_int, '' // c_null_char)
+            call clean_c_string(source_file)
+            force_static_dust_category = (len_trim(source_file) > 0 .and. &
+               (catchem_config_get_yaml_bool(core_ptr, 'processes/dust/activate' // c_null_char, 0_c_int) /= 0 .or. &
+               catchem_config_get_yaml_bool(core_ptr, 'processes/fengsha/activate' // c_null_char, 0_c_int) /= 0))
+         end if
+
+         if (category_active .or. force_static_dust_category) then
             call catchem_emis_populate_category(ext_emis_data, core_ptr, category_name, nx, ny, nlev, localrc)
             if (localrc /= CC_SUCCESS) then
                write(msg, '(A,A,A)') trim(pName), ': Failed to populate category ', trim(category_name)
@@ -290,7 +301,9 @@ contains
                return
             end if
 
-            call catchem_emis_setup_timing(ext_emis_data%categories(icat + 1), clock, localrc)
+            active_category_index = ext_emis_data%n_categories
+            if (force_static_dust_category) ext_emis_data%categories(active_category_index)%is_active = .true.
+            call catchem_emis_setup_timing(ext_emis_data%categories(active_category_index), clock, localrc)
             if (localrc /= CC_SUCCESS) then
                write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed timing setup for category: ', trim(category_name)
                call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)

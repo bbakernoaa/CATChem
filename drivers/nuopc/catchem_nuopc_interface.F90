@@ -626,30 +626,34 @@ contains
       if (cc_wrap%ext_emis%n_categories == 0) return
 
       call bind_static_field(cc_wrap, [character(len=32) :: 'MET_CLAYFRAC', 'clayfrac', 'CLAYF'], &
+         [character(len=32) :: 'CLAY'], &
          'CLAYFRAC', cc_wrap%dust_clayfrac, 1.0_c_double, rc)
       if (rc /= CC_SUCCESS) return
 
       call bind_static_field(cc_wrap, [character(len=32) :: 'MET_SANDFRAC', 'sandfrac', 'SANDF'], &
+         [character(len=32) :: 'SAND'], &
          'SNDFRC', cc_wrap%dust_sandfrac, 1.0_c_double, rc)
       if (rc /= CC_SUCCESS) return
 
       call bind_static_field(cc_wrap, [character(len=32) :: 'MET_USTAR_THRESHOLD', 'uthres', 'UTHR'], &
+         [character(len=32) :: 'UTHR', 'THRESH'], &
          'USTAR_THRESHOLD', cc_wrap%dust_ustar_threshold, 1.0_c_double, rc)
 
    end subroutine bind_static_met_from_aqmio
 
    !> \brief Helper: bind one static AQMIO field into CATChem met state.
-   subroutine bind_static_field(cc_wrap, source_names, met_name, met_buffer, scale, rc)
+   subroutine bind_static_field(cc_wrap, source_names, search_tokens, met_name, met_buffer, scale, rc)
 
       type(cc_wrap_type), intent(inout) :: cc_wrap
       character(len=*), intent(in) :: source_names(:)
+      character(len=*), intent(in) :: search_tokens(:)
       character(len=*), intent(in) :: met_name
       real(c_double), allocatable, intent(inout) :: met_buffer(:,:)
       real(c_double), intent(in) :: scale
       integer, intent(out) :: rc
 
       type(ExtEmisFieldType), pointer :: src_field
-      integer :: nx, ny, n
+      integer :: i, j, n
 
       rc = CC_SUCCESS
       src_field => null()
@@ -657,7 +661,38 @@ contains
          src_field => cc_wrap%ext_emis%find_emission_field(trim(source_names(n)))
          if (associated(src_field)) exit
       end do
-      if (.not. associated(src_field)) return
+      if (associated(src_field)) then
+         call bind_static_field_data(cc_wrap, src_field, met_name, met_buffer, scale, rc)
+         return
+      end if
+
+      if (.not. allocated(cc_wrap%ext_emis%categories)) return
+      do i = 1, cc_wrap%ext_emis%n_categories
+         if (.not. allocated(cc_wrap%ext_emis%categories(i)%fields)) cycle
+         do j = 1, cc_wrap%ext_emis%categories(i)%n_fields
+            if (field_name_matches(cc_wrap%ext_emis%categories(i)%fields(j)%field_name, search_tokens)) then
+               call bind_static_field_data(cc_wrap, cc_wrap%ext_emis%categories(i)%fields(j), &
+                  met_name, met_buffer, scale, rc)
+               return
+            end if
+         end do
+      end do
+
+   end subroutine bind_static_field
+
+   !> \brief Copy one loaded static AQMIO field into a persistent CATChem met buffer.
+   subroutine bind_static_field_data(cc_wrap, src_field, met_name, met_buffer, scale, rc)
+
+      type(cc_wrap_type), intent(inout) :: cc_wrap
+      type(ExtEmisFieldType), intent(in) :: src_field
+      character(len=*), intent(in) :: met_name
+      real(c_double), allocatable, intent(inout) :: met_buffer(:,:)
+      real(c_double), intent(in) :: scale
+      integer, intent(out) :: rc
+
+      integer :: nx, ny
+
+      rc = CC_SUCCESS
 
       if (allocated(src_field%interp_data_t1)) then
          nx = size(src_field%interp_data_t1, 1)
@@ -683,7 +718,48 @@ contains
 
       call cc_wrap%catchem_model%bind_met_2d(trim(met_name), met_buffer)
 
-   end subroutine bind_static_field
+   end subroutine bind_static_field_data
+
+   !> \brief Return true when a field name contains any token, ignoring case.
+   function field_name_matches(field_name, search_tokens) result(matches)
+
+      character(len=*), intent(in) :: field_name
+      character(len=*), intent(in) :: search_tokens(:)
+      logical :: matches
+
+      integer :: n
+      character(len=len(field_name)) :: upper_field
+      character(len=len(search_tokens(1))) :: upper_token
+
+      matches = .false.
+      upper_field = uppercase(field_name)
+      do n = 1, size(search_tokens)
+         upper_token = uppercase(search_tokens(n))
+         if (len_trim(upper_token) > 0 .and. index(trim(upper_field), trim(upper_token)) > 0) then
+            matches = .true.
+            return
+         end if
+      end do
+
+   end function field_name_matches
+
+   !> \brief Convert ASCII letters in a string to uppercase.
+   function uppercase(input_string) result(output_string)
+
+      character(len=*), intent(in) :: input_string
+      character(len=len(input_string)) :: output_string
+
+      integer :: n, letter_code
+
+      output_string = input_string
+      do n = 1, len(input_string)
+         letter_code = iachar(output_string(n:n))
+         if (letter_code >= iachar('a') .and. letter_code <= iachar('z')) then
+            output_string(n:n) = achar(letter_code - 32)
+         end if
+      end do
+
+   end function uppercase
 
    ! Finalize CATChem for NUOPC interface
    !!
