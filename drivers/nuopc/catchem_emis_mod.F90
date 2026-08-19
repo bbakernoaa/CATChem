@@ -156,6 +156,14 @@ module catchem_nuopc_emis_mod
          character(kind=c_char), intent(in) :: default_val(*)
       end subroutine
 
+      subroutine catchem_config_find_fengsha_static_file(core_ptr, val_out, max_len) &
+         bind(C, name="catchem_config_find_fengsha_static_file")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(out) :: val_out(*)
+         integer(c_int), value :: max_len
+      end subroutine
+
       integer(c_int) function catchem_config_get_yaml_list_count(core_ptr, yaml_path) &
          bind(C, name="catchem_config_get_yaml_list_count")
          import :: c_ptr, c_char, c_int
@@ -392,6 +400,10 @@ contains
          if (index(trim(config_paths(path_index)), '/dust') > 0) category_name = 'dust'
          exit
       end do
+      if (len_trim(source_file) == 0) then
+         call catchem_config_find_fengsha_static_file(core_ptr, source_file, 256_c_int)
+         call clean_c_string(source_file)
+      end if
       if (len_trim(source_file) == 0) then
          write(*,'(A)') '[CATCHEM DEBUG] static dust AQMIO fallback: no dust/fengsha source_file found'
          call flush(6)
