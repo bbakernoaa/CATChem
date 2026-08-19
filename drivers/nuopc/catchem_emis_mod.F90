@@ -253,6 +253,8 @@ contains
       ! Check top-level processes/extemis/activate switch
       extemis_activate = (catchem_config_get_yaml_bool(core_ptr, 'processes/extemis/activate' // c_null_char, 1_c_int) /= 0)
       if (.not. extemis_activate) then
+         write(*,'(A)') '[CATCHEM DEBUG] catchem_emis_init: extemis disabled by processes/extemis/activate=false'
+         call flush(6)
          call ESMF_LogWrite(trim(pName)//': External emissions disabled (processes/extemis/activate=false)', &
             ESMF_LOGMSG_INFO, rc=localrc)
          return
@@ -326,53 +328,63 @@ contains
          end if
       end do
 
-      call populate_species_list_category_if_needed(ext_emis_data, core_ptr, 'fengsha', nx, ny, nlev, clock, rc)
+      call populate_static_dust_category_if_needed(ext_emis_data, core_ptr, nx, ny, nlev, clock, rc)
       if (rc /= CC_SUCCESS) return
+
+      write(*,'(A,I0)') '[CATCHEM DEBUG] catchem_emis_init: n_categories=', ext_emis_data%n_categories
+      call flush(6)
 
       call ESMF_LogWrite(trim(pName)//': Emission initialization completed', &
          ESMF_LOGMSG_INFO, rc=localrc)
 
    end subroutine catchem_emis_init
 
-   !> \brief Populate an AQMIO category defined only by a config species list.
-   subroutine populate_species_list_category_if_needed(ext_emis_data, core_ptr, category_name, nx, ny, nlev, clock, rc)
+   !> \brief Populate static dust AQMIO fields when no emission mapping category is active.
+   subroutine populate_static_dust_category_if_needed(ext_emis_data, core_ptr, nx, ny, nlev, clock, rc)
       implicit none
 
       type(ExtEmisDataType), intent(inout) :: ext_emis_data
       type(c_ptr), intent(in) :: core_ptr
-      character(len=*), intent(in) :: category_name
       integer, intent(in) :: nx, ny, nlev
       type(ESMF_Clock), intent(in) :: clock
       integer, intent(out) :: rc
 
-      integer :: localrc, n, species_count, active_category_index
-      character(len=EMIS_MAXSTR) :: msg, source_file, species_list_path
-      character(len=*), parameter :: pName = 'populate_species_list_category_if_needed'
+      integer :: localrc, n, species_count, active_category_index, path_index
+      character(len=EMIS_MAXSTR) :: msg, source_file, species_list_path, category_name
+      character(len=*), parameter :: pName = 'populate_static_dust_category_if_needed'
+      character(len=64), parameter :: species_defaults(4) = [character(len=64) :: 'CLAYF', 'SANDF', 'DRAG', 'UTHR']
+      character(len=64), parameter :: config_paths(4) = [character(len=64) :: &
+         'processes/extemis/fengsha', 'processes/extemis/dust', &
+         'process/extemis/fengsha', 'process/extemis/dust']
 
       rc = CC_SUCCESS
       if (allocated(ext_emis_data%categories)) then
          do n = 1, ext_emis_data%n_categories
-            if (trim(ext_emis_data%categories(n)%category_name) == trim(category_name)) return
+            if (trim(ext_emis_data%categories(n)%category_name) == 'fengsha' .or. &
+               trim(ext_emis_data%categories(n)%category_name) == 'dust') return
          end do
       end if
 
-      species_list_path = 'processes/extemis/' // trim(category_name) // '/species'
-      species_count = catchem_config_get_yaml_list_count(core_ptr, trim(species_list_path) // c_null_char)
-      if (species_count == 0) then
-         species_list_path = 'process/extemis/' // trim(category_name) // '/species'
-         species_count = catchem_config_get_yaml_list_count(core_ptr, trim(species_list_path) // c_null_char)
-      end if
-      if (species_count == 0) return
-
-      call catchem_config_get_yaml_string(core_ptr, 'processes/extemis/' // trim(category_name) // '/source_file' // c_null_char, &
-         source_file, 256_c_int, '' // c_null_char)
-      call clean_c_string(source_file)
-      if (len_trim(source_file) == 0) then
-         call catchem_config_get_yaml_string(core_ptr, 'process/extemis/' // trim(category_name) // '/source_file' // c_null_char, &
+      source_file = ''
+      species_list_path = ''
+      category_name = 'fengsha'
+      species_count = 0
+      do path_index = 1, size(config_paths)
+         call catchem_config_get_yaml_string(core_ptr, trim(config_paths(path_index)) // '/source_file' // c_null_char, &
             source_file, 256_c_int, '' // c_null_char)
          call clean_c_string(source_file)
+         if (len_trim(source_file) == 0) cycle
+
+         species_list_path = trim(config_paths(path_index)) // '/species'
+         species_count = catchem_config_get_yaml_list_count(core_ptr, trim(species_list_path) // c_null_char)
+         if (index(trim(config_paths(path_index)), '/dust') > 0) category_name = 'dust'
+         exit
       end if
-      if (len_trim(source_file) == 0) return
+      if (len_trim(source_file) == 0) then
+         write(*,'(A)') '[CATCHEM DEBUG] static dust AQMIO fallback: no dust/fengsha source_file found'
+         call flush(6)
+         return
+      end if
 
       call catchem_emis_populate_category(ext_emis_data, core_ptr, category_name, nx, ny, nlev, localrc)
       if (localrc /= CC_SUCCESS) then
@@ -388,6 +400,23 @@ contains
          ext_emis_data%categories(active_category_index)%source_file = trim(source_file)
       end if
 
+      if (species_count == 0) then
+         do n = 1, size(species_defaults)
+            call add_static_dust_field_if_missing(ext_emis_data%categories(active_category_index), &
+               trim(species_defaults(n)), nx, ny, nlev, localrc)
+            if (localrc /= CC_SUCCESS) then
+               rc = CC_FAILURE
+               return
+            end if
+         end do
+      end if
+
+      write(*,'(A,A,A,A,A,I0)') '[CATCHEM DEBUG] static dust AQMIO fallback category=', &
+         trim(ext_emis_data%categories(active_category_index)%category_name), &
+         ' source_file=', trim(ext_emis_data%categories(active_category_index)%source_file), &
+         ' n_fields=', ext_emis_data%categories(active_category_index)%n_fields
+      call flush(6)
+
       call catchem_emis_setup_timing(ext_emis_data%categories(active_category_index), clock, localrc)
       if (localrc /= CC_SUCCESS) then
          write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed timing setup for category: ', trim(category_name)
@@ -396,7 +425,36 @@ contains
          return
       end if
 
-   end subroutine populate_species_list_category_if_needed
+   end subroutine populate_static_dust_category_if_needed
+
+   !> \brief Add one default static dust field when config omits an explicit species list.
+   subroutine add_static_dust_field_if_missing(category, field_name, nx, ny, nlev, rc)
+      implicit none
+
+      type(ExtEmisCategoryType), intent(inout) :: category
+      character(len=*), intent(in) :: field_name
+      integer, intent(in) :: nx, ny, nlev
+      integer, intent(out) :: rc
+
+      type(ExtEmisFieldType) :: new_field
+      integer :: localrc
+
+      rc = CC_SUCCESS
+      if (category%find_field(trim(field_name)) > 0) return
+
+      call new_field%init(field_name, nx, ny, nlev, 1, '1', localrc)
+      if (localrc /= CC_SUCCESS) then
+         rc = CC_FAILURE
+         return
+      end if
+      new_field%long_name = trim(field_name)
+      write(*,'(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate default static dust category=', &
+         trim(category%category_name), ' field=', trim(field_name)
+      call flush(6)
+      call category%add_field(new_field, localrc)
+      if (localrc /= CC_SUCCESS) rc = CC_FAILURE
+
+   end subroutine add_static_dust_field_if_missing
 
    !> \brief Update emission data for current time
    !!

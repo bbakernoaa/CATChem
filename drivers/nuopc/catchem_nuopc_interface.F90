@@ -623,7 +623,11 @@ contains
       integer, intent(out) :: rc
 
       rc = CC_SUCCESS
-      if (cc_wrap%ext_emis%n_categories == 0) return
+      if (cc_wrap%ext_emis%n_categories == 0) then
+         write(*,'(A)') '[CATCHEM DEBUG] bind_static_met_from_aqmio: no emission categories available'
+         call flush(6)
+         return
+      end if
 
       call bind_static_field(cc_wrap, [character(len=32) :: 'MET_CLAYFRAC', 'clayfrac', 'CLAYF'], &
          [character(len=32) :: 'CLAY'], &
