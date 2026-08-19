@@ -77,6 +77,21 @@ namespace catchem {
         // 1. Sync device to host
         state->sync_to_host();
 
+        if (!state->met.AIRDEN_DRY && state->met.AIRDEN) {
+            state->met.AIRDEN_DRY = state->met.AIRDEN;
+        }
+        if (!state->met.AIRDEN_DRY && state->met.PMID && state->met.T) {
+            state->derive_airden_dry();
+            if (!state->met.AIRDEN_DRY && state->met.AIRDEN) {
+                state->met.AIRDEN_DRY = state->met.AIRDEN;
+            }
+        }
+
+        if (!state->met.T || !state->met.PMID || !state->met.AIRDEN_DRY || !state->chem.conc) {
+            std::cerr << "GasChemProcess: Missing required views (T, PMID, AIRDEN_DRY, or conc)!\n";
+            return;
+        }
+
         auto temp = state->met.T->host_view;
         auto pmid = state->met.PMID->host_view;
         auto airden_dry = state->met.AIRDEN_DRY->host_view;

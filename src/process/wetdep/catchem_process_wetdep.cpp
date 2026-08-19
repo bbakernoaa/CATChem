@@ -42,16 +42,35 @@ namespace catchem {
         state->sync_to_host();
 
         // 1. Fetch raw pointers to Met Views
-        double* airden_dry_ptr = state->met.AIRDEN_DRY ? state->met.AIRDEN_DRY->host_data() : nullptr;
-        double* mairden_ptr = state->met.AIRDEN ? state->met.AIRDEN->host_data() : nullptr;
-        double* pedge_ptr = state->met.PEDGE ? state->met.PEDGE->host_data() : nullptr;
-        double* t_ptr = state->met.T ? state->met.T->host_data() : nullptr;
+        double* airden_dry_ptr = state->find_3d_ptr({"AIRDEN_DRY", "air_density_dry", "AIRDEN", "air_density"});
+        double* mairden_ptr = state->find_3d_ptr({"AIRDEN", "air_density", "AIRDEN_DRY", "air_density_dry"});
+
+        if ((!airden_dry_ptr || !mairden_ptr) && state->met.PMID && state->met.T) {
+            state->derive_airden_dry();
+            if (!airden_dry_ptr) airden_dry_ptr = state->find_3d_ptr({"AIRDEN_DRY", "air_density_dry", "AIRDEN", "air_density"});
+            if (!mairden_ptr) mairden_ptr = state->find_3d_ptr({"AIRDEN", "air_density", "AIRDEN_DRY", "air_density_dry"});
+        }
+        if (!airden_dry_ptr) airden_dry_ptr = mairden_ptr;
+        if (!mairden_ptr) mairden_ptr = airden_dry_ptr;
+
+        double* pedge_ptr = state->find_3d_ptr({"PEDGE", "pedge", "pressure_edge"});
+        double* t_ptr = state->find_3d_ptr({"T", "temperature", "temp"});
 
         auto pfilsan_it = state->met.fields_3d.find("PFILSAN");
         double* pfilsan_ptr = (pfilsan_it != state->met.fields_3d.end()) ? pfilsan_it->second->host_data() : nullptr;
+        std::vector<double> pfilsan_fallback;
+        if (pfilsan_ptr == nullptr) {
+            pfilsan_fallback.assign(static_cast<size_t>(state->n_cols) * (state->n_levels + 1), 0.0);
+            pfilsan_ptr = pfilsan_fallback.data();
+        }
 
         auto pfllsan_it = state->met.fields_3d.find("PFLLSAN");
         double* pfllsan_ptr = (pfllsan_it != state->met.fields_3d.end()) ? pfllsan_it->second->host_data() : nullptr;
+        std::vector<double> pfllsan_fallback;
+        if (pfllsan_ptr == nullptr) {
+            pfllsan_fallback.assign(static_cast<size_t>(state->n_cols) * (state->n_levels + 1), 0.0);
+            pfllsan_ptr = pfllsan_fallback.data();
+        }
 
         auto reevapls_it = state->met.fields_3d.find("REEVAPLS");
         double* reevapls_ptr = (reevapls_it != state->met.fields_3d.end()) ? reevapls_it->second->host_data() : nullptr;
@@ -64,8 +83,6 @@ namespace catchem {
         require_field_pointer("WetDep", "AIRDEN_DRY", airden_dry_ptr);
         require_field_pointer("WetDep", "AIRDEN", mairden_ptr);
         require_field_pointer("WetDep", "PEDGE", pedge_ptr);
-        require_field_pointer("WetDep", "PFILSAN", pfilsan_ptr);
-        require_field_pointer("WetDep", "PFLLSAN", pfllsan_ptr);
         require_field_pointer("WetDep", "T", t_ptr);
 
         // 2. Extract chemical arrays & C++ allocated diagnostics

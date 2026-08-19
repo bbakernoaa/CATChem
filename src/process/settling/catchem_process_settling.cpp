@@ -64,6 +64,17 @@ namespace catchem {
         if (num_aerosols == 0)
             return;
 
+        if (!state->met.BXHEIGHT && state->met.PEDGE && state->met.T) {
+            state->derive_bxheight();
+        }
+        if (!state->met.AIRDEN && state->met.AIRDEN_DRY) {
+            state->met.AIRDEN = state->met.AIRDEN_DRY;
+        }
+        if (!state->met.AIRDEN && !state->met.AIRDEN_DRY && state->met.PMID && state->met.T) {
+            state->derive_airden_dry();
+            state->met.AIRDEN = state->met.AIRDEN_DRY;
+        }
+
         if (!state->met.T || !state->met.AIRDEN || !state->met.PEDGE || !state->met.BXHEIGHT || !state->chem.conc) {
             std::cerr << "SettlingProcess: Missing required views!\n";
             return;

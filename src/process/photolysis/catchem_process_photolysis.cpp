@@ -233,6 +233,19 @@ namespace catchem {
         std::vector<double> o3_profile(state->n_levels, 0.0);
         std::vector<double> temp_profile(state->n_levels, 0.0);
 
+        if (!state->met.BXHEIGHT && state->met.PEDGE && state->met.T) {
+            state->derive_bxheight();
+        }
+        if (!state->met.AIRDEN && state->met.AIRDEN_DRY) {
+            state->met.AIRDEN = state->met.AIRDEN_DRY;
+        }
+        if (!state->met.AIRDEN && !state->met.AIRDEN_DRY && state->met.PMID && state->met.T) {
+            state->derive_airden_dry();
+            if (!state->met.AIRDEN && state->met.AIRDEN_DRY) {
+                state->met.AIRDEN = state->met.AIRDEN_DRY;
+            }
+        }
+
         Logger::debug(state.get(), "Starting column-wise calculation loop");
         for (int i_col = 0; i_col < state->n_cols; ++i_col) {
             std::string col_str = std::to_string(i_col);

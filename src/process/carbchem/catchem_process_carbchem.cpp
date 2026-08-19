@@ -43,9 +43,12 @@ namespace catchem {
         state->sync_to_host();
 
         // 1. Retrieve 3D Meteorological state pointers
-        auto airden_ptr_it = state->met.fields_3d.find("AIRDEN_DRY");
-        double* airden_ptr =
-            (airden_ptr_it != state->met.fields_3d.end()) ? airden_ptr_it->second->host_data() : nullptr;
+        double* airden_ptr = state->find_3d_ptr({"AIRDEN_DRY", "air_density_dry", "AIRDEN", "air_density"});
+        if (!airden_ptr && state->met.PMID && state->met.T) {
+            state->derive_airden_dry();
+            airden_ptr = state->find_3d_ptr({"AIRDEN_DRY", "air_density_dry", "AIRDEN", "air_density"});
+        }
+
         auto delp_ptr_it = state->met.fields_3d.find("DELP");
         double* delp_ptr = (delp_ptr_it != state->met.fields_3d.end()) ? delp_ptr_it->second->host_data() : nullptr;
         std::vector<double> derived_delp;
@@ -63,8 +66,8 @@ namespace catchem {
                 delp_ptr = derived_delp.data();
             }
         }
-        auto pmid_ptr_it = state->met.fields_3d.find("PMID");
-        double* pmid_ptr = (pmid_ptr_it != state->met.fields_3d.end()) ? pmid_ptr_it->second->host_data() : nullptr;
+
+        double* pmid_ptr = state->find_3d_ptr({"PMID", "pmid", "pressure_mid"});
 
         require_field_pointer("CarbChem", "AIRDEN_DRY", airden_ptr);
         require_field_pointer("CarbChem", "DELP", delp_ptr);

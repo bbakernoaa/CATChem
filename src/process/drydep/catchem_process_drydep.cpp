@@ -42,41 +42,80 @@ namespace catchem {
     void DryDepProcess::run(std::shared_ptr<StateManager> state) {
         state->sync_to_host();
 
-        // 1. Fetch raw pointers to Met Views
-        double* bxheight_ptr = state->met.BXHEIGHT ? state->met.BXHEIGHT->host_data() : nullptr;
-        double* airden_ptr = state->met.AIRDEN ? state->met.AIRDEN->host_data() : nullptr;
-        double* t_ptr = state->met.T ? state->met.T->host_data() : nullptr;
-        double* pedge_ptr = state->met.PEDGE ? state->met.PEDGE->host_data() : nullptr;
-        double* rh_ptr = state->met.RH ? state->met.RH->host_data() : nullptr;
+        // 1. Fetch 3D Met Views with fallbacks and derivations
+        if (!state->met.BXHEIGHT && state->met.PEDGE && state->met.T) {
+            state->derive_bxheight();
+        }
+        double* bxheight_ptr = state->find_3d_ptr({"BXHEIGHT", "bxheight", "dz", "DELZ"});
+
+        double* airden_ptr = state->find_3d_ptr({"AIRDEN", "AIRDEN_DRY", "air_density", "air_density_dry"});
+        if (!airden_ptr && state->met.PMID && state->met.T) {
+            state->derive_airden_dry();
+            airden_ptr = state->find_3d_ptr({"AIRDEN", "AIRDEN_DRY", "air_density", "air_density_dry"});
+        }
+
+        double* t_ptr = state->find_3d_ptr({"T", "temperature", "temp"});
+        double* pedge_ptr = state->find_3d_ptr({"PEDGE", "pedge", "pressure_edge"});
+
+        double* rh_ptr = state->find_3d_ptr({"RH", "rh", "relative_humidity"});
+        std::vector<double> fallback_rh;
+        if (!rh_ptr) {
+            fallback_rh.assign(static_cast<size_t>(state->n_cols) * state->n_levels, 0.5);
+            rh_ptr = fallback_rh.data();
+        }
 
         // 2. Retrieve surface met and grid positions
-        double* ps_ptr = state->met.PS ? state->met.PS->host_data() : nullptr;
-        double* ts_ptr = state->met.TS ? state->met.TS->host_data() : nullptr;
-        double* lat_ptr = state->met.LAT ? state->met.LAT->host_data() : nullptr;
-        double* lon_ptr = state->met.LON ? state->met.LON->host_data() : nullptr;
-        double* ustar_ptr = state->met.USTAR ? state->met.USTAR->host_data() : nullptr;
-        double* hflux_ptr = state->met.HFLUX ? state->met.HFLUX->host_data() : nullptr;
-        double* obk_ptr = state->met.OBK ? state->met.OBK->host_data() : nullptr;
-        double* pblh_ptr = state->met.PBLH ? state->met.PBLH->host_data() : nullptr;
+        double* ps_ptr = state->find_2d_ptr({"PS", "ps", "surface_pressure"});
+        double* ts_ptr = state->find_2d_ptr({"TS", "ts", "SST", "sst", "skin_temperature"});
+
+        double* lat_ptr = state->find_2d_ptr({"LAT", "lat", "latitude"});
+        std::vector<double> fallback_lat;
+        if (!lat_ptr) {
+            fallback_lat.assign(state->n_cols, 0.0);
+            lat_ptr = fallback_lat.data();
+        }
+
+        double* lon_ptr = state->find_2d_ptr({"LON", "lon", "longitude"});
+        std::vector<double> fallback_lon;
+        if (!lon_ptr) {
+            fallback_lon.assign(state->n_cols, 0.0);
+            lon_ptr = fallback_lon.data();
+        }
+
+        double* ustar_ptr = state->find_2d_ptr({"USTAR", "ustar", "friction_velocity"});
+        std::vector<double> fallback_ustar;
+        if (!ustar_ptr) {
+            fallback_ustar.assign(state->n_cols, 0.2);
+            ustar_ptr = fallback_ustar.data();
+        }
+
+        double* hflux_ptr = state->find_2d_ptr({"HFLUX", "hflux"});
+        std::vector<double> fallback_hflux;
+        if (!hflux_ptr) {
+            fallback_hflux.assign(state->n_cols, 10.0);
+            hflux_ptr = fallback_hflux.data();
+        }
+
+        double* obk_ptr = state->find_2d_ptr({"OBK", "obk", "ol"});
+        std::vector<double> fallback_obk;
+        if (!obk_ptr) {
+            fallback_obk.assign(state->n_cols, 100.0);
+            obk_ptr = fallback_obk.data();
+        }
+
+        double* pblh_ptr = state->find_2d_ptr({"PBLH", "pblh", "hpbl"});
+        std::vector<double> fallback_pblh;
+        if (!pblh_ptr) {
+            fallback_pblh.assign(state->n_cols, 1000.0);
+            pblh_ptr = fallback_pblh.data();
+        }
 
         require_field_pointer("DryDep", "BXHEIGHT", bxheight_ptr);
         require_field_pointer("DryDep", "AIRDEN", airden_ptr);
         require_field_pointer("DryDep", "T", t_ptr);
         require_field_pointer("DryDep", "PEDGE", pedge_ptr);
-        require_field_pointer("DryDep", "RH", rh_ptr);
         require_field_pointer("DryDep", "PS", ps_ptr);
         require_field_pointer("DryDep", "TS", ts_ptr);
-        require_field_pointer("DryDep", "LAT", lat_ptr);
-        require_field_pointer("DryDep", "LON", lon_ptr);
-        require_field_pointer("DryDep", "USTAR", ustar_ptr);
-        require_field_pointer("DryDep", "HFLUX", hflux_ptr);
-        require_field_pointer("DryDep", "OBK", obk_ptr);
-        require_field_pointer("DryDep", "PBLH", pblh_ptr);
-
-        require_field_pointer("DryDep", "BXHEIGHT", bxheight_ptr);
-        require_field_pointer("DryDep", "AIRDEN", airden_ptr);
-        require_field_pointer("DryDep", "T", t_ptr);
-        require_field_pointer("DryDep", "PEDGE", pedge_ptr);
 
         // Mock/Fallbacks for remaining metadata arrays - Using char for bool to support standard .data()
         std::vector<double> cldfrc(state->n_cols, 0.1);

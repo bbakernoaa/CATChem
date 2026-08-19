@@ -44,58 +44,42 @@ namespace catchem {
 
         void bind_met_field_2d(const std::string& name, double* ptr) {
             std::cout << "[C++ DEBUG] StateManager::bind_met_field_2d: name=" << name << " ptr=" << (void*)ptr << " n_cols=" << n_cols << " n_levels=" << n_levels << std::endl;
-            auto it = met.fields_2d.find(name);
-            if (it != met.fields_2d.end() && it->second) {
-                it->second->update_host_pointer(ptr);
+            auto field = met.get_2d({name.c_str()});
+            if (field) {
+                field->update_host_pointer(ptr);
             } else {
-                auto field = std::make_shared<InteropField<double, 2>>(ptr, std::vector<int>{n_cols, 1});
-                if (name == "PS")
-                    met.PS = field;
-                else if (name == "TS")
-                    met.TS = field;
-                else if (name == "PBLH")
-                    met.PBLH = field;
-                else if (name == "USTAR")
-                    met.USTAR = field;
-                else if (name == "HFLUX")
-                    met.HFLUX = field;
-                else if (name == "OBK")
-                    met.OBK = field;
-                else if (name == "LAT")
-                    met.LAT = field;
-                else if (name == "LON")
-                    met.LON = field;
-                met.fields_2d[name] = field;
+                auto new_field = std::make_shared<InteropField<double, 2>>(ptr, std::vector<int>{n_cols, 1});
+                met.bind_2d_field(name, new_field);
             }
         }
 
         void bind_met_field_3d(const std::string& name, double* ptr) {
             std::cout << "[C++ DEBUG] StateManager::bind_met_field_3d: name=" << name << " ptr=" << (void*)ptr << " n_cols=" << n_cols << " n_levels=" << n_levels << std::endl;
-            auto it = met.fields_3d.find(name);
-            if (it != met.fields_3d.end() && it->second) {
-                it->second->update_host_pointer(ptr);
+            auto field = met.get_3d({name.c_str()});
+            if (field) {
+                field->update_host_pointer(ptr);
             } else {
-                int nl = (name == "PEDGE" || name == "PFILSAN" || name == "PFLLSAN") ? n_levels + 1 : n_levels;
-                auto field = std::make_shared<InteropField<double, 3>>(
+                std::string upper_name = name;
+                std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), [](unsigned char c) { return std::toupper(c); });
+                int nl = (upper_name == "PEDGE" || upper_name == "PFILSAN" || upper_name == "PFLLSAN") ? n_levels + 1 : n_levels;
+                auto new_field = std::make_shared<InteropField<double, 3>>(
                     ptr, std::vector<int>{n_cols, nl, 1}); // Using 1 for single-field layout
-                if (name == "T")
-                    met.T = field;
-                else if (name == "QV")
-                    met.QV = field;
-                else if (name == "RH")
-                    met.RH = field;
-                else if (name == "PMID")
-                    met.PMID = field;
-                else if (name == "PEDGE")
-                    met.PEDGE = field;
-                else if (name == "AIRDEN")
-                    met.AIRDEN = field;
-                else if (name == "AIRDEN_DRY")
-                    met.AIRDEN_DRY = field;
-                else if (name == "BXHEIGHT")
-                    met.BXHEIGHT = field;
-                met.fields_3d[name] = field;
+                met.bind_3d_field(name, new_field);
             }
+        }
+
+        double* find_3d_ptr(std::initializer_list<const char*> names) const {
+            auto f = met.get_3d(names);
+            if (f) return f->host_data();
+            if (met.AIRDEN) return met.AIRDEN->host_data();
+            if (met.AIRDEN_DRY) return met.AIRDEN_DRY->host_data();
+            return nullptr;
+        }
+
+        double* find_2d_ptr(std::initializer_list<const char*> names) const {
+            auto f = met.get_2d(names);
+            if (f) return f->host_data();
+            return nullptr;
         }
 
         void bind_unified_chemistry(double* ptr) {

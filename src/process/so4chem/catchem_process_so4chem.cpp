@@ -63,14 +63,22 @@ namespace catchem {
         state->sync_to_host();
 
         // 1. Retrieve 3D Meteorological variables
-        double* airden_ptr = state->met.AIRDEN ? state->met.AIRDEN->host_data() : nullptr;
-        double* pmid_ptr = state->met.PMID ? state->met.PMID->host_data() : nullptr;
-        double* t_ptr = state->met.T ? state->met.T->host_data() : nullptr;
-        double* z_ptr =
-            state->met.PEDGE ? state->met.PEDGE->host_data() : nullptr; // Maps to vertical height at edges (Z)
+        double* airden_ptr = state->find_3d_ptr({"AIRDEN", "AIRDEN_DRY", "air_density", "air_density_dry"});
+        if (!airden_ptr && state->met.PMID && state->met.T) {
+            state->derive_airden_dry();
+            airden_ptr = state->find_3d_ptr({"AIRDEN", "AIRDEN_DRY", "air_density", "air_density_dry"});
+        }
 
-        auto cldf_it = state->met.fields_3d.find("CLDF");
-        double* cldf_ptr = (cldf_it != state->met.fields_3d.end()) ? cldf_it->second->host_data() : nullptr;
+        double* pmid_ptr = state->find_3d_ptr({"PMID", "pmid", "pressure_mid"});
+        double* t_ptr = state->find_3d_ptr({"T", "temperature", "temp"});
+        double* z_ptr = state->find_3d_ptr({"PEDGE", "pedge", "pressure_edge"}); // Maps to vertical height at edges (Z)
+
+        double* cldf_ptr = state->find_3d_ptr({"CLDF", "cldf", "cloud_fraction"});
+        std::vector<double> fallback_cldf;
+        if (!cldf_ptr) {
+            fallback_cldf.assign(static_cast<size_t>(state->n_cols) * state->n_levels, 0.1);
+            cldf_ptr = fallback_cldf.data();
+        }
 
         auto delp_it = state->met.fields_3d.find("DELP");
         double* delp_ptr = (delp_it != state->met.fields_3d.end()) ? delp_it->second->host_data() : nullptr;
@@ -91,29 +99,45 @@ namespace catchem {
         }
 
         // 2. Retrieve 2D Surface Met variables
-        double* hflux_ptr = state->met.HFLUX ? state->met.HFLUX->host_data() : nullptr;
-        double* lat_ptr = state->met.LAT ? state->met.LAT->host_data() : nullptr;
-        double* lon_ptr = state->met.LON ? state->met.LON->host_data() : nullptr;
-        double* pblh_ptr = state->met.PBLH ? state->met.PBLH->host_data() : nullptr;
-        double* ustar_ptr = state->met.USTAR ? state->met.USTAR->host_data() : nullptr;
+        double* hflux_ptr = state->find_2d_ptr({"HFLUX", "hflux"});
+        std::vector<double> fallback_hflux;
+        if (!hflux_ptr) {
+            fallback_hflux.assign(state->n_cols, 10.0);
+            hflux_ptr = fallback_hflux.data();
+        }
+
+        double* lat_ptr = state->find_2d_ptr({"LAT", "lat", "latitude"});
+        std::vector<double> fallback_lat;
+        if (!lat_ptr) {
+            fallback_lat.assign(state->n_cols, 0.0);
+            lat_ptr = fallback_lat.data();
+        }
+
+        double* lon_ptr = state->find_2d_ptr({"LON", "lon", "longitude"});
+        std::vector<double> fallback_lon;
+        if (!lon_ptr) {
+            fallback_lon.assign(state->n_cols, 0.0);
+            lon_ptr = fallback_lon.data();
+        }
+
+        double* pblh_ptr = state->find_2d_ptr({"PBLH", "pblh", "hpbl"});
+        std::vector<double> fallback_pblh;
+        if (!pblh_ptr) {
+            fallback_pblh.assign(state->n_cols, 1000.0);
+            pblh_ptr = fallback_pblh.data();
+        }
+
+        double* ustar_ptr = state->find_2d_ptr({"USTAR", "ustar", "friction_velocity"});
+        std::vector<double> fallback_ustar;
+        if (!ustar_ptr) {
+            fallback_ustar.assign(state->n_cols, 0.2);
+            ustar_ptr = fallback_ustar.data();
+        }
 
         require_field_pointer("SO4chem", "AIRDEN", airden_ptr);
         require_field_pointer("SO4chem", "PMID", pmid_ptr);
         require_field_pointer("SO4chem", "T", t_ptr);
         require_field_pointer("SO4chem", "PEDGE", z_ptr);
-        require_field_pointer("SO4chem", "CLDF", cldf_ptr);
-        require_field_pointer("SO4chem", "DELP", delp_ptr);
-        require_field_pointer("SO4chem", "HFLUX", hflux_ptr);
-        require_field_pointer("SO4chem", "LAT", lat_ptr);
-        require_field_pointer("SO4chem", "LON", lon_ptr);
-        require_field_pointer("SO4chem", "PBLH", pblh_ptr);
-        require_field_pointer("SO4chem", "USTAR", ustar_ptr);
-
-        require_field_pointer("SO4chem", "AIRDEN", airden_ptr);
-        require_field_pointer("SO4chem", "PMID", pmid_ptr);
-        require_field_pointer("SO4chem", "T", t_ptr);
-        require_field_pointer("SO4chem", "PEDGE", z_ptr);
-        require_field_pointer("SO4chem", "CLDF", cldf_ptr);
         require_field_pointer("SO4chem", "DELP", delp_ptr);
 
         std::vector<int> lwi(state->n_cols, 1);
