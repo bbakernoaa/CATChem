@@ -128,6 +128,7 @@ double catchem_config_get_yaml_double(void* core_ptr, const char* yaml_path, dou
 int catchem_config_get_yaml_int(void* core_ptr, const char* yaml_path, int default_val);
 void catchem_config_get_yaml_string(void* core_ptr, const char* yaml_path, char* val_out, int max_len,
                                     const char* default_val);
+void catchem_config_find_fengsha_static_file(void* core_ptr, char* val_out, int max_len);
 int catchem_config_get_yaml_list_count(void* core_ptr, const char* yaml_path);
 void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int index, char* val_out, int max_len);
 

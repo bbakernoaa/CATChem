@@ -622,6 +622,61 @@ static std::string resolve_against_config_path(const std::string& config_file, c
     return config_file.substr(0, slash + 1) + path;
 }
 
+static std::string get_file_setting(const YAML::Node& node) {
+    if (!node || !node.IsMap()) {
+        return "";
+    }
+    for (const char* key : {"source_file", "input_file", "filename", "file", "path"}) {
+        const YAML::Node value = node[key];
+        if (!value || value.IsNull()) {
+            continue;
+        }
+        try {
+            const std::string path = value.as<std::string>();
+            if (!path.empty() && path != "none" && path != "NONE" && path != "null" && path != "NULL" && path != "~") {
+                return path;
+            }
+        } catch (...) {
+        }
+    }
+    return "";
+}
+
+static std::string get_fengsha_static_file_from_processes(const catchem::ConfigManager& config_manager) {
+    const auto& processes = config_manager.data.processes;
+    const auto direct_fengsha = processes.find("fengsha");
+    if (direct_fengsha != processes.end()) {
+        const std::string path = get_file_setting(direct_fengsha->second.settings);
+        if (!path.empty()) {
+            return resolve_against_config_path(config_manager.config_file_path, path);
+        }
+    }
+
+    const auto dust = processes.find("dust");
+    if (dust != processes.end()) {
+        std::string path = get_file_setting(dust->second.settings["fengsha"]);
+        if (path.empty()) {
+            path = get_file_setting(dust->second.settings);
+        }
+        if (!path.empty()) {
+            return resolve_against_config_path(config_manager.config_file_path, path);
+        }
+    }
+
+    const auto extemis = processes.find("extemis");
+    if (extemis != processes.end()) {
+        std::string path = get_file_setting(extemis->second.settings["fengsha"]);
+        if (path.empty()) {
+            path = get_file_setting(extemis->second.settings["dust"]);
+        }
+        if (!path.empty()) {
+            return resolve_against_config_path(config_manager.config_file_path, path);
+        }
+    }
+
+    return "";
+}
+
 int catchem_config_is_emission_category_active(void* core_ptr, const char* category_name) {
     if (core_ptr == nullptr || category_name == nullptr)
         return 0;
@@ -803,6 +858,15 @@ void catchem_config_get_yaml_string(void* core_ptr, const char* yaml_path, char*
         }
     }
     copy_string_to_buffer(default_val ? default_val : "", val_out, max_len);
+}
+
+void catchem_config_find_fengsha_static_file(void* core_ptr, char* val_out, int max_len) {
+    if (core_ptr == nullptr) {
+        copy_string_to_buffer("", val_out, max_len);
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    copy_string_to_buffer(get_fengsha_static_file_from_processes(*core->get_config_manager()), val_out, max_len);
 }
 
 int catchem_config_get_yaml_list_count(void* core_ptr, const char* yaml_path) {
