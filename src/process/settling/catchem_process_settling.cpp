@@ -1,4 +1,5 @@
 #include "catchem_process_settling.hpp"
+#include "catchem_error.hpp"
 #include "catchem_process_registry.hpp"
 #include "catchem_settling_physics.hpp"
 #include <iostream>
@@ -75,10 +76,11 @@ namespace catchem {
             state->met.AIRDEN = state->met.AIRDEN_DRY;
         }
 
-        if (!state->met.T || !state->met.AIRDEN || !state->met.PEDGE || !state->met.BXHEIGHT || !state->chem.conc) {
-            std::cerr << "SettlingProcess: Missing required views!\n";
-            return;
-        }
+        require_field_pointer("Settling", "T", state->met.T ? state->met.T->host_data() : nullptr);
+        require_field_pointer("Settling", "AIRDEN", state->met.AIRDEN ? state->met.AIRDEN->host_data() : nullptr);
+        require_field_pointer("Settling", "PEDGE", state->met.PEDGE ? state->met.PEDGE->host_data() : nullptr);
+        require_field_pointer("Settling", "BXHEIGHT", state->met.BXHEIGHT ? state->met.BXHEIGHT->host_data() : nullptr);
+        require_field_pointer("Settling", "CHEM_CONC", state->chem.conc ? state->chem.conc->host_data() : nullptr);
 
         std::cout << "SettlingProcess: Views exist. Launching kernel for " << num_aerosols << " aerosols.\n";
 

@@ -11,7 +11,7 @@ program test_CATChem_API
 
    type(CATChem_Model) :: model
    real(c_double), target, allocatable :: lat(:,:), lon(:,:), temp(:,:,:)
-   real(c_double), target, allocatable :: sst(:,:), frocean(:,:), frseaice(:,:), ustar(:,:)
+   real(c_double), target, allocatable :: sst(:,:), frocean(:,:), frseaice(:,:), ustar(:,:), u10m(:,:), v10m(:,:)
    real(c_double), target, allocatable :: delp(:,:,:), chem_conc(:,:,:)
    integer :: rc, g_nx, g_ny, g_nz
    integer, parameter :: nx = 4, ny = 2, nz = 5
@@ -60,6 +60,8 @@ program test_CATChem_API
    allocate(frocean(nx, ny))
    allocate(frseaice(nx, ny))
    allocate(ustar(nx, ny))
+   allocate(u10m(nx, ny))
+   allocate(v10m(nx, ny))
    allocate(temp(nx*ny, 1, nz))
    allocate(delp(nx*ny, 1, nz))
    allocate(chem_conc(nx*ny, nz, n_species))
@@ -70,6 +72,8 @@ program test_CATChem_API
    frocean = 1.0_c_double
    frseaice = 0.0_c_double
    ustar = 0.5_c_double
+   u10m = 5.0_c_double
+   v10m = 2.0_c_double
    temp = 290.0_c_double
    delp = 1000.0_c_double
    chem_conc = 0.0_c_double
@@ -80,6 +84,8 @@ program test_CATChem_API
    call model%bind_met_2d('FROCEAN', frocean)
    call model%bind_met_2d('FRSEAICE', frseaice)
    call model%bind_met_2d('USTAR', ustar)
+   call model%bind_met_2d('U10M', u10m)
+   call model%bind_met_2d('V10M', v10m)
    call model%bind_met_3d('T', temp)
    call model%bind_met_3d('DELP', delp)
    call model%bind_unified_chemistry(chem_conc)

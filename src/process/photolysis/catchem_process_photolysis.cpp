@@ -1,6 +1,7 @@
 // src/process/photolysis/catchem_process_photolysis.cpp
 #include "catchem_process_photolysis.hpp"
 #include "catchem_diagnostic_manager.hpp"
+#include "catchem_error.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include <algorithm>
@@ -246,19 +247,26 @@ namespace catchem {
             }
         }
 
+        require_field_pointer("Photolysis", "LAT", state->met.LAT ? state->met.LAT->host_data() : nullptr);
+        require_field_pointer("Photolysis", "LON", state->met.LON ? state->met.LON->host_data() : nullptr);
+        require_field_pointer("Photolysis", "BXHEIGHT", state->met.BXHEIGHT ? state->met.BXHEIGHT->host_data() : nullptr);
+        require_field_pointer("Photolysis", "AIRDEN", state->met.AIRDEN ? state->met.AIRDEN->host_data() : nullptr);
+        require_field_pointer("Photolysis", "T", state->met.T ? state->met.T->host_data() : nullptr);
+        require_field_pointer("Photolysis", "CHEM_CONC", state->chem.conc ? state->chem.conc->host_data() : nullptr);
+
         Logger::debug(state.get(), "Starting column-wise calculation loop");
         for (int i_col = 0; i_col < state->n_cols; ++i_col) {
             std::string col_str = std::to_string(i_col);
             Logger::debug(state.get(), "Calculating SZA for column", {{"col", col_str}});
-            double lat_deg = state->met.LAT ? state->met.LAT->host_view(i_col, 0) : 40.0;
-            double lon_deg = state->met.LON ? state->met.LON->host_view(i_col, 0) : -105.0;
+            double lat_deg = state->met.LAT->host_view(i_col, 0);
+            double lon_deg = state->met.LON->host_view(i_col, 0);
             double cos_sza = state->time.get_cos_sza(lat_deg, lon_deg, true);
             double sza_rad = std::acos(std::max(-1.0, std::min(1.0, cos_sza)));
 
             Logger::debug(state.get(), "Updating grid height edges for column", {{"col", col_str}});
             height_edges[0] = 0.0;
             for (int i_lvl = 0; i_lvl < state->n_levels; ++i_lvl) {
-                double dz_m = state->met.BXHEIGHT ? state->met.BXHEIGHT->host_view(i_col, i_lvl, 0) : 100.0;
+                double dz_m = state->met.BXHEIGHT->host_view(i_col, i_lvl, 0);
                 height_edges[i_lvl + 1] = height_edges[i_lvl] + dz_m / 1000.0;
             }
             if (height_grid) {
@@ -267,10 +275,10 @@ namespace catchem {
 
             Logger::debug(state.get(), "Populating profile midpoint vectors for column", {{"col", col_str}});
             for (int i_lvl = 0; i_lvl < state->n_levels; ++i_lvl) {
-                double airden_kg_m3 = state->met.AIRDEN ? state->met.AIRDEN->host_view(i_col, i_lvl, 0) : 1.2;
+                double airden_kg_m3 = state->met.AIRDEN->host_view(i_col, i_lvl, 0);
                 air_profile[i_lvl] = airden_kg_m3 * 2.079153e19;
                 o2_profile[i_lvl] = air_profile[i_lvl] * 0.2095;
-                temp_profile[i_lvl] = state->met.T ? state->met.T->host_view(i_col, i_lvl, 0) : 280.0;
+                temp_profile[i_lvl] = state->met.T->host_view(i_col, i_lvl, 0);
 
                 if (i_o3 >= 0 && state->chem.conc) {
                     o3_profile[i_lvl] = state->chem.conc->host_view(i_col, i_lvl, i_o3);

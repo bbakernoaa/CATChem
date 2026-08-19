@@ -43,24 +43,14 @@ namespace catchem {
     void SeaSaltProcess::run(std::shared_ptr<StateManager> state) {
         state->sync_to_host();
 
-        // 1. Fetch raw pointers to Met fields dynamically from unordered_maps inside state->met
-        auto frocean_it = state->met.fields_2d.find("FROCEAN");
-        double* frocean_ptr = (frocean_it != state->met.fields_2d.end()) ? frocean_it->second->host_data() : nullptr;
-
-        auto frseaice_it = state->met.fields_2d.find("FRSEAICE");
-        double* frseaice_ptr = (frseaice_it != state->met.fields_2d.end()) ? frseaice_it->second->host_data() : nullptr;
-
-        auto sst_it = state->met.fields_2d.find("SST");
-        double* sst_ptr = (sst_it != state->met.fields_2d.end()) ? sst_it->second->host_data() : nullptr;
-        if (sst_ptr == nullptr && state->met.TS) {
-            sst_ptr = state->met.TS->host_data();
-        }
-
-        auto lat_it = state->met.fields_2d.find("LAT");
-        double* lat_ptr = (lat_it != state->met.fields_2d.end()) ? lat_it->second->host_data() : nullptr;
-
-        auto lon_it = state->met.fields_2d.find("LON");
-        double* lon_ptr = (lon_it != state->met.fields_2d.end()) ? lon_it->second->host_data() : nullptr;
+        double* frocean_ptr = state->find_2d_ptr({"FROCEAN", "frocean"});
+        double* frseaice_ptr = state->find_2d_ptr({"FRSEAICE", "frseaice"});
+        double* sst_ptr = state->find_2d_ptr({"SST", "sst", "TS", "ts", "skin_temperature"});
+        double* lat_ptr = state->find_2d_ptr({"LAT", "lat", "latitude"});
+        double* lon_ptr = state->find_2d_ptr({"LON", "lon", "longitude"});
+        double* ustar_ptr = state->find_2d_ptr({"USTAR", "ustar", "friction_velocity"});
+        double* u10m_ptr = state->find_2d_ptr({"U10M", "u_10m"});
+        double* v10m_ptr = state->find_2d_ptr({"V10M", "v_10m"});
 
         auto delp_it = state->met.fields_3d.find("DELP");
         double* delp_ptr = (delp_it != state->met.fields_3d.end()) ? delp_it->second->host_data() : nullptr;
@@ -80,21 +70,15 @@ namespace catchem {
             }
         }
 
-        double* ustar_ptr = state->met.USTAR ? state->met.USTAR->host_data() : nullptr;
-
         require_field_pointer("SeaSalt", "FROCEAN", frocean_ptr);
         require_field_pointer("SeaSalt", "FRSEAICE", frseaice_ptr);
         require_field_pointer("SeaSalt", "LAT", lat_ptr);
         require_field_pointer("SeaSalt", "LON", lon_ptr);
         require_field_pointer("SeaSalt", "SST", sst_ptr);
         require_field_pointer("SeaSalt", "USTAR", ustar_ptr);
+        require_field_pointer("SeaSalt", "U10M", u10m_ptr);
+        require_field_pointer("SeaSalt", "V10M", v10m_ptr);
         require_field_pointer("SeaSalt", "DELP", delp_ptr);
-
-        require_field_pointer("SeaSalt", "DELP", delp_ptr);
-
-        // Local fallbacks for winds if not bound
-        std::vector<double> u10m(state->n_cols, 5.0);
-        std::vector<double> v10m(state->n_cols, 2.0);
 
         // 2. Identify and slice SeaSalt-only chemical species to comply with science solver limits
         std::vector<int> ss_global_indices;
@@ -165,7 +149,7 @@ namespace catchem {
         // 5. Invoke flat science bridge
         run_seasalt_science_bridge(state->n_cols, state->n_levels, n_seasalt, state->time.timestep,
                                    active_scheme.c_str(), diagnostics_enabled ? 1 : 0, frocean_ptr, frseaice_ptr,
-                                   lat_ptr, lon_ptr, sst_ptr, u10m.data(), v10m.data(), ustar_ptr, delp_ptr,
+                                   lat_ptr, lon_ptr, sst_ptr, u10m_ptr, v10m_ptr, ustar_ptr, delp_ptr,
                                    density.data(), radius.data(), lower_radius.data(), upper_radius.data(),
                                    (bool*)is_gas.data(), mw_g.data(), sliced_conc.data(), mock_tendency.data(),
                                    diag_mass_total_ptr, diag_num_total_ptr, diag_mass_bin.data(), diag_num_bin.data(),

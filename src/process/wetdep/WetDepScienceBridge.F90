@@ -86,24 +86,49 @@ contains
       type(WetDepSchemeJACOBConfig) :: jacob_config
 
       ! Map pointers
-      call c_f_pointer(c_airden_dry, airden_dry, [n_cols, n_levels])
-      call c_f_pointer(c_mairden,    mairden,    [n_cols, n_levels])
-      call c_f_pointer(c_pedge,      pedge,      [n_cols, n_levels+1])
-      call c_f_pointer(c_pfilsan,    pfilsan,    [n_cols, n_levels+1])
-      call c_f_pointer(c_pfllsan,    pfllsan,    [n_cols, n_levels+1])
-      call c_f_pointer(c_reevapls,   reevapls,   [n_cols, n_levels])
-      call c_f_pointer(c_t_air,      t_air,      [n_cols, n_levels])
+      nullify(airden_dry, mairden, pedge, pfilsan, pfllsan, reevapls, t_air)
+      nullify(conc, tendency, diag_mass, diag_flux)
+
+      if (.not. c_associated(c_airden_dry) .and. .not. c_associated(c_mairden)) then
+         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge missing required field AIRDEN / AIRDEN_DRY'
+         call flush(6)
+         error stop "FATAL ERROR: WetDepScienceBridge missing required field AIRDEN"
+      end if
+      if (.not. c_associated(c_pedge)) then
+         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge missing required field PEDGE'
+         call flush(6)
+         error stop "FATAL ERROR: WetDepScienceBridge missing required field PEDGE"
+      end if
+      if (.not. c_associated(c_t_air)) then
+         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge missing required field T'
+         call flush(6)
+         error stop "FATAL ERROR: WetDepScienceBridge missing required field T"
+      end if
+      if (.not. c_associated(c_conc) .or. .not. c_associated(c_tendency)) then
+         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge missing required concentration or tendency pointers'
+         call flush(6)
+         error stop "FATAL ERROR: WetDepScienceBridge missing required concentration or tendency pointers"
+      end if
+
+      if (c_associated(c_airden_dry)) call c_f_pointer(c_airden_dry, airden_dry, [n_cols, n_levels])
+      if (c_associated(c_mairden))    call c_f_pointer(c_mairden,    mairden,    [n_cols, n_levels])
+      if (c_associated(c_pedge))      call c_f_pointer(c_pedge,      pedge,      [n_cols, n_levels+1])
+      if (c_associated(c_pfilsan))    call c_f_pointer(c_pfilsan,    pfilsan,    [n_cols, n_levels+1])
+      if (c_associated(c_pfllsan))    call c_f_pointer(c_pfllsan,    pfllsan,    [n_cols, n_levels+1])
+      if (c_associated(c_reevapls))   call c_f_pointer(c_reevapls,   reevapls,   [n_cols, n_levels])
+      if (c_associated(c_t_air))      call c_f_pointer(c_t_air,      t_air,      [n_cols, n_levels])
 
       call c_f_pointer(c_conc,     conc,     [n_cols, n_levels, n_species])
       call c_f_pointer(c_tendency, tendency, [n_cols, n_levels, n_species])
 
       if (diagnostics /= 0) then
-         call c_f_pointer(c_diag_mass, diag_mass, [n_cols, n_levels, n_species])
-         call c_f_pointer(c_diag_flux, diag_flux, [n_cols, n_levels, n_species])
+         if (c_associated(c_diag_mass)) call c_f_pointer(c_diag_mass, diag_mass, [n_cols, n_levels, n_species])
+         if (c_associated(c_diag_flux)) call c_f_pointer(c_diag_flux, diag_flux, [n_cols, n_levels, n_species])
       end if
 
       ! Extract real species names from flat char array passed via BIND(C)
       do i = 1, n_species
+         dummy_sp_names(i) = ""
          do j = 1, 32
             dummy_sp_names(i)(j:j) = species_names(j, i)
          end do
@@ -125,15 +150,26 @@ contains
 
       ! Iterate columns
       do icol = 1, n_cols
-         f_airden_dry   = real(airden_dry(icol, :), fp)
-         f_mairden      = real(mairden(icol, :), fp)
-         f_pedge        = real(pedge(icol, :), fp)
-         f_pfilsan      = real(pfilsan(icol, :), fp)
-         f_pfllsan      = real(pfllsan(icol, :), fp)
-         f_reevapls     = real(reevapls(icol, :), fp)
-         f_t_air        = real(t_air(icol, :), fp)
+         if (associated(airden_dry)) then
+            f_airden_dry = real(airden_dry(icol, :), fp)
+         else
+            f_airden_dry = real(mairden(icol, :), fp)
+         end if
 
-         f_conc         = real(conc(icol, :, :), fp)
+         if (associated(mairden)) then
+            f_mairden = real(mairden(icol, :), fp)
+         else
+            f_mairden = f_airden_dry
+         end if
+
+         f_pedge = real(pedge(icol, :), fp)
+         f_t_air = real(t_air(icol, :), fp)
+
+         if (associated(pfilsan))    then; f_pfilsan  = real(pfilsan(icol, :), fp);  else; f_pfilsan  = 0.0_fp; end if
+         if (associated(pfllsan))    then; f_pfllsan  = real(pfllsan(icol, :), fp);  else; f_pfllsan  = 0.0_fp; end if
+         if (associated(reevapls))   then; f_reevapls = real(reevapls(icol, :), fp); else; f_reevapls = 0.0_fp; end if
+
+         f_conc = real(conc(icol, :, :), fp)
          col_tendencies = 0.0_fp
          col_diag_mass  = 0.0_fp
          col_diag_flux  = 0.0_fp
