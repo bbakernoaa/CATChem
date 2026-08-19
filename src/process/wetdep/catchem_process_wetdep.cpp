@@ -60,7 +60,7 @@ namespace catchem {
         double* pfilsan_ptr = (pfilsan_it != state->met.fields_3d.end()) ? pfilsan_it->second->host_data() : nullptr;
         std::vector<double> pfilsan_fallback;
         if (pfilsan_ptr == nullptr) {
-            pfilsan_fallback.assign(static_cast<size_t>(state->n_cols) * (state->n_levels + 1), 0.0);
+            pfilsan_fallback.assign(static_cast<size_t>(state->n_cols) * state->n_levels, 0.0);
             pfilsan_ptr = pfilsan_fallback.data();
         }
 
@@ -68,7 +68,7 @@ namespace catchem {
         double* pfllsan_ptr = (pfllsan_it != state->met.fields_3d.end()) ? pfllsan_it->second->host_data() : nullptr;
         std::vector<double> pfllsan_fallback;
         if (pfllsan_ptr == nullptr) {
-            pfllsan_fallback.assign(static_cast<size_t>(state->n_cols) * (state->n_levels + 1), 0.0);
+            pfllsan_fallback.assign(static_cast<size_t>(state->n_cols) * state->n_levels, 0.0);
             pfllsan_ptr = pfllsan_fallback.data();
         }
 

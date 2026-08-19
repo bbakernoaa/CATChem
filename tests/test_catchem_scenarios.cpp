@@ -308,8 +308,8 @@ int main(int argc, char* argv[]) {
             std::vector<double> mairden(size_3d);
             std::vector<double> bxheight(size_3d);
             std::vector<double> cldf(size_3d, 0.1);
-            std::vector<double> pfilsan(n_cols * (n_levels + 1), sc.precip_rate);
-            std::vector<double> pfllsan(n_cols * (n_levels + 1), sc.precip_rate);
+            std::vector<double> pfilsan(size_3d, sc.precip_rate);
+            std::vector<double> pfllsan(size_3d, sc.precip_rate);
             std::vector<double> reevapls(size_3d, 0.0);
             std::vector<double> lat(n_cols, sc.lat);
             std::vector<double> lon(n_cols, sc.lon);

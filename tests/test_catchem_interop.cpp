@@ -660,8 +660,8 @@ int main(int argc, char* argv[]) {
             std::vector<double> mock_airden(n_cols * n_levels, 1.2);
             std::vector<double> mock_mairden(n_cols * n_levels, 1.2);
             std::vector<double> mock_pedge(n_cols * (n_levels + 1), 100000.0);
-            std::vector<double> mock_pfilsan(n_cols * (n_levels + 1), 0.05);
-            std::vector<double> mock_pfllsan(n_cols * (n_levels + 1), 0.05);
+            std::vector<double> mock_pfilsan(n_cols * n_levels, 0.05);
+            std::vector<double> mock_pfllsan(n_cols * n_levels, 0.05);
             std::vector<double> mock_reevapls(n_cols * n_levels, 0.0);
             std::vector<double> mock_t(n_cols * n_levels, 288.15);
 

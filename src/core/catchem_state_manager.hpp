@@ -61,7 +61,7 @@ namespace catchem {
             } else {
                 std::string upper_name = name;
                 std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), [](unsigned char c) { return std::toupper(c); });
-                int nl = (upper_name == "PEDGE" || upper_name == "PFILSAN" || upper_name == "PFLLSAN") ? n_levels + 1 : n_levels;
+                int nl = (upper_name == "PEDGE") ? n_levels + 1 : n_levels;
                 auto new_field = std::make_shared<InteropField<double, 3>>(
                     ptr, std::vector<int>{n_cols, nl, 1}); // Using 1 for single-field layout
                 met.bind_3d_field(name, new_field);

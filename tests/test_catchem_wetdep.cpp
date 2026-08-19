@@ -48,8 +48,8 @@ int main(int argc, char* argv[]) {
         std::vector<double> pedge(n_cols * (n_levels + 1), 101300.0);
         std::vector<double> bxheight(n_cols * n_levels, 100.0);
         std::vector<double> cldf(n_cols * n_levels, 0.3);
-        std::vector<double> pfilsan(n_cols * (n_levels + 1), 1.0e-5);
-        std::vector<double> pfllsan(n_cols * (n_levels + 1), 1.0e-5);
+        std::vector<double> pfilsan(n_cols * n_levels, 1.0e-5);
+        std::vector<double> pfllsan(n_cols * n_levels, 1.0e-5);
         std::vector<double> reevapls(n_cols * n_levels, 0.0);
         std::vector<double> delp(n_cols * n_levels, 1000.0);
         std::vector<double> chem_conc(n_cols * n_levels * n_species, 1.0e-8);

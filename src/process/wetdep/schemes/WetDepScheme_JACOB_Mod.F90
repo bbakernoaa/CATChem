@@ -126,8 +126,8 @@ contains
       real(fp), intent(in) :: airden_dry(num_layers)    ! 3D atmospheric field
       real(fp), intent(in) :: mairden(num_layers)    ! 3D atmospheric field
       real(fp), intent(in) :: pedge(num_layers+1)  ! Edge field - requires nz+1 dimensions
-      real(fp), intent(in) :: pfilsan(num_layers+1)    ! 3D atmospheric field
-      real(fp), intent(in) :: pfllsan(num_layers+1)    ! 3D atmospheric field
+      real(fp), intent(in) :: pfilsan(num_layers)    ! layer-centered ice nonconvective precipitation tendency
+      real(fp), intent(in) :: pfllsan(num_layers)    ! layer-centered liquid nonconvective precipitation tendency
       real(fp), intent(in) :: reevapls(num_layers)    ! 3D atmospheric field
       real(fp), intent(in) :: t(num_layers)    ! 3D atmospheric field
       real(fp), intent(in) :: tstep  ! Time step [s] - from process interface
@@ -248,15 +248,14 @@ contains
          !   pdwn(k) = kg_to_cm3_liq * pfllsan(k) + kg_to_cm3_ice * pfilsan(k)
          !else
 
-         !Here we follow GOCART with an additional index; otherwise, uncomment the if else statement above
-         ! -- liquid/ice precipitation formation in grid cell (kg/m2/s)
-         dqls = pfllsan(k) - pfllsan(km1)
-         dqis = pfilsan(k) - pfilsan(km1)
+         ! PFLLSAN/PFILSAN are FV3 layer-centered tendency fields (nlev), not interface fluxes.
+         dqls = pfllsan(k)
+         dqis = pfilsan(k)
          ! -- GOCART-style precip-formation flux divergence [kg/m2/s] (>0 forming, <0 evaporating)
          !    used by the sulfate resuspension branch in washout_loss
          dprecip(k) = dqls + dqis
          ! -- precipitation flux from upper level (convert from kg/m2/s to cm3/cm2/s)
-         pdwn(k) = kg_to_cm3_liq * pfllsan(km1) + kg_to_cm3_ice * pfilsan(km1)
+         pdwn(k) = kg_to_cm3_liq * pfllsan(k) + kg_to_cm3_ice * pfilsan(k)
 
          !end if ! if (k == ktop)
 
