@@ -242,7 +242,7 @@ contains
       ! Local variables
       integer :: localrc, icat, n_categories, active_category_index
       logical :: extemis_activate, category_active, force_static_dust_category
-      character(len=EMIS_MAXSTR) :: msg, category_name, source_file
+      character(len=EMIS_MAXSTR) :: msg, category_name, source_file, alternate_source_file
       character(len=*), parameter :: pName = 'catchem_emis_init'
 
       ! Initialize
@@ -287,9 +287,17 @@ contains
             call catchem_config_get_yaml_string(core_ptr, 'processes/extemis/dust/source_file' // c_null_char, &
                source_file, 256_c_int, '' // c_null_char)
             call clean_c_string(source_file)
+            call catchem_config_get_yaml_string(core_ptr, 'process/extemis/dust/source_file' // c_null_char, &
+               alternate_source_file, 256_c_int, '' // c_null_char)
+            call clean_c_string(alternate_source_file)
+            if (len_trim(source_file) == 0) source_file = alternate_source_file
+
             force_static_dust_category = (len_trim(source_file) > 0 .and. &
                (catchem_config_get_yaml_bool(core_ptr, 'processes/dust/activate' // c_null_char, 0_c_int) /= 0 .or. &
-               catchem_config_get_yaml_bool(core_ptr, 'processes/fengsha/activate' // c_null_char, 0_c_int) /= 0))
+               catchem_config_get_yaml_bool(core_ptr, 'processes/dust/fengsha/activate' // c_null_char, 0_c_int) /= 0 .or. &
+               catchem_config_get_yaml_bool(core_ptr, 'processes/fengsha/activate' // c_null_char, 0_c_int) /= 0 .or. &
+               catchem_config_get_yaml_bool(core_ptr, 'process/dust/activate' // c_null_char, 0_c_int) /= 0 .or. &
+               catchem_config_get_yaml_bool(core_ptr, 'process/dust/fengsha/activate' // c_null_char, 0_c_int) /= 0))
          end if
 
          if (category_active .or. force_static_dust_category) then
@@ -302,7 +310,12 @@ contains
             end if
 
             active_category_index = ext_emis_data%n_categories
-            if (force_static_dust_category) ext_emis_data%categories(active_category_index)%is_active = .true.
+            if (force_static_dust_category) then
+               ext_emis_data%categories(active_category_index)%is_active = .true.
+               if (len_trim(ext_emis_data%categories(active_category_index)%source_file) == 0) then
+                  ext_emis_data%categories(active_category_index)%source_file = trim(source_file)
+               end if
+            end if
             call catchem_emis_setup_timing(ext_emis_data%categories(active_category_index), clock, localrc)
             if (localrc /= CC_SUCCESS) then
                write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed timing setup for category: ', trim(category_name)
