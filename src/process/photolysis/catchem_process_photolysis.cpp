@@ -25,30 +25,12 @@ namespace catchem {
     void PhotolysisProcess::init(std::shared_ptr<StateManager> state) {
         Logger::debug(state.get(), "PhotolysisProcess::init started");
         if (state->config_mgr) {
-            try {
-                YAML::Node photo_node = state->config_mgr->get_process_config(ProcessNames::Photolysis);
-                if (photo_node.IsDefined() && photo_node["config_file"]) {
-                    this->config_path = photo_node["config_file"].as<std::string>();
-                }
-            } catch (const std::exception& e) {
-                std::cerr << "PhotolysisProcess: Error: failed to parse config from ConfigManager: " << e.what()
-                          << std::endl;
-                throw std::runtime_error(std::string("PhotolysisProcess: failed to parse config from ConfigManager: ") +
-                                         e.what());
+            std::string cfg = state->config_mgr->get_string("processes/photolysis/config_file", "");
+            if (cfg.empty()) {
+                cfg = state->config_mgr->get_string("process/photolysis/config_file", "");
             }
-        } else if (!state->config_file_path.empty()) {
-            try {
-                YAML::Node main_config = YAML::LoadFile(state->config_file_path);
-                std::string photolysis_key(ProcessNames::Photolysis);
-                if (main_config["process"] && main_config["process"][photolysis_key]) {
-                    auto photo_node = main_config["process"][photolysis_key];
-                    if (photo_node["config_file"]) {
-                        this->config_path = photo_node["config_file"].as<std::string>();
-                    }
-                }
-            } catch (const std::exception& e) {
-                std::cerr << "PhotolysisProcess: Error: failed to parse main config: " << e.what() << std::endl;
-                throw std::runtime_error(std::string("PhotolysisProcess: failed to parse main config: ") + e.what());
+            if (!cfg.empty()) {
+                this->config_path = cfg;
             }
         }
 

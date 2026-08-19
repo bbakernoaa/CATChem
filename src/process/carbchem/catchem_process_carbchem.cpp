@@ -90,10 +90,11 @@ namespace catchem {
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);
 
         // 4. Retrieve species properties from ChemState
-        std::vector<double> t_chem_loss(state->n_species, 0.0);
+        std::vector<double> t_chem_loss(state->n_species, 1.0);
         for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
-            // Mock t_chem_loss for carbchem if not directly in metadata struct
-            t_chem_loss[i] = 1.0;
+            if (state->chem.species_list[i].t_chem_loss > 0.0) {
+                t_chem_loss[i] = state->chem.species_list[i].t_chem_loss;
+            }
         }
 
         // 5. Invoke flat science bridge

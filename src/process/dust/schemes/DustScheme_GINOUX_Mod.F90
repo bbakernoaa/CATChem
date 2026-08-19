@@ -260,6 +260,11 @@ contains
       !-----------------
       real(fp) :: diameter !< diameter of particle [m]
 
+      if (radius <= 0.0_fp .or. soil_density <= 0.0_fp .or. air_density <= 0.0_fp) then
+         ustar_threshold = 0.0_fp
+         return
+      end if
+
       diameter = 2.0_fp * radius * 1.0e-6_fp !< convert radius to meters
       ustar_threshold = 0.13_fp * sqrt(soil_density*g0*diameter/air_density) &
          * sqrt(1.0_fp + 6.e-7_fp/(soil_density*g0*diameter**2.5_fp)) &

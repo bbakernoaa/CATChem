@@ -136,16 +136,23 @@ namespace catchem {
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);
 
-        // 4. Retrieve species properties from ChemState
+        // 4. Retrieve species properties from ChemState with non-zero fallbacks
         std::vector<double> density(state->n_species, 2500.0);
         std::vector<double> radius(state->n_species, 1e-6);
         std::vector<double> lower_radius(state->n_species, 1e-7);
         std::vector<double> upper_radius(state->n_species, 1e-5);
         for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
-            density[i] = state->chem.species_list[i].density;
-            radius[i] = state->chem.species_list[i].radius;
-            lower_radius[i] = state->chem.species_list[i].lower_radius;
-            upper_radius[i] = state->chem.species_list[i].upper_radius;
+            if (state->chem.species_list[i].density > 0.0)
+                density[i] = state->chem.species_list[i].density;
+            if (state->chem.species_list[i].radius > 0.0)
+                radius[i] = state->chem.species_list[i].radius;
+            if (state->chem.species_list[i].lower_radius > 0.0)
+                lower_radius[i] = state->chem.species_list[i].lower_radius;
+            if (state->chem.species_list[i].upper_radius > 0.0)
+                upper_radius[i] = state->chem.species_list[i].upper_radius;
+
+            if (lower_radius[i] <= 0.0) lower_radius[i] = radius[i] * 0.1;
+            if (upper_radius[i] <= lower_radius[i]) upper_radius[i] = radius[i] * 2.0;
         }
 
         // 5. Invoke flat science bridge

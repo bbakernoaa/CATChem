@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <cctype>
 #include <iostream>
-#include <yaml-cpp/yaml.h>
 
 namespace catchem {
 
@@ -17,33 +16,14 @@ namespace catchem {
     void GasChemProcess::init(std::shared_ptr<StateManager> state) {
         Logger::debug(state.get(), "GasChemProcess::init started");
 
-        // 1. Resolve configuration directory path dynamically
+        // 1. Resolve configuration directory path dynamically via ConfigManager
         if (state->config_mgr) {
-            try {
-                YAML::Node gas_node = state->config_mgr->get_process_config(ProcessNames::GasChem);
-                if (gas_node.IsDefined() && gas_node["config_dir"]) {
-                    this->config_dir = gas_node["config_dir"].as<std::string>();
-                }
-            } catch (const std::exception& e) {
-                std::cerr << "GasChemProcess: Error: failed to parse config from ConfigManager: " << e.what()
-                          << std::endl;
-                throw std::runtime_error(std::string("GasChemProcess: failed to parse config from ConfigManager: ") +
-                                         e.what());
+            std::string dir = state->config_mgr->get_string("processes/gaschem/config_dir", "");
+            if (dir.empty()) {
+                dir = state->config_mgr->get_string("process/gaschem/config_dir", "");
             }
-        } else if (!state->config_file_path.empty()) {
-            try {
-                YAML::Node main_config = YAML::LoadFile(state->config_file_path);
-                std::string gaschem_key(ProcessNames::GasChem);
-                if (main_config["process"] && main_config["process"][gaschem_key]) {
-                    auto gas_node = main_config["process"][gaschem_key];
-                    if (gas_node["config_dir"]) {
-                        this->config_dir = gas_node["config_dir"].as<std::string>();
-                    }
-                }
-            } catch (const std::exception& e) {
-                std::cerr << "GasChemProcess: Error: failed to parse main config for gaschem: " << e.what()
-                          << std::endl;
-                throw std::runtime_error(std::string("GasChemProcess: failed to parse main config: ") + e.what());
+            if (!dir.empty()) {
+                this->config_dir = dir;
             }
         }
 

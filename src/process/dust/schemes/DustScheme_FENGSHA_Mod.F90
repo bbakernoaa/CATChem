@@ -336,7 +336,11 @@ contains
       end if
       if (present(dust_effective_threshold)) then
          ! Add your custom effective dust threshold friction velocity: u_thres * h / r calculation
-         dust_effective_threshold = ustar_threshold * H / R
+         if (abs(R) > 1.0e-12_fp) then
+            dust_effective_threshold = ustar_threshold * H / R
+         else
+            dust_effective_threshold = 0.0_fp
+         end if
       end if
 
    end subroutine compute_fengsha
@@ -388,16 +392,25 @@ contains
       nbins = size(radius)
 
       do n = 1, nbins
-         diameter = radius(n) * 2.0_fp
-         dlam = diameter / lambda
-         dist(n) = diameter * (1._fp + erf(factor * log(diameter/mmd))) * exp(-dlam * dlam * dlam) * log(rUp(n)/rLow(n))
-         dvol = dvol + dist(n)
+         if (radius(n) > 0.0_fp .and. rLow(n) > 0.0_fp .and. rUp(n) > rLow(n)) then
+            diameter = radius(n) * 2.0_fp
+            dlam = diameter / lambda
+            dist(n) = diameter * (1._fp + erf(factor * log(diameter/mmd))) * exp(-dlam * dlam * dlam) * log(rUp(n)/rLow(n))
+            if (dist(n) /= dist(n) .or. dist(n) < 0.0_fp) then
+               dist(n) = 0.0_fp
+            end if
+            dvol = dvol + dist(n)
+         else
+            dist(n) = 0.0_fp
+         end if
       end do
 
       ! Normalize Distribution
-      do n = 1, nbins
-         dist(n) = dist(n) / dvol
-      end do
+      if (dvol > 0.0_fp) then
+         do n = 1, nbins
+            dist(n) = dist(n) / dvol
+         end do
+      end if
 
    end subroutine KokDistribution
 
@@ -500,9 +513,12 @@ contains
       real(fp), intent(in) :: sig, m, Beta, Lc
       real(fp) :: feff
       real(fp) :: R1, R2
+      real(fp) :: denom1, denom2
 
-      R1 = 1.0_fp / sqrt(1.0_fp - sig * m * Lc)
-      R2 = 1.0_fp / sqrt(1.0_fp + m * Beta * Lc)
+      denom1 = max(1.0e-6_fp, 1.0_fp - sig * m * Lc)
+      denom2 = max(1.0e-6_fp, 1.0_fp + m * Beta * Lc)
+      R1 = 1.0_fp / sqrt(denom1)
+      R2 = 1.0_fp / sqrt(denom2)
       feff = R1 * R2
    end function calc_drag_partition
 
@@ -700,7 +716,12 @@ contains
       !--------------------------------------------
       ! MB95 Drag Partition
       !--------------------------------------------
-      R = 1.0_fp - (log(z0 / z0s ) / log(0.7_fp * (0.1_fp / z0s) ** 0.8_fp))
+      if (z0 > 0.0_fp) then
+         R = 1.0_fp - (log(max(z0s, z0) / z0s ) / log(0.7_fp * (0.1_fp / z0s) ** 0.8_fp))
+         R = max(0.0_fp, min(1.0_fp, R))
+      else
+         R = 1.0_fp
+      end if
       return
 
    end subroutine MB95_DragPartition
@@ -742,9 +763,8 @@ contains
       !--------------------------------------------
       ! Compute Draxler Horizontal Flux
       !--------------------------------------------
-      u_ts = ustar_threshold * H / R
-
-      if (ustar >= ustar_threshold) then
+      if (R > 1.0e-12_fp .and. ustar > 1.0e-12_fp .and. ustar >= ustar_threshold) then
+         u_ts = ustar_threshold * H / R
          HorizFlux = max(0._fp ,(ustar * R) ** 3.0_fp * (1.0_fp - ( u_ts / ustar ) ** 2.0_fp))
       endif
 
@@ -785,9 +805,10 @@ contains
       !--------------------------------------------
       ! Compute Kawamura Horizontal Flux
       !--------------------------------------------
-      u_ts = ustar_threshold * H / R
-
-      HorizFlux = MAX(0._fp, (ustar ** 3.0_fp * (1.0_fp - (u_ts / ustar) ** 2.0_fp) * (1.0_fp + (u_ts / ustar) ** 2.0_fp ) ) )
+      if (R > 1.0e-12_fp .and. ustar > 1.0e-12_fp .and. ustar >= ustar_threshold) then
+         u_ts = ustar_threshold * H / R
+         HorizFlux = MAX(0._fp, (ustar ** 3.0_fp * (1.0_fp - (u_ts / ustar) ** 2.0_fp) * (1.0_fp + (u_ts / ustar) ** 2.0_fp ) ) )
+      endif
 
    end subroutine Kawamura_HorizFlux
 

@@ -108,15 +108,18 @@ namespace catchem {
         for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
             auto& meta = state->chem.species_list[i];
             if (meta.is_seasalt) {
-                std::cout << "DEBUG SS: species=" << meta.short_name << ", lower_radius=" << meta.lower_radius
-                          << ", upper_radius=" << meta.upper_radius << std::endl;
                 ss_global_indices.push_back(i);
-                density.push_back(meta.density);
-                radius.push_back(meta.radius);
-                lower_radius.push_back(meta.lower_radius);
-                upper_radius.push_back(meta.upper_radius);
+                double d_val = meta.density > 0.0 ? meta.density : 2200.0;
+                double r_val = meta.radius > 0.0 ? meta.radius : 1.0e-6;
+                double lr_val = meta.lower_radius > 0.0 ? meta.lower_radius : r_val * 0.1;
+                double ur_val = meta.upper_radius > lr_val ? meta.upper_radius : r_val * 2.0;
+
+                density.push_back(d_val);
+                radius.push_back(r_val);
+                lower_radius.push_back(lr_val);
+                upper_radius.push_back(ur_val);
                 is_gas.push_back(meta.is_gas ? 1 : 0);
-                mw_g.push_back(meta.mw_g);
+                mw_g.push_back(meta.mw_g > 0.0 ? meta.mw_g : 58.44);
             }
         }
 

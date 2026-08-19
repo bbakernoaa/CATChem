@@ -30,8 +30,10 @@ namespace catchem {
             for (int i = 0; i < num_aerosols; ++i) {
                 int ispec = state->chem.aerosol_indices[i];
                 host_aero_indices[i] = ispec;
-                host_radius_dry[i] = state->chem.species_list[ispec].radius * 1e-6; // Convert microns to meters
-                host_rhop_dry[i] = state->chem.species_list[ispec].density;
+                double r_val = state->chem.species_list[ispec].radius;
+                double d_val = state->chem.species_list[ispec].density;
+                host_radius_dry[i] = (r_val > 0.0 ? r_val : 1.0) * 1e-6; // Convert microns to meters
+                host_rhop_dry[i] = d_val > 0.0 ? d_val : 2500.0;
                 std::cout << "DEBUG INIT: Aerosol " << i << ": species index=" << ispec
                           << ", name=" << state->chem.species_list[ispec].short_name
                           << ", radius_dry=" << host_radius_dry[i] << ", density=" << host_rhop_dry[i] << std::endl;

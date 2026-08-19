@@ -131,7 +131,8 @@ namespace catchem {
         // 4. Retrieve species properties from ChemState
         std::vector<double> mw_g(state->n_species, 29.0);
         for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
-            mw_g[i] = state->chem.species_list[i].mw_g;
+            if (state->chem.species_list[i].mw_g > 0.0)
+                mw_g[i] = state->chem.species_list[i].mw_g;
         }
 
         // 5. Invoke flat science bridge

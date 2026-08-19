@@ -1310,6 +1310,10 @@ contains
       !=================================================================
       ! DIFFG begins here!
       !=================================================================
+      if (XM <= 0.0_fp .or. TK <= 0.0_fp) then
+         DIFF_G = 1.0e-5_fp
+         return
+      end if
 
       ! Air density [molec/m3]
       AIRDEN = ( PRESS * AVO ) / ( RSTARG * TK )

@@ -106,8 +106,8 @@ namespace catchem {
             wd_LiqAndGas[i] = meta.wd_LiqAndGas ? 1 : 0;
             wd_convfacI2G[i] = meta.wd_convfacI2G;
             wd_reevap_frac[i] = 1.0; // dummy default
-            radius[i] = meta.radius;
-            mw_g[i] = meta.mw_g;
+            if (meta.radius > 0.0) radius[i] = meta.radius;
+            if (meta.mw_g > 0.0) mw_g[i] = meta.mw_g;
 
             // Fill rainouteff safely up to 3 efficiency factors
             for (int k = 0; k < 3; ++k) {

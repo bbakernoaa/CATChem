@@ -516,25 +516,79 @@ namespace catchem {
         if (!species_root || !species_root.IsSequence()) {
             return;
         }
+
+        auto get_bool = [](const YAML::Node& n, const std::string& key, bool def) {
+            if (n["__" + key]) { try { return n["__" + key].as<bool>(); } catch (...) {} }
+            if (n[key]) { try { return n[key].as<bool>(); } catch (...) {} }
+            return def;
+        };
+        auto get_double = [](const YAML::Node& n, const std::string& key, double def) {
+            if (n["__" + key]) { try { return n["__" + key].as<double>(); } catch (...) {} }
+            if (n[key]) { try { return n[key].as<double>(); } catch (...) {} }
+            return def;
+        };
+        auto get_str = [](const YAML::Node& n, const std::string& key, const std::string& def) {
+            if (n["__" + key]) { try { return n["__" + key].as<std::string>(); } catch (...) {} }
+            if (n[key]) { try { return n[key].as<std::string>(); } catch (...) {} }
+            return def;
+        };
+
         for (const auto& species_node : species_root) {
             SpeciesConfig species;
             species.name = value_or<std::string>(species_node["name"], "");
-            species.long_name = value_or<std::string>(species_node["__long_name"], "");
-            species.description = value_or<std::string>(species_node["__description"], "");
-            species.molecular_weight_kg_mol = value_or<double>(species_node["molecular weight [kg mol-1]"], 0.0);
-            species.density = value_or<double>(species_node["__density"], 0.0);
-            species.radius = value_or<double>(species_node["__radius"], 0.0);
-            species.lower_radius = value_or<double>(species_node["__lower_radius"], 0.0);
-            species.upper_radius = value_or<double>(species_node["__upper_radius"], 0.0);
-            species.viscosity = value_or<double>(species_node["__viscosity"], 0.0);
-            species.is_gas = value_or<bool>(species_node["__is_gas"], false);
-            species.is_aerosol = value_or<bool>(species_node["__is_aerosol"], false);
-            species.is_dust = value_or<bool>(species_node["__is_dust"], false);
-            species.is_drydep = value_or<bool>(species_node["__is_drydep"], false);
-            species.is_wetdep = value_or<bool>(species_node["__is_wetdep"], false);
-            species.is_advected = value_or<bool>(species_node["__is_advected"], true);
-            species.is_photolysis = value_or<bool>(species_node["__is_photolysis"], false);
-            species.mie_name = value_or<std::string>(species_node["__mie_name"], "");
+            species.long_name = get_str(species_node, "long_name", species.name);
+            species.description = get_str(species_node, "description", "");
+
+            species.is_gas = get_bool(species_node, "is_gas", false);
+            species.is_aerosol = get_bool(species_node, "is_aerosol", false);
+            species.is_tracer = get_bool(species_node, "is_tracer", false);
+            species.is_advected = get_bool(species_node, "is_advected", true);
+            species.is_drydep = get_bool(species_node, "is_drydep", false);
+            species.is_wetdep = get_bool(species_node, "is_wetdep", false);
+            species.is_photolysis = get_bool(species_node, "is_photolysis", false);
+            species.is_gocart_aero = get_bool(species_node, "is_gocart_aero", false);
+            species.is_dust = get_bool(species_node, "is_dust", false);
+            species.is_seasalt = get_bool(species_node, "is_seasalt", false);
+
+            if (species_node["molecular weight [kg mol-1]"]) {
+                species.molecular_weight_kg_mol = species_node["molecular weight [kg mol-1]"].as<double>();
+            } else if (species_node["molecular_weight_kg_mol"]) {
+                species.molecular_weight_kg_mol = species_node["molecular_weight_kg_mol"].as<double>();
+            } else {
+                species.molecular_weight_kg_mol = get_double(species_node, "mw_g", 0.0) / 1000.0;
+            }
+            species.mw_g = species.molecular_weight_kg_mol * 1000.0;
+
+            species.density = get_double(species_node, "density", 0.0);
+            species.radius = get_double(species_node, "radius", 0.0);
+            species.lower_radius = get_double(species_node, "lower_radius", 0.0);
+            species.upper_radius = get_double(species_node, "upper_radius", 0.0);
+            species.viscosity = get_double(species_node, "viscosity", 0.0);
+
+            species.dd_f0 = get_double(species_node, "dd_f0", 0.0);
+            species.dd_hstar = get_double(species_node, "dd_hstar", 0.0);
+            species.dd_DvzAerSnow = get_double(species_node, "dd_DvzAerSnow", 0.0);
+            species.dd_DvzMinVal_snow = get_double(species_node, "dd_DvzMinVal_snow", 0.0);
+            species.dd_DvzMinVal_land = get_double(species_node, "dd_DvzMinVal_land", 0.0);
+
+            species.henry_k0 = get_double(species_node, "henry_k0", 0.0);
+            species.henry_cr = get_double(species_node, "henry_cr", 0.0);
+            species.henry_pKa = get_double(species_node, "henry_pKa", 0.0);
+            species.wd_retfactor = get_double(species_node, "wd_retfactor", 0.0);
+            species.wd_LiqAndGas = get_bool(species_node, "wd_LiqAndGas", false);
+            species.wd_convfacI2G = get_double(species_node, "wd_convfacI2G", 0.0);
+
+            if (species_node["__wd_rainouteff"]) {
+                species.wd_rainouteff = species_node["__wd_rainouteff"].as<std::vector<double>>();
+            } else if (species_node["wd_rainouteff"]) {
+                species.wd_rainouteff = species_node["wd_rainouteff"].as<std::vector<double>>();
+            }
+            species.wd_reevap_frac = get_double(species_node, "wd_reevap_frac", 0.5);
+
+            species.t_chem_loss = get_double(species_node, "t_chem_loss", -1.0);
+            species.BackgroundVV = get_double(species_node, "BackgroundVV", 1.0e-20);
+            species.mie_name = get_str(species_node, "mie_name", "");
+
             data.species.push_back(species);
         }
     }

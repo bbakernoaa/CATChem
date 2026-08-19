@@ -40,7 +40,7 @@ namespace catchem {
 
         StateManager(int nc, int nl, int ns);
 
-        void load_species_config(const std::string& filename) { chem.load_species_config(filename); }
+        void load_species_config(const std::string& filename) { chem.load_species_config(filename, config_mgr.get()); }
 
         void bind_met_field_2d(const std::string& name, double* ptr) {
             std::cout << "[C++ DEBUG] StateManager::bind_met_field_2d: name=" << name << " ptr=" << (void*)ptr << " n_cols=" << n_cols << " n_levels=" << n_levels << std::endl;

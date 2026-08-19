@@ -439,7 +439,11 @@ contains
             if (species_is_aerosol(species_idx)) then
                species_tendencies(k, species_idx) = ( (max(0.0_fp, conc(k)) / dpog(k) * 1.0e9_fp) - species_conc(k, species_idx) ) / dt
             else
-               species_tendencies(k, species_idx) = ( (max(0.0_fp, conc(k)) / dpog(k) * AIRMW / species_mw_g(species_idx) * 1.0e6_fp) - species_conc(k, species_idx) ) / dt
+               if (species_mw_g(species_idx) > 0.0_fp) then
+                  species_tendencies(k, species_idx) = ( (max(0.0_fp, conc(k)) / dpog(k) * AIRMW / species_mw_g(species_idx) * 1.0e6_fp) - species_conc(k, species_idx) ) / dt
+               else
+                  species_tendencies(k, species_idx) = 0.0_fp
+               end if
             end if
 
             ! Update diagnostic fields here based on your scheme's requirements
@@ -501,15 +505,17 @@ contains
       ! remove the additional limiter consumption here (floored at zero).
       ! ------------------------------------------------------------------
       if (h2o2_id >= 1) then
-         do k = kbot, ktop
-            ! H2O2 consumed = initial - final local working value, in [kg/kg]
-            h2o2_used = species_conc(k, h2o2_id) * species_mw_g(h2o2_id) * 1.0e-6_fp / AIRMW - H2O2(k)
-            if (h2o2_used > zero) then
-               ! convert the consumed [kg/kg] back to [ppmv] tendency (divided by dt) and remove from H2O2 tendency
-               species_tendencies(k, h2o2_id) = species_tendencies(k, h2o2_id) &
-                  - (h2o2_used * AIRMW / species_mw_g(h2o2_id) * 1.0e6_fp) / dt
-            end if
-         end do
+         if (species_mw_g(h2o2_id) > 0.0_fp) then
+            do k = kbot, ktop
+               ! H2O2 consumed = initial - final local working value, in [kg/kg]
+               h2o2_used = species_conc(k, h2o2_id) * species_mw_g(h2o2_id) * 1.0e-6_fp / AIRMW - H2O2(k)
+               if (h2o2_used > zero) then
+                  ! convert the consumed [kg/kg] back to [ppmv] tendency (divided by dt) and remove from H2O2 tendency
+                  species_tendencies(k, h2o2_id) = species_tendencies(k, h2o2_id) &
+                     - (h2o2_used * AIRMW / species_mw_g(h2o2_id) * 1.0e6_fp) / dt
+               end if
+            end do
+         end if
       end if
 
       deallocate(qq, pdwn, conc, dconc, dpog, delz_cm, c_h2o, cldice, cldliq, SO2, SO4, H2O2, reevap, dprecip)
