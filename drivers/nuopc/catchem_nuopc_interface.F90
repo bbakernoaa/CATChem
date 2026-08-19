@@ -914,7 +914,7 @@ contains
 
       !local vars
       real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
-      integer :: met_index
+      integer :: met_index, v_cc, v, found_index
 
       rc = ESMF_SUCCESS
 
