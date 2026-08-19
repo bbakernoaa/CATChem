@@ -151,7 +151,26 @@ contains
          f_v10m         = real(v10m(icol), fp)
          f_z0h          = real(z0h(icol), fp)
 
-         f_conc         = real(conc(icol, :, :), fp)
+         ! Convert input concentrations from kg/kg to expected process units (ug/kg for aerosols, ppmv for gases)
+         do ispec = 1, n_species
+            is_aero = .false.
+            if ( dummy_sp_names(ispec) == 'SO4' .or. dummy_sp_names(ispec) == 'so4' .or. &
+               dummy_sp_names(ispec) == 'MSA' .or. dummy_sp_names(ispec) == 'msa' .or. &
+               dummy_sp_names(ispec) == 'ASO4J' .or. dummy_sp_names(ispec) == 'aso4j' ) then
+               is_aero = .true.
+            end if
+
+            if ( is_aero ) then
+               f_conc(:, ispec) = real(conc(icol, :, ispec), fp) * 1.0e9_fp
+            else
+               if (f_mw_g(ispec) > 0.0_fp) then
+                  f_conc(:, ispec) = real(conc(icol, :, ispec), fp) * (AIRMW / f_mw_g(ispec)) * 1.0e6_fp
+               else
+                  f_conc(:, ispec) = 0.0_fp
+               end if
+            end if
+         end do
+
          col_tendencies = 0.0_fp
          col_prod_rate  = 0.0_fp
          col_pso4_g     = 0.0_fp

@@ -260,9 +260,9 @@ contains
 
          !end if ! if (k == ktop)
 
-         delp = pedge(k) - pedge(km1)
-         dpog(k) = delp / g0
-         delz = dpog(k) / mairden(k) ! thickness of layer [m]
+         delp = abs(pedge(k) - pedge(km1))
+         dpog(k) = max(1.0e-12_fp, delp / g0)
+         delz = dpog(k) / max(1.0e-6_fp, mairden(k)) ! thickness of layer [m]
          delz_cm(k) = delz * m_to_cm  ! thickness of layer [cm]
 
          ! -- liquid/ice precipitation formation in grid cell (kg/m2/s)
@@ -270,8 +270,8 @@ contains
          !dqis = pfilsan(k) - pfilsan(km1)
 
          ! -- convert from kg/m2/s to kg (H2O) / m3(air) / s
-         dqls_kgm3s = dqls / delz
-         dqis_kgm3s = dqis / delz
+         dqls_kgm3s = dqls / max(1.0e-6_fp, delz)
+         dqis_kgm3s = dqis / max(1.0e-6_fp, delz)
 
          ! -- total precipitation formation (convert from kg (H2O) / m3(air) / s to cm3 (H2O) / cm3 (air) /s)
          ! -- To convert from kg (H2O) / m3(air) / s to cm3 (H2O) / cm3 (air) / s, divide by the density of
@@ -288,8 +288,12 @@ contains
          SO4(k)  = SO4(k) * dpog(k)
 
          ! -- compute mixing ratio of saturated water vapour over ice (from SETUP_WETSCAV)
-         press     = 0.5_fp * ( pedge(km1) + pedge(k) ) !pressure in grid box
-         c_h2o(k) = 10._fp ** (-2663.5_fp / t(k) + 12.537_fp ) / press
+         press     = max(1.0_fp, 0.5_fp * ( pedge(km1) + pedge(k) )) !pressure in grid box
+         if (t(k) > 50.0_fp) then
+            c_h2o(k) = 10._fp ** (-2663.5_fp / t(k) + 12.537_fp ) / press
+         else
+            c_h2o(k) = zero
+         end if
 
          ! -- estimate cloud ice and liquid water content (from SETUP_WETSCAV)
          if ( t(k) >= 268.0_fp ) then
@@ -436,14 +440,18 @@ contains
          do k = kbot, ktop
 
             ! -- convert back to ug/kg or ppmv and compute the TENDENCY (rate of change per second)
-            if (species_is_aerosol(species_idx)) then
-               species_tendencies(k, species_idx) = ( (max(0.0_fp, conc(k)) / dpog(k) * 1.0e9_fp) - species_conc(k, species_idx) ) / dt
-            else
-               if (species_mw_g(species_idx) > 0.0_fp) then
-                  species_tendencies(k, species_idx) = ( (max(0.0_fp, conc(k)) / dpog(k) * AIRMW / species_mw_g(species_idx) * 1.0e6_fp) - species_conc(k, species_idx) ) / dt
+            if (dpog(k) > 0.0_fp .and. dt > 0.0_fp) then
+               if (species_is_aerosol(species_idx)) then
+                  species_tendencies(k, species_idx) = ( (max(0.0_fp, conc(k)) / dpog(k) * 1.0e9_fp) - species_conc(k, species_idx) ) / dt
                else
-                  species_tendencies(k, species_idx) = 0.0_fp
+                  if (species_mw_g(species_idx) > 0.0_fp) then
+                     species_tendencies(k, species_idx) = ( (max(0.0_fp, conc(k)) / dpog(k) * AIRMW / species_mw_g(species_idx) * 1.0e6_fp) - species_conc(k, species_idx) ) / dt
+                  else
+                     species_tendencies(k, species_idx) = 0.0_fp
+                  end if
                end if
+            else
+               species_tendencies(k, species_idx) = 0.0_fp
             end if
 
             ! Update diagnostic fields here based on your scheme's requirements
@@ -464,7 +472,11 @@ contains
                do diag_idx = 1, size(diagnostic_species_id)
                   if (diagnostic_species_id(diag_idx) == species_idx) then
                      ! Add your custom wet deposition flux per species per level calculation
-                     wetdep_flux_per_species_per_level(k, diag_idx) = dconc(k) / dt
+                     if (dt > 0.0_fp) then
+                        wetdep_flux_per_species_per_level(k, diag_idx) = dconc(k) / dt
+                     else
+                        wetdep_flux_per_species_per_level(k, diag_idx) = 0.0_fp
+                     end if
                      exit
                   end if
                end do
@@ -482,14 +494,16 @@ contains
       ! species' updated concentration so the sulfur is conserved as sulfate
       ! (matching GOCART's SU_Wet_Removal, which adds it to the prognostic SO4).
       ! ------------------------------------------------------------------
-      if (so4_id >= 1) then
+      if (so4_id >= 1 .and. dt > 0.0_fp) then
          do k = kbot, ktop
-            ! sulfate produced from SO2 = current local SO4 minus its initial column value
-            so4_prod = SO4(k) - species_conc(k, so4_id) * 1.e-09_fp * dpog(k)
-            if (so4_prod > zero) then
-               ! convert the [kg/m2] production back to [ug/kg] tendency (divided by dt) and add to SO4 tendency
-               species_tendencies(k, so4_id) = species_tendencies(k, so4_id) &
-                  + (so4_prod / dpog(k) * 1.0e9_fp) / dt
+            if (dpog(k) > 0.0_fp) then
+               ! sulfate produced from SO2 = current local SO4 minus its initial column value
+               so4_prod = SO4(k) - species_conc(k, so4_id) * 1.e-09_fp * dpog(k)
+               if (so4_prod > zero) then
+                  ! convert the [kg/m2] production back to [ug/kg] tendency (divided by dt) and add to SO4 tendency
+                  species_tendencies(k, so4_id) = species_tendencies(k, so4_id) &
+                     + (so4_prod / dpog(k) * 1.0e9_fp) / dt
+               end if
             end if
          end do
       end if
@@ -504,7 +518,7 @@ contains
       ! and already includes H2O2's own gas-phase wet removal, so we only need to
       ! remove the additional limiter consumption here (floored at zero).
       ! ------------------------------------------------------------------
-      if (h2o2_id >= 1) then
+      if (h2o2_id >= 1 .and. dt > 0.0_fp) then
          if (species_mw_g(h2o2_id) > 0.0_fp) then
             do k = kbot, ktop
                ! H2O2 consumed = initial - final local working value, in [kg/kg]
