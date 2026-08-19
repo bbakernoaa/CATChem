@@ -54,6 +54,11 @@ import_fields:
     dimensions: 2
     units: "m/s"
     optional: false
+  - standard_name: "inst_land_sea_mask"
+    catchem_var: "LWI"
+    dimensions: 2
+    units: "1"
+    optional: false
   - standard_name: "inst_aerodynamic_conductance"
     catchem_var: "CMM"
     dimensions: 2
