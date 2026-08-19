@@ -379,7 +379,7 @@ contains
          species_count = catchem_config_get_yaml_list_count(core_ptr, trim(species_list_path) // c_null_char)
          if (index(trim(config_paths(path_index)), '/dust') > 0) category_name = 'dust'
          exit
-      end if
+      end do
       if (len_trim(source_file) == 0) then
          write(*,'(A)') '[CATCHEM DEBUG] static dust AQMIO fallback: no dust/fengsha source_file found'
          call flush(6)
