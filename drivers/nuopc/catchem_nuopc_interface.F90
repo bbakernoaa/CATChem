@@ -1034,10 +1034,30 @@ contains
             '] ptr=', transfer(c_loc(fptr4d(1,1,1,1)), 0_c_intptr_t), ' min=', minval(fptr4d), ' max=', maxval(fptr4d)
          call flush(6)
 
+         v_cc = int(catchem_state_get_species_count(cc_wrap%catchem_model%state_mgr_ptr))
+         if (v_cc <= 0) v_cc = size(fptr4d, 4)
+
          if (.not. allocated(cc_wrap%chem_buf_4d)) then
-            allocate(cc_wrap%chem_buf_4d(size(fptr4d, 1), size(fptr4d, 2), size(fptr4d, 3), size(fptr4d, 4)))
+            allocate(cc_wrap%chem_buf_4d(size(fptr4d, 1), size(fptr4d, 2), size(fptr4d, 3), v_cc))
+         else if (size(cc_wrap%chem_buf_4d, 4) /= v_cc) then
+            deallocate(cc_wrap%chem_buf_4d)
+            allocate(cc_wrap%chem_buf_4d(size(fptr4d, 1), size(fptr4d, 2), size(fptr4d, 3), v_cc))
          end if
-         cc_wrap%chem_buf_4d = real(fptr4d, c_double)
+
+         cc_wrap%chem_buf_4d = 0.0_c_double
+
+         if (allocated(cc_wrap%tracer_map%nuopc_to_cc)) then
+            do v = 1, min(size(fptr4d, 4), size(cc_wrap%tracer_map%nuopc_to_cc))
+               found_index = cc_wrap%tracer_map%nuopc_to_cc(v)
+               if (found_index > 0 .and. found_index <= v_cc) then
+                  cc_wrap%chem_buf_4d(:,:,:, found_index) = real(fptr4d(:,:,:, v), c_double)
+               end if
+            end do
+         else
+            do v = 1, min(size(fptr4d, 4), v_cc)
+               cc_wrap%chem_buf_4d(:,:,:, v) = real(fptr4d(:,:,:, v), c_double)
+            end do
+         end if
 
          ! Direct pointer mapping to C++ core StateManager via persistent contiguous buffer
          call cc_wrap%catchem_model%bind_unified_chemistry(cc_wrap%chem_buf_4d)
@@ -1173,7 +1193,18 @@ contains
 
          ! Copy updated concentrations from persistent contiguous buffer back to ESMF tracer array
          if (allocated(cc_wrap%chem_buf_4d)) then
-            fptr4d = cc_wrap%chem_buf_4d
+            if (allocated(cc_wrap%tracer_map%nuopc_to_cc)) then
+               do v = 1, min(nv, size(cc_wrap%tracer_map%nuopc_to_cc))
+                  found_index = cc_wrap%tracer_map%nuopc_to_cc(v)
+                  if (found_index > 0 .and. found_index <= size(cc_wrap%chem_buf_4d, 4)) then
+                     fptr4d(:,:,:, v) = cc_wrap%chem_buf_4d(:,:,:, found_index)
+                  end if
+               end do
+            else
+               do v = 1, min(nv, size(cc_wrap%chem_buf_4d, 4))
+                  fptr4d(:,:,:, v) = cc_wrap%chem_buf_4d(:,:,:, v)
+               end do
+            end if
          end if
 
          if (allocated(cc_wrap%tracer_map%names)) then
