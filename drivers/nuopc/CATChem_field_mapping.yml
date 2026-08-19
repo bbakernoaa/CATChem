@@ -49,6 +49,16 @@ import_fields:
     dimensions: 2
     units: "m"
     optional: false
+  - standard_name: "inst_zonal_wind_height10m"
+    catchem_var: "U10M"
+    dimensions: 2
+    units: "m/s"
+    optional: false
+  - standard_name: "inst_merid_wind_height10m"
+    catchem_var: "V10M"
+    dimensions: 2
+    units: "m/s"
+    optional: false
   - standard_name: "inst_friction_velocity"
     catchem_var: "USTAR"
     dimensions: 2
@@ -58,6 +68,41 @@ import_fields:
     catchem_var: "LWI"
     dimensions: 2
     units: "1"
+    optional: false
+  - standard_name: "inst_temp_height_surface"
+    catchem_var: "TS"
+    dimensions: 2
+    units: "K"
+    optional: false
+  - standard_name: "inst_pres_height_surface"
+    catchem_var: "PS"
+    dimensions: 2
+    units: "Pa"
+    optional: false
+  - standard_name: "inst_temp_height2m"
+    catchem_var: "T2M"
+    dimensions: 2
+    units: "K"
+    optional: false
+  - standard_name: "inst_spec_humid_height2m"
+    catchem_var: "QV2M"
+    dimensions: 2
+    units: "kg/kg"
+    optional: false
+  - standard_name: "inst_sensi_heat_flx"
+    catchem_var: "HFLUX"
+    dimensions: 2
+    units: "w/m2"
+    optional: false
+  - standard_name: "inst_laten_heat_flx"
+    catchem_var: "EFLUX"
+    dimensions: 2
+    units: "w/m2"
+    optional: false
+  - standard_name: "inst_net_sw_flx"
+    catchem_var: "SWGDN"
+    dimensions: 2
+    units: "w/m2"
     optional: false
   - standard_name: "inst_aerodynamic_conductance"
     catchem_var: "CMM"
