@@ -62,11 +62,22 @@ namespace catchem {
 
     /// @brief Process activation and nested process settings from YAML.
     struct ProcessConfig {
+    private:
+        YAML::Node settings_node;
+
+    public:
         bool activate = false;
         bool diagnostics = false;
         std::string scheme;
         std::vector<std::string> diag_species;
-        YAML::Node settings;
+
+        void set_settings_node(const YAML::Node& node) { settings_node = node; }
+        const YAML::Node& get_settings_node() const { return settings_node; }
+
+        bool get_bool(std::string_view key, bool default_val = false) const;
+        double get_double(std::string_view key, double default_val = 0.0) const;
+        int get_int(std::string_view key, int default_val = 0) const;
+        std::string get_string(std::string_view key, std::string_view default_val = "") const;
     };
 
     /// @brief Species metadata loaded from a CATChem species YAML file.
@@ -117,9 +128,11 @@ namespace catchem {
     };
 
     class ConfigManager {
+    private:
+        YAML::Node root_node;
+
     public:
         ConfigData data;
-        YAML::Node root_node;
         bool is_loaded = false;
         std::string config_file_path;
 
@@ -127,6 +140,20 @@ namespace catchem {
         void load_from_file(const std::string& filename);
         void load_species_file(const std::string& filename);
         void load_emission_mapping_file(const std::string& filename);
+
+        const YAML::Node& get_root_node() const { return root_node; }
+
+        // Safe path-based queries
+        bool get_bool(std::string_view path, bool default_val = false) const;
+        double get_double(std::string_view path, double default_val = 0.0) const;
+        int get_int(std::string_view path, int default_val = 0) const;
+        std::string get_string(std::string_view path, std::string_view default_val = "") const;
+        std::vector<std::string> get_string_list(std::string_view path) const;
+
+        // Structured process / emission queries
+        bool is_process_active(std::string_view process_name) const;
+        bool is_category_active(std::string_view category_name) const;
+        std::string find_process_file_setting(std::string_view process_name) const;
 
         YAML::Node get_process_config(std::string_view process_name) const {
             if (!is_loaded) {

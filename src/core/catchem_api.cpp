@@ -595,112 +595,11 @@ void catchem_config_get_emission_category_name_at(void* core_ptr, int index, cha
     }
 }
 
-static YAML::Node resolve_yaml_node_path(const YAML::Node& root, const std::string& path) {
-    if (!root || root.IsNull())
-        return YAML::Node();
-    std::stringstream ss(path);
-    std::string key;
-    YAML::Node curr = root;
-    while (std::getline(ss, key, '/')) {
-        if (key.empty())
-            continue;
-        if (!curr.IsMap() || !curr[key] || curr[key].IsNull())
-            return YAML::Node();
-        curr = curr[key];
-    }
-    return curr;
-}
-
-static std::string resolve_against_config_path(const std::string& config_file, const std::string& path) {
-    if (path.empty() || path.front() == '/' || path == "none" || path == "NONE" || path == "null" || path == "NULL")
-        return path;
-    if (config_file.empty())
-        return path;
-    auto slash = config_file.find_last_of('/');
-    if (slash == std::string::npos)
-        return path;
-    return config_file.substr(0, slash + 1) + path;
-}
-
-static std::string get_file_setting(const YAML::Node& node) {
-    if (!node || !node.IsMap()) {
-        return "";
-    }
-    for (const char* key : {"source_file", "input_file", "filename", "file", "path"}) {
-        const YAML::Node value = node[key];
-        if (!value || value.IsNull()) {
-            continue;
-        }
-        try {
-            const std::string path = value.as<std::string>();
-            if (!path.empty() && path != "none" && path != "NONE" && path != "null" && path != "NULL" && path != "~") {
-                return path;
-            }
-        } catch (...) {
-        }
-    }
-    return "";
-}
-
-static std::string get_fengsha_static_file_from_processes(const catchem::ConfigManager& config_manager) {
-    const auto& processes = config_manager.data.processes;
-    const auto direct_fengsha = processes.find("fengsha");
-    if (direct_fengsha != processes.end()) {
-        const std::string path = get_file_setting(direct_fengsha->second.settings);
-        if (!path.empty()) {
-            return resolve_against_config_path(config_manager.config_file_path, path);
-        }
-    }
-
-    const auto dust = processes.find("dust");
-    if (dust != processes.end()) {
-        std::string path = get_file_setting(dust->second.settings["fengsha"]);
-        if (path.empty()) {
-            path = get_file_setting(dust->second.settings);
-        }
-        if (!path.empty()) {
-            return resolve_against_config_path(config_manager.config_file_path, path);
-        }
-    }
-
-    const auto extemis = processes.find("extemis");
-    if (extemis != processes.end()) {
-        std::string path = get_file_setting(extemis->second.settings["fengsha"]);
-        if (path.empty()) {
-            path = get_file_setting(extemis->second.settings["dust"]);
-        }
-        if (!path.empty()) {
-            return resolve_against_config_path(config_manager.config_file_path, path);
-        }
-    }
-
-    return "";
-}
-
 int catchem_config_is_emission_category_active(void* core_ptr, const char* category_name) {
     if (core_ptr == nullptr || category_name == nullptr)
         return 0;
     auto* core = static_cast<catchem::Core*>(core_ptr);
-    const auto& mappings = core->get_config_manager()->data.emission_mappings;
-    if (mappings.find(std::string(category_name)) == mappings.end()) {
-        return 0;
-    }
-    std::string path = "processes/extemis/" + std::string(category_name);
-    YAML::Node category_node = resolve_yaml_node_path(core->get_config_manager()->root_node, path);
-    if (!category_node || category_node.IsNull()) {
-        return 0;
-    }
-    if (category_node.IsMap()) {
-        if (category_node["activate"]) {
-            try {
-                return category_node["activate"].as<bool>() ? 1 : 0;
-            } catch (...) {
-                return 1;
-            }
-        }
-        return 1;
-    }
-    return 0;
+    return core->get_config_manager()->is_category_active(category_name) ? 1 : 0;
 }
 
 int catchem_config_get_emission_field_count(void* core_ptr, const char* category_name) {
@@ -787,45 +686,21 @@ int catchem_config_get_yaml_bool(void* core_ptr, const char* yaml_path, int defa
     if (core_ptr == nullptr || yaml_path == nullptr)
         return default_val;
     auto* core = static_cast<catchem::Core*>(core_ptr);
-    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
-    if (node && !node.IsNull()) {
-        try {
-            return node.as<bool>() ? 1 : 0;
-        } catch (...) {
-            return default_val;
-        }
-    }
-    return default_val;
+    return core->get_config_manager()->get_bool(yaml_path, default_val != 0) ? 1 : 0;
 }
 
 double catchem_config_get_yaml_double(void* core_ptr, const char* yaml_path, double default_val) {
     if (core_ptr == nullptr || yaml_path == nullptr)
         return default_val;
     auto* core = static_cast<catchem::Core*>(core_ptr);
-    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
-    if (node && !node.IsNull()) {
-        try {
-            return node.as<double>();
-        } catch (...) {
-            return default_val;
-        }
-    }
-    return default_val;
+    return core->get_config_manager()->get_double(yaml_path, default_val);
 }
 
 int catchem_config_get_yaml_int(void* core_ptr, const char* yaml_path, int default_val) {
     if (core_ptr == nullptr || yaml_path == nullptr)
         return default_val;
     auto* core = static_cast<catchem::Core*>(core_ptr);
-    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
-    if (node && !node.IsNull()) {
-        try {
-            return node.as<int>();
-        } catch (...) {
-            return default_val;
-        }
-    }
-    return default_val;
+    return core->get_config_manager()->get_int(yaml_path, default_val);
 }
 
 void catchem_config_get_yaml_string(void* core_ptr, const char* yaml_path, char* val_out, int max_len,
@@ -835,29 +710,8 @@ void catchem_config_get_yaml_string(void* core_ptr, const char* yaml_path, char*
         return;
     }
     auto* core = static_cast<catchem::Core*>(core_ptr);
-    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
-    if (node && !node.IsNull()) {
-        try {
-            std::string str_val = node.as<std::string>();
-            if (str_val != "null" && str_val != "NULL" && str_val != "Null" && str_val != "~") {
-                std::string path_str = std::string(yaml_path);
-                if (path_str.find("source_file") != std::string::npos || path_str.find("filename") != std::string::npos) {
-                    std::string config_path = core->get_config_manager()->config_file_path;
-                    if (!config_path.empty()) {
-                        std::string resolved = resolve_against_config_path(config_path, str_val);
-                        std::ifstream f_cwd(str_val.c_str());
-                        if (!f_cwd.good()) {
-                            str_val = resolved;
-                        }
-                    }
-                }
-                copy_string_to_buffer(str_val, val_out, max_len);
-                return;
-            }
-        } catch (...) {
-        }
-    }
-    copy_string_to_buffer(default_val ? default_val : "", val_out, max_len);
+    std::string result = core->get_config_manager()->get_string(yaml_path, default_val ? default_val : "");
+    copy_string_to_buffer(result, val_out, max_len);
 }
 
 void catchem_config_find_fengsha_static_file(void* core_ptr, char* val_out, int max_len) {
@@ -866,35 +720,29 @@ void catchem_config_find_fengsha_static_file(void* core_ptr, char* val_out, int 
         return;
     }
     auto* core = static_cast<catchem::Core*>(core_ptr);
-    copy_string_to_buffer(get_fengsha_static_file_from_processes(*core->get_config_manager()), val_out, max_len);
+    std::string result = core->get_config_manager()->find_process_file_setting("fengsha");
+    copy_string_to_buffer(result, val_out, max_len);
 }
 
 int catchem_config_get_yaml_list_count(void* core_ptr, const char* yaml_path) {
     if (core_ptr == nullptr || yaml_path == nullptr)
         return 0;
     auto* core = static_cast<catchem::Core*>(core_ptr);
-    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
-    if (node && node.IsSequence()) {
-        return static_cast<int>(node.size());
-    }
-    return 0;
+    return static_cast<int>(core->get_config_manager()->get_string_list(yaml_path).size());
 }
 
 void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int index, char* val_out, int max_len) {
-    if (core_ptr == nullptr || yaml_path == nullptr) {
+    if (core_ptr == nullptr || yaml_path == nullptr || index < 0) {
         copy_string_to_buffer("", val_out, max_len);
         return;
     }
     auto* core = static_cast<catchem::Core*>(core_ptr);
-    YAML::Node node = resolve_yaml_node_path(core->get_config_manager()->root_node, std::string(yaml_path));
-    if (node && node.IsSequence() && index >= 0 && index < static_cast<int>(node.size())) {
-        try {
-            copy_string_to_buffer(node[index].as<std::string>(), val_out, max_len);
-            return;
-        } catch (...) {
-        }
+    auto list = core->get_config_manager()->get_string_list(yaml_path);
+    if (index < static_cast<int>(list.size())) {
+        copy_string_to_buffer(list[index], val_out, max_len);
+    } else {
+        copy_string_to_buffer("", val_out, max_len);
     }
-    copy_string_to_buffer("", val_out, max_len);
 }
 
 // =========================================================================

@@ -122,14 +122,68 @@ void catchem_config_get_emission_species_map_at(void* core_ptr, const char* cate
                                                 int map_idx, char* target_species_out, int max_len, double* scale_out,
                                                 int* species_idx_out);
 
-// Generic Config YAML Property Queries
+/**
+ * @brief Safely queries a boolean configuration setting by path.
+ * @param core_ptr Pointer to catchem::Core instance.
+ * @param yaml_path Slash-separated path in config (e.g. "processes/extemis/activate").
+ * @param default_val Fallback value if key is missing or incompatible.
+ * @return 1 for true, 0 for false, or default_val.
+ */
 int catchem_config_get_yaml_bool(void* core_ptr, const char* yaml_path, int default_val);
+
+/**
+ * @brief Safely queries a double configuration setting by path.
+ * @param core_ptr Pointer to catchem::Core instance.
+ * @param yaml_path Slash-separated path in config.
+ * @param default_val Fallback value if key is missing.
+ * @return Double configuration value or default_val.
+ */
 double catchem_config_get_yaml_double(void* core_ptr, const char* yaml_path, double default_val);
+
+/**
+ * @brief Safely queries an integer configuration setting by path.
+ * @param core_ptr Pointer to catchem::Core instance.
+ * @param yaml_path Slash-separated path in config.
+ * @param default_val Fallback value if key is missing.
+ * @return Integer configuration value or default_val.
+ */
 int catchem_config_get_yaml_int(void* core_ptr, const char* yaml_path, int default_val);
+
+/**
+ * @brief Safely queries a string configuration setting by path, resolving relative file paths.
+ * @param core_ptr Pointer to catchem::Core instance.
+ * @param yaml_path Slash-separated path in config.
+ * @param val_out Output buffer for null-terminated string.
+ * @param max_len Maximum length of output buffer.
+ * @param default_val Fallback string if key is missing.
+ */
 void catchem_config_get_yaml_string(void* core_ptr, const char* yaml_path, char* val_out, int max_len,
                                     const char* default_val);
+
+/**
+ * @brief Locates static FENGSHA/dust input file path via ConfigManager process settings.
+ * @param core_ptr Pointer to catchem::Core instance.
+ * @param val_out Output buffer for null-terminated string.
+ * @param max_len Maximum length of output buffer.
+ */
 void catchem_config_find_fengsha_static_file(void* core_ptr, char* val_out, int max_len);
+
+/**
+ * @brief Returns sequence length for a list configuration path.
+ * @param core_ptr Pointer to catchem::Core instance.
+ * @param yaml_path Slash-separated path in config.
+ * @return Number of elements in sequence, or 0.
+ */
 int catchem_config_get_yaml_list_count(void* core_ptr, const char* yaml_path);
+
+/**
+ * @brief Retrieves a string element at index from a list configuration path.
+ * @param core_ptr Pointer to catchem::Core instance.
+ * @param yaml_path Slash-separated path in config.
+ * @param index 0-based element index.
+ * @param val_out Output buffer for string element.
+ * @param max_len Maximum length of output buffer.
+ */
 void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int index, char* val_out, int max_len);
 
 // Diagnostic API

@@ -106,12 +106,59 @@ void CatchemPropertiesTest_ConfigManagerParsesRunPhases() {
     assert(config_mgr.data.active_processes.size() == 1);
     assert(config_mgr.data.active_processes[0] == "seasalt");
 
-    YAML::Node seasalt_config = config_mgr.get_process_config(std::string_view("seasalt"));
-    assert(seasalt_config);
-    assert(seasalt_config["activate"].as<bool>());
-    assert(seasalt_config["scheme"].as<std::string>() == "geos12");
+    assert(config_mgr.get_bool("processes/seasalt/activate", false));
+    assert(config_mgr.get_string("processes/seasalt/scheme", "") == "geos12");
+    assert(config_mgr.get_string("processes/seasalt/scheme", "") == "geos12");
 
     std::cout << "=== PASS: CatchemPropertiesTest.ConfigManagerParsesRunPhases ===" << std::endl;
+}
+
+void CatchemPropertiesTest_ConfigManagerTypedQueries() {
+    std::cout << "=== Running CatchemPropertiesTest.ConfigManagerTypedQueries ===" << std::endl;
+    catchem::ConfigManager config_mgr;
+    config_mgr.load_from_file(find_fixture("CATChem_new_config.yml"));
+
+    assert(config_mgr.get_bool("processes/extemis/activate", false));
+    assert(config_mgr.get_bool("processes/extemis/nonexistent", false) == false);
+    assert(config_mgr.get_double("processes/extemis/global_factor", 0.0) == 1.0);
+    assert(config_mgr.get_int("grid/number_of_levels", 0) == 64);
+    assert(config_mgr.get_string("processes/seasalt/scheme", "") == "geos12");
+
+    std::vector<std::string> diag = config_mgr.get_string_list("processes/extemis/anthro/diag_list");
+    assert(!diag.empty());
+    assert(diag[0] == "NO");
+
+    assert(config_mgr.is_process_active("seasalt") == true);
+    assert(config_mgr.is_process_active("nonexistent_process") == false);
+
+    std::string fengsha_file = config_mgr.find_process_file_setting("fengsha");
+    assert(!fengsha_file.empty());
+    assert(fengsha_file.find("fengsha_emis.nc") != std::string::npos);
+
+    std::cout << "=== PASS: CatchemPropertiesTest.ConfigManagerTypedQueries ===" << std::endl;
+}
+
+void CatchemPropertiesTest_ConfigManagerHandlesScalarAndMissingNodes() {
+    std::cout << "=== Running CatchemPropertiesTest.ConfigManagerHandlesScalarAndMissingNodes ===" << std::endl;
+    catchem::ConfigManager config_mgr;
+
+    // Query on empty/unloaded manager
+    assert(config_mgr.get_bool("processes/anything", false) == false);
+    assert(config_mgr.get_string("processes/anything", "def") == "def");
+    assert(config_mgr.get_double("processes/anything", 1.23) == 1.23);
+    assert(config_mgr.get_int("processes/anything", 42) == 42);
+    assert(config_mgr.get_string_list("processes/anything").empty());
+    assert(config_mgr.find_process_file_setting("fengsha").empty());
+
+    // Load file with partial/scalar nodes
+    config_mgr.load_from_file(find_fixture("CATChem_new_config.yml"));
+
+    // Deep invalid paths
+    assert(config_mgr.get_bool("processes/seasalt/scheme/invalid_sub_key", false) == false);
+    assert(config_mgr.get_string("processes/seasalt/activate/sub_key", "default") == "default");
+    assert(config_mgr.get_string_list("simulation/nx").empty());
+
+    std::cout << "=== PASS: CatchemPropertiesTest.ConfigManagerHandlesScalarAndMissingNodes ===" << std::endl;
 }
 
 void CatchemPropertiesTest_StateBindingAndRebinding() {
@@ -283,7 +330,7 @@ void CatchemPropertiesTest_ConfigManagerLoadsTypedFixtureData() {
     assert(seasalt.activate);
     assert(seasalt.diagnostics);
     assert(seasalt.scheme == "geos12");
-    assert(seasalt.settings["geos12"]["scale_factor"].as<double>() == 1.0);
+    assert(config_mgr.get_double("processes/seasalt/geos12/scale_factor", 0.0) == 1.0);
 
     assert(config_mgr.data.species.size() > 20);
     const auto& so2 = config_mgr.data.species.at(0);
@@ -443,6 +490,8 @@ int main(int argc, char* argv[]) {
         CatchemPropertiesTest_TimeStateCalculations();
         CatchemPropertiesTest_SpeciesMetadataAPI();
         CatchemPropertiesTest_ConfigManagerParsesRunPhases();
+        CatchemPropertiesTest_ConfigManagerTypedQueries();
+        CatchemPropertiesTest_ConfigManagerHandlesScalarAndMissingNodes();
         CatchemPropertiesTest_ConfigManagerLoadsTypedFixtureData();
         CatchemPropertiesTest_DiagnosticsManagerAndAPI();
         CatchemPropertiesTest_UnitConversions();
