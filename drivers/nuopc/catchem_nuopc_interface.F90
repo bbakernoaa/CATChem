@@ -625,31 +625,38 @@ contains
       rc = CC_SUCCESS
       if (cc_wrap%ext_emis%n_categories == 0) return
 
-      call bind_static_field(cc_wrap, 'MET_CLAYFRAC', 'CLAYFRAC', cc_wrap%dust_clayfrac, 1.0_c_double, rc)
+      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_CLAYFRAC', 'clayfrac', 'CLAYF'], &
+         'CLAYFRAC', cc_wrap%dust_clayfrac, 1.0_c_double, rc)
       if (rc /= CC_SUCCESS) return
 
-      call bind_static_field(cc_wrap, 'MET_SANDFRAC', 'SNDFRC', cc_wrap%dust_sandfrac, 1.0_c_double, rc)
+      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_SANDFRAC', 'sandfrac', 'SANDF'], &
+         'SNDFRC', cc_wrap%dust_sandfrac, 1.0_c_double, rc)
       if (rc /= CC_SUCCESS) return
 
-      call bind_static_field(cc_wrap, 'MET_USTAR_THRESHOLD', 'USTAR_THRESHOLD', cc_wrap%dust_ustar_threshold, 1.0_c_double, rc)
+      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_USTAR_THRESHOLD', 'uthres', 'UTHR'], &
+         'USTAR_THRESHOLD', cc_wrap%dust_ustar_threshold, 1.0_c_double, rc)
 
    end subroutine bind_static_met_from_aqmio
 
    !> \brief Helper: bind one static AQMIO field into CATChem met state.
-   subroutine bind_static_field(cc_wrap, source_name, met_name, met_buffer, scale, rc)
+   subroutine bind_static_field(cc_wrap, source_names, met_name, met_buffer, scale, rc)
 
       type(cc_wrap_type), intent(inout) :: cc_wrap
-      character(len=*), intent(in) :: source_name
+      character(len=*), intent(in) :: source_names(:)
       character(len=*), intent(in) :: met_name
       real(c_double), allocatable, intent(inout) :: met_buffer(:,:)
       real(c_double), intent(in) :: scale
       integer, intent(out) :: rc
 
       type(ExtEmisFieldType), pointer :: src_field
-      integer :: nx, ny
+      integer :: nx, ny, n
 
       rc = CC_SUCCESS
-      src_field => cc_wrap%ext_emis%find_emission_field(trim(source_name))
+      src_field => null()
+      do n = 1, size(source_names)
+         src_field => cc_wrap%ext_emis%find_emission_field(trim(source_names(n)))
+         if (associated(src_field)) exit
+      end do
       if (.not. associated(src_field)) return
 
       if (allocated(src_field%interp_data_t1)) then
