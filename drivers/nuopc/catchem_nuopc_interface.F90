@@ -155,6 +155,14 @@ module catchem_nuopc_interface
    end type tracer_index_map
    !! \}
 
+   type :: buffer_2d_type
+      real(c_double), allocatable :: data(:,:)
+   end type buffer_2d_type
+
+   type :: buffer_3d_type
+      real(c_double), allocatable :: data(:,:,:)
+   end type buffer_3d_type
+
    !> Container for process-private CATChem state to avoid MPI sharing
    type :: cc_wrap_type
       type(CATChem_Model) :: catchem_model
@@ -162,6 +170,9 @@ module catchem_nuopc_interface
       type(field_config_type) :: field_config  ! Moved from module level for MPI safety
       type(tracer_index_map) :: tracer_map
       type(ESMF_Grid) :: grid
+      type(buffer_2d_type), allocatable :: met_buf_2d(:)
+      type(buffer_3d_type), allocatable :: met_buf_3d(:)
+      real(c_double), allocatable :: chem_buf_4d(:,:,:,:)
       real(c_double), allocatable :: lat(:,:)
       real(c_double), allocatable :: lon(:,:)
       real(c_double), allocatable :: area_m2(:,:)
@@ -724,6 +735,9 @@ contains
       if (allocated(cc_wrap%dust_clayfrac)) deallocate(cc_wrap%dust_clayfrac)
       if (allocated(cc_wrap%dust_sandfrac)) deallocate(cc_wrap%dust_sandfrac)
       if (allocated(cc_wrap%dust_ustar_threshold)) deallocate(cc_wrap%dust_ustar_threshold)
+      if (allocated(cc_wrap%met_buf_2d)) deallocate(cc_wrap%met_buf_2d)
+      if (allocated(cc_wrap%met_buf_3d)) deallocate(cc_wrap%met_buf_3d)
+      if (allocated(cc_wrap%chem_buf_4d)) deallocate(cc_wrap%chem_buf_4d)
 
       ! Clean up lat/lon stitched output resources
       call AQMIO_LatlonCleanup(rc=rc)
@@ -776,6 +790,15 @@ contains
       end if
 
       ! Loop through all import fields and transform to CATChem states
+      if (cc_wrap%field_config%n_import_fields > 0) then
+         if (.not. allocated(cc_wrap%met_buf_2d)) then
+            allocate(cc_wrap%met_buf_2d(cc_wrap%field_config%n_import_fields))
+         end if
+         if (.not. allocated(cc_wrap%met_buf_3d)) then
+            allocate(cc_wrap%met_buf_3d(cc_wrap%field_config%n_import_fields))
+         end if
+      end if
+
       do n = 1, cc_wrap%field_config%n_import_fields
 
          ! Try to get field from import state (will fail if not present)
@@ -794,7 +817,7 @@ contains
 
          ! Transform based on field type and dimensions
          call transform_field_to_catchem(cc_wrap, field, cc_wrap%field_config%import_fields(n), &
-            cc_wrap%field_config%import_fields(n)%optional, set_required_met, rc)
+            cc_wrap%field_config%import_fields(n)%optional, set_required_met, rc, n)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
 
@@ -879,7 +902,7 @@ contains
    !! \param    kme            Vertical dimension
    !! \param   rc             ESMF return code
    !!
-   subroutine transform_field_to_catchem(cc_wrap, field, field_map, required, is_met_set, rc)
+   subroutine transform_field_to_catchem(cc_wrap, field, field_map, required, is_met_set, rc, fidx)
 
       type(cc_wrap_type), intent(inout) :: cc_wrap
       type(ESMF_Field), intent(in) :: field
@@ -887,6 +910,7 @@ contains
       logical, allocatable, intent(inout) :: is_met_set(:)
       logical, intent(in) :: required
       integer, intent(out) :: rc
+      integer, intent(in) :: fidx
 
       !local vars
       real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
@@ -928,15 +952,20 @@ contains
             end if
          end if
 
-         ! Standard direct zero-copy pointer mapping to C++ core
+         if (.not. allocated(cc_wrap%met_buf_2d(fidx)%data)) then
+            allocate(cc_wrap%met_buf_2d(fidx)%data(size(fptr2d, 1), size(fptr2d, 2)))
+         end if
+         cc_wrap%met_buf_2d(fidx)%data = real(fptr2d, c_double)
+
+         ! Standard pointer mapping to C++ core via persistent contiguous buffer
          if (trim(field_map%catchem_var) == 'Z0') then
             if (.not. allocated(cc_wrap%z0_m)) then
                allocate(cc_wrap%z0_m(size(fptr2d, 1), size(fptr2d, 2)))
             end if
-            cc_wrap%z0_m = real(fptr2d, c_double) * 0.01_c_double
+            cc_wrap%z0_m = cc_wrap%met_buf_2d(fidx)%data * 0.01_c_double
             call cc_wrap%catchem_model%bind_met_2d("Z0", cc_wrap%z0_m)
          else
-            call cc_wrap%catchem_model%bind_met_2d(trim(field_map%catchem_var), fptr2d)
+            call cc_wrap%catchem_model%bind_met_2d(trim(field_map%catchem_var), cc_wrap%met_buf_2d(fidx)%data)
          end if
 
          if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(is_met_set)) then
@@ -968,8 +997,13 @@ contains
             ' min=', minval(fptr3d), ' max=', maxval(fptr3d)
          call flush(6)
 
-         ! Direct zero-copy 3D volumetric array pointer mapping to C++ core StateManager
-         call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var), fptr3d)
+         if (.not. allocated(cc_wrap%met_buf_3d(fidx)%data)) then
+            allocate(cc_wrap%met_buf_3d(fidx)%data(size(fptr3d, 1), size(fptr3d, 2), size(fptr3d, 3)))
+         end if
+         cc_wrap%met_buf_3d(fidx)%data = real(fptr3d, c_double)
+
+         ! Direct pointer mapping to C++ core StateManager via persistent contiguous buffer
+         call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var), cc_wrap%met_buf_3d(fidx)%data)
 
          if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(is_met_set)) then
             met_index = cc_wrap%catchem_model%get_required_met_index( trim(field_map%catchem_var) )
@@ -1000,8 +1034,13 @@ contains
             '] ptr=', transfer(c_loc(fptr4d(1,1,1,1)), 0_c_intptr_t), ' min=', minval(fptr4d), ' max=', maxval(fptr4d)
          call flush(6)
 
-         ! Direct zero-copy 4D chemistry concentration array mapping to C++ core StateManager
-         call cc_wrap%catchem_model%bind_unified_chemistry(fptr4d)
+         if (.not. allocated(cc_wrap%chem_buf_4d)) then
+            allocate(cc_wrap%chem_buf_4d(size(fptr4d, 1), size(fptr4d, 2), size(fptr4d, 3), size(fptr4d, 4)))
+         end if
+         cc_wrap%chem_buf_4d = real(fptr4d, c_double)
+
+         ! Direct pointer mapping to C++ core StateManager via persistent contiguous buffer
+         call cc_wrap%catchem_model%bind_unified_chemistry(cc_wrap%chem_buf_4d)
 
        case default
          call ESMF_LogWrite("Unknown field mapping dimension for: " // trim(field_map%catchem_var), &
@@ -1132,10 +1171,11 @@ contains
          nk = size(fptr4d, 3)
          nv = size(fptr4d, 4)
 
-         ! Zero-Copy Coupled Tracer export: Since the Cap previously bound the ESMF 4D tracer pointer
-         ! directly to standard C++ unmanaged LayoutLeft Views, the computed concentrations are already
-         ! updated in-place! No copying of individual tracers is needed. We only need to populate
-         ! computed diagnostic tracers (like pm25, pm10) that do not map directly to dynamic tracers.
+         ! Copy updated concentrations from persistent contiguous buffer back to ESMF tracer array
+         if (allocated(cc_wrap%chem_buf_4d)) then
+            fptr4d = cc_wrap%chem_buf_4d
+         end if
+
          if (allocated(cc_wrap%tracer_map%names)) then
             do v = 1, min(nv, size(cc_wrap%tracer_map%names))
                if (trim(cc_wrap%tracer_map%names(v)) == 'pm25' .or. &
