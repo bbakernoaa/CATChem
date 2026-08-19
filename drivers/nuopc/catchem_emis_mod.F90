@@ -257,15 +257,6 @@ contains
          call flush(6)
          call ESMF_LogWrite(trim(pName)//': External emissions disabled (processes/extemis/activate=false)', &
             ESMF_LOGMSG_INFO, rc=localrc)
-         return
-      end if
-
-      ! Check if emission mapping is loaded in C++ ConfigManager
-      if (catchem_config_has_emission_mapping(core_ptr) == 0) then
-         write(msg, '(A,A)') trim(pName), ': Emission mapping not loaded in C++ ConfigManager'
-         call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-         rc = CC_FAILURE
-         return
       end if
 
       ! Initialize ExtEmisDataType with 0 to allow push-back population
@@ -279,54 +270,62 @@ contains
 
       ext_emis_data%diagnostic = (catchem_config_get_yaml_bool(core_ptr, 'processes/extemis/global_diagnostics' // c_null_char, 1_c_int) /= 0)
 
-      n_categories = catchem_config_get_emission_category_count(core_ptr)
-      do icat = 0, n_categories - 1
-         call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, 64_c_int)
-         call clean_c_string(category_name)
-         category_active = (catchem_config_is_emission_category_active(core_ptr, trim(category_name) // c_null_char) /= 0)
-         force_static_dust_category = .false.
-         if (trim(category_name) == 'dust') then
-            call catchem_config_get_yaml_string(core_ptr, 'processes/extemis/dust/source_file' // c_null_char, &
-               source_file, 256_c_int, '' // c_null_char)
-            call clean_c_string(source_file)
-            call catchem_config_get_yaml_string(core_ptr, 'process/extemis/dust/source_file' // c_null_char, &
-               alternate_source_file, 256_c_int, '' // c_null_char)
-            call clean_c_string(alternate_source_file)
-            if (len_trim(source_file) == 0) source_file = alternate_source_file
+      if (extemis_activate) then
+         ! Check if emission mapping is loaded in C++ ConfigManager
+         if (catchem_config_has_emission_mapping(core_ptr) == 0) then
+            write(msg, '(A,A)') trim(pName), ': Emission mapping not loaded in C++ ConfigManager'
+            call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+         else
+            n_categories = catchem_config_get_emission_category_count(core_ptr)
+            do icat = 0, n_categories - 1
+               call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, 64_c_int)
+               call clean_c_string(category_name)
+               category_active = (catchem_config_is_emission_category_active(core_ptr, trim(category_name) // c_null_char) /= 0)
+               force_static_dust_category = .false.
+               if (trim(category_name) == 'dust') then
+                  call catchem_config_get_yaml_string(core_ptr, 'processes/extemis/dust/source_file' // c_null_char, &
+                     source_file, 256_c_int, '' // c_null_char)
+                  call clean_c_string(source_file)
+                  call catchem_config_get_yaml_string(core_ptr, 'process/extemis/dust/source_file' // c_null_char, &
+                     alternate_source_file, 256_c_int, '' // c_null_char)
+                  call clean_c_string(alternate_source_file)
+                  if (len_trim(source_file) == 0) source_file = alternate_source_file
 
-            force_static_dust_category = (len_trim(source_file) > 0 .and. &
-               (catchem_config_get_yaml_bool(core_ptr, 'processes/dust/activate' // c_null_char, 0_c_int) /= 0 .or. &
-               catchem_config_get_yaml_bool(core_ptr, 'processes/dust/fengsha/activate' // c_null_char, 0_c_int) /= 0 .or. &
-               catchem_config_get_yaml_bool(core_ptr, 'processes/fengsha/activate' // c_null_char, 0_c_int) /= 0 .or. &
-               catchem_config_get_yaml_bool(core_ptr, 'process/dust/activate' // c_null_char, 0_c_int) /= 0 .or. &
-               catchem_config_get_yaml_bool(core_ptr, 'process/dust/fengsha/activate' // c_null_char, 0_c_int) /= 0))
-         end if
-
-         if (category_active .or. force_static_dust_category) then
-            call catchem_emis_populate_category(ext_emis_data, core_ptr, category_name, nx, ny, nlev, localrc)
-            if (localrc /= CC_SUCCESS) then
-               write(msg, '(A,A,A)') trim(pName), ': Failed to populate category ', trim(category_name)
-               call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
-               rc = CC_FAILURE
-               return
-            end if
-
-            active_category_index = ext_emis_data%n_categories
-            if (force_static_dust_category) then
-               ext_emis_data%categories(active_category_index)%is_active = .true.
-               if (len_trim(ext_emis_data%categories(active_category_index)%source_file) == 0) then
-                  ext_emis_data%categories(active_category_index)%source_file = trim(source_file)
+                  force_static_dust_category = (len_trim(source_file) > 0 .and. &
+                     (catchem_config_get_yaml_bool(core_ptr, 'processes/dust/activate' // c_null_char, 0_c_int) /= 0 .or. &
+                     catchem_config_get_yaml_bool(core_ptr, 'processes/dust/fengsha/activate' // c_null_char, 0_c_int) /= 0 .or. &
+                     catchem_config_get_yaml_bool(core_ptr, 'processes/fengsha/activate' // c_null_char, 0_c_int) /= 0 .or. &
+                     catchem_config_get_yaml_bool(core_ptr, 'process/dust/activate' // c_null_char, 0_c_int) /= 0 .or. &
+                     catchem_config_get_yaml_bool(core_ptr, 'process/dust/fengsha/activate' // c_null_char, 0_c_int) /= 0))
                end if
-            end if
-            call catchem_emis_setup_timing(ext_emis_data%categories(active_category_index), clock, localrc)
-            if (localrc /= CC_SUCCESS) then
-               write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed timing setup for category: ', trim(category_name)
-               call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
-               rc = CC_FAILURE
-               return
-            end if
+
+               if (category_active .or. force_static_dust_category) then
+                  call catchem_emis_populate_category(ext_emis_data, core_ptr, category_name, nx, ny, nlev, localrc)
+                  if (localrc /= CC_SUCCESS) then
+                     write(msg, '(A,A,A)') trim(pName), ': Failed to populate category ', trim(category_name)
+                     call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+                     rc = CC_FAILURE
+                     return
+                  end if
+
+                  active_category_index = ext_emis_data%n_categories
+                  if (force_static_dust_category) then
+                     ext_emis_data%categories(active_category_index)%is_active = .true.
+                     if (len_trim(ext_emis_data%categories(active_category_index)%source_file) == 0) then
+                        ext_emis_data%categories(active_category_index)%source_file = trim(source_file)
+                     end if
+                  end if
+                  call catchem_emis_setup_timing(ext_emis_data%categories(active_category_index), clock, localrc)
+                  if (localrc /= CC_SUCCESS) then
+                     write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed timing setup for category: ', trim(category_name)
+                     call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+                     rc = CC_FAILURE
+                     return
+                  end if
+               end if
+            end do
          end if
-      end do
+      end if
 
       call populate_static_dust_category_if_needed(ext_emis_data, core_ptr, nx, ny, nlev, clock, rc)
       if (rc /= CC_SUCCESS) return
@@ -352,10 +351,13 @@ contains
       integer :: localrc, n, species_count, active_category_index, path_index
       character(len=EMIS_MAXSTR) :: msg, source_file, species_list_path, category_name
       character(len=*), parameter :: pName = 'populate_static_dust_category_if_needed'
-      character(len=64), parameter :: species_defaults(4) = [character(len=64) :: 'CLAYF', 'SANDF', 'DRAG', 'UTHR']
-      character(len=64), parameter :: config_paths(4) = [character(len=64) :: &
+      character(len=64), parameter :: species_defaults(5) = [character(len=64) :: &
+         'clayfrac', 'sandfrac', 'uthres', 'albedo_drag', 'sep']
+      character(len=64), parameter :: config_paths(8) = [character(len=64) :: &
          'processes/extemis/fengsha', 'processes/extemis/dust', &
-         'process/extemis/fengsha', 'process/extemis/dust']
+         'process/extemis/fengsha', 'process/extemis/dust', &
+         'processes/dust/fengsha', 'processes/fengsha', &
+         'process/dust/fengsha', 'process/fengsha']
 
       rc = CC_SUCCESS
       if (allocated(ext_emis_data%categories)) then
@@ -373,6 +375,16 @@ contains
          call catchem_config_get_yaml_string(core_ptr, trim(config_paths(path_index)) // '/source_file' // c_null_char, &
             source_file, 256_c_int, '' // c_null_char)
          call clean_c_string(source_file)
+         if (len_trim(source_file) == 0) then
+            call catchem_config_get_yaml_string(core_ptr, trim(config_paths(path_index)) // '/input_file' // c_null_char, &
+               source_file, 256_c_int, '' // c_null_char)
+            call clean_c_string(source_file)
+         end if
+         if (len_trim(source_file) == 0) then
+            call catchem_config_get_yaml_string(core_ptr, trim(config_paths(path_index)) // '/filename' // c_null_char, &
+               source_file, 256_c_int, '' // c_null_char)
+            call clean_c_string(source_file)
+         end if
          if (len_trim(source_file) == 0) cycle
 
          species_list_path = trim(config_paths(path_index)) // '/species'
