@@ -200,6 +200,7 @@ contains
 
          ! Write tendencies
          f_tendency(icol, :, :) = f_tendency(icol, :, :) + real(col_tendency, c_double)
+         f_conc(icol, :, :) = f_conc(icol, :, :) + real(dt * col_tendency, c_double)
 
          ! Write diagnostics
          if (diagnostics /= 0) then

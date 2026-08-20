@@ -143,15 +143,11 @@ namespace catchem {
                 "Timestep dt must be positive and within a plausible physical daily limit (0 < dt <= 86400).");
         }
 
-        std::cout << "[C++ DEBUG] Core::run_timestep enter: dt=" << dt << " num_processes=" << processes.size() << std::endl;
-
         // Sync shared boundary arrays to active execution spaces
         state_mgr->sync_to_device();
 
         for (auto& process : processes) {
-            std::cout << "[C++ DEBUG] Running process: " << process->get_name() << std::endl;
             process->run(state_mgr);
-            std::cout << "[C++ DEBUG] Finished process: " << process->get_name() << std::endl;
         }
 
         // Sync execution outputs back to Fortran-accessible memory
@@ -159,7 +155,6 @@ namespace catchem {
 
         // Sync diagnostics
         diag_mgr->sync_to_host();
-        std::cout << "[C++ DEBUG] Core::run_timestep exit successfully" << std::endl;
     }
 
     void Core::run_timestep() {

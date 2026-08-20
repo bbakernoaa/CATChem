@@ -64,6 +64,7 @@ contains
       character(len=32) :: col_names(n_species)
       real(fp) :: col_conc(n_levels, n_species)
       real(fp) :: col_tendency(n_levels, n_species)
+      real(fp) :: col_conc_new(n_levels)
 
       real(fp) :: col_prod_mass(n_levels, n_species)
       real(fp) :: col_loss_flux(n_species)
@@ -140,8 +141,17 @@ contains
                diagnostic_species_id=diagnostic_species_id)
          end if
 
-         ! Copy back tendency
+         ! GOCART carbon returns updated aerosol concentrations in ug/kg for computed species.
+         ! Convert those updates to kg/kg tendencies and update the live concentration buffer in place.
+         do i = 1, n_species
+            if (any(col_tendency(:, i) /= 0.0_fp)) then
+               col_conc_new(:) = col_tendency(:, i) * 1.0e-9_fp
+               col_tendency(:, i) = (col_conc_new(:) - real(f_conc(icol, :, i), fp)) / real(dt, fp)
+            end if
+         end do
+
          f_tendency(icol, :, :) = f_tendency(icol, :, :) + real(col_tendency(:, :), c_double)
+         f_conc(icol, :, :) = f_conc(icol, :, :) + real(dt * col_tendency(:, :), c_double)
 
          if (diagnostics /= 0) then
             f_diag_prod_mass(icol, :, :) = real(col_prod_mass(:, :), c_double)

@@ -542,10 +542,6 @@ contains
 
       character(kind=c_char) :: c_name(64)
 
-      write(*, '(A,A,A,I0,A,I0,A,I0,A,Z16)') '[API DEBUG] model_bind_met_3d: ', trim(name), &
-         ' shape=[', size(arr,1), ',', size(arr,2), ',', size(arr,3), '] loc=', transfer(c_loc(arr(1,1,1)), 0_c_intptr_t)
-      call flush(6)
-
       call to_c_string(name, c_name)
       call catchem_state_bind_met_3d(this%state_mgr_ptr, c_name, c_loc(arr(1,1,1)))
    end subroutine model_bind_met_3d
@@ -558,10 +554,6 @@ contains
 
       character(kind=c_char) :: c_name(64)
 
-      write(*, '(A,A,A,I0,A,I0,A,Z16)') '[API DEBUG] model_bind_met_2d: ', trim(name), &
-         ' shape=[', size(arr,1), ',', size(arr,2), '] loc=', transfer(c_loc(arr(1,1)), 0_c_intptr_t)
-      call flush(6)
-
       call to_c_string(name, c_name)
       call catchem_state_bind_met_2d(this%state_mgr_ptr, c_name, c_loc(arr(1,1)))
    end subroutine model_bind_met_2d
@@ -571,10 +563,6 @@ contains
       class(CATChem_Model), intent(inout) :: this
       real(c_double), target, contiguous, intent(in) :: arr(:,:,:)
 
-      write(*, '(A,I0,A,I0,A,I0,A,Z16)') '[API DEBUG] model_bind_unified_chem_3d: shape=[', &
-         size(arr,1), ',', size(arr,2), ',', size(arr,3), '] loc=', transfer(c_loc(arr(1,1,1)), 0_c_intptr_t)
-      call flush(6)
-
       call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr(1,1,1)))
    end subroutine model_bind_unified_chemistry_3d
 
@@ -582,10 +570,6 @@ contains
    subroutine model_bind_unified_chemistry_4d(this, arr)
       class(CATChem_Model), intent(inout) :: this
       real(c_double), target, contiguous, intent(in) :: arr(:,:,:,:)
-
-      write(*, '(A,I0,A,I0,A,I0,A,I0,A,Z16)') '[API DEBUG] model_bind_unified_chem_4d: shape=[', &
-         size(arr,1), ',', size(arr,2), ',', size(arr,3), ',', size(arr,4), '] loc=', transfer(c_loc(arr(1,1,1,1)), 0_c_intptr_t)
-      call flush(6)
 
       call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr(1,1,1,1)))
    end subroutine model_bind_unified_chemistry_4d

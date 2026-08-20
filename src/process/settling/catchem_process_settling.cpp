@@ -35,9 +35,6 @@ namespace catchem {
                 double d_val = state->chem.species_list[ispec].density;
                 host_radius_dry[i] = (r_val > 0.0 ? r_val : 1.0) * 1e-6; // Convert microns to meters
                 host_rhop_dry[i] = d_val > 0.0 ? d_val : 2500.0;
-                std::cout << "DEBUG INIT: Aerosol " << i << ": species index=" << ispec
-                          << ", name=" << state->chem.species_list[ispec].short_name
-                          << ", radius_dry=" << host_radius_dry[i] << ", density=" << host_rhop_dry[i] << std::endl;
             }
 
 #ifdef CATCHEM_ENABLE_KOKKOS
@@ -82,8 +79,6 @@ namespace catchem {
         require_field_pointer("Settling", "BXHEIGHT", state->met.BXHEIGHT ? state->met.BXHEIGHT->host_data() : nullptr);
         require_field_pointer("Settling", "CHEM_CONC", state->chem.conc ? state->chem.conc->host_data() : nullptr);
 
-        std::cout << "SettlingProcess: Views exist. Launching kernel for " << num_aerosols << " aerosols.\n";
-
         settling::SettlingFunctor functor;
         functor.conc = state->chem.conc->view();
         functor.t = state->met.T->view();
@@ -118,7 +113,6 @@ namespace catchem {
             for (int iaero = 0; iaero < num_aerosols; ++iaero)
                 functor(icol, iaero);
 #endif
-        std::cout << "SettlingProcess: Kernel complete.\n";
     }
 
     void SettlingProcess::finalize() {
