@@ -261,8 +261,10 @@ contains
       ! Check top-level processes/extemis/activate switch
       extemis_activate = (catchem_config_get_yaml_bool(core_ptr, 'processes/extemis/activate' // c_null_char, 1_c_int) /= 0)
       if (.not. extemis_activate) then
+#ifdef CATCHEM_TRACE_NUOPC
          write(*,'(A)') '[CATCHEM DEBUG] catchem_emis_init: extemis disabled by processes/extemis/activate=false'
          call flush(6)
+#endif
          call ESMF_LogWrite(trim(pName)//': External emissions disabled (processes/extemis/activate=false)', &
             ESMF_LOGMSG_INFO, rc=localrc)
       end if
@@ -338,8 +340,10 @@ contains
       call populate_static_dust_category_if_needed(ext_emis_data, core_ptr, nx, ny, nlev, clock, rc)
       if (rc /= CC_SUCCESS) return
 
+#ifdef CATCHEM_TRACE_NUOPC
       write(*,'(A,I0)') '[CATCHEM DEBUG] catchem_emis_init: n_categories=', ext_emis_data%n_categories
       call flush(6)
+#endif
 
       call ESMF_LogWrite(trim(pName)//': Emission initialization completed', &
          ESMF_LOGMSG_INFO, rc=localrc)
@@ -405,8 +409,10 @@ contains
          call clean_c_string(source_file)
       end if
       if (len_trim(source_file) == 0) then
+#ifdef CATCHEM_TRACE_NUOPC
          write(*,'(A)') '[CATCHEM DEBUG] static dust AQMIO fallback: no dust/fengsha source_file found'
          call flush(6)
+#endif
          return
       end if
 
@@ -435,11 +441,13 @@ contains
          end do
       end if
 
+#ifdef CATCHEM_TRACE_NUOPC
       write(*,'(A,A,A,A,A,I0)') '[CATCHEM DEBUG] static dust AQMIO fallback category=', &
          trim(ext_emis_data%categories(active_category_index)%category_name), &
          ' source_file=', trim(ext_emis_data%categories(active_category_index)%source_file), &
          ' n_fields=', ext_emis_data%categories(active_category_index)%n_fields
       call flush(6)
+#endif
 
       call catchem_emis_setup_timing(ext_emis_data%categories(active_category_index), clock, localrc)
       if (localrc /= CC_SUCCESS) then
@@ -472,9 +480,11 @@ contains
          return
       end if
       new_field%long_name = trim(field_name)
+#ifdef CATCHEM_TRACE_NUOPC
       write(*,'(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate default static dust category=', &
          trim(category%category_name), ' field=', trim(field_name)
       call flush(6)
+#endif
       call category%add_field(new_field, localrc)
       if (localrc /= CC_SUCCESS) rc = CC_FAILURE
 
@@ -749,11 +759,13 @@ contains
          end if
 
          category%fields(ifield)%is_loaded = .true.   !set to true; otherwise diagnostics will not be saved.
+#ifdef CATCHEM_TRACE_NUOPC
          write(*,'(A,A,A,A,A,L1,A,L1)') '[CATCHEM DEBUG] AQMIO read category=', trim(category_name), &
             ' field=', trim(category%fields(ifield)%field_name), &
             ' emission_data=', allocated(category%fields(ifield)%emission_data), &
             ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1)
          call flush(6)
+#endif
 
          ! Clean up ESMF field after data transfer
          call ESMF_FieldDestroy(esmf_field, rc=localrc)
@@ -1066,11 +1078,13 @@ contains
          end if
 
          category%fields(ifield)%is_loaded = .true.
+#ifdef CATCHEM_TRACE_NUOPC
          write(*,'(A,A,A,A,A,L1,A,L1)') '[CATCHEM DEBUG] AQMIO regrid read category=', trim(category_name), &
             ' field=', trim(category%fields(ifield)%field_name), &
             ' emission_data=', allocated(category%fields(ifield)%emission_data), &
             ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1)
          call flush(6)
+#endif
 
          call ESMF_FieldDestroy(esmf_field, rc=localrc)
          if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -2325,9 +2339,11 @@ contains
          call new_field%init(field_name, nx, ny, nlev, 1, 'kg/m2/s', localrc)
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
+#ifdef CATCHEM_TRACE_NUOPC
             write(*,'(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate category=', trim(category_name), &
                ' field=', trim(field_name)
             call flush(6)
+#endif
             if (ext_emis_data%diagnostic .and. new_category%diagnostic) then
                if (allocated(diag_species_list)) then
                   if (size(diag_species_list) == 1 .and. trim(diag_species_list(1)) == 'All') then
@@ -2364,9 +2380,11 @@ contains
          call new_field%init(field_name, nx, ny, nlev, 1, 'kg/m2/s', localrc)
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
+#ifdef CATCHEM_TRACE_NUOPC
             write(*,'(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate species-list category=', trim(category_name), &
                ' field=', trim(field_name)
             call flush(6)
+#endif
             call new_category%add_field(new_field, localrc)
          end if
       end do

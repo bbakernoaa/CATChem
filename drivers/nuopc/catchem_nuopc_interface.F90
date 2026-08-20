@@ -62,6 +62,13 @@ module catchem_nuopc_interface
          character(kind=c_char), intent(in) :: name(*)
       end function
 
+      type(c_ptr) function catchem_state_get_species_conc_pointer(state_ptr, species_index) &
+         bind(C, name="catchem_state_get_species_conc_pointer")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: species_index
+      end function
+
       subroutine catchem_state_get_species_name_at(state_ptr, index, name_out) bind(C, name="catchem_state_get_species_name_at")
          import :: c_ptr, c_char, c_int
          type(c_ptr), value :: state_ptr
@@ -624,8 +631,10 @@ contains
 
       rc = CC_SUCCESS
       if (cc_wrap%ext_emis%n_categories == 0) then
+#ifdef CATCHEM_TRACE_NUOPC
          write(*,'(A)') '[CATCHEM DEBUG] bind_static_met_from_aqmio: no emission categories available'
          call flush(6)
+#endif
          return
       end if
 
@@ -666,9 +675,11 @@ contains
          if (associated(src_field)) exit
       end do
       if (associated(src_field)) then
+#ifdef CATCHEM_TRACE_NUOPC
          write(*,'(A,A,A,A)') '[CATCHEM DEBUG] bind_static_field exact met=', trim(met_name), &
             ' source=', trim(src_field%field_name)
          call flush(6)
+#endif
          call bind_static_field_data(cc_wrap, src_field, met_name, met_buffer, scale, rc)
          return
       end if
@@ -678,10 +689,12 @@ contains
          if (.not. allocated(cc_wrap%ext_emis%categories(i)%fields)) cycle
          do j = 1, cc_wrap%ext_emis%categories(i)%n_fields
             if (field_name_matches(cc_wrap%ext_emis%categories(i)%fields(j)%field_name, search_tokens)) then
+#ifdef CATCHEM_TRACE_NUOPC
                write(*,'(A,A,A,A,A,A)') '[CATCHEM DEBUG] bind_static_field token met=', trim(met_name), &
                   ' category=', trim(cc_wrap%ext_emis%categories(i)%category_name), &
                   ' source=', trim(cc_wrap%ext_emis%categories(i)%fields(j)%field_name)
                call flush(6)
+#endif
                call bind_static_field_data(cc_wrap, cc_wrap%ext_emis%categories(i)%fields(j), &
                   met_name, met_buffer, scale, rc)
                return
@@ -689,6 +702,7 @@ contains
          end do
       end do
 
+#ifdef CATCHEM_TRACE_NUOPC
       write(*,'(A,A,A,I0)') '[CATCHEM DEBUG] bind_static_field missing met=', trim(met_name), &
          ' n_categories=', cc_wrap%ext_emis%n_categories
       call flush(6)
@@ -705,6 +719,7 @@ contains
             call flush(6)
          end do
       end do
+#endif
 
    end subroutine bind_static_field
 
@@ -744,9 +759,11 @@ contains
          return
       end if
 
+#ifdef CATCHEM_TRACE_NUOPC
       write(*,'(A,A,A,A,A,I0,A,I0)') '[CATCHEM DEBUG] bind_static_field_data met=', trim(met_name), &
          ' source=', trim(src_field%field_name), ' shape=[', size(met_buffer, 1), ',', size(met_buffer, 2), ']'
       call flush(6)
+#endif
       call cc_wrap%catchem_model%bind_met_2d(trim(met_name), met_buffer)
 
    end subroutine bind_static_field_data
@@ -1042,20 +1059,24 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
          if (.not. associated(fptr2d)) then
+#ifdef CATCHEM_TRACE_NUOPC
             write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 2D UNASSOCIATED: ', &
                trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
             call flush(6)
+#endif
             call ESMF_LogWrite("transform_field_to_catchem: fptr2d NOT associated for "// &
                trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
                ESMF_LOGMSG_WARNING, rc=rc)
             return
          end if
 
+#ifdef CATCHEM_TRACE_NUOPC
          write(*, '(A,A,A,A,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 2D: ', &
             trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
             ' shape=[', size(fptr2d, 1), ',', size(fptr2d, 2), '] ptr=', transfer(c_loc(fptr2d(1,1)), 0_c_intptr_t), &
             ' min=', minval(fptr2d), ' max=', maxval(fptr2d)
          call flush(6)
+#endif
 
          if (allocated(cc_wrap%lat)) then
             if (size(fptr2d, 1) /= size(cc_wrap%lat, 1) .or. size(fptr2d, 2) /= size(cc_wrap%lat, 2)) then
@@ -1096,20 +1117,24 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
          if (.not. associated(fptr3d)) then
+#ifdef CATCHEM_TRACE_NUOPC
             write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 3D UNASSOCIATED: ', &
                trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
             call flush(6)
+#endif
             call ESMF_LogWrite("transform_field_to_catchem: fptr3d NOT associated for "// &
                trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
                ESMF_LOGMSG_WARNING, rc=rc)
             return
          end if
 
+#ifdef CATCHEM_TRACE_NUOPC
          write(*, '(A,A,A,A,A,I0,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 3D: ', &
             trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
             ' shape=[', size(fptr3d, 1), ',', size(fptr3d, 2), ',', size(fptr3d, 3), '] ptr=', transfer(c_loc(fptr3d(1,1,1)), 0_c_intptr_t), &
             ' min=', minval(fptr3d), ' max=', maxval(fptr3d)
          call flush(6)
+#endif
 
          if (.not. allocated(cc_wrap%met_buf_3d(fidx)%data)) then
             allocate(cc_wrap%met_buf_3d(fidx)%data(size(fptr3d, 1), size(fptr3d, 2), size(fptr3d, 3)))
@@ -1133,20 +1158,24 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
          if (.not. associated(fptr4d)) then
+#ifdef CATCHEM_TRACE_NUOPC
             write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 4D UNASSOCIATED: ', &
                trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
             call flush(6)
+#endif
             call ESMF_LogWrite("transform_field_to_catchem: fptr4d NOT associated for "// &
                trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
                ESMF_LOGMSG_WARNING, rc=rc)
             return
          end if
 
+#ifdef CATCHEM_TRACE_NUOPC
          write(*, '(A,A,A,A,A,I0,A,I0,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 4D: ', &
             trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
             ' shape=[', size(fptr4d, 1), ',', size(fptr4d, 2), ',', size(fptr4d, 3), ',', size(fptr4d, 4), &
             '] ptr=', transfer(c_loc(fptr4d(1,1,1,1)), 0_c_intptr_t), ' min=', minval(fptr4d), ' max=', maxval(fptr4d)
          call flush(6)
+#endif
 
          v_cc = int(catchem_state_get_species_count(cc_wrap%catchem_model%state_mgr_ptr))
          if (v_cc <= 0) v_cc = size(fptr4d, 4)
@@ -1201,10 +1230,12 @@ contains
       integer, intent(out) :: rc
 
       real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
+      real(c_double), pointer :: cc_species_conc(:,:)
       real(fp), allocatable :: cc_diag_data(:,:,:)
+      type(c_ptr) :: raw_species_ptr
       character(len=128), allocatable :: diagnostic_names(:)
       real(ESMF_KIND_R8) :: unit_conv
-      integer :: i, j, k, v, ni, nj, nk, kk, nv, v_cc, found_index
+      integer :: i, j, k, v, col, ni, nj, nk, kk, nv, v_cc, found_index
 
       rc = ESMF_SUCCESS
 
@@ -1305,20 +1336,43 @@ contains
          nk = size(fptr4d, 3)
          nv = size(fptr4d, 4)
 
-         ! Copy updated concentrations from persistent contiguous buffer back to ESMF tracer array
-         if (allocated(cc_wrap%chem_buf_4d)) then
-            if (allocated(cc_wrap%tracer_map%nuopc_to_cc)) then
-               do v = 1, min(nv, size(cc_wrap%tracer_map%nuopc_to_cc))
-                  found_index = cc_wrap%tracer_map%nuopc_to_cc(v)
-                  if (found_index > 0 .and. found_index <= size(cc_wrap%chem_buf_4d, 4)) then
-                     fptr4d(:,:,:, v) = cc_wrap%chem_buf_4d(:,:,:, found_index)
-                  end if
+         ! Copy updated concentrations from the live C++ ChemState buffer back to ESMF tracer array.
+         ! The imported 4D buffer is only a staging source for bind_unified_chemistry; process kernels update
+         ! ChemState in-place, so export must read the C++ state rather than replaying the original staging buffer.
+         if (allocated(cc_wrap%tracer_map%nuopc_to_cc)) then
+            do v = 1, min(nv, size(cc_wrap%tracer_map%nuopc_to_cc))
+               found_index = cc_wrap%tracer_map%nuopc_to_cc(v)
+               if (found_index <= 0) cycle
+               raw_species_ptr = catchem_state_get_species_conc_pointer(cc_wrap%catchem_model%state_mgr_ptr, &
+                  int(found_index, c_int))
+               if (.not. c_associated(raw_species_ptr)) cycle
+               call c_f_pointer(raw_species_ptr, cc_species_conc, [ni * nj, nk])
+               do k = 1, nk
+                  do j = 1, nj
+                     do i = 1, ni
+                        col = i + (j - 1) * ni
+                        fptr4d(i,j,k,v) = cc_species_conc(col,k)
+                     end do
+                  end do
                end do
-            else
-               do v = 1, min(nv, size(cc_wrap%chem_buf_4d, 4))
-                  fptr4d(:,:,:, v) = cc_wrap%chem_buf_4d(:,:,:, v)
+               nullify(cc_species_conc)
+            end do
+         else
+            v_cc = int(catchem_state_get_species_count(cc_wrap%catchem_model%state_mgr_ptr))
+            do v = 1, min(nv, v_cc)
+               raw_species_ptr = catchem_state_get_species_conc_pointer(cc_wrap%catchem_model%state_mgr_ptr, int(v, c_int))
+               if (.not. c_associated(raw_species_ptr)) cycle
+               call c_f_pointer(raw_species_ptr, cc_species_conc, [ni * nj, nk])
+               do k = 1, nk
+                  do j = 1, nj
+                     do i = 1, ni
+                        col = i + (j - 1) * ni
+                        fptr4d(i,j,k,v) = cc_species_conc(col,k)
+                     end do
+                  end do
                end do
-            end if
+               nullify(cc_species_conc)
+            end do
          end if
 
          if (allocated(cc_wrap%tracer_map%names)) then
