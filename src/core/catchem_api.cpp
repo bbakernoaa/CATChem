@@ -115,6 +115,15 @@ void catchem_state_bind_met_2d(void* state_ptr, const char* name, double* ptr) {
     state->bind_met_field_2d(name, ptr);
 }
 
+void catchem_met_state_bind_2d_field_alias(void* state_ptr, const char* alias_name) {
+    if (!state_ptr || !alias_name) return;
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    auto ptr = state->get_host_pointer_2d(alias_name);
+    if (ptr) {
+        state->bind_met_field_2d(alias_name, ptr);
+    }
+}
+
 void catchem_state_bind_met_3d(void* state_ptr, const char* name, double* ptr) {
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     state->bind_met_field_3d(name, ptr);
@@ -1500,5 +1509,20 @@ double catchem_met_stokes_number(double rho_p, double d_p, double u, double mu, 
 
 double catchem_met_nuclear_decay(double n0, double lambda, double t) {
     return catchem::met_utilities::nuclear_decay(n0, lambda, t);
+}
+
+int catchem_state_get_nx(void* state_ptr) {
+    if (!state_ptr) return 0;
+    return static_cast<catchem::StateManager*>(state_ptr)->n_cols;
+}
+
+int catchem_state_get_ny(void* state_ptr) {
+    if (!state_ptr) return 0;
+    return 1; // 1D column arrays natively, but exposing ny=1 for 2D interfaces
+}
+
+int catchem_state_get_nz(void* state_ptr) {
+    if (!state_ptr) return 0;
+    return static_cast<catchem::StateManager*>(state_ptr)->n_levels;
 }
 }
