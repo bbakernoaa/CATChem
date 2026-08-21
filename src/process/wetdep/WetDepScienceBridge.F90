@@ -201,10 +201,12 @@ contains
 
          ! Convert tendencies from process-specific units (ug/kg/s or ppm/s) to kg/kg/s
          do ispec = 1, n_species
-            if ( f_is_aerosol(ispec) ) then
-               col_tendencies(:, ispec) = col_tendencies(:, ispec) * 1.0e-9_fp
-            else
-               col_tendencies(:, ispec) = col_tendencies(:, ispec) * 1.0e-6_fp * (f_mw_g(ispec) / AIRMW)
+            if (any(abs(col_tendencies(:, ispec)) > 1.0e-32_fp)) then
+               if ( f_is_aerosol(ispec) ) then
+                  col_tendencies(:, ispec) = col_tendencies(:, ispec) * 1.0e-9_fp
+               else
+                  col_tendencies(:, ispec) = col_tendencies(:, ispec) * 1.0e-6_fp * (f_mw_g(ispec) / AIRMW)
+               end if
             end if
          end do
 

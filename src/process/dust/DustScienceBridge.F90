@@ -64,8 +64,8 @@ contains
       type(c_ptr), value :: diag_moisture_correction
       type(c_ptr), value :: diag_effective_threshold
       type(c_ptr), value :: diag_utar_threshold
-      integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
       integer(c_int), value :: n_diag_species
+      integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
 
       ! Local Fortran Pointers
       real(c_double), pointer :: f_airden(:,:)
@@ -102,7 +102,7 @@ contains
       type(DustSchemeFENGSHAConfig) :: fengsha_config
       type(DustSchemeGINOUXConfig)  :: ginoux_config
       character(len=32) :: local_scheme
-      integer :: icol, i
+      integer :: icol, i, ispec
 
       ! Map Scheme Name
       local_scheme = ""
@@ -199,8 +199,12 @@ contains
          end if
 
          ! Write tendencies
-         f_tendency(icol, :, :) = f_tendency(icol, :, :) + real(col_tendency, c_double)
-         f_conc(icol, :, :) = f_conc(icol, :, :) + real(dt * col_tendency, c_double)
+         do ispec = 1, n_species
+            if (any(abs(col_tendency(:, ispec)) > 1.0e-32_fp)) then
+               f_tendency(icol, :, ispec) = f_tendency(icol, :, ispec) + real(col_tendency(:, ispec), c_double)
+               f_conc(icol, :, ispec) = f_conc(icol, :, ispec) + real(dt * col_tendency(:, ispec), c_double)
+            end if
+         end do
 
          ! Write diagnostics
          if (diagnostics /= 0) then

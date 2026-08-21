@@ -43,8 +43,8 @@ contains
       type(c_ptr), value :: diag_phobic_mass
       type(c_ptr), value :: diag_phobic_flux
 
-      integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
       integer(c_int), value :: n_diag_species
+      integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
 
       ! Local Fortran Pointers for multidimensional mapping
       real(c_double), pointer :: f_airden(:,:), f_delp(:,:), f_pmid(:,:)
@@ -74,7 +74,7 @@ contains
       ! Control structures
       type(CarbChemSchemeGOCARTConfig) :: gocart_config
       character(len=32) :: local_scheme
-      integer :: icol, i, j, k
+      integer :: icol, i, j
 
       ! Extract scheme string
       local_scheme = ""
@@ -144,7 +144,7 @@ contains
          ! GOCART carbon returns updated aerosol concentrations in ug/kg for computed species.
          ! Convert those updates to kg/kg tendencies and update the live concentration buffer in place.
          do i = 1, n_species
-            if (any(col_tendency(:, i) /= 0.0_fp)) then
+            if (any(abs(col_tendency(:, i)) > 1.0e-32_fp)) then
                col_conc_new(:) = col_tendency(:, i) * 1.0e-9_fp
                col_tendency(:, i) = (col_conc_new(:) - real(f_conc(icol, :, i), fp)) / real(dt, fp)
             end if

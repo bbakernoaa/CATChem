@@ -70,7 +70,7 @@ contains
       real(c_double), pointer :: conc(:,:,:), tendency(:,:,:), diag_con(:,:), diag_vel(:,:)
 
       ! Loop variables
-      integer :: icol
+      integer :: icol, ispec
       character(len=64) :: local_gas, local_aero
       character(len=255) :: local_lucname = "NOAH"
       character(len=30) :: dummy_sp_names(n_species)
@@ -263,8 +263,13 @@ contains
          endif
 
          ! Write tendencies and concentrations back in-place (casting back to c_double)
-         tendency(icol, 1, :) = real(col_tendencies(1, :), c_double)
-         conc(icol, 1, :) = conc(icol, 1, :) + real(dt * col_tendencies(1, :), c_double)
+         ! Prevent zeroing out un-computed species
+         do ispec = 1, n_species
+            if (abs(col_tendencies(1, ispec)) > 1.0e-32_fp) then
+               tendency(icol, 1, ispec) = real(col_tendencies(1, ispec), c_double)
+               conc(icol, 1, ispec) = conc(icol, 1, ispec) + real(dt * col_tendencies(1, ispec), c_double)
+            end if
+         end do
 
          if (diagnostics /= 0) then
             diag_con(icol, :) = real(col_diag_con, c_double)
