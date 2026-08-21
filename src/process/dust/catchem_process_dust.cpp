@@ -164,6 +164,8 @@ namespace catchem {
                                 diag_emission_total, diag_emission_bin, diag_horizontal_flux, diag_moisture_correction,
                                 diag_effective_threshold, diag_utar_threshold, diagnostic_species_id.data(),
                                 diagnostic_species_id.size());
+
+        state->sync_to_device();
     }
 
     void DustProcess::finalize() {}

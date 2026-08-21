@@ -107,6 +107,8 @@ namespace catchem {
             state->time.minute, state->time.second, airden_ptr, delp_ptr, pmid_ptr, t_chem_loss.data(),
             state->chem.species_names_c_arr.data(), conc_ptr, mock_tendency.data(), diag_prod_mass, diag_loss_flux,
             diag_phobic_mass, diag_phobic_flux, diagnostic_species_id.data(), diagnostic_species_id.size());
+
+        state->sync_to_device();
     }
 
     void CarbChemProcess::finalize() {}
