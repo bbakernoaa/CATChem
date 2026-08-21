@@ -2143,15 +2143,15 @@ contains
             type(c_ptr), value :: state_ptr
             integer(c_int), value :: index
          end function
-         int function catchem_state_get_nx(state_ptr) bind(C, name="catchem_state_get_nx")
+         integer(c_int) function catchem_state_get_nx(state_ptr) bind(C, name="catchem_state_get_nx")
             import :: c_ptr, c_int
             type(c_ptr), value :: state_ptr
          end function
-         int function catchem_state_get_ny(state_ptr) bind(C, name="catchem_state_get_ny")
+         integer(c_int) function catchem_state_get_ny(state_ptr) bind(C, name="catchem_state_get_ny")
             import :: c_ptr, c_int
             type(c_ptr), value :: state_ptr
          end function
-         int function catchem_state_get_nz(state_ptr) bind(C, name="catchem_state_get_nz")
+         integer(c_int) function catchem_state_get_nz(state_ptr) bind(C, name="catchem_state_get_nz")
             import :: c_ptr, c_int
             type(c_ptr), value :: state_ptr
          end function
