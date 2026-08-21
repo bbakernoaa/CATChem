@@ -159,7 +159,8 @@ contains
       w10m = sqrt(U10M ** 2 + V10M ** 2)
 
       ! Main computation loop
-      do k = 1, num_layers
+      ! Dust emission is a surface flux, so it is only applied to the first layer (k=1)
+      do k = 1, 1
 
          ! Apply to each species
          do species_idx = 1, num_species

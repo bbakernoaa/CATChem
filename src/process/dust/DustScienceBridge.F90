@@ -14,7 +14,7 @@ contains
    subroutine run_dust_science_bridge( &
       n_cols, n_levels, n_species, n_soil, dt, &
       active_scheme, diagnostics, &
-      airden, clayfrac, frlake, frsno, gvf, lai, lwi, rdrag, sandfrac, &
+      airden, bxheight, clayfrac, frlake, frsno, gvf, lai, lwi, rdrag, sandfrac, &
       soilm, ssm, tskin, u10m, v10m, ustar, ustar_threshold, z0, &
       species_density, species_radius, species_lower_radius, species_upper_radius, &
       conc, tendency, &

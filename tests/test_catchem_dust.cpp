@@ -53,6 +53,7 @@ int main(int argc, char* argv[]) {
         std::vector<double> snow_fraction(n_cols, 0.0);
         std::vector<double> vegetation_fraction(n_cols, 0.3);
         std::vector<double> leaf_area_index(n_cols, 1.0);
+        std::vector<double> bxheight(n_cols * n_levels, 100.0);
         std::vector<double> drag_coefficient(n_cols, 0.01);
         std::vector<double> sand_fraction(n_cols, 0.4);
         std::vector<double> surface_soil_moisture(n_cols, 0.1);
@@ -62,6 +63,7 @@ int main(int argc, char* argv[]) {
         std::vector<double> chem_conc(n_cols * n_levels * n_species, 0.0);
 
         state->bind_met_field_3d("air_density_dry", airden.data());
+        state->bind_met_field_3d("box_height", bxheight.data());
         state->bind_met_field_2d("clay_fraction", clay_fraction.data());
         state->bind_met_field_2d("lake_fraction", lake_fraction.data());
         state->bind_met_field_2d("snow_fraction", snow_fraction.data());
