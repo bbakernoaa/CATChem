@@ -342,8 +342,6 @@ double catchem_met_stokes_settling_velocity(double dp, double rho_p, double rho_
 double catchem_met_stokes_number(double rho_p, double d_p, double u, double mu, double l);
 double catchem_met_nuclear_decay(double n0, double lambda, double t);
 
-void catchem_met_state_bind_2d_field_alias(void* state_ptr, const char* alias_name);
-
 /** @brief Get grid X dimension. */
 int catchem_state_get_nx(void* state_ptr);
 

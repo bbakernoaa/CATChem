@@ -1595,11 +1595,6 @@ contains
             type(c_ptr), value :: state_ptr
             integer(c_int), value :: index
          end function
-         subroutine catchem_met_state_bind_2d_field_alias(state_ptr, alias_name) bind(C, name="catchem_met_state_bind_2d_field_alias")
-            import :: c_ptr, c_char
-            type(c_ptr), value :: state_ptr
-            character(kind=c_char), intent(in) :: alias_name(*)
-         end subroutine
       end interface
 
       rc = CC_SUCCESS
@@ -1693,7 +1688,8 @@ contains
             if (species_index <= 0) then
                ! Try MET alias if it maps to MET_
                if (len_trim(mapped_species_name) > 4 .and. (trim(mapped_species_name(1:4)) == 'MET_' .or. trim(mapped_species_name(1:4)) == 'met_')) then
-                  call catchem_met_state_bind_2d_field_alias(state_ptr, trim(mapped_species_name(5:)) // c_null_char)
+                  ! Meteorological fields are already bound in StateManager during NUOPC import
+                  cycle
                end if
                cycle
             end if
