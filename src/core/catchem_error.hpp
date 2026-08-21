@@ -31,8 +31,8 @@ namespace catchem {
 
     inline void require_field_pointer(const char* process_name, const char* field_name, const void* ptr) {
         if (ptr == nullptr) {
-            throw std::runtime_error(std::string("FATAL ERROR: ") + process_name +
-                                     " process missing required field " + field_name);
+            throw std::runtime_error(std::string("FATAL ERROR: ") + process_name + " process missing required field " +
+                                     field_name);
         }
     }
 

@@ -174,20 +174,27 @@ namespace catchem {
 
         for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
             auto& meta = state->chem.species_list[i];
-            if (meta.mw_g > 0.0) mw_g[i] = meta.mw_g;
+            if (meta.mw_g > 0.0)
+                mw_g[i] = meta.mw_g;
             dd_f0[i] = meta.dd_f0;
             dd_hstar[i] = meta.dd_hstar;
             dd_DvzAerSnow[i] = meta.dd_DvzAerSnow;
             dd_DvzMinVal_snow[i] = meta.dd_DvzMinVal_snow;
             dd_DvzMinVal_land[i] = meta.dd_DvzMinVal_land;
-            if (meta.density > 0.0) density[i] = meta.density;
-            if (meta.radius > 0.0) radius[i] = meta.radius;
+            if (meta.density > 0.0)
+                density[i] = meta.density;
+            if (meta.radius > 0.0)
+                radius[i] = meta.radius;
             is_seasalt[i] = meta.is_seasalt ? 1 : 0;
             is_dust[i] = meta.is_dust ? 1 : 0;
-            if (meta.lower_radius > 0.0) lower_radius[i] = meta.lower_radius;
-            if (meta.upper_radius > 0.0) upper_radius[i] = meta.upper_radius;
-            if (lower_radius[i] <= 0.0) lower_radius[i] = radius[i] * 0.1;
-            if (upper_radius[i] <= lower_radius[i]) upper_radius[i] = radius[i] * 2.0;
+            if (meta.lower_radius > 0.0)
+                lower_radius[i] = meta.lower_radius;
+            if (meta.upper_radius > 0.0)
+                upper_radius[i] = meta.upper_radius;
+            if (lower_radius[i] <= 0.0)
+                lower_radius[i] = radius[i] * 0.1;
+            if (upper_radius[i] <= lower_radius[i])
+                upper_radius[i] = radius[i] * 2.0;
             is_gas[i] = meta.is_gas ? 1 : 0;
         }
 

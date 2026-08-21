@@ -47,11 +47,15 @@ namespace catchem {
 
         if ((!airden_dry_ptr || !mairden_ptr) && state->met.PMID && state->met.T) {
             state->derive_airden_dry();
-            if (!airden_dry_ptr) airden_dry_ptr = state->find_3d_ptr({"AIRDEN_DRY", "air_density_dry", "AIRDEN", "air_density"});
-            if (!mairden_ptr) mairden_ptr = state->find_3d_ptr({"AIRDEN", "air_density", "AIRDEN_DRY", "air_density_dry"});
+            if (!airden_dry_ptr)
+                airden_dry_ptr = state->find_3d_ptr({"AIRDEN_DRY", "air_density_dry", "AIRDEN", "air_density"});
+            if (!mairden_ptr)
+                mairden_ptr = state->find_3d_ptr({"AIRDEN", "air_density", "AIRDEN_DRY", "air_density_dry"});
         }
-        if (!airden_dry_ptr) airden_dry_ptr = mairden_ptr;
-        if (!mairden_ptr) mairden_ptr = airden_dry_ptr;
+        if (!airden_dry_ptr)
+            airden_dry_ptr = mairden_ptr;
+        if (!mairden_ptr)
+            mairden_ptr = airden_dry_ptr;
 
         double* pedge_ptr = state->find_3d_ptr({"PEDGE", "pedge", "pressure_edge"});
         double* t_ptr = state->find_3d_ptr({"T", "temperature", "temp"});
@@ -123,8 +127,10 @@ namespace catchem {
             wd_LiqAndGas[i] = meta.wd_LiqAndGas ? 1 : 0;
             wd_convfacI2G[i] = meta.wd_convfacI2G;
             wd_reevap_frac[i] = 1.0; // dummy default
-            if (meta.radius > 0.0) radius[i] = meta.radius;
-            if (meta.mw_g > 0.0) mw_g[i] = meta.mw_g;
+            if (meta.radius > 0.0)
+                radius[i] = meta.radius;
+            if (meta.mw_g > 0.0)
+                mw_g[i] = meta.mw_g;
 
             // Fill rainouteff safely up to 3 efficiency factors
             for (int k = 0; k < 3; ++k) {

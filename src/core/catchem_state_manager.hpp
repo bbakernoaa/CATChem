@@ -58,7 +58,8 @@ namespace catchem {
                 field->update_host_pointer(ptr);
             } else {
                 std::string upper_name = name;
-                std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), [](unsigned char c) { return std::toupper(c); });
+                std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(),
+                               [](unsigned char c) { return std::toupper(c); });
                 int nl = (upper_name == "PEDGE") ? n_levels + 1 : n_levels;
                 auto new_field = std::make_shared<InteropField<double, 3>>(
                     ptr, std::vector<int>{n_cols, nl, 1}); // Using 1 for single-field layout
@@ -68,15 +69,19 @@ namespace catchem {
 
         double* find_3d_ptr(std::initializer_list<const char*> names) const {
             auto f = met.get_3d(names);
-            if (f) return f->host_data();
-            if (met.AIRDEN) return met.AIRDEN->host_data();
-            if (met.AIRDEN_DRY) return met.AIRDEN_DRY->host_data();
+            if (f)
+                return f->host_data();
+            if (met.AIRDEN)
+                return met.AIRDEN->host_data();
+            if (met.AIRDEN_DRY)
+                return met.AIRDEN_DRY->host_data();
             return nullptr;
         }
 
         double* find_2d_ptr(std::initializer_list<const char*> names) const {
             auto f = met.get_2d(names);
-            if (f) return f->host_data();
+            if (f)
+                return f->host_data();
             return nullptr;
         }
 

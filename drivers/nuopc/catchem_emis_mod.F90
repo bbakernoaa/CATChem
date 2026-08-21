@@ -1564,7 +1564,7 @@ contains
       real(c_double), pointer :: f_lat(:,:)
       real(fp), allocatable :: f_delp(:,:,:)
       real(fp), allocatable :: f_bb(:,:)
-      
+
       interface
          type(c_ptr) function catchem_core_get_state_manager(core_ptr) bind(C, name="catchem_core_get_state_manager")
             import :: c_ptr
@@ -1610,10 +1610,10 @@ contains
          call catchem_emis_apply_points(category, icat, global_scale, core_ptr, dt, rc)
          return
       end if
-      
+
       state_ptr = catchem_core_get_state_manager(core_ptr)
       if (.not. c_associated(state_ptr)) return
-      
+
       ! Get dimensions from the first loaded field
       nx = 0; ny = 0; nz = 0
       do ifield = 1, category%n_fields
@@ -1624,9 +1624,9 @@ contains
             exit
          end if
       end do
-      
+
       if (nx == 0 .or. ny == 0 .or. nz == 0) return
-      
+
       ! Get meteorological state pointers
       c_pedge = catchem_state_get_pointer_3d(state_ptr, 'PEDGE' // c_null_char)
       c_airden = catchem_state_get_pointer_3d(state_ptr, 'AIRDEN_DRY' // c_null_char)
@@ -1640,7 +1640,7 @@ contains
          rc = CC_FAILURE
          return
       end if
-      
+
       call c_f_pointer(c_pedge, f_pedge, [nx, ny, nz+1])
       call c_f_pointer(c_airden, f_airden, [nx, ny, nz])
       if (c_associated(c_pblh)) call c_f_pointer(c_pblh, f_pblh, [nx, ny])
@@ -1649,7 +1649,7 @@ contains
 
       allocate(emission_flux(nx, ny, nz))
       allocate(f_delp(nx, ny, nz))
-      
+
       ! Compute f_delp from f_pedge (PEDGE goes from top to surface)
       do k = 1, nz
          do j = 1, ny
@@ -1658,13 +1658,13 @@ contains
             end do
          end do
       end do
-      
+
       category_name = trim(category%category_name)
-      
+
       ! Loop through all fields in this category
       do ifield = 1, category%n_fields
          if (.not. category%fields(ifield)%is_loaded .or. .not. allocated(category%fields(ifield)%emission_data)) cycle
-         
+
          field_name = trim(category%fields(ifield)%field_name)
          emission_flux(:,:,:) = category%fields(ifield)%emission_data(:,:,:,1)
          emission_flux = emission_flux * category%global_scale * global_scale
@@ -1682,7 +1682,7 @@ contains
                call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
             end if
          end if
-         
+
          n_mapped_species = catchem_config_get_emission_species_map_count(core_ptr, trim(category_name) // c_null_char, trim(field_name) // c_null_char)
 
          do ispec = 1, n_mapped_species
@@ -1697,20 +1697,20 @@ contains
                end if
                cycle
             end if
-            
+
             c_conc = catchem_state_get_species_conc_pointer(state_ptr, species_index)
             if (.not. c_associated(c_conc)) cycle
-            
+
             call c_f_pointer(c_conc, f_conc, [nx, ny, nz])
-            
+
             is_gas = (catchem_state_is_species_gas(state_ptr, species_index) /= 0)
-            
+
             if (is_gas) then
                converter = AIRMW / catchem_state_get_species_mw(state_ptr, species_index) * 1.0e6_c_double
             else
                converter = 1.0_c_double
             end if
-            
+
             ! Apply BB emission factor if needed (only OC/BC aerosols)
             if (category%use_oc_fbb .and. .not. is_gas .and. &
                (mapped_species_name(1:2) == 'oc' .or. mapped_species_name(1:2) == 'OC' .or. &
@@ -1744,7 +1744,7 @@ contains
                            call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
                            dqa = 0.0_c_double
                         end select
-                        
+
                         if (trim(category%apply_method) == 'replace') then
                            f_conc(i,j,k) = dqa
                         else
@@ -1754,10 +1754,10 @@ contains
                   end do
                end do
             end do
-            
+
          end do
       end do
-      
+
       deallocate(f_delp, emission_flux)
       if (allocated(f_bb)) deallocate(f_bb)
    end subroutine catchem_emis_apply
@@ -2100,7 +2100,7 @@ contains
       character(len=64) :: mapped_species_name
       character(len=EMIS_MAXSTR) :: msg, category_name, field_name
       character(len=*), parameter :: pName = 'catchem_emis_apply_points'
-      
+
       integer(c_int) :: species_index
       logical :: is_gas
 
@@ -2112,7 +2112,7 @@ contains
       real(c_double), pointer :: f_lat(:,:)
       real(c_double), pointer :: f_lon(:,:)
       real(fp), allocatable :: f_delp(:,:,:)
-      
+
       interface
          type(c_ptr) function catchem_core_get_state_manager(core_ptr) bind(C, name="catchem_core_get_state_manager")
             import :: c_ptr
@@ -2174,12 +2174,12 @@ contains
       c_z = catchem_state_get_pointer_3d(state_ptr, 'Z' // c_null_char)
 
       if (.not. c_associated(c_lat) .or. .not. c_associated(c_lon) .or. .not. c_associated(c_area) .or. &
-          .not. c_associated(c_pedge) .or. .not. c_associated(c_z)) then
+         .not. c_associated(c_pedge) .or. .not. c_associated(c_z)) then
          call ESMF_LogWrite(trim(pName)//': Missing pointers for points emission.', ESMF_LOGMSG_ERROR, rc=localrc)
          rc = CC_FAILURE
          return
       end if
-      
+
       call c_f_pointer(c_lat, f_lat, [nx, ny])
       call c_f_pointer(c_lon, f_lon, [nx, ny])
       call c_f_pointer(c_area, f_area, [nx, ny])
@@ -2212,7 +2212,7 @@ contains
       end do
 
       category_name = trim(category%category_name)
-      
+
       do ifield = 1, category%n_fields
          if (.not. category%fields(ifield)%is_loaded) cycle
          npts = category%fields(ifield)%npts
@@ -2225,16 +2225,16 @@ contains
             call catchem_config_get_emission_species_map_at(core_ptr, trim(category_name) // c_null_char, trim(field_name) // c_null_char, ispec - 1, &
                mapped_species_name, 64_c_int, scale_factor, species_index)
             call clean_c_string(mapped_species_name)
-            
+
             if (species_index <= 0) cycle
-            
+
             c_conc = catchem_state_get_species_conc_pointer(state_ptr, species_index)
             if (.not. c_associated(c_conc)) cycle
-            
+
             call c_f_pointer(c_conc, f_conc, [nx, ny, nz])
-            
+
             is_gas = (catchem_state_is_species_gas(state_ptr, species_index) /= 0)
-            
+
             if (is_gas) then
                converter = AIRMW / catchem_state_get_species_mw(state_ptr, species_index) * 1.0e6_c_double
             else
@@ -2278,7 +2278,7 @@ contains
             end do
          end do
       end do
-      
+
       deallocate(f_delp)
 
    end subroutine catchem_emis_apply_points
@@ -3265,7 +3265,7 @@ contains
       character(len=EMIS_MAXSTR) :: s
       s = adjustl(fn)
       is_null_filename = (len_trim(s) == 0 .or. &
-                          trim(s) == 'null' .or. trim(s) == 'NULL' .or. trim(s) == 'Null' .or. &
-                          trim(s) == 'none' .or. trim(s) == 'NONE' .or. trim(s) == 'None')
+         trim(s) == 'null' .or. trim(s) == 'NULL' .or. trim(s) == 'Null' .or. &
+         trim(s) == 'none' .or. trim(s) == 'NONE' .or. trim(s) == 'None')
    end function is_null_filename
 end module catchem_nuopc_emis_mod

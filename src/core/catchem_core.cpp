@@ -75,7 +75,8 @@ namespace catchem {
         state_mgr->diag_mgr = diag_mgr;
         load_configured_species(*state_mgr, config_file, config_mgr->data.species_filename);
         if (!config_mgr->data.simulation.emission_filename.empty()) {
-            config_mgr->load_emission_mapping_file(resolve_against_config(config_file, config_mgr->data.simulation.emission_filename));
+            config_mgr->load_emission_mapping_file(
+                resolve_against_config(config_file, config_mgr->data.simulation.emission_filename));
         }
         add_configured_processes();
     }
@@ -99,7 +100,8 @@ namespace catchem {
         state_mgr->diag_mgr = diag_mgr;
         load_configured_species(*state_mgr, config_file, config_mgr->data.species_filename);
         if (!config_mgr->data.simulation.emission_filename.empty()) {
-            config_mgr->load_emission_mapping_file(resolve_against_config(config_file, config_mgr->data.simulation.emission_filename));
+            config_mgr->load_emission_mapping_file(
+                resolve_against_config(config_file, config_mgr->data.simulation.emission_filename));
         }
         add_configured_processes();
     }

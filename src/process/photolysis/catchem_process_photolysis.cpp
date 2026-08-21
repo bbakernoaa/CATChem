@@ -249,7 +249,8 @@ namespace catchem {
 
         require_field_pointer("Photolysis", "LAT", state->met.LAT ? state->met.LAT->host_data() : nullptr);
         require_field_pointer("Photolysis", "LON", state->met.LON ? state->met.LON->host_data() : nullptr);
-        require_field_pointer("Photolysis", "BXHEIGHT", state->met.BXHEIGHT ? state->met.BXHEIGHT->host_data() : nullptr);
+        require_field_pointer("Photolysis", "BXHEIGHT",
+                              state->met.BXHEIGHT ? state->met.BXHEIGHT->host_data() : nullptr);
         require_field_pointer("Photolysis", "AIRDEN", state->met.AIRDEN ? state->met.AIRDEN->host_data() : nullptr);
         require_field_pointer("Photolysis", "T", state->met.T ? state->met.T->host_data() : nullptr);
         require_field_pointer("Photolysis", "CHEM_CONC", state->chem.conc ? state->chem.conc->host_data() : nullptr);

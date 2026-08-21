@@ -116,7 +116,8 @@ void catchem_state_bind_met_2d(void* state_ptr, const char* name, double* ptr) {
 }
 
 void catchem_met_state_bind_2d_field_alias(void* state_ptr, const char* alias_name) {
-    if (!state_ptr || !alias_name) return;
+    if (!state_ptr || !alias_name)
+        return;
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     auto ptr = state->get_host_pointer_2d(alias_name);
     if (ptr) {
@@ -232,21 +233,26 @@ void* catchem_diag_get_pointer(void* core_ptr, const char* name) {
 }
 
 int catchem_diag_get_rank(void* core_ptr, const char* name) {
-    if (!core_ptr || !name) return 0;
+    if (!core_ptr || !name)
+        return 0;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     auto diag_mgr = core->get_diagnostic_manager();
-    if (!diag_mgr || !diag_mgr->has_field(name)) return 0;
+    if (!diag_mgr || !diag_mgr->has_field(name))
+        return 0;
     auto field = diag_mgr->get_field(name);
     return field ? static_cast<int>(field->dimensions.size()) : 0;
 }
 
 void catchem_diag_get_dims(void* core_ptr, const char* name, int* dims_out) {
-    if (!core_ptr || !name || !dims_out) return;
+    if (!core_ptr || !name || !dims_out)
+        return;
     auto* core = static_cast<catchem::Core*>(core_ptr);
     auto diag_mgr = core->get_diagnostic_manager();
-    if (!diag_mgr || !diag_mgr->has_field(name)) return;
+    if (!diag_mgr || !diag_mgr->has_field(name))
+        return;
     auto field = diag_mgr->get_field(name);
-    if (!field) return;
+    if (!field)
+        return;
     for (size_t i = 0; i < field->dimensions.size(); ++i) {
         dims_out[i] = field->dimensions[i];
     }
@@ -1512,17 +1518,20 @@ double catchem_met_nuclear_decay(double n0, double lambda, double t) {
 }
 
 int catchem_state_get_nx(void* state_ptr) {
-    if (!state_ptr) return 0;
+    if (!state_ptr)
+        return 0;
     return static_cast<catchem::StateManager*>(state_ptr)->n_cols;
 }
 
 int catchem_state_get_ny(void* state_ptr) {
-    if (!state_ptr) return 0;
+    if (!state_ptr)
+        return 0;
     return 1; // 1D column arrays natively, but exposing ny=1 for 2D interfaces
 }
 
 int catchem_state_get_nz(void* state_ptr) {
-    if (!state_ptr) return 0;
+    if (!state_ptr)
+        return 0;
     return static_cast<catchem::StateManager*>(state_ptr)->n_levels;
 }
 }

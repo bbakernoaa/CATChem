@@ -7,9 +7,9 @@
 
 extern "C" {
 void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil, double dt, const char* active_scheme,
-                             int diagnostics, double* airden, double* bxheight, double* clayfrac, double* frlake, double* frsno,
-                             double* gvf, double* lai, int* lwi, double* rdrag, double* sandfrac, double* soilm,
-                             double* ssm, double* tskin, double* u10m, double* v10m, double* ustar,
+                             int diagnostics, double* airden, double* bxheight, double* clayfrac, double* frlake,
+                             double* frsno, double* gvf, double* lai, int* lwi, double* rdrag, double* sandfrac,
+                             double* soilm, double* ssm, double* tskin, double* u10m, double* v10m, double* ustar,
                              double* ustar_threshold, double* z0, double* species_density, double* species_radius,
                              double* species_lower_radius, double* species_upper_radius, double* conc, double* tendency,
                              double* diag_emission_total, double* diag_emission_bin, double* diag_horizontal_flux,
@@ -153,19 +153,21 @@ namespace catchem {
             if (state->chem.species_list[i].upper_radius > 0.0)
                 upper_radius[i] = state->chem.species_list[i].upper_radius;
 
-            if (lower_radius[i] <= 0.0) lower_radius[i] = radius[i] * 0.1;
-            if (upper_radius[i] <= lower_radius[i]) upper_radius[i] = radius[i] * 2.0;
+            if (lower_radius[i] <= 0.0)
+                lower_radius[i] = radius[i] * 0.1;
+            if (upper_radius[i] <= lower_radius[i])
+                upper_radius[i] = radius[i] * 2.0;
         }
 
         // 5. Invoke flat science bridge
         run_dust_science_bridge(state->n_cols, state->n_levels, state->n_species, 4, state->time.timestep, // n_soil=4
-                                active_scheme.c_str(), diagnostics_enabled ? 1 : 0, airden_ptr, bxheight_ptr, clayfrac_ptr,
-                                frlake_ptr, frsno_ptr, gvf_ptr, lai_ptr, lwi_ptr, rdrag_ptr, sandfrac_ptr, soilm_ptr,
-                                ssm_ptr, tskin_ptr, u10m_ptr, v10m_ptr, ustar_ptr, ustar_th_ptr, z0_ptr, density.data(),
-                                radius.data(), lower_radius.data(), upper_radius.data(), conc_ptr, mock_tendency.data(),
-                                diag_emission_total, diag_emission_bin, diag_horizontal_flux, diag_moisture_correction,
-                                diag_effective_threshold, diag_utar_threshold, diagnostic_species_id.data(),
-                                diagnostic_species_id.size());
+                                active_scheme.c_str(), diagnostics_enabled ? 1 : 0, airden_ptr, bxheight_ptr,
+                                clayfrac_ptr, frlake_ptr, frsno_ptr, gvf_ptr, lai_ptr, lwi_ptr, rdrag_ptr, sandfrac_ptr,
+                                soilm_ptr, ssm_ptr, tskin_ptr, u10m_ptr, v10m_ptr, ustar_ptr, ustar_th_ptr, z0_ptr,
+                                density.data(), radius.data(), lower_radius.data(), upper_radius.data(), conc_ptr,
+                                mock_tendency.data(), diag_emission_total, diag_emission_bin, diag_horizontal_flux,
+                                diag_moisture_correction, diag_effective_threshold, diag_utar_threshold,
+                                diagnostic_species_id.data(), diagnostic_species_id.size());
 
         state->sync_to_device();
     }

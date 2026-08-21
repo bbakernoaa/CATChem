@@ -3905,8 +3905,8 @@ contains
       n_times = 0
 
       if (len_trim(filename) == 0 .or. trim(filename) == 'null' .or. &
-          trim(filename) == 'NULL' .or. trim(filename) == 'none' .or. &
-          trim(filename) == 'NONE') then
+         trim(filename) == 'NULL' .or. trim(filename) == 'none' .or. &
+         trim(filename) == 'NONE') then
          if (present(rc)) rc = ESMF_FAILURE
          return
       end if

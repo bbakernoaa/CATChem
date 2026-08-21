@@ -33,7 +33,8 @@ namespace catchem {
             std::vector<YAML::Node> chain;
             chain.push_back(root);
             while (std::getline(ss, segment, '/')) {
-                if (segment.empty()) continue;
+                if (segment.empty())
+                    continue;
                 const YAML::Node& parent = chain.back();
                 if (!parent.IsDefined() || parent.IsNull() || !parent.IsMap()) {
                     return YAML::Node();
@@ -48,7 +49,8 @@ namespace catchem {
         }
 
         std::string resolve_relative_config_path(const std::string& config_file, const std::string& path) {
-            if (path.empty() || path.front() == '/' || path == "none" || path == "NONE" || path == "null" || path == "NULL")
+            if (path.empty() || path.front() == '/' || path == "none" || path == "NONE" || path == "null" ||
+                path == "NULL")
                 return path;
             if (config_file.empty())
                 return path;
@@ -59,23 +61,28 @@ namespace catchem {
         }
 
         std::string extract_file_setting(const YAML::Node& node) {
-            if (!node) return "";
+            if (!node)
+                return "";
             if (node.IsScalar()) {
                 try {
                     std::string path = node.as<std::string>();
-                    if (!path.empty() && path != "none" && path != "NONE" && path != "null" && path != "NULL" && path != "~" &&
-                        path != "true" && path != "false" && path != "TRUE" && path != "FALSE" && path != "1" && path != "0") {
+                    if (!path.empty() && path != "none" && path != "NONE" && path != "null" && path != "NULL" &&
+                        path != "~" && path != "true" && path != "false" && path != "TRUE" && path != "FALSE" &&
+                        path != "1" && path != "0") {
                         return path;
                     }
-                } catch (...) {}
+                } catch (...) {
+                }
                 return "";
             }
-            if (!node.IsMap()) return "";
+            if (!node.IsMap())
+                return "";
             for (const char* key : {"source_file", "input_file", "filename", "file", "path"}) {
                 YAML::Node val = safe_get_map_child(node, key);
                 if (val) {
                     std::string res = extract_file_setting(val);
-                    if (!res.empty()) return res;
+                    if (!res.empty())
+                        return res;
                 }
             }
             return "";
@@ -137,8 +144,10 @@ namespace catchem {
                 if (val.IsScalar()) {
                     std::string s = val.Scalar();
                     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
-                    if (s == "true" || s == "1" || s == "yes" || s == "y" || s == "on") return true;
-                    if (s == "false" || s == "0" || s == "no" || s == "n" || s == "off") return false;
+                    if (s == "true" || s == "1" || s == "yes" || s == "y" || s == "on")
+                        return true;
+                    if (s == "false" || s == "0" || s == "no" || s == "n" || s == "off")
+                        return false;
                 }
             }
         }
@@ -154,7 +163,8 @@ namespace catchem {
                 if (val.IsScalar()) {
                     try {
                         return std::stod(val.Scalar());
-                    } catch (...) {}
+                    } catch (...) {
+                    }
                 }
             }
         }
@@ -170,7 +180,8 @@ namespace catchem {
                 if (val.IsScalar()) {
                     try {
                         return std::stoi(val.Scalar());
-                    } catch (...) {}
+                    } catch (...) {
+                    }
                 }
             }
         }
@@ -203,8 +214,10 @@ namespace catchem {
                 std::string_view key = path.substr(second_slash + 1);
                 auto it = data.processes.find(proc_name);
                 if (it != data.processes.end()) {
-                    if (key == "activate") return it->second.activate;
-                    if (key == "diagnostics") return it->second.diagnostics;
+                    if (key == "activate")
+                        return it->second.activate;
+                    if (key == "diagnostics")
+                        return it->second.diagnostics;
                     return it->second.get_bool(key, default_val);
                 }
             }
@@ -217,9 +230,12 @@ namespace catchem {
                 try {
                     std::string s = node.as<std::string>();
                     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
-                    if (s == "true" || s == "1" || s == "yes" || s == "y" || s == "on") return true;
-                    if (s == "false" || s == "0" || s == "no" || s == "n" || s == "off") return false;
-                } catch (...) {}
+                    if (s == "true" || s == "1" || s == "yes" || s == "y" || s == "on")
+                        return true;
+                    if (s == "false" || s == "0" || s == "no" || s == "n" || s == "off")
+                        return false;
+                } catch (...) {
+                }
             }
         }
         return default_val;
@@ -235,7 +251,8 @@ namespace catchem {
                 auto it = data.processes.find(proc_name);
                 if (it != data.processes.end()) {
                     double val = it->second.get_double(key, default_val);
-                    if (val != default_val) return val;
+                    if (val != default_val)
+                        return val;
                 }
             }
         }
@@ -247,7 +264,8 @@ namespace catchem {
                 if (node.IsScalar()) {
                     try {
                         return std::stod(node.Scalar());
-                    } catch (...) {}
+                    } catch (...) {
+                    }
                 }
             }
         }
@@ -264,7 +282,8 @@ namespace catchem {
                 auto it = data.processes.find(proc_name);
                 if (it != data.processes.end()) {
                     int val = it->second.get_int(key, default_val);
-                    if (val != default_val) return val;
+                    if (val != default_val)
+                        return val;
                 }
             }
         }
@@ -276,7 +295,8 @@ namespace catchem {
                 if (node.IsScalar()) {
                     try {
                         return std::stoi(node.Scalar());
-                    } catch (...) {}
+                    } catch (...) {
+                    }
                 }
             }
         }
@@ -293,11 +313,13 @@ namespace catchem {
                 auto it = data.processes.find(proc_name);
                 if (it != data.processes.end()) {
                     if (key == "scheme") {
-                        if (!it->second.scheme.empty()) return it->second.scheme;
+                        if (!it->second.scheme.empty())
+                            return it->second.scheme;
                     }
                     std::string setting = it->second.get_string(key, "");
                     if (!setting.empty()) {
-                        if (key.find("source_file") != std::string_view::npos || key.find("filename") != std::string_view::npos) {
+                        if (key.find("source_file") != std::string_view::npos ||
+                            key.find("filename") != std::string_view::npos) {
                             return resolve_relative_config_path(config_file_path, setting);
                         }
                         return setting;
@@ -310,12 +332,14 @@ namespace catchem {
             try {
                 std::string str_val = node.as<std::string>();
                 if (str_val != "null" && str_val != "NULL" && str_val != "Null" && str_val != "~") {
-                    if (path.find("source_file") != std::string_view::npos || path.find("filename") != std::string_view::npos) {
+                    if (path.find("source_file") != std::string_view::npos ||
+                        path.find("filename") != std::string_view::npos) {
                         return resolve_relative_config_path(config_file_path, str_val);
                     }
                     return str_val;
                 }
-            } catch (...) {}
+            } catch (...) {
+            }
         }
         return std::string(default_val);
     }
@@ -338,7 +362,8 @@ namespace catchem {
                             } else {
                                 try {
                                     results.push_back(item.as<std::string>());
-                                } catch (...) {}
+                                } catch (...) {
+                                }
                             }
                         }
                         return results;
@@ -354,7 +379,8 @@ namespace catchem {
                 } else {
                     try {
                         results.push_back(item.as<std::string>());
-                    } catch (...) {}
+                    } catch (...) {
+                    }
                 }
             }
         }
@@ -363,9 +389,11 @@ namespace catchem {
 
     bool ConfigManager::is_process_active(std::string_view process_name) const {
         std::string p_path = "processes/" + std::string(process_name) + "/activate";
-        if (get_bool(p_path, false)) return true;
+        if (get_bool(p_path, false))
+            return true;
         std::string p_singular = "process/" + std::string(process_name) + "/activate";
-        if (get_bool(p_singular, false)) return true;
+        if (get_bool(p_singular, false))
+            return true;
         auto it = data.processes.find(std::string(process_name));
         if (it != data.processes.end()) {
             return it->second.activate;
@@ -378,7 +406,8 @@ namespace catchem {
             return false;
         }
         std::string path = "processes/extemis/" + std::string(category_name) + "/activate";
-        if (get_bool(path, true)) return true;
+        if (get_bool(path, true))
+            return true;
         std::string path_sing = "process/extemis/" + std::string(category_name) + "/activate";
         return get_bool(path_sing, true);
     }
@@ -405,7 +434,8 @@ namespace catchem {
 
         const auto extemis = data.processes.find("extemis");
         if (extemis != data.processes.end()) {
-            std::string path = extract_file_setting(safe_get_map_child(extemis->second.get_settings_node(), process_name));
+            std::string path =
+                extract_file_setting(safe_get_map_child(extemis->second.get_settings_node(), process_name));
             if (path.empty()) {
                 path = extract_file_setting(safe_get_map_child(extemis->second.get_settings_node(), "dust"));
             }
@@ -518,18 +548,48 @@ namespace catchem {
         }
 
         auto get_bool = [](const YAML::Node& n, const std::string& key, bool def) {
-            if (n["__" + key]) { try { return n["__" + key].as<bool>(); } catch (...) {} }
-            if (n[key]) { try { return n[key].as<bool>(); } catch (...) {} }
+            if (n["__" + key]) {
+                try {
+                    return n["__" + key].as<bool>();
+                } catch (...) {
+                }
+            }
+            if (n[key]) {
+                try {
+                    return n[key].as<bool>();
+                } catch (...) {
+                }
+            }
             return def;
         };
         auto get_double = [](const YAML::Node& n, const std::string& key, double def) {
-            if (n["__" + key]) { try { return n["__" + key].as<double>(); } catch (...) {} }
-            if (n[key]) { try { return n[key].as<double>(); } catch (...) {} }
+            if (n["__" + key]) {
+                try {
+                    return n["__" + key].as<double>();
+                } catch (...) {
+                }
+            }
+            if (n[key]) {
+                try {
+                    return n[key].as<double>();
+                } catch (...) {
+                }
+            }
             return def;
         };
         auto get_str = [](const YAML::Node& n, const std::string& key, const std::string& def) {
-            if (n["__" + key]) { try { return n["__" + key].as<std::string>(); } catch (...) {} }
-            if (n[key]) { try { return n[key].as<std::string>(); } catch (...) {} }
+            if (n["__" + key]) {
+                try {
+                    return n["__" + key].as<std::string>();
+                } catch (...) {
+                }
+            }
+            if (n[key]) {
+                try {
+                    return n[key].as<std::string>();
+                } catch (...) {
+                }
+            }
             return def;
         };
 
