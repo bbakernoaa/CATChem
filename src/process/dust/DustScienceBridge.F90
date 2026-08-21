@@ -14,7 +14,7 @@ contains
    subroutine run_dust_science_bridge( &
       n_cols, n_levels, n_species, n_soil, dt, &
       active_scheme, diagnostics, &
-      airden, bxheight, clayfrac, frlake, frsno, gvf, lai, lwi, rdrag, sandfrac, &
+      airden, bxheight, delp, clayfrac, frlake, frsno, gvf, lai, lwi, rdrag, sandfrac, &
       soilm, ssm, tskin, u10m, v10m, ustar, ustar_threshold, z0, &
       species_density, species_radius, species_lower_radius, species_upper_radius, &
       conc, tendency, &
@@ -31,6 +31,7 @@ contains
       ! 2D/3D Pointers from C++ Kokkos state
       type(c_ptr), value :: airden
       type(c_ptr), value :: bxheight
+      type(c_ptr), value :: delp
       type(c_ptr), value :: clayfrac
       type(c_ptr), value :: frlake
       type(c_ptr), value :: frsno
@@ -69,7 +70,7 @@ contains
       integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
 
       ! Local Fortran Pointers
-      real(c_double), pointer :: f_airden(:,:), f_bxheight(:,:)
+      real(c_double), pointer :: f_airden(:,:), f_bxheight(:,:), f_delp(:,:)
       real(c_double), pointer :: f_clayfrac(:), f_frlake(:), f_frsno(:), f_gvf(:), f_lai(:)
       integer(c_int), pointer :: f_lwi(:)
       real(c_double), pointer :: f_rdrag(:), f_sandfrac(:), f_soilm(:,:), f_ssm(:), f_tskin(:)
@@ -117,6 +118,7 @@ contains
       ! Pointer Associations
       call c_f_pointer(airden, f_airden, [n_cols, n_levels])
       call c_f_pointer(bxheight, f_bxheight, [n_cols, n_levels])
+      call c_f_pointer(delp, f_delp, [n_cols, n_levels])
       call c_f_pointer(clayfrac, f_clayfrac, [n_cols])
       call c_f_pointer(frlake, f_frlake, [n_cols])
       call c_f_pointer(frsno, f_frsno, [n_cols])
@@ -202,16 +204,14 @@ contains
                diagnostic_species_id=diagnostic_species_id)
          end if
 
-         ! Write tendencies (Convert kg/m2/s to ug/kg/s)
-         ! Tendency_ug_kg_s = Flux_kg_m2_s / (airden * bxheight) * 1.0e9
+         ! Write tendencies (Convert kg/m2/s at surface layer 1 to ug/kg concentration change)
+         ! dqa = flux * dt * g0 / delp(1) * 1.0e9
          do ispec = 1, n_species
-            if (any(abs(col_tendency(:, ispec)) > 1.0e-32_fp)) then
-               ! In dust, tendency only happens on layer 1 (the surface)
-               ! But we apply the conversion layer-by-layer just in case
-               col_tendency(:, ispec) = (col_tendency(:, ispec) / (col_airden(:) * col_bxheight(:))) * 1.0e9_fp
+            if (abs(col_tendency(1, ispec)) > 1.0e-32_fp) then
+               col_tendency(1, ispec) = (col_tendency(1, ispec) * real(dt, fp) * g0 / real(f_delp(icol, 1), fp)) * 1.0e9_fp
 
-               f_tendency(icol, :, ispec) = f_tendency(icol, :, ispec) + real(col_tendency(:, ispec), c_double)
-               f_conc(icol, :, ispec) = f_conc(icol, :, ispec) + real(dt * col_tendency(:, ispec), c_double)
+               f_tendency(icol, 1, ispec) = f_tendency(icol, 1, ispec) + real(col_tendency(1, ispec) / real(dt, fp), c_double)
+               f_conc(icol, 1, ispec)     = f_conc(icol, 1, ispec)     + real(col_tendency(1, ispec), c_double)
             end if
          end do
 

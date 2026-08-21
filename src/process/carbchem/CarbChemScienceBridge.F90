@@ -64,7 +64,6 @@ contains
       character(len=32) :: col_names(n_species)
       real(fp) :: col_conc(n_levels, n_species)
       real(fp) :: col_tendency(n_levels, n_species)
-      real(fp) :: col_conc_new(n_levels)
 
       real(fp) :: col_prod_mass(n_levels, n_species)
       real(fp) :: col_loss_flux(n_species)
@@ -146,10 +145,11 @@ contains
          do i = 1, n_species
             if (any(abs(col_tendency(:, i)) > 1.0e-32_fp)) then
                ! col_tendency contains the NEW concentration in ug/kg.
-               ! Calculate the rate of change.
-               col_tendency(:, i) = (col_tendency(:, i) - real(f_conc(icol, :, i), fp)) / real(dt, fp)
+               ! Calculate rate of change and update conc/tendency in-place.
+               f_tendency(icol, :, i) = (real(col_tendency(:, i), c_double) - f_conc(icol, :, i)) / dt
+               f_conc(icol, :, i)     = real(col_tendency(:, i), c_double)
             else
-               col_tendency(:, i) = 0.0_fp
+               f_tendency(icol, :, i) = 0.0_c_double
             end if
          end do
 
