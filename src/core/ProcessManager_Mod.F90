@@ -11,6 +11,7 @@
 !!
 module ProcessManager_Mod
    use precision_mod
+   use constants, only : MAX_LEN_NAME
    use StateManager_Mod, only : StateManagerType
    use error_mod, only : CC_SUCCESS, CC_FAILURE
    use ProcessInterface_Mod, only : ProcessInterface, ColumnProcessInterface
@@ -25,14 +26,20 @@ module ProcessManager_Mod
 
    public :: ProcessManagerType
 
+   ! 1. Define a wrapper otherwise the polymorphic array allocation fails
+   type :: ProcessContainerType
+      ! The 'allocatable' keyword here is the magic sauce
+      class(ProcessInterface), allocatable :: item
+   end type ProcessContainerType
+
    type :: ProcessManagerType
       private
-      class(ProcessInterface), allocatable, public  :: processes(:)
+      class(ProcessContainerType), allocatable, public  :: processes(:)
       integer :: num_processes = 0
       integer :: max_processes = 50
       type(ProcessFactoryType) :: factory
       type(ColumnProcessorType) :: column_processor  !< Batch column processor
-      character(len=64), public, allocatable :: required_met_fields(:)  !< All unique required met fields from processes
+      character(len=MAX_LEN_NAME), public, allocatable :: required_met_fields(:)  !< All unique required met fields from processes
    contains
       procedure :: init => manager_init
       procedure :: add_process => manager_add_process
@@ -83,7 +90,9 @@ contains
       type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
+      integer :: i
       class(ProcessInterface), allocatable :: new_process
+      class(ProcessContainerType), allocatable :: tmp(:)
 
       if (this%num_processes >= this%max_processes) then
          rc = CC_FAILURE
@@ -98,6 +107,9 @@ contains
       call new_process%init(container, rc)
       if (rc /= CC_SUCCESS) return
 
+      ! Set timestep for each process to the same value.
+      call new_process%set_timestep(container%tstep)
+
       ! Collect required met fields from this process
       call this%add_met_fields_from_process(new_process, rc)
       if (rc /= CC_SUCCESS) return
@@ -111,19 +123,39 @@ contains
          return
       endif
 
-      ! Handle polymorphic array allocation on first use
-      if (.not. allocated(this%processes)) then
-         ! For polymorphic arrays, we need to allocate with proper bounds
-         ! We'll allocate the whole array when adding the first process
-         block
-            class(ProcessInterface), allocatable :: temp_array(:)
-            allocate(temp_array(this%max_processes), source=new_process)
-            call move_alloc(temp_array, this%processes)
-         end block
-      else
-         ! Subsequent assignments - just copy into the allocated slot
-         allocate(this%processes(this%num_processes), source=new_process)
+      ! ! Handle polymorphic array allocation on first use
+      ! if (.not. allocated(this%processes)) then
+      !    ! For polymorphic arrays, we need to allocate with proper bounds
+      !    ! We'll allocate the whole array when adding the first process
+      !    block
+      !       class(ProcessInterface), allocatable :: temp_array(:)
+      !       allocate(temp_array(this%max_processes), source=new_process)
+      !       call move_alloc(temp_array, this%processes)
+      !    end block
+      ! else
+      !    ! Subsequent assignments - just copy into the allocated slot
+      !    allocate(this%processes(this%num_processes), source=new_process)
+      ! endif
+
+      ! Allocate a temporary array of WRAPPERS with the new size
+      allocate(tmp(this%num_processes))
+
+      ! Move existing items into the new array
+      ! We check if there was previous data to move
+      if (allocated(this%processes)) then
+         do i = 1, this%num_processes - 1
+            ! We can move the internal allocatable item safely!
+            call move_alloc(from=this%processes(i)%item, to=tmp(i)%item)
+         end do
+         ! Optional: Deallocate the old empty shell (Fortran does this auto, but safe to be explicit)
+         deallocate(this%processes)
       endif
+
+      ! Move the new process into the last slot
+      call move_alloc(from=new_process, to=tmp(this%num_processes)%item)
+
+      ! Move the wrapper array back to the manager
+      call move_alloc(from=tmp, to=this%processes)
 
       rc = CC_SUCCESS
    end subroutine manager_add_process
@@ -153,15 +185,15 @@ contains
       endif
 
       do i = 1, this%num_processes
-         if (this%processes(i)%is_ready()) then
+         if (this%processes(i)%item%is_ready()) then
             ! Check if this is a column process
-            select type(proc => this%processes(i))
+            select type(proc => this%processes(i)%item)
              class is (ColumnProcessInterface)
                ! Run column-based process
                call this%run_process_on_columns(i, container, local_rc)
              class default
                ! Run traditional 3D process
-               call this%processes(i)%run(container, local_rc)
+               call this%processes(i)%item%run(container, local_rc)
             end select
 
             if (local_rc /= CC_SUCCESS) then
@@ -178,7 +210,7 @@ contains
       type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
-      integer :: i, local_rc, col_i, col_j
+      integer :: i, local_rc, col_i, col_j, col_id
       type(GridManagerType), pointer :: grid_mgr
       type(ColumnIteratorType) :: col_iter
       type(VirtualColumnType) :: virtual_col
@@ -203,13 +235,16 @@ contains
          ! Get current column indices (i, j)
          call col_iter%get_current_indices(col_i, col_j)
 
+         ! Get current column ID
+         call col_iter%get_current_column_id(col_id)
+
          ! Create and populate virtual column for this (i, j)
-         call container%create_virtual_column(col_i, col_j, virtual_col, rc)
+         call container%create_virtual_column(col_i, col_j, col_id, virtual_col, rc)
          if (rc /= CC_SUCCESS) return
 
          ! Run all column processes on this column
          do i = 1, this%num_processes
-            select type(proc => this%processes(i))
+            select type(proc => this%processes(i)%item)
              class is (ColumnProcessInterface)
                if (proc%is_ready()) then
                   call proc%run_column(virtual_col, container, local_rc)
@@ -225,6 +260,9 @@ contains
          call container%apply_virtual_column(virtual_col, rc)
          if (rc /= CC_SUCCESS) return
       enddo
+      ! Clean up virtual column
+      if (virtual_col%is_valid)  call virtual_col%cleanup()
+
    end subroutine manager_run_column_processes
 
    !> \brief Run a specific process on all columns
@@ -237,7 +275,7 @@ contains
       type(GridManagerType), pointer :: grid_mgr
       type(ColumnIteratorType) :: col_iter
       type(VirtualColumnType) :: virtual_col
-      integer :: col_i, col_j
+      integer :: col_i, col_j, col_id
 
       rc = CC_SUCCESS
 
@@ -253,7 +291,7 @@ contains
          return
       endif
 
-      select type(proc => this%processes(process_index))
+      select type(proc => this%processes(process_index)%item)
        class is (ColumnProcessInterface)
          ! Initialize column iterator using create_column_iterator
          col_iter = grid_mgr%create_column_iterator()
@@ -266,7 +304,10 @@ contains
             ! Get current column indices
             call col_iter%get_current_indices(col_i, col_j)
 
-            call container%create_virtual_column(col_i, col_j, virtual_col, rc)
+            ! Get current column ID
+            call col_iter%get_current_column_id(col_id)
+
+            call container%create_virtual_column(col_i, col_j, col_id, virtual_col, rc)
             if (rc /= CC_SUCCESS) return
 
             call proc%run_column(virtual_col, container, rc)
@@ -276,6 +317,8 @@ contains
             call container%apply_virtual_column(virtual_col, rc)
             if (rc /= CC_SUCCESS) return
          enddo
+         ! Clean up virtual column
+         if (virtual_col%is_valid)  call virtual_col%cleanup()
 
       end select
    end subroutine manager_run_process_on_columns
@@ -291,13 +334,13 @@ contains
 
       rc = CC_FAILURE
       do i = 1, this%num_processes
-         if (trim(this%processes(i)%get_name()) == trim(process_name)) then
+         if (trim(this%processes(i)%item%get_name()) == trim(process_name)) then
             ! Check if this is a column process and run appropriately
-            select type(proc => this%processes(i))
+            select type(proc => this%processes(i)%item)
              class is (ColumnProcessInterface)
                call this%run_process_on_columns(i, container, rc)
              class default
-               call this%processes(i)%run(container, rc)
+               call this%processes(i)%item%run(container, rc)
             end select
             return
          endif
@@ -316,7 +359,7 @@ contains
       max_count = min(this%num_processes, size(column_indices))
 
       do i = 1, this%num_processes
-         select type(proc => this%processes(i))
+         select type(proc => this%processes(i)%item)
           class is (ColumnProcessInterface)
             count = count + 1
             if (count <= max_count) then
@@ -334,7 +377,7 @@ contains
       type(StateManagerType), intent(inout) :: container
       integer, intent(out) :: rc
 
-      integer :: i, j, local_rc, phase_idx, process_idx
+      integer :: j, local_rc, phase_idx, process_idx
       type(RunPhaseType) :: current_phase
       type(ProcessConfigType) :: process_config
       logical :: phase_found
@@ -388,12 +431,13 @@ contains
          write(*,*) 'INFO: Running process: ', trim(process_config%name), ' (index=', process_idx, ')'
 
          ! Run the process based on its type
-         if (this%processes(process_idx)%is_ready()) then
-            select type(proc => this%processes(process_idx))
+         if (this%processes(process_idx)%item%is_ready()) then
+            select type(proc => this%processes(process_idx)%item)
              class is (ColumnProcessInterface)
+               !!write(*,*) 'Test phase process', process_idx, trim(proc%name) !debug only
                call this%run_process_on_columns(process_idx, container, local_rc)
              class default
-               call this%processes(process_idx)%run(container, local_rc)
+               call this%processes(process_idx)%item%run(container, local_rc)
             end select
 
             if (local_rc /= CC_SUCCESS) then
@@ -418,7 +462,7 @@ contains
       integer, intent(out) :: rc
 
       integer :: phase_idx, local_rc
-      character(len=64) :: phase_name
+      character(len=MAX_LEN_NAME) :: phase_name
 
       rc = CC_SUCCESS
 
@@ -499,8 +543,10 @@ contains
 
       rc = CC_SUCCESS
       do i = 1, this%num_processes
-         call this%processes(i)%finalize(local_rc)
+         call this%processes(i)%item%finalize(local_rc)
          if (local_rc /= CC_SUCCESS) then
+            write(*,*) 'ERROR: Failed to finalize process "', &
+               trim(this%processes(i)%item%get_name()), '" with code: ', local_rc
             rc = local_rc
          endif
       enddo
@@ -516,14 +562,14 @@ contains
    !> \brief List all processes
    subroutine manager_list_processes(this, process_names, count)
       class(ProcessManagerType), intent(in) :: this
-      character(len=64), intent(out) :: process_names(:)
+      character(len=MAX_LEN_NAME), intent(out) :: process_names(:)
       integer, intent(out) :: count
 
       integer :: i, max_count
 
       max_count = min(this%num_processes, size(process_names))
       do i = 1, max_count
-         process_names(i) = this%processes(i)%get_name()
+         process_names(i) = this%processes(i)%item%get_name()
       enddo
       count = max_count
    end subroutine manager_list_processes
@@ -564,15 +610,15 @@ contains
       class(ProcessInterface), intent(in) :: process
       integer, intent(out) :: rc
 
-      character(len=64), allocatable :: new_fields(:), merged_fields(:)
-      character(len=64), allocatable :: current_fields(:)
+      character(len=MAX_LEN_NAME), allocatable :: new_fields(:), merged_fields(:)
+      character(len=MAX_LEN_NAME), allocatable :: current_fields(:)
       integer :: i, j, current_size, new_size, merged_size
       logical :: field_exists
 
       rc = CC_SUCCESS
 
       ! Get required fields from the new process
-      new_fields = process%get_required_met_fields()
+      call process%get_required_met_fields(new_fields)
       new_size = size(new_fields)
 
       ! If no new fields, nothing to do
@@ -588,17 +634,31 @@ contains
          allocate(current_fields(0))
       endif
 
-      ! Merge fields, avoiding duplicates
+      ! Merge fields, avoiding duplicates and filtering out TSTEP
       ! Worst case: all new fields are unique, so allocate maximum possible size
       allocate(merged_fields(current_size + new_size))
+      merged_size = 0
 
-      ! Start with current fields
-      merged_fields(1:current_size) = current_fields(1:current_size)
-      merged_size = current_size
+      ! Start with current fields, but filter out TSTEP
+      do i = 1, current_size
+         if (trim(adjustl(current_fields(i))) /= 'TSTEP' .and. &
+            trim(adjustl(current_fields(i))) /= 'LON'   .and. &
+            trim(adjustl(current_fields(i))) /= 'LAT') then
+            merged_size = merged_size + 1
+            merged_fields(merged_size) = current_fields(i)
+         endif
+      end do
 
-      ! Add new fields if they're not already present
+      ! Add new fields if they're not already present and not TSTEP
       do i = 1, new_size
          field_exists = .false.
+
+         ! Skip TSTEP field (case insensitive)
+         if (trim(adjustl(new_fields(i))) == 'TSTEP' .or. &
+            trim(adjustl(new_fields(i))) == 'LON'   .or. &
+            trim(adjustl(new_fields(i))) == 'LAT') then
+            cycle
+         endif
 
          ! Check if this field already exists (case insensitive)
          do j = 1, merged_size

@@ -19,12 +19,17 @@
 !!
 !! Generated on: 2025-11-14T22:58:26.525574
 !! Author: Wei Li & Lacey Holland
-!! Reference: Allison et al. [2024] Benchmarking GOCART-2G in GEOS
+!! Reference: Benchmarking GOCART-2G in the Goddard Earth Observing System (GEOS)
+!! Allison B. Collow, Peter R. Colarco, Arlindo M. da Silva, Virginie Buchard,
+!! Huisheng Bian, M Chin, Sampa Das, Ravi Govindaraju, Dongchul Kim, and Valentina Aquila,
+!! Geosci. Model Development, 17, 14431468, 2024
+!! https://doi.org/10.5194/gmd-17-1443-2024
 module DryDepScheme_GOCART_Mod
 
    use precision_mod, only: fp
    use DryDepCommon_Mod, only: DryDepSchemeGOCARTConfig
-   use Constants, only: PI  !load the constants needed for this scheme
+   use error_mod, only: CC_SUCCESS, CC_Error
+   use Constants, only: Cp, g0, VON_KARMAN  !load the constants needed for this scheme
 
    implicit none
    private
@@ -33,8 +38,7 @@ module DryDepScheme_GOCART_Mod
    public :: compute_gocart
 
    ! Additional physical constants (modify as needed for your scheme)
-   real(fp), parameter :: T_STANDARD = 303.15_fp    ! Standard reference temperature [K]
-   real(fp), parameter :: DEFAULT_SCALING = 1.0e-9_fp ! Default emission scaling factor
+   real(fp), parameter :: OCEAN=0.0, LAND = 1.0, SEA_ICE = 2.0
 
 contains
 
@@ -52,7 +56,6 @@ contains
    !! @param[in]  gwettop    GWETTOP field [appropriate units]
    !! @param[in]  hflux    HFLUX field [appropriate units]
    !! @param[in]  lwi    LWI field [appropriate units]
-   !! @param[in]  nlevs    NLEVS field [appropriate units]
    !! @param[in]  pblh    PBLH field [appropriate units]
    !! @param[in]  t    T field [appropriate units]
    !! @param[in]  tstep    Time step [s] - retrieved from process interface
@@ -60,13 +63,17 @@ contains
    !! @param[in]  ustar    USTAR field [appropriate units]
    !! @param[in]  v10m    V10M field [appropriate units]
    !! @param[in]  z0h    Z0H field [appropriate units]
-   !! @param[in]  zmid    ZMID field [appropriate units]
+   !! @param[in]  z    Z field [appropriate units]
+   !! @param[in]  species_density    Species density property
+   !! @param[in]  species_radius    Species radius property
+   !! @param[in]  species_is_seasalt    Species is_seasalt property
    !! @param[in]  species_conc   Species concentrations [mol/mol] (num_layers, num_species)
    !! @param[inout] species_tendencies  Species tendency terms [mol/mol/s] (num_layers, num_species)
    !! @param[inout] drydep_con_per_species    Dry deposition concentration per species [ug/kg or ppm] (num_species)
    !! @param[inout] drydep_velocity_per_species    Dry deposition velocity [m/s] (num_species)
    !! @param[in] diagnostic_species_id Indices mapping diagnostic species to species array (optional, for per-species diagnostics)
-   pure subroutine compute_gocart( &
+
+   subroutine compute_gocart( &
       num_layers, &
       num_species, &
       params, &
@@ -75,17 +82,18 @@ contains
       gwettop, &
       hflux, &
       lwi, &
-      nlevs, &
       pblh, &
       t, &
       tstep, &
       u10m, &
       ustar, &
       v10m, &
+      z, &
       z0h, &
-      zmid, &
       species_density, &
       species_radius, &
+      species_is_dust, &
+      species_is_seasalt, &
       species_conc, &
       species_tendencies, &
       is_gas, &
@@ -94,6 +102,8 @@ contains
       diagnostic_species_id &
       )
 
+      ! Uses
+      USE GOCART2G_Process, only: DryDeposition
       ! Arguments
       integer, intent(in) :: num_layers
       integer, intent(in) :: num_species
@@ -103,7 +113,6 @@ contains
       real(fp), intent(in) :: gwettop  ! Surface field - scalar
       real(fp), intent(in) :: hflux  ! Surface field - scalar
       integer, intent(in) :: lwi  ! Surface field - scalar
-      real(fp), intent(in) :: nlevs  ! Surface field - scalar
       real(fp), intent(in) :: pblh  ! Surface field - scalar
       real(fp), intent(in) :: t(num_layers)    ! 3D atmospheric field
       real(fp), intent(in) :: tstep  ! Time step [s] - from process interface
@@ -111,9 +120,11 @@ contains
       real(fp), intent(in) :: ustar  ! Surface field - scalar
       real(fp), intent(in) :: v10m  ! Surface field - scalar
       real(fp), intent(in) :: z0h  ! Surface field - scalar
-      real(fp), intent(in) :: zmid(num_layers)    ! 3D atmospheric field
+      real(fp), intent(in) :: z(num_layers+1)    ! 3D atmospheric field
       real(fp), intent(in) :: species_density(num_species)  ! Species density property
       real(fp), intent(in) :: species_radius(num_species)  ! Species radius property
+      logical, intent(in) :: species_is_dust(num_species)  ! Species is dust property
+      logical, intent(in) :: species_is_seasalt(num_species)  ! Species is seasalt property
       real(fp), intent(in) :: species_conc(num_layers, num_species)
       real(fp), intent(inout) :: species_tendencies(num_layers, num_species)
       logical, intent(in) :: is_gas(num_species)  ! Species type flags (true=gas, false=aerosol)
@@ -122,88 +133,98 @@ contains
       integer, intent(in), optional :: diagnostic_species_id(:)  ! Indices mapping diagnostic species to species array
 
       ! Local variables
-      integer :: k, species_idx
+      integer :: rc, k, species_idx
       integer :: diag_idx  ! For diagnostic species indexing
-      real(fp) :: base_emission_factor
-      real(fp) :: environmental_factor
-      real(fp) :: species_factor
+      real(fp) :: VD
+      real(fp) :: drydepf(1,1)
+      ! Local Variables
+      real(fp), pointer :: GOCART_tmpu(:,:,:)
+      real(fp), pointer :: GOCART_rhoa(:,:,:)
+      real(fp), pointer :: GOCART_HGHTE(:,:,:)
+      real(fp), pointer :: GOCART_LWI(:,:)
+      real(fp), pointer :: GOCART_USTAR(:,:)
+      real(fp), pointer :: GOCART_PBLH(:,:)
+
+      real(fp), pointer :: GOCART_HFLUX(:,:)
+      real(fp), pointer :: GOCART_Z0H(:,:)
+      real(fp), pointer :: GOCART_U10(:,:)
+      real(fp), pointer :: GOCART_V10(:,:)
+      real(fp), pointer :: GOCART_FRACLAKE(:,:)
+      real(fp), pointer :: GOCART_GWETTOP(:,:)
+
+      character(len=256) :: errMsg
+      character(len=256) :: thisLoc
+
+      ! Initialize
+      errMsg = ''
+      thisLoc = ' -> at compute_gocart (in DryDepScheme_GOCART_Mod.F90)'
+      RC = CC_SUCCESS
+      VD = 0.0_fp
+      drydepf = 0.0_fp
 
       ! Note: species_tendencies and diagnostic arrays are already initialized
       ! by the host ProcessInterface before calling this subroutine.
       ! Do not re-initialize them here.
 
+      ! transform data for GOCART DryDeposition call
+      call PrepMetVarsForGOCART(num_layers,     &
+         t,            &
+         airden,            &
+         z,            &
+         u10m,             &
+         v10m,             &
+         frlake,        &
+         gwettop,         &
+         lwi,             &
+         ustar,           &
+         pblh,            &
+         hflux,           &
+         z0h,             &
+         GOCART_tmpu,     &
+         GOCART_RHOA,     &
+         GOCART_HGHTE,    &
+         GOCART_U10,      &
+         GOCART_V10,      &
+         GOCART_FRACLAKE, &
+         GOCART_GWETTOP,  &
+         GOCART_LWI,      &
+         GOCART_USTAR,    &
+         GOCART_PBLH,     &
+         GOCART_HFLUX,    &
+         GOCART_Z0H)
+
       ! Main computation loop - CUSTOMIZE THIS SECTION FOR YOUR SCHEME
       do k = 1, num_layers
-
-         ! TODO: Replace this generic implementation with your scheme's algorithm
-         ! This is a placeholder that demonstrates the expected structure
-
-         ! Initialize environmental factors
-         environmental_factor = 1.0_fp
-
-         ! Apply scheme-specific environmental responses based on meteorological fields
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how AIRDEN affects your emissions
-         ! environmental_factor = environmental_factor * some_function(airden(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how FRLAKE affects your emissions
-         ! environmental_factor = environmental_factor * some_function(frlake(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how GWETTOP affects your emissions
-         ! environmental_factor = environmental_factor * some_function(gwettop(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how HFLUX affects your emissions
-         ! environmental_factor = environmental_factor * some_function(hflux(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how LWI affects your emissions
-         ! environmental_factor = environmental_factor * some_function(lwi(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how NLEVS affects your emissions
-         ! environmental_factor = environmental_factor * some_function(nlevs(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how PBLH affects your emissions
-         ! environmental_factor = environmental_factor * some_function(pblh(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how T affects your emissions
-         ! environmental_factor = environmental_factor * some_function(t(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how TSTEP affects your emissions
-         ! environmental_factor = environmental_factor * some_function(tstep(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how U10M affects your emissions
-         ! environmental_factor = environmental_factor * some_function(u10m(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how USTAR affects your emissions
-         ! environmental_factor = environmental_factor * some_function(ustar(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how V10M affects your emissions
-         ! environmental_factor = environmental_factor * some_function(v10m(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how Z0H affects your emissions
-         ! environmental_factor = environmental_factor * some_function(z0h(k))
-         ! Generic field usage (customize for your scheme)
-         ! TODO: Consider how ZMID affects your emissions
-         ! environmental_factor = environmental_factor * some_function(zmid(k))
 
          ! Apply to each species
          do species_idx = 1, num_species
             ! Skip species that don't match scheme type (gas vs aerosol)
             if (is_gas(species_idx)) cycle
-            ! Base emission factor (customize this for species-specific emissions)
-            base_emission_factor = DEFAULT_SCALING
 
-            ! Species-specific factor (customize based on species properties)
-            species_factor = 1.0_fp  ! TODO: Add species-specific scaling
+            ! Apply resuspension based on config flags:
+            ! - dust_resuspension_only=true (default): resuspension only for dust (matches GOCART)
+            ! - dust_resuspension_only=false: resuspension controlled by resuspension flag for all species
+            if ((params%dust_resuspension_only .and. species_is_dust(species_idx)) .or. &
+               (.not. params%dust_resuspension_only .and. params%resuspension)) then
+               call DryDeposition(num_layers, GOCART_TMPU, GOCART_RHOA, GOCART_HGHTE, GOCART_LWI, GOCART_USTAR, &
+                  GOCART_PBLH, GOCART_HFLUX, von_karman, cp, g0, GOCART_Z0H, drydepf, RC, &
+                  species_radius(species_idx)*1e-6_fp, species_density(species_idx), GOCART_U10, GOCART_V10, &
+                  GOCART_FRACLAKE, GOCART_GWETTOP)
+            else
+               call DryDeposition(num_layers, GOCART_TMPU, GOCART_RHOA, GOCART_HGHTE, GOCART_LWI, GOCART_USTAR, &
+                  GOCART_PBLH, GOCART_HFLUX, von_karman, cp, g0, GOCART_Z0H, drydepf, RC)
+            endif
 
-            ! Compute emission flux using your scheme's formula
-            ! This is a simple example - replace with your actual algorithm
-            species_tendencies(k, species_idx) = base_emission_factor * &
-               environmental_factor * &
-               species_factor * &
-               (1.0_fp + species_conc(k, species_idx))
+            ! Ensure non-negative values
+            species_tendencies(k, species_idx) = max(0.0_fp, drydepf(1,1)) * params%scale_factor
+            !increase drydep frequency by factor of 5 for seasalt species to match GOCART2G. See the codes in:
+            !https://github.com/GEOS-ESM/GOCART/blob/9ff3df9545dd582f415f682d3297e8c6c841e5cb/ESMF/GOCART2G_GridComp/SS2G_GridComp/SS2G_GridCompMod.F90#L820
+            if (species_is_seasalt(species_idx) .and. abs(LWI - LAND) < 0.5) then
+               species_tendencies(k, species_idx) = species_tendencies(k, species_idx) * 5.0_fp
+            end if
 
-            ! Ensure non-negative emissions
-            species_tendencies(k, species_idx) = max(0.0_fp, species_tendencies(k, species_idx))
+            VD = max(species_tendencies(k, species_idx) * (z(k+1) -z(k) ), 1.e-4_fp)
+
 
             ! TODO: Update diagnostic fields here based on your scheme's requirements
             ! Each process should implement custom diagnostic calculations
@@ -214,7 +235,8 @@ contains
                do diag_idx = 1, size(diagnostic_species_id)
                   if (diagnostic_species_id(diag_idx) == species_idx) then
                      ! Add your custom dry deposition concentration per species calculation
-                     drydep_con_per_species(diag_idx) = species_tendencies(k, species_idx) * 1.0_fp  ! TODO: Replace with actual calculation
+                     drydep_con_per_species(diag_idx) =  &
+                        MAX(0.0_fp, species_conc(k,species_idx) * (1.0_fp - exp(-1.0_fp * species_tendencies(k, species_idx) * tstep)))
                      exit
                   end if
                end do
@@ -225,7 +247,7 @@ contains
                do diag_idx = 1, size(diagnostic_species_id)
                   if (diagnostic_species_id(diag_idx) == species_idx) then
                      ! Add your custom dry deposition velocity calculation
-                     drydep_velocity_per_species(diag_idx) = species_tendencies(k, species_idx) * 1.0_fp  ! TODO: Replace with actual calculation
+                     drydep_velocity_per_species(diag_idx) = VD
                      exit
                   end if
                end do
@@ -234,41 +256,143 @@ contains
 
       end do
 
+      !cleanup pointers
+      if (associated(GOCART_TMPU)) deallocate(GOCART_TMPU); nullify(GOCART_TMPU)
+      if (associated(GOCART_RHOA)) deallocate(GOCART_RHOA); nullify(GOCART_RHOA)
+      if (associated(GOCART_HGHTE)) deallocate(GOCART_HGHTE); nullify(GOCART_HGHTE)
+      if (associated(GOCART_U10)) deallocate(GOCART_U10); nullify(GOCART_U10)
+      if (associated(GOCART_V10)) deallocate(GOCART_V10); nullify(GOCART_V10)
+      if (associated(GOCART_FRACLAKE)) deallocate(GOCART_FRACLAKE); nullify(GOCART_FRACLAKE)
+      if (associated(GOCART_GWETTOP)) deallocate(GOCART_GWETTOP); nullify(GOCART_GWETTOP)
+      if (associated(GOCART_LWI)) deallocate(GOCART_LWI); nullify(GOCART_LWI)
+      if (associated(GOCART_USTAR)) deallocate(GOCART_USTAR); nullify(GOCART_USTAR)
+      if (associated(GOCART_LWI)) deallocate(GOCART_LWI); nullify(GOCART_LWI)
+      if (associated(GOCART_HFLUX)) deallocate(GOCART_HFLUX); nullify(GOCART_HFLUX)
+      if (associated(GOCART_Z0H)) deallocate(GOCART_Z0H); nullify(GOCART_Z0H)
+
    end subroutine compute_gocart
 
    ! =======================================================================
    ! SCHEME-SPECIFIC HELPER SUBROUTINES
    ! =======================================================================
    ! Add your custom scientific algorithms here as pure functions/subroutines
-   ! Examples: environmental response functions, species-specific calculations, etc.
 
-   !> Example helper function for environmental response
-   pure function compute_environmental_response_gocart(met_value, reference_value) result(factor)
-      real(fp), intent(in) :: met_value       ! Meteorological value
-      real(fp), intent(in) :: reference_value ! Reference value
-      real(fp) :: factor
+   !>
+   !! \brief PrepMetVarsForGOCART - Prep the meteorological variables for GOCART DryDeposition scheme
+   !!
+   !! \param [INOUT] metstate
+   !! \param [INOUT] tmpu
+   !! \param [INOUT] rhoa
+   !! \param [INOUT] hghte
+   !! \param [INOUT] oro
+   !! \param [INOUT] ustar
+   !! \param [INOUT] pblh
+   !! \param [INOUT] shflux
+   !! \param [INOUT] z0h
+   !! \param [INOUT] u10m
+   !! \param [INOUT] v10m
+   !! \param [INOUT] fraclake
+   !! \param [INOUT] gwettop
+   !! \param [OUT] rc
+   !!
+   !! \ingroup core_modules
+   !!!>
+   subroutine PrepMetVarsForGOCART(km,              &
+      tmpu,            &
+      rhoa,            &
+      hghte,           &
+      u10m,             &
+      v10m,             &
+      fraclake,        &
+      gwettop,         &
+      lwi,             &
+      ustar,           &
+      pblh,            &
+      hflux,           &
+      z0h,             &
+      GOCART_tmpu,     &
+      GOCART_RHOA,     &
+      GOCART_HGHTE,    &
+      GOCART_U10,      &
+      GOCART_V10,      &
+      GOCART_FRACLAKE, &
+      GOCART_GWETTOP,  &
+      GOCART_LWI,      &
+      GOCART_USTAR,    &
+      GOCART_PBLH,     &
+      GOCART_HFLUX,    &
+      GOCART_Z0H)
 
-      ! Simple exponential response - customize for your scheme
-      factor = exp((met_value - reference_value) / reference_value)
-      factor = max(0.0_fp, min(10.0_fp, factor))  ! Reasonable bounds
-   end function compute_environmental_response_gocart
 
-   !> Example helper function for species-specific scaling
-   pure function compute_species_scaling_gocart(species_idx, params) result(scaling)
-      integer, intent(in) :: species_idx
-      type(DryDepSchemeGOCARTConfig), intent(in) :: params
-      real(fp) :: scaling
 
-      ! Species-specific scaling - customize for your scheme
-      select case (species_idx)
-       case (1)
-         scaling = 1.0_fp    ! First species baseline
-       case (2:3)
-         scaling = 0.5_fp    ! Reduced emission for species 2-3
-       case default
-         scaling = 0.1_fp    ! Low emission for other species
-      end select
+      IMPLICIT NONE
 
-   end function compute_species_scaling_gocart
+      ! INPUTS
+      INTEGER, intent(in)                     :: km     ! number of vertical levels
+      INTEGER,  intent(in)                    :: lwi                                    ! orography flag; Land, ocean, ice mask
+      REAL(fp),  intent(in), DIMENSION(:), target :: tmpu   ! Temperature [K]
+      REAL(fp),  intent(in), DIMENSION(:), target :: rhoa   ! Air density [kg/m^3]
+      REAL(fp),  intent(in), DIMENSION(:), target :: hghte  ! Height [m]
+      REAL(fp),  intent(in), target               :: ustar                                 ! friction speed [m/sec]
+      REAL(fp),  intent(in), target              :: pblh                                  ! PBL height [m]
+      REAL(fp),  intent(in), target              :: hflux                                 ! sfc. sens. heat flux [W m-2]
+      REAL(fp),  intent(in), target              :: z0h                                   ! rough height, sens. heat [m]
+      REAL(fp),  intent(in), target :: u10m                   ! 10-m u-wind component [m/sec]
+      REAL(fp),  intent(in), target :: v10m                   ! 10-m v-wind component [m/sec]
+      REAL(fp),  intent(in), target :: fraclake               ! fraction covered by water [1]
+      REAL(fp),  intent(in), target :: gwettop                ! fraction soil moisture [1]
+
+      ! INPUT/OUTPUTS
+      REAL(fp), intent(inout), pointer :: GOCART_TMPU(:,:,:)   !< temperature [K]
+      REAL(fp), intent(inout), pointer, DIMENSION(:,:,:) :: GOCART_RHOA   !< air density [kg/m^3]
+      REAL(fp), intent(inout), pointer, DIMENSION(:,:,:) :: GOCART_HGHTE  !< geometric height [m]
+      REAL(fp), intent(inout), pointer :: GOCART_U10(:,:)                 !< 10-m u-wind component [m/sec]
+      REAL(fp), intent(inout), pointer :: GOCART_V10 (:,:)                !< 10-m v-wind component [m/sec]
+      REAL(fp), intent(inout), pointer :: GOCART_FRACLAKE(:,:)            !< fraction covered by water [1]
+      REAL(fp), intent(inout), pointer :: GOCART_GWETTOP(:,:)             !< fraction soil moisture [1]
+      real(fp), intent(inout), pointer :: GOCART_LWI(:,:)                 !< orography flag; Land, ocean, ice mask
+      REAL(fp), intent(inout), pointer :: GOCART_USTAR(:,:)               !< friction speed [m/sec]
+      REAL(fp), intent(inout), pointer :: GOCART_PBLH(:,:)                !< PBL height [m]
+      REAL(fp), intent(inout), pointer :: GOCART_HFLUX(:,:)               !< sfc. sens. heat flux [W m-2]
+      REAL(fp), intent(inout), pointer :: GOCART_Z0H(:,:)                 !< rough height, sens. heat [m]
+
+      ! OUTPUTS - Add error handling back in late
+      !INTEGER :: rc !< Return code
+
+      ! Error handling
+      !character(len=255) :: thisloc
+
+      allocate(GOCART_TMPU(1, 1, km))
+      allocate(GOCART_RHOA(1, 1, km))
+      allocate(GOCART_HGHTE(1, 1, 0:km))
+      allocate(GOCART_U10(1, 1))
+      allocate(GOCART_V10(1, 1))
+      allocate(GOCART_FRACLAKE(1, 1))
+      allocate(GOCART_GWETTOP(1, 1))
+      allocate(GOCART_LWI(1, 1))
+      allocate(GOCART_USTAR(1, 1))
+      allocate(GOCART_PBLH(1, 1))
+      allocate(GOCART_HFLUX(1, 1))
+      allocate(GOCART_Z0H(1, 1))
+
+      !Note: GOCART scheme expects vertical levels in reverse order (top to bottom)
+
+      GOCART_TMPU(1,1,:) = tmpu(size(tmpu):1:-1) ! temperature [K]
+      GOCART_RHOA(1,1,:) = rhoa(size(rhoa):1:-1) ! air density [kg/m^3]
+      GOCART_HGHTE(1,1,:) = hghte(size(hghte):1:-1)    ! top of layer geopotential height [m]
+      GOCART_LWI = real(LWI, fp)     ! orography flag; Land, ocean, ice mask
+      GOCART_USTAR  = ustar
+
+      ! friction speed [m/sec]
+      GOCART_PBLH   = pblh      ! PBL height [m]
+      GOCART_HFLUX = hflux     ! sfc. sens. heat flux [W m-2]
+      GOCART_Z0H    = z0h       ! rough height, sens. heat [m]
+      GOCART_U10 = u10m         ! zonal wind component (E/W) [m/s]
+      GOCART_V10 = v10m         ! meridional wind component (N/S) [m/s]
+      GOCART_FRACLAKE = fraclake   ! unitless, lake fraction (0-1)
+      GOCART_GWETTOP = gwettop     ! unitless, soil moisture fraction (0-1)
+
+
+   end subroutine PrepMetVarsForGOCART
 
 end module DryDepScheme_GOCART_Mod

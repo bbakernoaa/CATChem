@@ -133,6 +133,13 @@ contains
    !! @param[in]  tstep    Time step [s] - retrieved from process interface
    !! @param[in]  ustar    USTAR field [appropriate units]
    !! @param[in]  z0    Z0 field [appropriate units]
+   !! @param[in]  species_mw_g    Species mw_g property
+   !! @param[in]  species_dd_f0    Species dd_f0 property
+   !! @param[in]  species_short_name    Species short_name property
+   !! @param[in]  species_dd_hstar    Species dd_hstar property
+   !! @param[in]  species_dd_DvzAerSnow    Species dd_DvzAerSnow property
+   !! @param[in]  species_dd_DvzMinVal_snow    Species dd_DvzMinVal_snow property
+   !! @param[in]  species_dd_DvzMinVal_land    Species dd_DvzMinVal_land property
    !! @param[in]  species_conc   Species concentrations [mol/mol] (num_layers, num_species)
    !! @param[inout] species_tendencies  Species tendency terms [mol/mol/s] (num_layers, num_species)
    !! @param[inout] drydep_con_per_species    Dry deposition concentration per species [ug/kg or ppm] (num_species)
@@ -205,7 +212,7 @@ contains
       real(fp), intent(in) :: z0  ! Surface field - scalar
       real(fp), intent(in) :: species_mw_g(num_species)  ! Species mw_g property
       real(fp), intent(in) :: species_dd_f0(num_species)  ! Species dd_f0 property
-      character(len=255), intent(in) :: species_short_name(num_species)  ! Species short_name property
+      character(len=32), intent(in) :: species_short_name(num_species)  ! Species short_name property
       real(fp), intent(in) :: species_dd_hstar(num_species)  ! Species dd_hstar property
       real(fp), intent(in) :: species_dd_DvzAerSnow(num_species)  ! Species dd_DvzAerSnow property
       real(fp), intent(in) :: species_dd_DvzMinVal_snow(num_species)  ! Species dd_DvzMinVal_snow property
@@ -650,6 +657,7 @@ contains
       RI = IRI(II)
       IF (RI   .GE. 9999.e+0_fp) THEN
          RI   = 1.e+12_fp
+         RIX   = 1.e+12_fp
       ELSE
          GFACT = 100.0e+0_fp
          IF (TEMPC .GT. 0.e+0_fp .AND. TEMPC .LT. 40.e+0_fp) THEN
@@ -1342,7 +1350,11 @@ contains
             DUMMY2 = (1.e+0_fp - 15.e+0_fp*Z0OBK)**0.5e+0_fp
             DUMMY3 = ABS((DUMMY1 - 1.e+0_fp)/(DUMMY1 + 1.e+0_fp))
             DUMMY4 = ABS((DUMMY2 - 1.e+0_fp)/(DUMMY2 + 1.e+0_fp))
-            RA = 1.e+0_fp * (1.e+0_fp/CKUSTR) * LOG(DUMMY3/DUMMY4)
+            IF (DUMMY4 > SMALL) THEN
+               RA = 1.e+0_fp * (1.e+0_fp/CKUSTR) * LOG(DUMMY3/DUMMY4)
+            ELSE
+               RA = 1.e+4_fp
+            END IF
 
          ELSEIF((CORR1.GE.0.0e+0_fp).AND.(CORR1.LE.1.0e+0_fp)) THEN
             !coef_a=1.e+0_fp

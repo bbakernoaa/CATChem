@@ -1,5 +1,3 @@
-include(CTest)
-
 add_compile_options(${_catchem_compiler_options})
 
 add_library(testing testing_mod.f90)
@@ -330,9 +328,8 @@ add_test(
 )
 
 # New CATChem API test
-add_executable(test_catchem_api test_catchem_api.F90 ../src/api/CATChem_API.F90)
-target_link_libraries(test_catchem_api PRIVATE CATChem_core)
-target_link_libraries(test_catchem_api PRIVATE CATChem_process_seasalt)
+add_executable(test_catchem_api test_catchem_api.F90)
+target_link_libraries(test_catchem_api PRIVATE CATChem)
 target_link_libraries(test_catchem_api PRIVATE testing)
 set_target_properties(
   test_catchem_api
@@ -341,8 +338,7 @@ set_target_properties(
     LINKER_LANGUAGE Fortran
 )
 target_include_directories(test_catchem_api PRIVATE ${CMAKE_BINARY_DIR}/include)
-add_dependencies(test_catchem_api CATChem_core)
-add_dependencies(test_catchem_api CATChem_process_seasalt)
+add_dependencies(test_catchem_api CATChem)
 add_test(
   NAME test_catchem_api
   COMMAND test_catchem_api
@@ -448,3 +444,16 @@ add_test(
 #     LINKER_LANGUAGE Fortran
 #)
 #add_test(NAME test_chem COMMAND test_chem)
+
+# Process-specific tests - binaries land in build/tests/process/<name>/
+set(CATCHEM_TESTS_DIR "${CMAKE_CURRENT_LIST_DIR}")
+set(CATCHEM_TESTS_CONFIG_DIR "${CATCHEM_TESTS_DIR}/Configs/Default")
+
+file(GLOB _process_test_dirs LIST_DIRECTORIES true process/*)
+foreach(_dir ${_process_test_dirs})
+  if(IS_DIRECTORY "${_dir}" AND EXISTS "${_dir}/CMakeLists.txt")
+    get_filename_component(_process_name ${_dir} NAME)
+    message(STATUS "Found process tests: ${_process_name}")
+    add_subdirectory(${_dir})
+  endif()
+endforeach()

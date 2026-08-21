@@ -44,6 +44,8 @@ module Constants
    !! \brief Constants related to atmospheric composition and properties
    !! \{
    REAL(fp), PARAMETER, PUBLIC :: Cp = 1.0046e+3_fp                !< Specific heat of dry air at constant pressure [J/kg/K]
+   REAL(fp), PARAMETER, PUBLIC :: Cpd = 1.00416e+3_fp              !< Specific heat of dry air at constant pressure [J/kg/K]; value in GOCART
+   REAL(fp), PARAMETER, PUBLIC :: Cpm = 1.00464e+3_fp              !< Specific heat of dry air at constant pressure [J/kg/K]; value in GOCART
    REAL(fp), PARAMETER, PUBLIC :: Cv = 7.1760e+2_fp                !< Specific heat of dry air at constant volume [J/kg/K]
    REAL(fp), PARAMETER, PUBLIC :: AIRMW = 28.9644_fp               !< Average molecular weight of dry air [g/mol]
    REAL(fp), PARAMETER, PUBLIC :: H2OMW = 18.016_fp                !< Molecular weight of water [g/mol]
@@ -70,6 +72,14 @@ module Constants
    REAL(fp), PARAMETER, PUBLIC :: CONSVAP = 6.1078e+03_fp / ( BOLTZ * 1e+7_fp ) !< Condensation vapor pressure factor
    REAL(fp), PARAMETER, PUBLIC :: RGASLATM = 8.2057e-2_fp          !< Gas constant in L⋅atm/(K⋅mol)
    REAL(fp), PARAMETER, PUBLIC :: MWCARB = 12.01e-3_fp             !< Molecular weight of carbon [kg/mol]
+   ! \}
+
+   ! \name Character lengths
+   !! \brief Standard maximum lengths for character strings
+   !! \{
+   INTEGER, PARAMETER, PUBLIC :: MAX_LEN_NAME = 256  !< Maximum length for names (fields, config keys, etc.)
+   INTEGER, PARAMETER, PUBLIC :: MAX_LEN_DESC = 1024  !< Maximum length for descriptions
+   INTEGER, PARAMETER, PUBLIC :: MAX_LEN_PATH = 512  !< Maximum length for file paths
    ! \}
 
 contains

@@ -341,7 +341,7 @@ def classify_fields(fields):
     """
     # Categorical 3D fields with non-vertical dimensions (soil, land use, etc.)
     categorical_patterns = {
-        'SOILM', 'FRSOIL',                    # Soil-related
+        'SOILM', 'SOILT', 'FRSOIL',           # Soil-related
         'FRLANDUSE', 'FRLAI', 'FRZ0',         # Land use categories
     }
 
@@ -426,6 +426,7 @@ def get_field_description(name):
         'F_UNDER_PBLTOP': 'Fraction under PBL top [1]',
         # Categorical 3D fields
         'SOILM': 'Volumetric soil moisture [m3/m3] (nsoil layers)',
+        'SOILT': 'Temperature of soil layer [K] (nsoil layers)',
         'FRLANDUSE': 'Fractional land use [1] (nlanduse categories)',
         'FRSOIL': 'Fractional soil [1] (nsoil categories)',
         'FRLAI': 'LAI per land use type [m2/m2] (nlanduse categories)',
@@ -677,6 +678,7 @@ def write_virtualmet_type(fields, output_file):
     ----------
     fields : list of tuple
         List of (name, type_name, rank, dims, is_edge) for each field.
+        List of (name, type_name, rank, dims, is_edge) for each field.
     output_file : str
         Path to output .inc file.
     """
@@ -873,6 +875,7 @@ def write_virtualmet_cleanup(fields, output_file):
         f.write("! Generated VirtualMetType cleanup procedure\n")
         f.write("! This macro should be included in the virtual_met_cleanup subroutine\n")
         f.write("! Auto-generated from MetState field definitions\n")
+        f.write("! Now includes scalar fields since VirtualMet contains them\n")
         f.write("! Now includes scalar fields since VirtualMet contains them\n\n")
 
         # Nullify 3D atmospheric field pointers
@@ -1023,7 +1026,7 @@ def write_set_field_2d_real(fields, output_file):
                     f.write(f"         return\n")
                     f.write(f"      end if\n")
                     f.write(f"   end if\n")
-                elif name.lower() in ("frsoil", "soilm"):
+                elif name.lower() in ("frsoil", "soilm", "soilt"):
                     f.write(f"   if (.not. allocated(this%{name})) then\n")
                     f.write(f"      ! Allocate with default soil parameters if not already allocated\n")
                     f.write(f"      if (this%nSOILTYPE > 0) then\n")
@@ -1105,6 +1108,12 @@ def get_conditional_allocation_info(field_name):
     # Define conditional allocation patterns
     conditional_patterns = {
         'soilm': {
+            'condition': 'nsoil > 0',
+            'dimension': 'nsoil',
+            'dimension_var': 'this%nSOIL',
+            'type': 'soil'
+        },
+        'soilt': {
             'condition': 'nsoil > 0',
             'dimension': 'nsoil',
             'dimension_var': 'this%nSOIL',

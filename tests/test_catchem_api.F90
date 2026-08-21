@@ -269,6 +269,16 @@ contains
 
       write(output_unit,'(A)') '  Adding processes to the model (auto-configured from YAML)...'
 
+      block
+         type(StateManagerType), pointer :: state_mgr => null()
+         state_mgr => model%get_state_manager()
+         if (associated(state_mgr)) then
+            state_mgr%tstep = dt
+            write(output_unit,'(A,F8.2,A)') '    Current model timestep: ', state_mgr%tstep, ' seconds'
+         else
+            write(output_unit,'(A)') '    Could not access StateManager to get timestep'
+         endif
+      end block
       ! Add all enabled processes from configuration
       call model%add_process(rc)
 
@@ -323,7 +333,7 @@ contains
       type(CATChem_Model), intent(inout) :: model
       integer, intent(inout) :: tests_total, tests_success
 
-      integer :: rc, i, current_phase
+      integer :: rc, i
       character(len=64), allocatable :: retrieved_phases(:)
       logical :: test_passed = .true.
 
@@ -563,7 +573,6 @@ contains
       integer :: rc, diag_idx
       character(len=64), allocatable :: diag_names(:), all_diag_names(:)
       real(fp), allocatable :: diag_data(:,:,:), all_diagnostic_data(:,:,:,:)
-      logical :: test_passed = .true.
 
       tests_total = tests_total + 1
 

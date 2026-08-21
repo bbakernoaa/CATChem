@@ -15,10 +15,12 @@
 !! Most complex lifecycle management is delegated to CATChemCore_Mod.
 !!
 module StateManager_Mod
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
    use precision_mod, only: fp
    use error_mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType
    use ConfigManager_Mod, only: ConfigManagerType
    use MetState_Mod, only: MetStateType
+   use TimeState_Mod, only: TimeStateType
    use ChemState_Mod, only: ChemStateType
    use GridManager_Mod, only: GridManagerType
    use DiagnosticManager_Mod, only: DiagnosticManagerType
@@ -70,6 +72,7 @@ module StateManager_Mod
 
       ! Core state objects
       type(MetStateType),   allocatable :: met_state   !< Meteorological fields
+      type(TimeStateType),  allocatable :: time_state  !< Time state and solar calculations
       type(ChemStateType),  allocatable :: chem_state  !< Chemical species concentrations
       type(ErrorManagerType)            :: error_mgr   !< Error manager
 
@@ -82,6 +85,7 @@ module StateManager_Mod
       logical :: is_initialized = .false.              !< Initialization status
       logical :: is_configured = .false.               !< Configuration status
       character(len=256) :: name = ''                  !< Container name
+      real(fp), public :: tstep = 0.0_fp               !< time step for all processes
 
    contains
       ! Basic lifecycle (called by CATChemCore)
@@ -95,6 +99,7 @@ module StateManager_Mod
       procedure :: get_config_ptr => manager_get_config_ptr
       procedure :: set_config => manager_set_config
       procedure :: get_met_state_ptr => manager_get_met_state_ptr
+      procedure :: get_time_state_ptr => manager_get_time_state_ptr
       procedure :: get_chem_state_ptr => manager_get_chem_state_ptr
       procedure :: get_error_manager => manager_get_error_manager
       procedure :: get_grid_manager => manager_get_grid_manager
@@ -154,6 +159,8 @@ contains
 
       if (.not. allocated(this%met_state)) allocate(this%met_state)
 
+      if (.not. allocated(this%time_state)) allocate(this%time_state)
+
       if (.not. allocated(this%chem_state)) allocate(this%chem_state)
 
       this%is_initialized = .true.
@@ -163,18 +170,28 @@ contains
 
    !> \brief Clean up the state manager
    subroutine manager_cleanup(this, rc)
-      class(StateManagerType), intent(inout) :: this
+      class(StateManagerType), intent(inout), target :: this
       integer, intent(out) :: rc
 
-      integer :: config_rc, met_rc, chem_rc
+      integer :: config_rc, met_rc, time_rc, chem_rc
+      type(ErrorManagerType), pointer :: error_mgr_ptr
 
       rc = CC_SUCCESS
+
+      ! Get pointer to error manager for cleanup calls
+      error_mgr_ptr => this%get_error_manager()
 
       ! Clean up and deallocate state objects - call their cleanup procedures first!
       if (allocated(this%met_state)) then
          call this%met_state%cleanup('ALL', met_rc)
          if (met_rc /= CC_SUCCESS) rc = met_rc  ! Don't stop cleanup on error
          deallocate(this%met_state)
+      end if
+
+      if (allocated(this%time_state)) then
+         call this%time_state%cleanup(error_mgr_ptr, time_rc)
+         if (time_rc /= CC_SUCCESS) rc = time_rc  ! Don't stop cleanup on error
+         deallocate(this%time_state)
       end if
 
       if (allocated(this%chem_state)) then
@@ -193,6 +210,7 @@ contains
       this%is_initialized = .false.
       this%is_configured = .false.
       this%name = ''
+      this%tstep = 0.0_fp
 
    end subroutine manager_cleanup
 
@@ -204,6 +222,7 @@ contains
       ready = this%is_initialized .and. this%is_configured .and. &
          associated(this%config) .and. &
          allocated(this%met_state) .and. &
+         allocated(this%time_state) .and. &
          allocated(this%chem_state)
    end function manager_is_ready
 
@@ -249,6 +268,18 @@ contains
          nullify(met_ptr)
       endif
    end function manager_get_met_state_ptr
+
+   !> \brief Get pointer to time state for modification
+   function manager_get_time_state_ptr(this) result(time_ptr)
+      class(StateManagerType), intent(inout), target :: this
+      type(TimeStateType), pointer :: time_ptr
+
+      if (allocated(this%time_state)) then
+         time_ptr => this%time_state
+      else
+         nullify(time_ptr)
+      endif
+   end function manager_get_time_state_ptr
 
    !> \brief Get pointer to chem state for modification
    function manager_get_chem_state_ptr(this) result(chem_ptr)
@@ -320,9 +351,9 @@ contains
    !> \brief Create virtual column for grid position (i,j)
    !! \details Creates a virtual column data container and populates it
    !! with data from the 3D grid at position (i,j)
-   subroutine manager_create_virtual_column(this, i, j, virtual_col, rc)
+   subroutine manager_create_virtual_column(this, i, j, column_id, virtual_col, rc)
       class(StateManagerType), intent(inout), target :: this
-      integer, intent(in) :: i, j
+      integer, intent(in) :: i, j, column_id
       type(VirtualColumnType), intent(out) :: virtual_col
       integer, intent(out) :: rc
 
@@ -372,7 +403,7 @@ contains
       endif
 
       ! Initialize the virtual column data container
-      call virtual_col%init(nlev, nspec_chem, nspec_emis, i, j, lat, lon, area, rc)
+      call virtual_col%init(nlev, nspec_chem, nspec_emis, i, j, column_id, lat, lon, area, rc)
       if (rc /= CC_SUCCESS) return
 
       ! Populate with data from 3D grid
@@ -389,7 +420,7 @@ contains
 
       integer :: grid_i, grid_j, k, ispec
       integer :: nlev, nspec_chem, nspec_emis
-      real(fp) :: met_value, chem_value
+      real(fp) :: chem_value
 
       rc = CC_SUCCESS
 
@@ -412,7 +443,7 @@ contains
             if (associated(this%chem_state%ChemSpecies(ispec)%conc)) then
                do k = 1, nlev
                   ! Get modified concentration from virtual column
-                  chem_value = virtual_col%get_chem_field(k, ispec)
+                  chem_value = virtual_col%get_chem_field(ispec, k)
                   ! Apply back to the 3D concentration array
                   this%chem_state%ChemSpecies(ispec)%conc(grid_i, grid_j, k) = chem_value
                end do
@@ -490,6 +521,7 @@ contains
       write(*,'(A,L1)') 'Initialized: ', this%is_initialized
       write(*,'(A,L1)') 'Config manager associated: ', associated(this%config)
       write(*,'(A,L1)') 'Met state allocated: ', allocated(this%met_state)
+      write(*,'(A,L1)') 'Time state allocated: ', allocated(this%time_state)
       write(*,'(A,L1)') 'Chem state allocated: ', allocated(this%chem_state)
       write(*,'(A)') '================================='
 
@@ -513,6 +545,7 @@ contains
 
       if (associated(this%config)) memory_bytes = memory_bytes + 1024_8
       if (allocated(this%met_state)) memory_bytes = memory_bytes + 102400_8
+      if (allocated(this%time_state)) memory_bytes = memory_bytes + 32_8
       if (allocated(this%chem_state)) memory_bytes = memory_bytes + 1048576_8
    end function manager_get_memory_usage
 
@@ -601,7 +634,7 @@ contains
       rc = CC_SUCCESS
 
       do i = 1, size(values)
-         if (values(i) /= values(i)) then  ! NaN check
+         if (ieee_is_nan(values(i))) then  ! NaN check
             rc = CC_FAILURE
             return
          endif

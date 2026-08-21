@@ -35,13 +35,13 @@
 !! \date November 2024
 !! \ingroup catchem_nuopc_group
 
-module aqm
-! Renamed from catchem_nuopc_cap to aqm for UFS Driver compatibility
-! UFS expects: use aqm, only: AQM_SS => SetServices (after FRONT_AQM=aqm substitution)
+module cc_nuopc
 
    use ESMF
    use NUOPC
-   use NUOPC_Model, &
+   use NUOPC_Model, only: &
+      NUOPC_ModelGet, &
+      SetVM, &
       modelSS        => SetServices, &
       model_label_Advertise       => label_Advertise,      &
       model_label_DataInitialize  => label_DataInitialize, &
@@ -57,6 +57,7 @@ module aqm
    private
 
    public :: SetServices
+   public :: SetVM !for GCAFS only
 
    !> \brief Component configuration parameters
    !! \{
@@ -273,22 +274,18 @@ contains
       type(ESMF_Info) :: tracerInfo
       type(ESMF_Field), pointer :: fieldList(:)
       type(ESMF_Clock)          :: clock
-      type(ESMF_Time)           :: currTime, startTime, stopTime
+      type(ESMF_Time)           :: startTime, stopTime
       type(ESMF_TimeInterval)   :: timeStep
       real(ESMF_KIND_R8), dimension(:,:), pointer :: coord
       real(ESMF_KIND_R8), dimension(:,:), allocatable :: lon
       real(ESMF_KIND_R8), dimension(:,:), allocatable :: lat
       type(ESMF_CoordSys_Flag)   :: coordSys
-      character(len=*), parameter :: routine = 'InitializeP2'
       real(ESMF_KIND_R8), parameter :: rad_to_deg = 180._ESMF_KIND_R8 / 3.14159265358979323846_ESMF_KIND_R8
       real(ESMF_KIND_R8) :: convet_unit
-      character(len=512) :: errmsg
       integer :: localPet, petCount
-      integer :: im, jm  ! Grid dimensions
       integer :: item, coord_item, rank, localDeCount, numLevels, localDe, localrc, stat
       integer, dimension(2) :: lb, ub
       logical :: has_tracer_array
-      type(CATChem_InternalState) :: is
 
       rc = ESMF_SUCCESS
       has_tracer_array = .false.
@@ -393,7 +390,7 @@ contains
 
       ! Initialize CATChem using the interface (TODO: not provide nsoil, nsoiltype and nsurftype)
       call catchem_nuopc_init(model, config_file, lat, lon, numLevels, tracerInfo, grid, &
-         startTime=startTime, stopTime=stopTime, timeStep=timeStep, rc=rc)
+         startTime=startTime, stopTime=stopTime, timeStep=timeStep, clock=clock, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return  ! bail out
 
@@ -484,11 +481,26 @@ contains
          line=__LINE__,  file=__FILE__))  return  ! bail out
 
       ! Import meteorological data from other components
-      call transform_nuopc_to_catchem(is%wrap, importState, rc)
+#ifdef CATCHEM_TRACE_NUOPC
+      call ESMF_TraceRegionEnter("transform_nuopc_to_catchem", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
+#endif
+      call transform_nuopc_to_catchem(is%wrap, importState, currTime, rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+#ifdef CATCHEM_TRACE_NUOPC
+      call ESMF_TraceRegionExit("transform_nuopc_to_catchem", rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+#endif
 
       ! Run CATChem processes with current time
+#ifdef CATCHEM_TRACE_NUOPC
+      call ESMF_TraceRegionEnter("catchem_nuopc_run", rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+#endif
       call catchem_nuopc_run(is%wrap, dt_seconds, currTime, errmsg, rc)
       if (rc /= ESMF_SUCCESS) then
          call ESMF_LogWrite("CATChem: Failed to run CATChem - " // trim(errmsg), &
@@ -496,11 +508,26 @@ contains
          rc = ESMF_FAILURE
          return
       end if
+#ifdef CATCHEM_TRACE_NUOPC
+      call ESMF_TraceRegionExit("catchem_nuopc_run", rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+#endif
 
       ! Export results to other components
+#ifdef CATCHEM_TRACE_NUOPC
+      call ESMF_TraceRegionEnter("transform_catchem_to_nuopc", rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+#endif
       call transform_catchem_to_nuopc(is%wrap, exportState, rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
+#ifdef CATCHEM_TRACE_NUOPC
+      call ESMF_TraceRegionExit("transform_catchem_to_nuopc", rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+#endif
 
       ! Log successful completion
       if (localPet == 0) then
@@ -560,6 +587,12 @@ contains
             ESMF_LOGMSG_WARNING, rc=rc)
       end if
 
+      ! Deallocate internal state wrapper
+      if (associated(is%wrap)) then
+         deallocate(is%wrap)
+         nullify(is%wrap)
+      end if
+
       ! Log successful completion
       if (localPet == 0) then
          call ESMF_LogWrite("CATChem: Completed "//routine, ESMF_LOGMSG_INFO, rc=rc)
@@ -591,4 +624,4 @@ contains
       str = adjustl(str)
    end function real_to_string
 
-end module aqm
+end module cc_nuopc

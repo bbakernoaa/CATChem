@@ -30,6 +30,7 @@
 !!
 module CATChem_API
    use Precision_Mod, only: fp
+   use constants, only : MAX_LEN_NAME, MAX_LEN_PATH
    use Error_Mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType
    use CATChemCore_Mod, only: CATChemCoreType, CATChemBuilderType
    use StateManager_Mod, only: StateManagerType
@@ -45,6 +46,12 @@ module CATChem_API
    use ProcessInterface_Mod, only: ProcessInterface
    ! Import process registration functions
    use SeaSaltProcessCreator_Mod, only: register_seasalt_process
+   use DustProcessCreator_Mod, only: register_dust_process
+   use DryDepProcessCreator_Mod, only: register_drydep_process
+   use WetDepProcessCreator_Mod, only: register_wetdep_process
+   use SettlingProcessCreator_Mod, only: register_settling_process
+   use so4ChemProcessCreator_Mod, only: register_so4chem_process
+   use CarbChemProcessCreator_Mod, only: register_carbchem_process
 
    implicit none
    private
@@ -64,8 +71,8 @@ module CATChem_API
       logical :: initialized = .false.
       logical :: grid_setup = .false.
       logical :: enable_run_phase = .false.
-      character(len=512) :: config_file = ''
-      character(len=64), allocatable, public :: required_fields(:)
+      character(len=MAX_LEN_PATH) :: config_file = ''
+      character(len=MAX_LEN_NAME), allocatable, public :: required_fields(:)
       type(ErrorManagerType) :: error_manager
 
       ! Grid information
@@ -346,17 +353,55 @@ contains
             call this%error_manager%report_error(1014, 'Failed to register seasalt process', rc)
             call this%error_manager%pop_context()
          endif
-
-         ! Add more processes here as they become available
-         ! case ('dust')
-         !    call register_dust_process(process_mgr, rc)
+       case ('dust')
+         call register_dust_process(process_mgr, rc)
+         if (rc /= CC_SUCCESS) then
+            call this%error_manager%push_context('model_register_process', 'registering dust process')
+            call this%error_manager%report_error(1014, 'Failed to register dust process', rc)
+            call this%error_manager%pop_context()
+         endif
+       case ('drydep')
+         call register_drydep_process(process_mgr, rc)
+         if (rc /= CC_SUCCESS) then
+            call this%error_manager%push_context('model_register_process', 'registering drydep process')
+            call this%error_manager%report_error(1014, 'Failed to register drydep process', rc)
+            call this%error_manager%pop_context()
+         endif
+       case ('wetdep')
+         call register_wetdep_process(process_mgr, rc)
+         if (rc /= CC_SUCCESS) then
+            call this%error_manager%push_context('model_register_process', 'registering wetdep process')
+            call this%error_manager%report_error(1014, 'Failed to register wetdep process', rc)
+            call this%error_manager%pop_context()
+         endif
+       case ('settling')
+         call register_settling_process(process_mgr, rc)
+         if (rc /= CC_SUCCESS) then
+            call this%error_manager%push_context('model_register_process', 'registering settling process')
+            call this%error_manager%report_error(1014, 'Failed to register settling process', rc)
+            call this%error_manager%pop_context()
+         endif
+       case ('so4chem')
+         call register_so4chem_process(process_mgr, rc)
+         if (rc /= CC_SUCCESS) then
+            call this%error_manager%push_context('model_register_process', 'registering so4chem process')
+            call this%error_manager%report_error(1014, 'Failed to register so4chem process', rc)
+            call this%error_manager%pop_context()
+         endif
+       case ('carbchem')
+         call register_carbchem_process(process_mgr, rc)
+         if (rc /= CC_SUCCESS) then
+            call this%error_manager%push_context('model_register_process', 'registering carbchem process')
+            call this%error_manager%report_error(1014, 'Failed to register carbchem process', rc)
+            call this%error_manager%pop_context()
+         endif
          ! case ('chemistry')
          !    call register_chemistry_process(process_mgr, rc)
 
        case default
          call this%error_manager%push_context('model_register_process', 'validating process type')
          call this%error_manager%report_error(1016, 'Unknown process type: ' // trim(process_name) // &
-            '. Supported processes: seasalt', rc)
+            '. Supported processes: seasalt, dust, drydep, wetdep, settling, so4chem, carbchem', rc)
          call this%error_manager%pop_context()
       end select
 
@@ -369,7 +414,7 @@ contains
       integer, intent(out) :: rc
 
       type(ProcessManagerType), pointer :: process_mgr => null()
-      character(len=64) :: temp_names(50)  ! Temporary array with max size
+      character(len=MAX_LEN_NAME) :: temp_names(50)  ! Temporary array with max size
       integer :: count, i
 
       rc = CC_SUCCESS
@@ -407,7 +452,7 @@ contains
       integer :: num_processes
 
       type(ProcessManagerType), pointer :: process_mgr => null()
-      character(len=64) :: temp_names(50)  ! Temporary array with max size
+      character(len=MAX_LEN_NAME) :: temp_names(50)  ! Temporary array with max size
 
       num_processes = 0
 
@@ -690,7 +735,7 @@ contains
 
       type(DiagnosticManagerType), pointer :: diag_mgr => null()
       type(DiagnosticRegistryType), pointer :: registry => null()
-      character(len=64), allocatable :: process_list(:), field_names(:)
+      character(len=MAX_LEN_NAME), allocatable :: process_list(:), field_names(:)
       integer :: num_processes, i, j, field_count, total_fields, name_idx
       integer :: local_rc
 
@@ -768,11 +813,8 @@ contains
       integer, intent(out) :: rc
 
       type(DiagnosticManagerType), pointer :: diag_mgr => null()
-      type(DiagnosticRegistryType), pointer :: registry => null()
-      character(len=64), allocatable :: process_list(:), field_names(:)
-      character(len=64) :: process_name, field_name
-      integer :: num_processes, i, j, field_count, dot_pos, data_type
-      integer :: local_rc
+      character(len=MAX_LEN_NAME) :: process_name, field_name
+      integer :: local_rc, dot_pos, data_type
       real(fp) :: scalar_value
       real(fp), pointer :: array_1d_ptr(:) => null()
       real(fp), pointer :: array_2d_ptr(:,:) => null()
@@ -916,8 +958,8 @@ contains
    function model_get_diag_index_from_field(this, field_name) result(found_index)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: field_name
-      character(len=128), allocatable :: diagnostic_names(:)
-      character(len=128), allocatable :: diagnostic_fields(:)
+      character(len=MAX_LEN_NAME), allocatable :: diagnostic_names(:)
+      character(len=MAX_LEN_NAME), allocatable :: diagnostic_fields(:)
       integer :: found_index, rc, i
 
       found_index = 0
@@ -957,7 +999,6 @@ contains
       character(len=*), intent(in) :: var_name
       integer :: found_index
       integer :: i
-      type(ProcessManagerType), pointer :: process_mgr
 
       found_index = 0
       if (allocated(this%required_fields)) then

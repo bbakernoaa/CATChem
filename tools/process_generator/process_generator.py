@@ -282,7 +282,8 @@ class MetFieldClassification:
         # Boolean/logical species properties - properties that represent true/false values
         boolean_properties = {
             'is_dust', 'is_seasalt', 'is_gas', 'is_aerosol', 'is_tracer',
-            'is_transported', 'is_wet_scavenged', 'is_dry_deposited'
+            'is_transported', 'is_wet_scavenged', 'is_dry_deposited',
+            'wd_LiqAndGas'  # Add wet deposition logical property
         }
 
         # Character/string species properties - properties that represent text/names
@@ -293,9 +294,25 @@ class MetFieldClassification:
         if property_name in boolean_properties:
             return 'logical'
         elif property_name in string_properties:
-            return 'character(len=255)'
+            return 'character(len=32)'
         else:
             return 'real(fp)'
+
+    def get_species_property_dimensions(self, property_name: str) -> str:
+        """Get the Fortran array dimensions for a species property."""
+        # Properties with special dimensions
+        if property_name == 'wd_rainouteff':
+            return '(:,:)'  # 2D array: (n_species, 3)
+        else:
+            return '(:)'    # Default: 1D array (n_species)
+
+    def get_species_property_allocation_size(self, property_name: str) -> str:
+        """Get the Fortran allocation size for a species property."""
+        # Properties with special dimensions
+        if property_name == 'wd_rainouteff':
+            return '(this%{{ config.name }}_config%n_species, 3)'
+        else:
+            return '(this%{{ config.name }}_config%n_species)'
 
     def get_all_categorical_fields(self) -> List[str]:
         """Get all categorical fields."""
@@ -328,7 +345,10 @@ class SchemeConfig:
     parameters: Dict[str, Any] = field(default_factory=dict)
     required_met_fields: List[str] = field(default_factory=list)
     required_species_properties: List[str] = field(default_factory=list)
+    required_constants: List[str] = field(default_factory=list)
+    required_time_parameters: List[str] = field(default_factory=list)
     scheme_diagnostics: List[Dict[str, str]] = field(default_factory=list)
+    persistent_state_variables: List[Dict[str, Any]] = field(default_factory=list)
     algorithm_type: str = "explicit"
     affects_full_column: bool = False  # Whether scheme affects full atmospheric column
     scheme_type: str = ""  # Optional legacy field
@@ -362,6 +382,7 @@ class ProcessConfig:
     default_scheme: str = ""
     required_met_fields: List[str] = field(default_factory=list)
     optional_met_fields: List[str] = field(default_factory=list)
+    required_constants: List[str] = field(default_factory=list)
     required_chem_fields: List[str] = field(default_factory=list)
     diagnostics: List[Dict[str, str]] = field(default_factory=list)
     diagnostic_species: List[str] = field(default_factory=lambda: ["All"])  # Default to all species for diagnostics
@@ -370,7 +391,6 @@ class ProcessConfig:
     memory_requirements: str = "low"
     generate_tests: bool = True
     generate_docs: bool = True
-    generate_examples: bool = True
     output_dir: str = ""
     src_base_dir: str = "src/process"
 
@@ -446,6 +466,53 @@ class ProcessGenerator:
         self.env.filters['infer_diagnostic_type'] = self._infer_diagnostic_type
         self.env.filters['infer_diagnostic_properties'] = self._infer_diagnostic_properties
         self.env.filters['analyze_required_dimensions'] = self._analyze_required_dimensions
+        self.env.filters['fortran_array_constructor'] = self._fortran_array_constructor
+
+        # Add custom tests
+        self.env.tests['list_type'] = lambda val: isinstance(val, list)
+
+        # Add a filter to get all required met fields for a scheme
+        def get_all_met_fields_filter(scheme):
+            """Jinja2 filter to get all required meteorological fields for a scheme."""
+            # Access the config from template globals if available
+            context = self.env.globals.get('config', {})
+
+            all_fields = set()
+
+            # Add common process-level fields from config
+            if hasattr(context, 'required_met_fields') and context.required_met_fields:
+                all_fields.update(context.required_met_fields)
+
+            # Add scheme-specific fields - handle both dict and object
+            scheme_fields = None
+            if isinstance(scheme, dict):
+                scheme_fields = scheme.get('required_met_fields')
+            elif hasattr(scheme, 'required_met_fields'):
+                scheme_fields = scheme.required_met_fields
+
+            if scheme_fields:
+                all_fields.update(scheme_fields)
+
+            # Return sorted list for consistent ordering
+            return sorted(list(all_fields))
+
+        # Add filter for scheme-only met fields (excludes process-level fields)
+        def get_scheme_only_met_fields_filter(scheme, context=None):
+            """Filter for scheme-only meteorological fields (excludes process-level fields)."""
+            scheme_fields = set()
+
+            # Add only scheme-specific fields - handle both dict and object
+            if isinstance(scheme, dict):
+                if 'required_met_fields' in scheme and scheme['required_met_fields']:
+                    scheme_fields.update(scheme['required_met_fields'])
+            elif hasattr(scheme, 'required_met_fields') and scheme.required_met_fields:
+                scheme_fields.update(scheme.required_met_fields)
+
+            # Return sorted list for consistent ordering
+            return sorted(list(scheme_fields))
+
+        self.env.filters['all_required_met_fields'] = get_all_met_fields_filter
+        self.env.filters['scheme_only_met_fields'] = get_scheme_only_met_fields_filter
 
         # Add a filter to get all required met fields for a scheme
         def get_all_met_fields_filter(scheme):
@@ -497,13 +564,69 @@ class ProcessGenerator:
 
     @staticmethod
     def _fortran_string(s: str, length: int = 64) -> str:
-        """Format string for Fortran character declaration."""
-        return f"'{s}'"
+        """Format string for Fortran character declaration with proper padding."""
+        # Pad or truncate string to exact length for array constructors
+        padded = s[:length].ljust(length)
+        return f"'{padded}'"
 
     @staticmethod
     def _fortran_boolean(b: bool) -> str:
         """Convert boolean to Fortran logical."""
         return ".true." if b else ".false."
+
+    @staticmethod
+    def _fortran_array_constructor(values, suffix: str = '_fp') -> str:
+        """Convert a Python list to a Fortran array constructor string.
+
+        Examples:
+            [1.0, 2.0, 3.0] -> '(/ 1.0_fp, 2.0_fp, 3.0_fp /)'
+            [1, 2, 3]       -> '(/ 1, 2, 3 /)'
+        """
+        if not isinstance(values, list) or len(values) == 0:
+            return '0.0' + suffix
+        # Detect element type from first element
+        if all(isinstance(v, bool) for v in values):
+            items = ['.true.' if v else '.false.' for v in values]
+        elif all(isinstance(v, int) and not isinstance(v, bool) for v in values):
+            items = [str(v) for v in values]
+        else:
+            # Treat as real
+            items = [str(v) + suffix for v in values]
+        return '(/ ' + ', '.join(items) + ' /)'
+
+    @staticmethod
+    def _infer_state_variable_type(default_value: Any, name: str) -> str:
+        """Infer Fortran type from default value and variable name."""
+        if isinstance(default_value, bool):
+            return "logical"
+        elif isinstance(default_value, int):
+            return "integer"
+        elif isinstance(default_value, (float, int)):
+            return "real(fp)"
+        elif name.endswith('(:)') or '(:)' in name:
+            # Array variable - infer base type from default
+            if isinstance(default_value, bool):
+                return "logical"
+            elif isinstance(default_value, int):
+                return "integer"
+            else:
+                return "real(fp)"
+        else:
+            return "real(fp)"  # Default to real
+
+    @staticmethod
+    def _get_state_variable_dimensions(name: str) -> str:
+        """Get array dimensions from variable name."""
+        if '(:)' in name:
+            # Extract dimensions - for now support (:) which means allocatable 1D
+            return "(:)"
+        else:
+            return ""  # Scalar
+
+    @staticmethod
+    def _clean_state_variable_name(name: str) -> str:
+        """Clean variable name by removing dimension specifications."""
+        return name.replace('(:)', '').strip()
 
     def _infer_diagnostic_type(self, diagnostic: Dict[str, Any], config: ProcessConfig, scheme_config: SchemeConfig = None) -> str:
         """Infer diagnostic data type from configuration and context."""
@@ -549,10 +672,31 @@ class ProcessGenerator:
         name_lower = name.lower()
         desc_lower = description.lower()
 
-        # Check for species/bin/distribution patterns in name or description
-        if ('_per_bin' in name or '_per_species' in name or '_per_mode' in name or '_distribution' in name or
-            'per bin' in desc_lower or 'per species' in desc_lower or 'per mode' in desc_lower or
-            'distribution' in desc_lower or 'size resolved' in desc_lower):
+        # Check for combined level AND species patterns for 4D diagnostics
+        has_level_pattern = ('_per_level' in name or '_profile' in name or '_vertical' in name or
+                           '_column' in name or '_layer' in name or
+                           'level' in desc_lower or 'levels' in desc_lower or 'vertical' in desc_lower or
+                           'profile' in desc_lower or 'column' in desc_lower or 'layer' in desc_lower or
+                           'atmospheric' in desc_lower)
+
+        has_species_pattern = ('_per_bin' in name or '_per_species' in name or '_per_mode' in name or '_distribution' in name or
+                             'per bin' in desc_lower or 'per species' in desc_lower or 'per mode' in desc_lower or
+                             'distribution' in desc_lower or 'size resolved' in desc_lower)
+
+        # Priority 1: Check for combined level AND species patterns for 3D level diagnostics
+        if has_level_pattern and has_species_pattern:
+            result.update({
+                'data_type': 'DIAG_REAL_3D',
+                'dimensions': ['nx', 'ny', 'nz'],
+                'dimension_vars': ['dims_3d_levels'],
+                'fortran_dims': 'dims_3d_levels',
+                'dimension_source': 'grid_manager',
+                'dimension_type': '3d_levels_species',
+                'dimension_name': 'levels_with_species'
+            })
+
+        # Priority 2: Check for species/bin/distribution patterns only
+        elif has_species_pattern:
             result.update({
                 'data_type': 'DIAG_REAL_3D',
                 'dimensions': ['nx', 'ny', 'n_species'],
@@ -563,12 +707,8 @@ class ProcessGenerator:
                 'dimension_name': 'n_species'
             })
 
-        # Check for level/vertical patterns in name or description
-        elif (('_per_level' in name or '_profile' in name or '_vertical' in name or
-               '_column' in name or '_layer' in name) or
-              ('level' in desc_lower or 'levels' in desc_lower or 'vertical' in desc_lower or
-               'profile' in desc_lower or 'column' in desc_lower or 'layer' in desc_lower or
-               'atmospheric' in desc_lower)):
+        # Priority 3: Check for level/vertical patterns only
+        elif has_level_pattern:
             result.update({
                 'data_type': 'DIAG_REAL_3D',
                 'dimensions': ['nx', 'ny', 'nz'],
@@ -929,6 +1069,29 @@ class ProcessGenerator:
         if errors:
             raise ProcessValidationError("\n".join(errors))
 
+    def has_persistent_state_variables(self, config: ProcessConfig) -> bool:
+        """Check if any scheme has persistent state variables."""
+        for scheme in config.schemes:
+            if scheme.persistent_state_variables:
+                return True
+        return False
+
+    def get_all_persistent_state_variables(self, config: ProcessConfig) -> Dict[str, List[Dict[str, Any]]]:
+        """Get all persistent state variables organized by scheme."""
+        all_variables = {}
+        for scheme in config.schemes:
+            if scheme.persistent_state_variables:
+                processed_vars = []
+                for var in scheme.persistent_state_variables:
+                    processed_var = var.copy()
+                    processed_var['clean_name'] = self._clean_state_variable_name(var['name'])
+                    processed_var['fortran_type'] = self._infer_state_variable_type(var.get('default'), var['name'])
+                    processed_var['dimensions'] = self._get_state_variable_dimensions(var['name'])
+                    processed_var['is_allocatable'] = '(:)' in var['name']
+                    processed_vars.append(processed_var)
+                all_variables[scheme.name] = processed_vars
+        return all_variables
+
     def load_config(self, config_path: Union[str, Path]) -> ProcessConfig:
         """Load and validate process configuration from YAML file.
 
@@ -1057,6 +1220,81 @@ class ProcessGenerator:
         """Get schemes that apply to aerosol species."""
         return [scheme for scheme in config.schemes if scheme.gas_or_aero in ['aero', 'both']]
 
+    def get_all_required_constants(self, config: ProcessConfig) -> List[str]:
+        """Collect all unique required constants from all schemes.
+
+        Args:
+            config: ProcessConfig object containing schemes
+
+        Returns:
+            List of unique constant names required by all schemes
+        """
+        all_constants = set()
+        # Collect process-level required constants
+        if config.required_constants:
+            all_constants.update(config.required_constants)
+        # Collect scheme-level required constants
+        for scheme in config.schemes:
+            if scheme.required_constants:
+                all_constants.update(scheme.required_constants)
+
+        # Return sorted list for consistent ordering
+        return sorted(list(all_constants))
+
+    def has_required_time_parameters(self, config: ProcessConfig) -> bool:
+        """Check if any scheme requires time parameters.
+
+        Args:
+            config: ProcessConfig object containing schemes
+
+        Returns:
+            True if any scheme has required_time_parameters, False otherwise
+        """
+        for scheme in config.schemes:
+            if scheme.required_time_parameters:
+                return True
+        return False
+
+    def get_all_required_time_parameters(self, config: ProcessConfig) -> List[str]:
+        """Collect all unique required time parameters from all schemes.
+
+        Args:
+            config: ProcessConfig object containing schemes
+
+        Returns:
+            List of unique time parameter names required by all schemes
+        """
+        all_time_params = set()
+        for scheme in config.schemes:
+            if scheme.required_time_parameters:
+                all_time_params.update(scheme.required_time_parameters)
+
+        # Return sorted list for consistent ordering
+        return sorted(list(all_time_params))
+
+    def has_persistent_state_variables(self, config: ProcessConfig) -> bool:
+        """Check if any scheme has persistent state variables."""
+        for scheme in config.schemes:
+            if scheme.persistent_state_variables:
+                return True
+        return False
+
+    def get_all_persistent_state_variables(self, config: ProcessConfig) -> Dict[str, List[Dict[str, Any]]]:
+        """Get all persistent state variables organized by scheme."""
+        all_variables = {}
+        for scheme in config.schemes:
+            if scheme.persistent_state_variables:
+                processed_vars = []
+                for var in scheme.persistent_state_variables:
+                    processed_var = var.copy()
+                    processed_var['clean_name'] = self._clean_state_variable_name(var['name'])
+                    processed_var['fortran_type'] = self._infer_state_variable_type(var.get('default'), var['name'])
+                    processed_var['dimensions'] = self._get_state_variable_dimensions(var['name'])
+                    processed_var['is_allocatable'] = '(:)' in var['name']
+                    processed_vars.append(processed_var)
+                all_variables[scheme.name] = processed_vars
+        return all_variables
+
     def _load_filtered_species(self, species_filter: Dict[str, Any]) -> List[str]:
         """Load species based on filter criteria.
 
@@ -1147,9 +1385,6 @@ class ProcessGenerator:
         if config.generate_docs:
             self._generate_documentation(docs_dir, config)
 
-        if config.generate_examples:
-            self._generate_examples(process_dir, config)
-
         logger.info(f"Process generation complete: {process_dir}")
 
     def _create_directory_structure(self, process_dir: Path, test_dir: Path, docs_dir: Path, config: ProcessConfig) -> None:
@@ -1174,10 +1409,6 @@ class ProcessGenerator:
         if config.generate_docs:
             directories.append(docs_dir)
 
-        # Examples in process directory
-        if config.generate_examples:
-            directories.append(process_dir / "examples")
-
         for directory in directories:
             directory.mkdir(parents=True, exist_ok=True)
 
@@ -1190,6 +1421,13 @@ class ProcessGenerator:
         # Collect all unique required species properties from all schemes
         all_required_species_properties = self.get_all_required_species_properties(config)
 
+        # Collect all unique required constants from all schemes
+        all_required_constants = self.get_all_required_constants(config)
+
+        # Check if any scheme requires time parameters
+        needs_time_state = self.has_required_time_parameters(config)
+        all_required_time_parameters = self.get_all_required_time_parameters(config)
+
         # Initialize field classification helper with MetState file
         field_classifier = MetFieldClassification(self.metstate_file)
 
@@ -1199,7 +1437,12 @@ class ProcessGenerator:
         content = template.render(
             config=config,
             all_required_species_properties=all_required_species_properties,
+            all_required_constants=all_required_constants,
+            needs_time_state=needs_time_state,
+            all_required_time_parameters=all_required_time_parameters,
             field_classifier=field_classifier,
+            has_persistent_state_variables=self.has_persistent_state_variables(config),
+            all_persistent_state_variables=self.get_all_persistent_state_variables(config),
             generation_date=datetime.now().isoformat(),
             version=config.version,
             timestamp=datetime.now().isoformat()
@@ -1229,6 +1472,8 @@ class ProcessGenerator:
             config=config,
             all_required_species_properties=all_required_species_properties,
             field_classifier=field_classifier,
+            has_persistent_state_variables=self.has_persistent_state_variables(config),
+            all_persistent_state_variables=self.get_all_persistent_state_variables(config),
             generation_date=datetime.now().isoformat(),
             version=config.version,
             timestamp=datetime.now().isoformat(),
@@ -1294,7 +1539,12 @@ class ProcessGenerator:
                 content = template.render(
                     config=config_dict,
                     scheme=scheme_dict,
+                    all_required_constants=self.get_all_required_constants(config),
+                    needs_time_state=self.has_required_time_parameters(config),
+                    all_required_time_parameters=self.get_all_required_time_parameters(config),
                     field_classifier=field_classifier,
+                    has_persistent_state_variables=self.has_persistent_state_variables(config),
+                    all_persistent_state_variables=self.get_all_persistent_state_variables(config),
                     timestamp=datetime.now().isoformat()
                 )
                 logger.info(f"Template rendered successfully, content length: {len(content)}")
@@ -1408,35 +1658,7 @@ class ProcessGenerator:
 
         logger.info(f"Generated documentation in: {docs_dir}")
 
-    def _generate_examples(self, process_dir: Path, config: ProcessConfig) -> None:
-        """Generate example files."""
-        logger.info("Generating examples")
 
-        examples_dir = process_dir / "examples"
-
-        # Basic usage example
-        example_template = self.env.get_template('example_usage.F90.j2')
-        example_content = example_template.render(
-            config=config,
-            timestamp=datetime.now().isoformat()
-        )
-
-        example_file = examples_dir / f"{config.name}_example.F90"
-        with open(example_file, 'w') as f:
-            f.write(example_content)
-
-        # Configuration example
-        config_template = self.env.get_template('example_config.yaml.j2')
-        config_content = config_template.render(
-            config=config,
-            timestamp=datetime.now().isoformat()
-        )
-
-        config_file = examples_dir / f"{config.name}_config.yaml"
-        with open(config_file, 'w') as f:
-            f.write(config_content)
-
-        logger.info(f"Generated examples in: {examples_dir}")
 
     def generate_template_config(self, process_type: str = "emission") -> Dict[str, Any]:
         """Generate a template configuration for a given process type.
@@ -1491,8 +1713,7 @@ class ProcessGenerator:
                     }
                 ],
                 "generate_tests": True,
-                "generate_docs": True,
-                "generate_examples": True
+                "generate_docs": True
             },
 
             "chemistry": {
@@ -1535,8 +1756,7 @@ class ProcessGenerator:
                 "timestep_dependency": "dependent",
                 "parallelization": "column",
                 "generate_tests": True,
-                "generate_docs": True,
-                "generate_examples": True
+                "generate_docs": True
             }
         }
 

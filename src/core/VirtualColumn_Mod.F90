@@ -39,6 +39,7 @@ module VirtualColumn_Mod
       ! Grid position and metadata
       integer :: grid_i = 0                                  !< Grid I index
       integer :: grid_j = 0                                  !< Grid J index
+      integer :: column_id = 0                               !< Unique column identifier
       real(fp) :: lat = 0.0_fp                               !< Latitude [degrees]
       real(fp) :: lon = 0.0_fp                               !< Longitude [degrees]
       real(fp) :: area = 0.0_fp                              !< Grid cell area [m²]
@@ -77,17 +78,17 @@ contains
    subroutine virtual_met_cleanup(this)
       class(VirtualMetType), intent(inout) :: this
 
-      print *, '[DEBUG] Entering virtual_met_cleanup'
+      !print *, '[DEBUG] Entering virtual_met_cleanup'
       if (associated(this%T)) then
-         print *, '[DEBUG] Cleaning up T, associated before nullify'
+         !   print *, '[DEBUG] Cleaning up T, associated before nullify'
       else
-         print *, '[DEBUG] T not associated'
+         !   print *, '[DEBUG] T not associated'
       endif
 
       ! Generated cleanup code from MetState field definitions
 #include "virtualmet_cleanup.inc"
 
-      print *, '[DEBUG] Exiting virtual_met_cleanup'
+      !print *, '[DEBUG] Exiting virtual_met_cleanup'
    end subroutine virtual_met_cleanup
 
    !=========================================================================
@@ -95,10 +96,10 @@ contains
    !=========================================================================
 
    !> \brief Initialize virtual column
-   subroutine virtual_column_init(this, nlev, nspec_chem, nspec_emis, grid_i, grid_j, lat, lon, area, rc)
+   subroutine virtual_column_init(this, nlev, nspec_chem, nspec_emis, grid_i, grid_j, column_id, lat, lon, area, rc)
       class(VirtualColumnType), intent(inout) :: this
       integer, intent(in) :: nlev, nspec_chem, nspec_emis
-      integer, intent(in) :: grid_i, grid_j
+      integer, intent(in) :: grid_i, grid_j, column_id
       real(fp), intent(in) :: lat, lon, area
       integer, intent(out) :: rc
 
@@ -112,6 +113,7 @@ contains
       ! Store position/metadata
       this%grid_i = grid_i
       this%grid_j = grid_j
+      this%column_id = column_id
       this%lat = lat
       this%lon = lon
       this%area = area
@@ -252,18 +254,18 @@ contains
    subroutine virtual_column_cleanup(this)
       class(VirtualColumnType), intent(inout) :: this
 
-      print *, '[DEBUG] Entering virtual_column_cleanup'
+      !print *, '[DEBUG] Entering virtual_column_cleanup'
 
       ! Clean up meteorological pointers
       call this%met%cleanup()
 
       ! Deallocate chemical and emission data
       if (allocated(this%chem_data)) then
-         print *, '[DEBUG] Deallocating chem_data'
+         !print *, '[DEBUG] Deallocating chem_data'
          deallocate(this%chem_data)
       endif
       if (allocated(this%emis_data)) then
-         print *, '[DEBUG] Deallocating emis_data'
+         !print *, '[DEBUG] Deallocating emis_data'
          deallocate(this%emis_data)
       endif
 
@@ -272,7 +274,7 @@ contains
       this%nspec_emis = 0
       this%is_valid = .false.
 
-      print *, '[DEBUG] Exiting virtual_column_cleanup'
+      !print *, '[DEBUG] Exiting virtual_column_cleanup'
    end subroutine virtual_column_cleanup
 
 end module VirtualColumn_Mod

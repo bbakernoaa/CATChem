@@ -75,6 +75,7 @@ module species_mod
       logical :: is_tracer            !< If true, species is a tracer and not an aerosol or gas that undergoes chemistry or photolysis
       logical :: is_advected          !< If true, species is advected
       logical :: is_drydep            !< If true, species undergoes dry deposition
+      logical :: is_wetdep            !< if true, species undergoes wet deposition
       logical :: is_photolysis        !< If true, species undergoes photolysis
       logical :: is_gocart_aero       !< If true, species is a GOCART aerosol species
       logical :: is_dust              !< If true, species is dust
@@ -94,6 +95,23 @@ module species_mod
       real(kind=fp) :: dd_DvzAerSnow        !< fix dry deposition velocity (cm/s) over ice and snow for certain aerosol species
       real(kind=fp) :: dd_DvzMinVal_snow    !< minimum dry deposition velocity (cm/s) over snow and ice
       real(kind=fp) :: dd_DvzMinVal_land    !< minimum dry deposition velocity (cm/s) over land
+
+      ! used for wet deposition
+      !real(kind=fp) :: radius_wet           !< mean molecular diameter in meters for wet conditions (use the same radius for both dry and wet deposition for now)
+      real(kind=fp) :: henry_k0             !< Henry’s law solubility constant ( M / atm)
+      real(kind=fp) :: henry_cr             !< Henry’s law volatility constant (K)
+      real(kind=fp) :: henry_pKa            !< Henry’s Law pH correction factor (seems zeros for all species now)
+      real(kind=fp) :: wd_retfactor         !< retention efficiency of species in the liquid cloud condensate as it is converted to precipitation
+      logical       :: wd_LiqAndGas         !< whether the ice-to-gas ratio can be computed for this species by co-condensation
+      real(kind=fp) :: wd_convfacI2G        !< conversion factor for computing the ice-to-gas ratio by co-condensation when wd_LiqAndGas = .true.
+      real(kind=fp) :: wd_rainouteff(3)     !< temperature-dependent (T < 237k;  237 <= T < 258k;  T >= 258k) scale factor for the fraction of rainout.
+      real(kind=fp) :: wd_reevap_frac       !< fraction of re-evaporated (washout) mass resuspended to the gas/aerosol phase. GEOS-Chem/Luo default 0.5 (Liu et al., 2001); GOCART uses 1.0.
+
+      !used for settling
+      character(len=30) :: mie_name         !< Mie data name associated with this species for settling velocity calculation
+
+      !used for gocart carbon species chemical loss
+      real(kind=fp) :: t_chem_loss          !< Rate of chemical destruction of carbon species [days]
 
       ! Default background concentration
       real(kind=fp) :: BackgroundVV        !< Background concentration [v/v]
@@ -188,6 +206,7 @@ contains
       ! Initialize species properties
       this%short_name = trim(species_name)
       this%long_name = trim(long_name)
+      this%description = ''  ! Initialize description
       this%mw_g = molecular_weight
 
       ! Set defaults
@@ -196,6 +215,7 @@ contains
       this%is_tracer = .false.
       this%is_advected = .true.
       this%is_drydep = .false.
+      this%is_wetdep = .false.  ! Initialize wet deposition flag
       this%is_photolysis = .false.
       this%is_gocart_aero = .false.
       this%is_dust = .false.
@@ -206,7 +226,29 @@ contains
       this%lower_radius = 0.0_fp
       this%upper_radius = 0.0_fp
       this%viscosity = 1.0e-5_fp
+
+      ! Initialize dry deposition properties
+      this%dd_f0 = 0.0_fp
+      this%dd_hstar = 0.0_fp
+      this%dd_DvzAerSnow = 0.0_fp
+      this%dd_DvzMinVal_snow = 0.0_fp
+      this%dd_DvzMinVal_land = 0.0_fp
+
+      ! Initialize wet deposition properties
+      this%henry_k0 = 0.0_fp
+      this%henry_cr = 0.0_fp
+      this%henry_pKa = 0.0_fp
+      this%wd_retfactor = 0.0_fp
+      this%wd_LiqAndGas = .false.
+      this%wd_convfacI2G = 0.0_fp
+      this%wd_rainouteff(:) = 0.0_fp
+      this%wd_reevap_frac = 0.5_fp
+
+      !carbon chem loss in days
+      this%t_chem_loss = -1.0_fp
+
       this%BackgroundVV = MISSING_VV
+      this%mie_name = ''  ! Initialize Mie name to empty
 
       this%species_index = -1
       this%drydep_index = -1
@@ -348,6 +390,8 @@ contains
 
       if (associated(this%conc)) deallocate(this%conc)
 
+      this%description = ''  ! Clear description
+      this%mie_name = ''  ! Clear Mie name
       this%is_valid = .false.
       rc = CC_SUCCESS
 
@@ -542,6 +586,7 @@ contains
       ! Copy all scalar properties
       this%short_name = source%short_name
       this%long_name = source%long_name
+      this%description = source%description
 
       ! Copy logical switches
       this%is_gas = source%is_gas
@@ -549,6 +594,7 @@ contains
       this%is_tracer = source%is_tracer
       this%is_advected = source%is_advected
       this%is_drydep = source%is_drydep
+      this%is_wetdep = source%is_wetdep
       this%is_photolysis = source%is_photolysis
       this%is_gocart_aero = source%is_gocart_aero
       this%is_dust = source%is_dust
@@ -561,7 +607,29 @@ contains
       this%lower_radius = source%lower_radius
       this%upper_radius = source%upper_radius
       this%viscosity = source%viscosity
+
+      ! Copy dry deposition properties
+      this%dd_f0 = source%dd_f0
+      this%dd_hstar = source%dd_hstar
+      this%dd_DvzAerSnow = source%dd_DvzAerSnow
+      this%dd_DvzMinVal_snow = source%dd_DvzMinVal_snow
+      this%dd_DvzMinVal_land = source%dd_DvzMinVal_land
+
+      ! Copy wet deposition properties
+      this%henry_k0 = source%henry_k0
+      this%henry_cr = source%henry_cr
+      this%henry_pKa = source%henry_pKa
+      this%wd_retfactor = source%wd_retfactor
+      this%wd_LiqAndGas = source%wd_LiqAndGas
+      this%wd_convfacI2G = source%wd_convfacI2G
+      this%wd_rainouteff = source%wd_rainouteff
+      this%wd_reevap_frac = source%wd_reevap_frac
+
+      !gocart carbon loss
+      this%t_chem_loss = source%t_chem_loss
+
       this%BackgroundVV = source%BackgroundVV
+      this%mie_name = source%mie_name
 
       ! Copy indices
       this%species_index = source%species_index
@@ -598,14 +666,22 @@ contains
       write(*, '(A)') '=== Species Information ==='
       write(*, '(A,A)') 'Short name: ', trim(this%short_name)
       write(*, '(A,A)') 'Long name:  ', trim(this%long_name)
+      write(*, '(A,A)') 'Description: ', trim(this%description)
       write(*, '(A,F12.6)') 'Molecular weight [g/mol]: ', this%mw_g
       write(*, '(A,F12.3)') 'Density [kg/m³]: ', this%density
       write(*, '(A,E12.5)') 'Radius [m]: ', this%radius
       write(*, '(A,L1)') 'Is gas: ', this%is_gas
       write(*, '(A,L1)') 'Is aerosol: ', this%is_aerosol
       write(*, '(A,L1)') 'Is tracer: ', this%is_tracer
+      write(*, '(A,L1)') 'Is advected: ', this%is_advected
       write(*, '(A,L1)') 'Undergoes dry deposition: ', this%is_drydep
+      write(*, '(A,L1)') 'Undergoes wet deposition: ', this%is_wetdep
       write(*, '(A,L1)') 'Undergoes photolysis: ', this%is_photolysis
+      write(*, '(A,L1)') 'Is GOCART aerosol: ', this%is_gocart_aero
+      write(*, '(A,L1)') 'Is dust: ', this%is_dust
+      write(*, '(A,L1)') 'Is seasalt: ', this%is_seasalt
+      write(*, '(A,A)') 'Mie data name: ', trim(this%mie_name)
+      write(*, '(A,E12.5)') 'Background concentration [v/v]: ', this%BackgroundVV
       write(*, '(A,I0)') 'Species index: ', this%species_index
       if (associated(this%conc)) then
          write(*, '(A,I0)') 'Concentration grid size: ', size(this%conc)

@@ -13,7 +13,8 @@ MODULE MetState_Mod
    USE Error_Mod
    USE Precision_Mod
    USE GridGeometry_Mod
-   ! USE TimeState_Mod, only: TimeStateType
+   USE Met_Utilities_Mod
+   USE TimeState_Mod, only: TimeStateType
 
 
 
@@ -92,6 +93,7 @@ MODULE MetState_Mod
       INTEGER                      :: nSOIL             !< # number of soil layers
       INTEGER                      :: nSOILTYPE         !< # number of soil types
       REAL(fp), ALLOCATABLE        :: SOILM(:,:,:)      !< Volumetric Soil moisture [m3/m3] (nx,ny,nsoil)
+      REAL(fp), ALLOCATABLE        :: SOILT(:,:,:)      !< Temperature of soil layer [K] (nx,ny,nsoil)
       REAL(fp), ALLOCATABLE        :: FRLANDUSE(:,:,:)  !< Fractional Land Use (nx,ny,nlanduse)
       REAL(fp), ALLOCATABLE        :: FRSOIL(:,:,:)     !< Fractional Soil (nx,ny,nsoil)
       REAL(fp), ALLOCATABLE        :: FRLAI(:,:,:)      !< LAI in each Fractional Land use type [m2/m2] (nx,ny,nlanduse)
@@ -113,6 +115,7 @@ MODULE MetState_Mod
       REAL(fp), ALLOCATABLE        :: SWGDN(:,:)        !< Incident radiation @ ground [W/m2]
       REAL(fp), ALLOCATABLE        :: EFLUX(:,:)        !< Latent heat flux [W/m2]
       REAL(fp), ALLOCATABLE        :: HFLUX(:,:)        !< Sensible heat flux [W/m2]
+      REAL(fp), ALLOCATABLE        :: HFLUX_UP(:,:)     !< Sensible upward heat flux [W/m2]
       REAL(fp), ALLOCATABLE        :: U10M(:,:)         !< E/W wind speed @ 10m ht [m/s]
       REAL(fp), ALLOCATABLE        :: USTAR(:,:)        !< Friction velocity [m/s]
       REAL(fp), ALLOCATABLE        :: V10M(:,:)         !< N/S wind speed @ 10m ht [m/s]
@@ -121,6 +124,10 @@ MODULE MetState_Mod
       REAL(fp), ALLOCATABLE        :: FRZ0(:,:,:)       !< Aerodynamic Roughness Length per FRLANDUSE (nx,ny,nlanduse)
       REAL(fp), ALLOCATABLE        :: PBLH(:,:)         !< PBL height [m]
       REAL(fp), ALLOCATABLE        :: SALINITY(:,:)     !< Salinity of the ocean [part per thousand]
+      REAL(fp), ALLOCATABLE        :: CMM(:,:)          !< Aerodynamic conductance [m/s]
+      REAL(fp), ALLOCATABLE        :: ORO(:,:)          !< surface height above sea level [m]
+      REAL(fp), ALLOCATABLE        :: RCA(:,:)          !< Aerodynamic resistance in canopy [s/m]
+      REAL(fp), ALLOCATABLE        :: WCA(:,:)          ! canopy water amount [kg/m2]
       ! 3D volumetric fields (3D: nx, ny, nz)
       REAL(fp), ALLOCATABLE        :: F_OF_PBL(:,:,:)       !< Fraction of box within PBL [1]
       REAL(fp), ALLOCATABLE        :: F_UNDER_PBLTOP(:,:,:) !< Fraction of box under PBL top
@@ -138,13 +145,14 @@ MODULE MetState_Mod
       REAL(fp), ALLOCATABLE        :: PRECANV(:,:)      !< Anvil previp @ ground [kg/m2/s] -> [mm/day]
       REAL(fp), ALLOCATABLE        :: PRECCON(:,:)      !< Conv  precip @ ground [kg/m2/s] -> [mm/day]
       REAL(fp), ALLOCATABLE        :: PRECLSC(:,:)      !< Large-scale precip @ ground kg/m2/s] -> [mm/day]
+      real(fp), ALLOCATABLE        :: REEVAPLS(:,:,:)   !< Evap of precip LS+anvil [kg/kg/s] (assume per dry air)
       ! 3D cloud and precipitation arrays
       REAL(fp), ALLOCATABLE        :: QI(:,:,:)         !< Mass fraction of cloud ice water [kg/kg dry air]
       REAL(fp), ALLOCATABLE        :: QL(:,:,:)         !< Mass fraction of cloud liquid water [kg/kg dry air]
       REAL(fp), ALLOCATABLE        :: PFICU(:,:,:)      !< Dwn flux ice prec:conv [kg/m2/s]
-      REAL(fp), ALLOCATABLE        :: PFILSAN(:,:,:)    !< Dwn flux ice prec:LS+anv [kg/m2/s]
+      REAL(fp), ALLOCATABLE        :: PFILSAN(:,:,:)    !< Dwn flux ice prec:LS+anv [kg/m2/s] (nx,ny,nz+1)
       REAL(fp), ALLOCATABLE        :: PFLCU(:,:,:)      !< Dwn flux liq prec:conv [kg/m2/s]
-      REAL(fp), ALLOCATABLE        :: PFLLSAN(:,:,:)    !< Dwn flux ice prec:LS+anv [kg/m2/s]
+      REAL(fp), ALLOCATABLE        :: PFLLSAN(:,:,:)    !< Dwn flux liq prec:LS+anv [kg/m2/s] (nx,ny,nz+1)
       REAL(fp), ALLOCATABLE        :: TAUCLI(:,:,:)     !< Opt depth of ice clouds [1]
       REAL(fp), ALLOCATABLE        :: TAUCLW(:,:,:)     !< Opt depth of H2O clouds [1]
       ! Surface scalars (now 2D: nx, ny)
@@ -163,8 +171,8 @@ MODULE MetState_Mod
       INTEGER,  ALLOCATABLE        :: TropLev(:,:)      !< Tropopause level [1]
       REAL(fp), ALLOCATABLE        :: TropHt(:,:)       !< Tropopause height [km]
       ! 3D atmospheric variables (3D: nx, ny, nz)
-      REAL(fp), ALLOCATABLE        :: Z(:,:,:)          !< Full Layer Geopotential Height
-      REAL(fp), ALLOCATABLE        :: ZMID(:,:,:)       !< Mid Layer Geopotential Height
+      REAL(fp), ALLOCATABLE        :: Z(:,:,:)          !< Geopotential Height @ level edges [m] (nx,ny,nz+1)
+      REAL(fp), ALLOCATABLE        :: ZMID(:,:,:)       !< Mid Layer Geopotential Height [m]
       REAL(fp), ALLOCATABLE        :: BXHEIGHT(:,:,:)   !< Grid box height [m] (dry air)
       REAL(fp), ALLOCATABLE        :: QV(:,:,:)         !< Specific Humidity [kg/kg]
       REAL(fp), ALLOCATABLE        :: T(:,:,:)          !< Temperature [K]
@@ -175,12 +183,13 @@ MODULE MetState_Mod
       REAL(fp), ALLOCATABLE        :: OMEGA(:,:,:)      !< Updraft velocity [Pa/s]
       REAL(fp), ALLOCATABLE        :: RH(:,:,:)         !< Relative humidity [fraction, not %]
       REAL(fp), ALLOCATABLE        :: SPHU(:,:,:)       !< Specific humidity [g H2O/kg tot air]
-      REAL(fp), ALLOCATABLE        :: AIRDEN(:,:,:)     !< Dry air density [kg/m3]
+      REAL(fp), ALLOCATABLE        :: AIRDEN(:,:,:)     !< Wet air density [kg/m3]
+      REAL(fp), ALLOCATABLE        :: AIRDEN_DRY(:,:,:) !< Dry air density [kg/m3]
       REAL(fp), ALLOCATABLE        :: AIRNUMDEN(:,:,:)  !< Dry air density [molec/cm3]
-      REAL(fp), ALLOCATABLE        :: MAIRDEN(:,:,:)    !< Moist air density [kg/m3]
+      REAL(fp), ALLOCATABLE        :: MAIRDEN(:,:,:)    !< Moist air density (same as AIRDEN to cover possible use cases) [kg/m3]
       REAL(fp), ALLOCATABLE        :: AVGW(:,:,:)       !< Water vapor volume mixing ratio [vol H2O/vol dry air]
-      REAL(fp), ALLOCATABLE        :: DELP(:,:,:)       !< Delta-P (wet) across box [hPa]
-      REAL(fp), ALLOCATABLE        :: DELP_DRY(:,:,:)   !< Delta-P (dry) across box [hPa]
+      REAL(fp), ALLOCATABLE        :: DELP(:,:,:)       !< Delta-P (wet) across box [Pa]
+      REAL(fp), ALLOCATABLE        :: DELP_DRY(:,:,:)   !< Delta-P (dry) across box [Pa]
       REAL(fp), ALLOCATABLE        :: DAIRMASS(:,:,:)   !< Dry air mass [kg] in grid box
       REAL(fp), ALLOCATABLE        :: AIRVOL(:,:,:)     !< Grid box volume [m3] (dry air)
       REAL(fp), ALLOCATABLE        :: PEDGE_DRY(:,:,:)  !< Dry air partial pressure @ level edges [Pa] (nx,ny,nz+1)
@@ -229,6 +238,7 @@ MODULE MetState_Mod
       procedure, public :: metstate_set_field_3d_int
       procedure, public :: metstate_set_field_3d_logical
       procedure, public :: set_multiple_fields => metstate_set_multiple_fields
+      procedure, public :: derive_field => metstate_derive_field
       procedure :: allocate_field => metstate_allocate_field
       procedure :: deallocate_field => metstate_deallocate_field
       procedure, private :: allocate_arrays => allocate_metstate_arrays
@@ -250,7 +260,7 @@ CONTAINS
    !! \param[inout] error_mgr Error manager for context and error reporting
    !! \param[out]   rc        Return code (CC_SUCCESS or error code)
    subroutine metstate_init(this, nx, ny, nlevs, nsoil, nsoiltype, nsurftype, error_mgr, rc)
-      use error_mod, only: ErrorManagerType, CC_SUCCESS, ERROR_MEMORY_ALLOCATION
+      use error_mod, only: ErrorManagerType, CC_SUCCESS
 
       implicit none
       class(MetStateType), intent(inout) :: this
@@ -307,7 +317,7 @@ CONTAINS
    !! \param[inout] error_mgr Error manager for context and error reporting
    !! \param[out]   rc        Return code
    subroutine allocate_metstate_arrays(this, field_name, error_mgr, rc)
-      use error_mod, only: ErrorManagerType, CC_SUCCESS, ERROR_MEMORY_ALLOCATION
+      use error_mod, only: ErrorManagerType, CC_SUCCESS
 
       implicit none
       class(MetStateType), intent(inout) :: this
@@ -1182,5 +1192,480 @@ CONTAINS
 
 ! Include the auto-generated multiple fields interface
 #include "metstate_multiple_fields_interface.inc"
+
+   !> \brief Derive meteorological fields from existing data
+   !!
+   !! Calculates derived fields using existing meteorological variables.
+   !! Supports common derived quantities like air density, virtual temperature, etc.
+   !!
+   !! \param[inout] this        MetStateType object
+   !! \param[in]    field_name  Name of the field to derive
+   !! \param[inout] error_mgr   Error manager for context and error reporting
+   !! \param[out]   rc          Return code (CC_SUCCESS or error code)
+   subroutine metstate_derive_field(this, field_name, error_mgr, time_state, rc)
+      use error_mod, only: ErrorManagerType, CC_SUCCESS, CC_FAILURE, ERROR_INVALID_INPUT, ERROR_NOT_FOUND
+      use constants, only: g0, Rd, Rdg0, AIRMW, H2OMW
+
+      implicit none
+      class(MetStateType), intent(inout) :: this
+      character(len=*), intent(in) :: field_name
+      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
+      type(TimeStateType), pointer,intent(inout) :: time_state
+      integer, intent(out) :: rc
+
+      character(len=256) :: thisLoc
+      integer :: nx, ny, nz, i, j, k, nlanduse
+      real(fp) :: airden, rh, air_mass
+      real(fp) :: avgw ! Water vapor volume mixing ratio [v/v dry air]
+      real(fp) :: xh2o ! Water vapor mole fraction [mol (H2O) / mol (moist air)]
+      !some variables used for reevaporation calculations
+      real(fp) :: flux_liq, flux_ice, flux_tot, reevap_liq, reevap_ice,C_evap,RH_term, frac_liq
+      real(fp), parameter :: C_evap_liq = 2.0e-5_fp  ! liquid evap coefficient
+      real(fp), parameter :: C_evap_ice = 0.5e-5_fp  ! ice sublimation coefficient
+      real(fp), parameter :: b0         = 0.9_fp     ! Sundqvist RH threshold
+      real(fp), parameter :: T_liq      = 273.15_fp  ! K - liquid threshold
+      real(fp), parameter :: T_ice      = 258.15_fp  ! K - ice threshold
+
+      thisLoc = 'metstate_derive_field (in core/metstate_mod.F90)'
+      call error_mgr%push_context('metstate_derive_field', 'deriving field: ' // trim(field_name))
+
+      rc = CC_SUCCESS
+      call this%get_dimensions(nx, ny, nz)
+
+      select case (trim(adjustl(field_name)))
+
+       case ('MAIRDEN', 'mairden', 'AIRDEN', 'airden')
+         ! Calculate dry air density from pressure and temperature
+         ! ρ = P / (R_specific * T) where R_specific = R / MW
+         if (.not. allocated(this%PMID) .or. .not. allocated(this%T)) then
+            call error_mgr%report_error(ERROR_INVALID_INPUT, &
+               'PMID and T fields required for MAIRDEN/AIRDEN calculation', rc, &
+               thisLoc, 'Ensure pressure and temperature are available')
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Allocate MAIRDEN if not already allocated
+         if (.not. allocated(this%MAIRDEN) .or. .not. allocated(this%AIRDEN)) then
+            call error_mgr%report_error(rc, 'MAIRDEN/AIRDEN fields need to be allocated first!', rc, thisLoc)
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Calculate dry air density: ρ = P / (R_dry * T)
+         do k = 1, nz
+            do j = 1, ny
+               do i = 1, nx
+                  this%MAIRDEN(i, j, k) = this%PMID(i, j, k) / rd / this%T(i, j, k)
+                  this%AIRDEN(i, j, k) = this%PMID(i, j, k) / rd / this%T(i, j, k)
+               enddo
+            enddo
+         enddo
+
+       case ('AIRDEN_DRY', 'airden_dry', 'PMID_DRY', 'pmid_dry', 'PEDGE_DRY', 'pedge_dry', 'DELP_DRY', 'delp_dry')
+         ! Calculate dry air density from pressure and temperature
+         ! ρ = P / (R_specific * T) where R_specific = R / MW
+         if (.not. allocated(this%PMID) .or. .not. allocated(this%T)) then
+            call error_mgr%report_error(ERROR_INVALID_INPUT, &
+               'PMID and T fields required for AIRDEN_DRY calculation', rc, &
+               thisLoc, 'Ensure pressure and temperature are available')
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Allocate AIRDEN_DRY if not already allocated
+         if (.not. allocated(this%AIRDEN_DRY) .or. .not. allocated(this%PMID_DRY) .or. &
+            .not. allocated(this%PEDGE_DRY) .or. .not. allocated(this%DELP_DRY)) then
+            call error_mgr%report_error(rc, 'AIRDEN_DRY/PMID_DRY/PEDGE_DRY/DELP_DRY fields need to be allocated first!', rc, thisLoc)
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Calculate dry air density: ρ = P / (R_dry * T)
+         do k = 1, nz
+            do j = 1, ny
+               do i = 1, nx
+                  avgw = AIRMW * this%QV(i,j,k) / ( H2OMW * (1.0e+0_fp - this%QV(i,j,k)) )
+                  xh2o = avgw / (1.0e+0_fp + avgw)
+                  this%PMID_DRY(i, j, k) = this%PMID(i, j, k) * ( 1.e+0_fp - xh2o )
+                  this%AIRDEN_DRY(i, j, k) = this%PMID_DRY(i, j, k) / rd / this%T(i, j, k)
+                  this%PEDGE_DRY(i, j, k) = this%PEDGE(i, j, k) * ( 1.e+0_fp - xh2o )
+                  !if (k == nz) then
+                  this%PEDGE_DRY(i, j, k+1) = this%PEDGE(i, j, k+1) * ( 1.e+0_fp - xh2o )
+                  !end if
+                  this%DELP_DRY(i, j, k) = this%PEDGE_DRY(i, j, k) - this%PEDGE_DRY(i, j, k+1)
+               enddo
+            enddo
+         enddo
+
+       case ('RH', 'rh')
+         ! Calculate virtual temperature from temperature and humidity
+         if (.not. allocated(this%T) .or. .not. allocated(this%QV) .or. .not. allocated(this%PMID)) then
+            call error_mgr%report_error(ERROR_INVALID_INPUT, &
+               'T, PMID and QV fields required for RH calculation', rc, &
+               thisLoc, 'Ensure temperature, pressure and humidity are available')
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Allocate RH if not already allocated
+         if (.not. allocated(this%RH)) then
+            call error_mgr%report_error(rc, 'RH field needs to be allocated first!', rc, thisLoc)
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Calculate relative humidity from met_utility module
+         do k = 1, nz
+            do j = 1, ny
+               do i = 1, nx
+                  this%RH(i, j, k) = relative_humidity(this%T(i, j, k), this%QV(i, j, k), this%PMID(i, j, k))
+               enddo
+            enddo
+         enddo
+
+       case ('TV', 'tv')
+         ! Calculate virtual temperature from temperature and humidity
+         if (.not. allocated(this%T) .or. .not. allocated(this%QV)) then
+            call error_mgr%report_error(ERROR_INVALID_INPUT, &
+               'T and QV fields required for TV calculation', rc, &
+               thisLoc, 'Ensure temperature and humidity are available')
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Allocate TV if not already allocated
+         if (.not. allocated(this%TV)) then
+            call error_mgr%report_error(rc, 'TV field needs to be allocated first!', rc, thisLoc)
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Calculate virtual temperature: Tv = T * (1 + 0.608 * qv)
+         do k = 1, nz
+            do j = 1, ny
+               do i = 1, nx
+                  this%TV(i, j, k) = this%T(i, j, k) * (1.0_fp + 0.608_fp * this%QV(i, j, k))
+               enddo
+            enddo
+         enddo
+
+       case ('OBK', 'obk')
+         ! Calculate OBK from sensible heat flux and air density
+         if (.not. allocated(this%HFLUX) .or. .not. allocated(this%AIRDEN) .or. .not. allocated(this%TS) .or. &
+            .not. allocated(this%USTAR)) then
+            call error_mgr%report_error(ERROR_INVALID_INPUT, &
+               'TS, USTAR, AIRDEN and HFLUX fields required for OBK calculation', rc, &
+               thisLoc, 'Ensure temperature, ustar, air density, and sensible heat flux are available')
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Allocate OBK if not already allocated
+         if (.not. allocated(this%OBK)) then
+            call error_mgr%report_error(rc, 'OBK field needs to be allocated first!', rc, thisLoc)
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Calculate OBK from met_utility module
+         do j = 1, ny
+            do i = 1, nx
+               airden = this%PMID(i, j, 1) / rd / this%T(i, j, 1)
+               !!!! Note we cannot use this%AIRDEN here because it may not be calculated yet
+               this%OBK(i, j) = monin_obukhov_length(this%USTAR(i, j), this%TS(i, j), this%HFLUX(i, j), airden)
+            enddo
+         enddo
+
+       case ('SUNCOS', 'suncos')
+         ! Calculate SUNCOS
+         if (.not. allocated(this%LAT) .or. .not. allocated(this%LON)) then
+            call error_mgr%report_error(ERROR_INVALID_INPUT, &
+               'LAT and LON fields required for SUNCOS calculation', rc, &
+               thisLoc, 'Ensure latitude and longitude are available')
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Allocate OBK if not already allocated
+         if (.not. allocated(this%SUNCOS)) then
+            call error_mgr%report_error(rc, 'SUNCOS field needs to be allocated first!', rc, thisLoc)
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Calculate OBK from met_utility module
+         do j = 1, ny
+            do i = 1, nx
+               !make sure lat[-90 - 90] and lon[-180 - 180] are in degrees
+               this%SUNCOS(i, j) = time_state%get_cos_sza(this%LAT(i, j), this%LON(i, j))
+            enddo
+         enddo
+
+       case ('SUNCOSmid', 'suncosmid')
+         ! Calculate SUNCOSmid
+         if (.not. allocated(this%LAT) .or. .not. allocated(this%LON)) then
+            call error_mgr%report_error(ERROR_INVALID_INPUT, &
+               'LAT and LON fields required for SUNCOSmid calculation', rc, &
+               thisLoc, 'Ensure latitude and longitude are available')
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Allocate OBK if not already allocated
+         if (.not. allocated(this%SUNCOSmid)) then
+            call error_mgr%report_error(rc, 'SUNCOSmid field needs to be allocated first!', rc, thisLoc)
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Calculate OBK from met_utility module
+         do j = 1, ny
+            do i = 1, nx
+               !make sure lat[-90 - 90] and lon[-180 - 180] are in degrees
+               this%SUNCOSmid(i, j) = time_state%get_cos_sza(this%LAT(i, j), this%LON(i, j), .true.)
+            enddo
+         enddo
+
+       case ('DELP', 'delp')
+         ! Calculate box height from geopotential heights
+         if (.not. allocated(this%PEDGE)) then
+            call error_mgr%report_error(ERROR_INVALID_INPUT, &
+               'PEDGE field required for DELP calculation', rc, &
+               thisLoc, 'Ensure pressure edges are available')
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Allocate BXHEIGHT if not already allocated
+         if (.not. allocated(this%DELP)) then
+            call error_mgr%report_error(rc, 'BXHEIGHT field needs to be allocated first!', rc, thisLoc)
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Calculate box height as difference between edge heights
+         do k = 1, nz
+            do j = 1, ny
+               do i = 1, nx
+                  ! lower edge - upper edge
+                  this%DELP(i, j, k) = this%PEDGE(i, j, k) - this%PEDGE(i, j, k+1)
+               enddo
+            enddo
+         enddo
+
+       case ('BXHEIGHT', 'bxheight')
+         ! Calculate box height from geopotential heights
+         if (.not. allocated(this%PEDGE)) then
+            call error_mgr%report_error(ERROR_INVALID_INPUT, &
+               'PEDGE field required for BXHEIGHT calculation', rc, &
+               thisLoc, 'Ensure pressure edges are available')
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Allocate BXHEIGHT if not already allocated
+         if (.not. allocated(this%BXHEIGHT)) then
+            call error_mgr%report_error(rc, 'BXHEIGHT field needs to be allocated first!', rc, thisLoc)
+            call error_mgr%pop_context()
+            return
+         endif
+
+         ! Calculate box height as difference between edge heights
+         do k = 1, nz
+            do j = 1, ny
+               do i = 1, nx
+                  ! Refer to https://github.com/geoschem/geos-chem/GeosCore/calc_met_mod.F90
+                  this%BXHEIGHT(i, j, k) = Rdg0 * virtual_temperature(this%T(i, j, k), this%QV(i, j, k)) * &
+                     LOG(this%PEDGE(i, j, k) / this%PEDGE(i, j, k+1))
+               enddo
+            enddo
+         enddo
+
+       case ('SST', 'sst')
+         this%SST(:,:) = this%TS(:,:)  !just copy TS to SST
+
+       case ('TSKIN', 'tskin')
+         this%TSKIN(:,:) = this%TS(:,:)  !just copy TS to TSKIN
+
+       case ('Z0H', 'z0h')
+         this%Z0H(:,:) = this%Z0(:,:)  !just copy Z0 to Z0H
+
+       case ('CLDFRC', 'cldfrc')
+         this%CLDFRC(:,:) = this%CLDF(:,:, 1)  !just copy surface CLDF to CLDFRC
+
+       case ('IsLand', 'island', 'ISLAND')
+         do j = 1, ny
+            do i = 1, nx
+               this%IsLand(i, j) = ( abs(this%LWI(i, j) - 1.0_fp) < 0.5_fp ) ! Land if LWI = 1.0
+            enddo
+         enddo
+
+       case ('IsIce', 'isice', 'ISICE')
+         do j = 1, ny
+            do i = 1, nx
+               this%IsIce(i, j) = ( abs(this%LWI(i, j) - 2.0_fp) < 0.5_fp ) ! Ice if LWI = 2.0
+            enddo
+         enddo
+
+       case ('IsWater', 'iswater', 'ISWATER')
+         do j = 1, ny
+            do i = 1, nx
+               this%IsWater(i, j) = ( abs(this%LWI(i, j) - 0.0_fp) < 0.5_fp ) ! sea if LWI = 0.0
+            enddo
+         enddo
+
+       case ('IsSnow', 'issnow', 'ISSNOW')
+         do j = 1, ny
+            do i = 1, nx
+               !geos-chem has a different method: https://github.com/geoschem/geos-chem/GeosCore/calc_met_mod.F90#L324
+               this%IsSnow(i, j) = ( this%FRSNO(i, j) >= 0.5_fp ) ! Snow fraction is read in
+            enddo
+         enddo
+
+       case ('FRLANDIC', 'frlandic')
+         this%FRLANDIC(:,:) = 0.0_fp !set to zero if IsIce is false
+         do j = 1, ny
+            do i = 1, nx
+               if (abs(this%LWI(i, j) - 2.0_fp) < 0.5_fp) this%FRLANDIC(i, j) = 1.0_fp
+            enddo
+         enddo
+
+       case ('LUCNAME', 'lucname')
+         this%LUCNAME = 'NOAH'
+       case ('nLNDTYPE', 'nlndtype', 'NLNDTYPE')
+         nlanduse = 20  !set to 20 for now; later we can read from a config file or pass in from outside
+         this%nLNDTYPE(:,:) = nlanduse  !manually set to 20 for now; not sure if NUOPC can get it
+       case ('FRLANDUSE', 'frlanduse')
+         !Note that FRLANDUSE is not allocated yet in met_sate%init phase because we don't know nlanduse yet
+         nlanduse = 20  !set to 20 for now; later we can read from a config file or pass in from outside
+         if (.not. allocated(this%FRLANDUSE)) allocate(this%FRLANDUSE(nx, ny, nlanduse))
+         this%FRLANDUSE(:,:,:) = 0.0_fp
+         do j = 1, ny
+            do i = 1, nx
+               do k = 1, nlanduse
+                  if (this%DLUSE(i, j) == k) this%FRLANDUSE(i, j, k) = 1.0_fp
+                  !We receive DLUSE = 0 over water but it should be 17th type
+                  if (this%DLUSE(i, j) == 0 .and. k == 17) this%FRLANDUSE(i, j, k) = 1.0_fp
+               enddo
+            enddo
+         enddo
+       case ('ILAND', 'iland')
+         !Note that ILAND is not allocated yet in met_sate%init phase because we don't know nlanduse yet
+         nlanduse = 20  !set to 20 for now; later we can read from a config file or pass in from outside
+         if (.not. allocated(this%ILAND)) allocate(this%ILAND(nx, ny, nlanduse))
+         this%ILAND(:,:,:) = 0
+         do j = 1, ny
+            do i = 1, nx
+               do k = 1, nlanduse
+                  this%ILAND(i, j, k) = k
+               enddo
+            enddo
+         enddo
+       case ('FRLAI', 'frlai')
+         !Note that FRLAI is not allocated yet in met_sate%init phase because we don't know nlanduse yet
+         nlanduse = 20  !set to 20 for now; later we can read from a config file or pass in from outside
+         if (.not. allocated(this%FRLAI)) allocate(this%FRLAI(nx, ny, nlanduse))
+         this%FRLAI(:,:,:) = 0.0_fp
+         do j = 1, ny
+            do i = 1, nx
+               do k = 1, nlanduse
+                  if (this%DLUSE(i, j) == k) this%FRLAI(i, j, k) = this%LAI(i, j) !TODO: should times fraclanduse but here is 1.0
+               enddo
+               this%FRLAI(i, j, 15:17) = 0.0 !manually give index 15(snow and ice), 16(barren), 17(water) zeros
+            enddo
+         enddo
+       case ('CLAYFRAC', 'clayfrac', 'SANDFRAC', 'sandfrac', 'SSM', 'ssm', 'RDRAG', 'rdrag', 'USTAR_THRESHOLD', 'ustar_threshold')
+         !place holder. These are read in from emission read module for now. Here is to make sure required_met is all set.
+         write(*,'(A)') 'Warning: Some Fengsha related met fields are read in from emission module, which will be disabled in the future!'
+       case ('SALINITY', 'salinity')
+         this%SALINITY(:,:) = 0.0_fp  !set to zero for now, which will turn off O3 dry deposition over ocean with iodine.
+
+       case ('REEVAPLS', 'reevapls')
+         this%REEVAPLS(:,:,:) = 0.0_fp  !I did not find data from GFS. Try to calculate it here.
+         do k = 1, nz
+            do j = 1, ny
+               do i = 1, nx
+                  ! 1. GET PRECIPITATION FLUXES
+                  flux_liq = this%PFLLSAN(i,j,k)           ! kg/m²/s
+                  flux_ice = this%PFILSAN(i,j,k)           ! kg/m²/s
+                  flux_tot = flux_liq + flux_ice           ! kg/m²/s
+                  ! Skip if no precipitation
+                  if(flux_tot .le. 0.) cycle
+                  ! Skip if already saturated (no evaporation possible)
+                  rh = relative_humidity(this%T(i, j, k), this%QV(i, j, k), this%PMID(i, j, k))
+                  if(rh .ge. b0) cycle
+                  ! 2. LAYER THICKNESS AND AIR MASS
+                  ! lower edge - upper edge
+                  air_mass = (this%PEDGE(i, j, k) - this%PEDGE(i, j, k+1)) / g0
+                  if(air_mass .le. 0.0_fp) cycle
+                  ! 3. TEMPERATURE-DEPENDENT EVAPORATION COEFFICIENT Abel & Boutle (2012)
+                  if(this%T(i,j,k) .gt. T_liq) then
+                     ! Pure liquid
+                     C_evap = C_evap_liq
+
+                  else if(this%T(i,j,k) .gt. T_ice) then
+                     ! Mixed phase - linear interpolation
+                     frac_liq = (this%T(i,j,k) - T_ice) / (T_liq - T_ice)
+                     C_evap   = frac_liq * C_evap_liq + &
+                        (1. - frac_liq) * C_evap_ice
+                  else
+                     ! Pure ice
+                     C_evap = C_evap_ice
+                  endif
+                  ! 4. SUNDQVIST (1988) RH TERM
+                  RH_term = MAX(0., 1. - RH/b0)   ! dimensionless
+
+                  ! 5. LIQUID EVAPORATION
+                  !    kg/m²/s → kg/kg/s: divide by air_mass
+                  !    note: air_mass cancels with numerator
+                  if(flux_liq .gt. 0.) then
+                     ! kg/m²/s version: C_evap * RH_term * sqrt(flux) * air_mass
+                     ! kg/kg/s version: air_mass cancels → simpler
+                     reevap_liq = C_evap          &
+                        * RH_term                 &   ! dimensionless
+                        * sqrt(flux_liq)              ! (kg/m²/s)^0.5
+
+                     ! Physical constraint: cannot exceed available flux
+                     ! Convert flux to kg/kg/s for comparison
+                     reevap_liq = MIN(reevap_liq, flux_liq/air_mass)
+                     reevap_liq = MAX(0., reevap_liq)
+                  else
+                     reevap_liq = 0.
+                  endif
+
+                  ! 6. ICE SUBLIMATION
+                  !    Only above T_ice threshold
+                  if(flux_ice .gt. 0. .and. this%T(i,j,k) .gt. T_ice) then
+                     reevap_ice = C_evap          &
+                        * RH_term                 &
+                        * sqrt(flux_ice)
+
+                     reevap_ice = MIN(reevap_ice, flux_ice/air_mass)
+                     reevap_ice = MAX(0., reevap_ice)
+                  else
+                     reevap_ice = 0.
+                  endif
+
+                  ! 7. TOTAL REEVAPORATION IN kg/kg/s
+                  this%REEVAPLS(i,j,k) = reevap_liq + reevap_ice
+
+                  ! Final safety constraint
+                  this%REEVAPLS(i,j,k) = MAX(0., this%REEVAPLS(i,j,k))
+                  this%REEVAPLS(i,j,k) = MIN(this%REEVAPLS(i,j,k), flux_tot/air_mass)
+
+               enddo
+            enddo
+         enddo
+
+       case default
+         call error_mgr%report_error(ERROR_NOT_FOUND, &
+            'Unknown derived field: ' // trim(field_name), rc, &
+            thisLoc, 'Supported fields: AIRDEN,  TV,  BXHEIGHT')
+         rc = CC_FAILURE
+      end select
+
+      call error_mgr%pop_context()
+   end subroutine metstate_derive_field
 
 END MODULE MetState_Mod

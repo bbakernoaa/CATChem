@@ -4,11 +4,12 @@
 !! This file contains comprehensive integration tests for the drydep process implementation
 !! using the centralized CATChemCore framework. Tests complete workflow: core initialization,
 !! configuration loading, process registration, and all scheme validation.
-!! Generated on: 2025-11-14T22:58:26.726097
+!! Generated on: 2025-12-18T14:21:30.137417
 
 program test_drydep_integration
-   use precision_mod, only: fp
+   use precision_mod, only: fp, rae
    use iso_fortran_env, only: output_unit, error_unit
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
    use error_mod, only: CC_SUCCESS, CC_FAILURE, ErrorManagerType, ERROR_UNSUPPORTED_OPERATION
    use CATChemCore_Mod, only: CATChemCoreType, CATChemBuilderType
    use StateManager_Mod, only: StateManagerType
@@ -254,13 +255,21 @@ contains
                altitude_km = real(k-1, fp) * 1.0_fp
                met_state%T(i,j,k) = 288.15_fp - 6.5_fp * altitude_km  ! Temperature lapse rate [K]
                met_state%RH(i,j,k) = 0.90_fp * exp(-altitude_km / 5.0_fp)       ! Relative humidity [fraction]
-               met_state%AIRDEN(i,j,k) = 1.2_fp * exp(-altitude_km / 8.0_fp)    ! Air density [kg/m3]
+               met_state%AIRDEN_DRY(i,j,k) = 1.2_fp * exp(-altitude_km / 8.0_fp)    ! Dry air density [kg/m3]
+               met_state%AIRDEN(i,j,k) = met_state%AIRDEN_DRY(i,j,k) * 1.01_fp    ! wet Air density [kg/m3]
                met_state%BXHEIGHT(i,j,k) = 1000.0_fp                            ! Grid box height [m]
-               met_state%ZMID(i,j,k) = altitude_km * 1000.0_fp * 9.81_fp        ! Mid-level geopotential [m2/s2]
             end do
          end do
       end do
-
+      ! Set up pressure edge arrays (nx, ny, nz+1)
+      do j = 1, ny
+         do i = 1, nx
+            do k = 1, nz+1
+               edge_altitude_km = real(k-1, fp) * 1.0_fp - 0.5_fp
+               met_state%Z(i,j,k) = 1000.0_fp * (edge_altitude_km + 0.65_fp)   ! Geopotential height at edges [m]
+            end do
+         end do
+      end do
 
       ! Set up some arrays with special dimensions (nx, ny, ncat)
       do j = 1, ny
@@ -331,7 +340,7 @@ contains
 
       ! Get drydep process interface
       drydep_interface => null()
-      select type(process => process_mgr%processes(1))
+      select type(process => process_mgr%processes(1)%item)
        type is (ProcessDryDepInterface)
          drydep_interface => process
       end select
@@ -341,7 +350,10 @@ contains
          return
       end if
 
-      ! Step 1: Set the scheme
+      ! Step 1: Set the timestep for process calculations
+      call drydep_interface%set_timestep(dt)
+
+      ! Step 2: Set the scheme
       ! For gas/aerosol differentiated processes, determine scheme type
       select case (trim(scheme_name))
        case ('wesely')
@@ -354,7 +366,7 @@ contains
          call drydep_interface%set_scheme(scheme_name)
       end select
 
-      ! Step 2: Reload scheme-specific configuration
+      ! Step 3: Reload scheme-specific configuration
       config_mgr => state_mgr%get_config_ptr()
       error_mgr => state_mgr%get_error_manager()
 
@@ -466,7 +478,6 @@ contains
       real(fp), pointer :: array_3d_ptr(:,:,:) => null()
       logical :: validation_passed
       character(len=64) :: field_name
-      character(len=20) :: type_name
 
       rc_arg = CC_SUCCESS
       validation_passed = .true.
@@ -590,7 +601,7 @@ contains
          end if
 
          ! Check if scalar value is finite and non-negative
-         if (scalar_value /= scalar_value) then  ! NaN check
+         if (ieee_is_nan(scalar_value)) then  ! NaN check
             write(error_unit,'(A,A)') '    ERROR: Field has NaN value: ', trim(field_name)
             field_passed = .false.
          else if (scalar_value < 0.0_fp) then
@@ -615,7 +626,7 @@ contains
                if (is_verbose) then
                   write(output_unit,'(A,A,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, '] = ', current_value
                end if
-               if (current_value /= current_value) then  ! NaN check
+               if (ieee_is_nan(current_value)) then  ! NaN check
                   write(error_unit,'(A,A,A,I0,A)') '    ERROR: Field has NaN at index ', trim(field_name), ' (', i, ')'
                   field_passed = .false.
                   exit
@@ -632,7 +643,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (sum(array_1d_ptr) == 0.0_fp) then
+               if (rae(sum(array_1d_ptr), 0.0_fp)) then
                   write(error_unit,'(A,A)') '    WARNING: Field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
@@ -657,7 +668,7 @@ contains
                   if (is_verbose) then
                      write(output_unit,'(A,A,A,I0,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, ',', j, '] = ', current_value
                   end if
-                  if (current_value /= current_value) then  ! NaN check
+                  if (ieee_is_nan(current_value)) then  ! NaN check
                      write(error_unit,'(A,A,A,I0,A,I0,A)') '    ERROR: Field has NaN at index ', trim(field_name), ' (', i, ',', j, ')'
                      field_passed = .false.
                      exit outer_loop_2d
@@ -675,7 +686,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (sum(array_2d_ptr) == 0.0_fp) then
+               if (rae(sum(array_2d_ptr), 0.0_fp)) then
                   write(error_unit,'(A,A)') '    WARNING: Field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
@@ -701,7 +712,7 @@ contains
                      if (is_verbose) then
                         write(output_unit,'(A,A,A,I0,A,I0,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, ',', j, ',', k, '] = ', current_value
                      end if
-                     if (current_value /= current_value) then  ! NaN check
+                     if (ieee_is_nan(current_value)) then  ! NaN check
                         write(error_unit,'(A,A,A,I0,A,I0,A,I0,A)') '    ERROR: Field has NaN at index ', trim(field_name), ' (', i, ',', j, ',', k, ')'
                         field_passed = .false.
                         exit outer_loop_3d
@@ -720,7 +731,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (sum(array_3d_ptr) == 0.0_fp) then
+               if (rae(sum(array_3d_ptr), 0.0_fp)) then
                   write(error_unit,'(A,A)') '    WARNING: Field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
@@ -760,7 +771,7 @@ contains
                if (is_verbose) then
                   write(output_unit,'(A,A,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, '] = ', current_value
                end if
-               if (current_value /= current_value) then  ! NaN check
+               if (ieee_is_nan(current_value)) then  ! NaN check
                   write(error_unit,'(A,A,A,I0,A)') '    ERROR: Integer field has NaN at index ', trim(field_name), ' (', i, ')'
                   field_passed = .false.
                   exit
@@ -773,7 +784,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (sum(array_1d_ptr) == 0.0_fp) then
+               if (rae(sum(array_1d_ptr), 0.0_fp)) then
                   write(error_unit,'(A,A)') '    WARNING: Integer field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
@@ -798,7 +809,7 @@ contains
                   if (is_verbose) then
                      write(output_unit,'(A,A,A,I0,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, ',', j, '] = ', current_value
                   end if
-                  if (current_value /= current_value) then  ! NaN check
+                  if (ieee_is_nan(current_value)) then  ! NaN check
                      write(error_unit,'(A,A,A,I0,A,I0,A)') '    ERROR: Integer field has NaN at index ', trim(field_name), ' (', i, ',', j, ')'
                      field_passed = .false.
                      exit outer_loop_int_2d
@@ -812,7 +823,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (sum(array_2d_ptr) == 0.0_fp) then
+               if (rae(sum(array_2d_ptr), 0.0_fp)) then
                   write(error_unit,'(A,A)') '    WARNING: Integer field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
@@ -838,7 +849,7 @@ contains
                      if (is_verbose) then
                         write(output_unit,'(A,A,A,I0,A,I0,A,I0,A,E12.5)') '          ', trim(field_name), '[', i, ',', j, ',', k, '] = ', current_value
                      end if
-                     if (current_value /= current_value) then  ! NaN check
+                     if (ieee_is_nan(current_value)) then  ! NaN check
                         write(error_unit,'(A,A,A,I0,A,I0,A,I0,A)') '    ERROR: Integer field has NaN at index ', trim(field_name), ' (', i, ',', j, ',', k, ')'
                         field_passed = .false.
                         exit outer_loop_int_3d
@@ -853,7 +864,7 @@ contains
 
             if (field_passed) then
                ! Check if sum of array is zero
-               if (sum(array_3d_ptr) == 0.0_fp) then
+               if (rae(sum(array_3d_ptr), 0.0_fp)) then
                   write(error_unit,'(A,A)') '    WARNING: Integer field has zero sum (all elements are zero): ', trim(field_name)
                   !field_passed = .false.
                else
