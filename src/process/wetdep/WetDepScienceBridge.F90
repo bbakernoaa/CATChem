@@ -169,17 +169,9 @@ contains
          if (associated(pfllsan))    then; f_pfllsan  = real(pfllsan(icol, :), fp);  else; f_pfllsan  = 0.0_fp; end if
          if (associated(reevapls))   then; f_reevapls = real(reevapls(icol, :), fp); else; f_reevapls = 0.0_fp; end if
 
-         ! Convert input concentrations from kg/kg to expected process units (ug/kg for aerosols, ppmv for gases)
+         ! Extract input concentrations (already in ug/kg for aerosols, ppmv for gases)
          do ispec = 1, n_species
-            if ( f_is_aerosol(ispec) ) then
-               f_conc(:, ispec) = real(conc(icol, :, ispec), fp) * 1.0e9_fp
-            else
-               if (f_mw_g(ispec) > 0.0_fp) then
-                  f_conc(:, ispec) = real(conc(icol, :, ispec), fp) * (AIRMW / f_mw_g(ispec)) * 1.0e6_fp
-               else
-                  f_conc(:, ispec) = 0.0_fp
-               end if
-            end if
+            f_conc(:, ispec) = real(conc(icol, :, ispec), fp)
          end do
 
          col_tendencies = 0.0_fp
@@ -200,19 +192,14 @@ contains
             diagnostic_species_id=diagnostic_species_id)
 
          ! Convert tendencies from process-specific units (ug/kg/s or ppm/s) to kg/kg/s
+         ! Write tendencies and concentrations back in-place (casting to c_double)
+         ! col_tendencies is output in the same native units (ug/kg for aero, ppm for gas).
          do ispec = 1, n_species
             if (any(abs(col_tendencies(:, ispec)) > 1.0e-32_fp)) then
-               if ( f_is_aerosol(ispec) ) then
-                  col_tendencies(:, ispec) = col_tendencies(:, ispec) * 1.0e-9_fp
-               else
-                  col_tendencies(:, ispec) = col_tendencies(:, ispec) * 1.0e-6_fp * (f_mw_g(ispec) / AIRMW)
-               end if
+               tendency(icol, :, ispec) = real(col_tendencies(:, ispec), c_double)
+               conc(icol, :, ispec) = conc(icol, :, ispec) + real(dt * col_tendencies(:, ispec), c_double)
             end if
          end do
-
-         ! Write tendencies and concentrations back in-place (casting to c_double)
-         tendency(icol, :, :) = real(col_tendencies, c_double)
-         conc(icol, :, :) = conc(icol, :, :) + real(dt * col_tendencies, c_double)
 
          if (diagnostics /= 0) then
             diag_mass(icol, :, :) = real(col_diag_mass, c_double)

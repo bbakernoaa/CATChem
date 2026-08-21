@@ -7,7 +7,7 @@
 
 extern "C" {
 void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil, double dt, const char* active_scheme,
-                             int diagnostics, double* airden, double* clayfrac, double* frlake, double* frsno,
+                             int diagnostics, double* airden, double* bxheight, double* clayfrac, double* frlake, double* frsno,
                              double* gvf, double* lai, int* lwi, double* rdrag, double* sandfrac, double* soilm,
                              double* ssm, double* tskin, double* u10m, double* v10m, double* ustar,
                              double* ustar_threshold, double* z0, double* species_density, double* species_radius,
@@ -72,6 +72,7 @@ namespace catchem {
 
         // 1. Retrieve Meteorological state pointers
         double* airden_ptr = find_3d_ptr({"AIRDEN_DRY", "air_density_dry"});
+        double* bxheight_ptr = find_3d_ptr({"BXHEIGHT", "box_height"});
         double* clayfrac_ptr = find_2d_ptr({"CLAYFRAC", "clay_fraction"});
         double* frlake_ptr = find_2d_ptr({"FRLAKE", "lake_fraction"});
         double* frsno_ptr = find_2d_ptr({"FRSNO", "snow_fraction"});
@@ -90,6 +91,7 @@ namespace catchem {
         double* z0_ptr = find_2d_ptr({"Z0", "roughness_length"});
 
         require_field_pointer("Dust", "AIRDEN_DRY", airden_ptr);
+        require_field_pointer("Dust", "BXHEIGHT", bxheight_ptr);
         require_field_pointer("Dust", "CLAYFRAC", clayfrac_ptr);
         require_field_pointer("Dust", "FRLAKE", frlake_ptr);
         require_field_pointer("Dust", "FRSNO", frsno_ptr);
@@ -157,7 +159,7 @@ namespace catchem {
 
         // 5. Invoke flat science bridge
         run_dust_science_bridge(state->n_cols, state->n_levels, state->n_species, 4, state->time.timestep, // n_soil=4
-                                active_scheme.c_str(), diagnostics_enabled ? 1 : 0, airden_ptr, clayfrac_ptr,
+                                active_scheme.c_str(), diagnostics_enabled ? 1 : 0, airden_ptr, bxheight_ptr, clayfrac_ptr,
                                 frlake_ptr, frsno_ptr, gvf_ptr, lai_ptr, lwi_ptr, rdrag_ptr, sandfrac_ptr, soilm_ptr,
                                 ssm_ptr, tskin_ptr, u10m_ptr, v10m_ptr, ustar_ptr, ustar_th_ptr, z0_ptr, density.data(),
                                 radius.data(), lower_radius.data(), upper_radius.data(), conc_ptr, mock_tendency.data(),

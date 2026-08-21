@@ -153,22 +153,9 @@ contains
 
          ! Convert input concentrations from kg/kg to expected process units (ug/kg for aerosols, ppmv for gases)
          do ispec = 1, n_species
-            is_aero = .false.
-            if ( dummy_sp_names(ispec) == 'SO4' .or. dummy_sp_names(ispec) == 'so4' .or. &
-               dummy_sp_names(ispec) == 'MSA' .or. dummy_sp_names(ispec) == 'msa' .or. &
-               dummy_sp_names(ispec) == 'ASO4J' .or. dummy_sp_names(ispec) == 'aso4j' ) then
-               is_aero = .true.
-            end if
-
-            if ( is_aero ) then
-               f_conc(:, ispec) = real(conc(icol, :, ispec), fp) * 1.0e9_fp
-            else
-               if (f_mw_g(ispec) > 0.0_fp) then
-                  f_conc(:, ispec) = real(conc(icol, :, ispec), fp) * (AIRMW / f_mw_g(ispec)) * 1.0e6_fp
-               else
-                  f_conc(:, ispec) = 0.0_fp
-               end if
-            end if
+            ! conc is already in ug/kg for aerosols and ppm for gases.
+            ! We just copy it into f_conc.
+            f_conc(:, ispec) = real(conc(icol, :, ispec), fp)
          end do
 
          col_tendencies = 0.0_fp
@@ -199,27 +186,16 @@ contains
             col_prod_rate, col_pso4_g, col_pso4_aq, col_dms_flux, &
             diagnostic_species_id=diagnostic_species_id)
 
-         ! Convert updated GOCART concentrations (ppm or ug/kg) to actual tendencies in kg/kg/s
+         ! GOCART sulfur computes tendencies based on the input units,
+         ! and outputs col_tendencies in the SAME units (ug/kg for aero, ppm for gases).
+         ! Therefore, we do not need to apply inverse unit conversions here.
          do ispec = 1, n_species
             if (any(abs(col_tendencies(:, ispec)) > 1.0e-32_fp)) then
-               is_aero = .false.
-               if ( dummy_sp_names(ispec) == 'SO4' .or. dummy_sp_names(ispec) == 'so4' .or. &
-                  dummy_sp_names(ispec) == 'MSA' .or. dummy_sp_names(ispec) == 'msa' .or. &
-                  dummy_sp_names(ispec) == 'ASO4J' .or. dummy_sp_names(ispec) == 'aso4j' ) then
-                  is_aero = .true.
-               end if
-
-               if ( is_aero ) then
-                  col_conc_new(:) = col_tendencies(:, ispec) * 1.0e-9_fp
-               else
-                  if (f_mw_g(ispec) > 0.0_fp) then
-                     col_conc_new(:) = col_tendencies(:, ispec) * 1.0e-6_fp * (f_mw_g(ispec) / AIRMW)
-                  else
-                     col_conc_new(:) = 0.0_fp
-                  end if
-               end if
-
-               col_tendencies(:, ispec) = (col_conc_new(:) - real(conc(icol, :, ispec), fp)) / dt
+               ! col_tendencies contains the NEW concentrations.
+               ! Calculate the rate of change:
+               col_tendencies(:, ispec) = (col_tendencies(:, ispec) - real(conc(icol, :, ispec), fp)) / dt
+            else
+               col_tendencies(:, ispec) = 0.0_fp
             end if
          end do
 

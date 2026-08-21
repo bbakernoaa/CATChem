@@ -30,6 +30,7 @@ contains
 
       ! 2D/3D Pointers from C++ Kokkos state
       type(c_ptr), value :: airden
+      type(c_ptr), value :: bxheight
       type(c_ptr), value :: clayfrac
       type(c_ptr), value :: frlake
       type(c_ptr), value :: frsno
@@ -68,7 +69,7 @@ contains
       integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
 
       ! Local Fortran Pointers
-      real(c_double), pointer :: f_airden(:,:)
+      real(c_double), pointer :: f_airden(:,:), f_bxheight(:,:)
       real(c_double), pointer :: f_clayfrac(:), f_frlake(:), f_frsno(:), f_gvf(:), f_lai(:)
       integer(c_int), pointer :: f_lwi(:)
       real(c_double), pointer :: f_rdrag(:), f_sandfrac(:), f_soilm(:,:), f_ssm(:), f_tskin(:)
@@ -83,6 +84,7 @@ contains
 
       ! Local Slices for computation
       real(fp) :: col_airden(n_levels)
+      real(fp) :: col_bxheight(n_levels)
       real(fp) :: col_soilm(n_soil)
       real(fp) :: col_conc(n_levels, n_species)
       real(fp) :: col_tendency(n_levels, n_species)
@@ -114,6 +116,7 @@ contains
 
       ! Pointer Associations
       call c_f_pointer(airden, f_airden, [n_cols, n_levels])
+      call c_f_pointer(bxheight, f_bxheight, [n_cols, n_levels])
       call c_f_pointer(clayfrac, f_clayfrac, [n_cols])
       call c_f_pointer(frlake, f_frlake, [n_cols])
       call c_f_pointer(frsno, f_frsno, [n_cols])
@@ -158,6 +161,7 @@ contains
       do icol = 1, n_cols
 
          col_airden(:) = real(f_airden(icol, :), fp)
+         col_bxheight(:) = real(f_bxheight(icol, :), fp)
          col_soilm(:)  = real(f_soilm(icol, :), fp)
          col_conc(:,:) = real(f_conc(icol, :, :), fp)
          col_tendency(:,:) = 0.0_fp
@@ -198,9 +202,14 @@ contains
                diagnostic_species_id=diagnostic_species_id)
          end if
 
-         ! Write tendencies
+         ! Write tendencies (Convert kg/m2/s to ug/kg/s)
+         ! Tendency_ug_kg_s = Flux_kg_m2_s / (airden * bxheight) * 1.0e9
          do ispec = 1, n_species
             if (any(abs(col_tendency(:, ispec)) > 1.0e-32_fp)) then
+               ! In dust, tendency only happens on layer 1 (the surface)
+               ! But we apply the conversion layer-by-layer just in case
+               col_tendency(:, ispec) = (col_tendency(:, ispec) / (col_airden(:) * col_bxheight(:))) * 1.0e9_fp
+
                f_tendency(icol, :, ispec) = f_tendency(icol, :, ispec) + real(col_tendency(:, ispec), c_double)
                f_conc(icol, :, ispec) = f_conc(icol, :, ispec) + real(dt * col_tendency(:, ispec), c_double)
             end if

@@ -142,16 +142,23 @@ contains
          end if
 
          ! GOCART carbon returns updated aerosol concentrations in ug/kg for computed species.
-         ! Convert those updates to kg/kg tendencies and update the live concentration buffer in place.
+         ! Extract the tendency from the updated concentrations and apply it.
          do i = 1, n_species
             if (any(abs(col_tendency(:, i)) > 1.0e-32_fp)) then
-               col_conc_new(:) = col_tendency(:, i) * 1.0e-9_fp
-               col_tendency(:, i) = (col_conc_new(:) - real(f_conc(icol, :, i), fp)) / real(dt, fp)
+               ! col_tendency contains the NEW concentration in ug/kg.
+               ! Calculate the rate of change.
+               col_tendency(:, i) = (col_tendency(:, i) - real(f_conc(icol, :, i), fp)) / real(dt, fp)
+            else
+               col_tendency(:, i) = 0.0_fp
             end if
          end do
 
-         f_tendency(icol, :, :) = f_tendency(icol, :, :) + real(col_tendency(:, :), c_double)
-         f_conc(icol, :, :) = f_conc(icol, :, :) + real(dt * col_tendency(:, :), c_double)
+         do i = 1, n_species
+            if (any(abs(col_tendency(:, i)) > 1.0e-32_fp)) then
+               f_tendency(icol, :, i) = f_tendency(icol, :, i) + real(col_tendency(:, i), c_double)
+               f_conc(icol, :, i) = f_conc(icol, :, i) + real(dt * col_tendency(:, i), c_double)
+            end if
+         end do
 
          if (diagnostics /= 0) then
             f_diag_prod_mass(icol, :, :) = real(col_prod_mass(:, :), c_double)

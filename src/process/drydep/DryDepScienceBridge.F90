@@ -266,6 +266,10 @@ contains
          ! Prevent zeroing out un-computed species
          do ispec = 1, n_species
             if (abs(col_tendencies(1, ispec)) > 1.0e-32_fp) then
+               ! col_tendencies returns the dry deposition frequency [1/s].
+               ! True tendency = -1.0 * concentration * deposition_frequency
+               col_tendencies(1, ispec) = -1.0_fp * f_conc(1, ispec) * col_tendencies(1, ispec)
+
                tendency(icol, 1, ispec) = real(col_tendencies(1, ispec), c_double)
                conc(icol, 1, ispec) = conc(icol, 1, ispec) + real(dt * col_tendencies(1, ispec), c_double)
             end if
