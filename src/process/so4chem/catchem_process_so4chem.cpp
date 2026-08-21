@@ -134,15 +134,34 @@ namespace catchem {
             ustar_ptr = fallback_ustar.data();
         }
 
+        double* u10m_ptr = state->find_2d_ptr({"U10M", "u10m", "u_10m"});
+        std::vector<double> fallback_u10m;
+        if (!u10m_ptr) {
+            fallback_u10m.assign(state->n_cols, 5.0);
+            u10m_ptr = fallback_u10m.data();
+        }
+
+        double* v10m_ptr = state->find_2d_ptr({"V10M", "v10m", "v_10m"});
+        std::vector<double> fallback_v10m;
+        if (!v10m_ptr) {
+            fallback_v10m.assign(state->n_cols, 2.0);
+            v10m_ptr = fallback_v10m.data();
+        }
+
+        double* lwi_ptr = state->find_2d_ptr({"LWI", "lwi", "land_water_ice_mask"});
+        std::vector<int> lwi(state->n_cols, 1);
+        if (lwi_ptr) {
+            for (int col = 0; col < state->n_cols; ++col) {
+                lwi[col] = static_cast<int>(lwi_ptr[col]);
+            }
+        }
+
         require_field_pointer("SO4chem", "AIRDEN", airden_ptr);
         require_field_pointer("SO4chem", "PMID", pmid_ptr);
         require_field_pointer("SO4chem", "T", t_ptr);
         require_field_pointer("SO4chem", "PEDGE", z_ptr);
         require_field_pointer("SO4chem", "DELP", delp_ptr);
 
-        std::vector<int> lwi(state->n_cols, 1);
-        std::vector<double> u10m(state->n_cols, 5.0);
-        std::vector<double> v10m(state->n_cols, 2.0);
         std::vector<double> z0h(state->n_cols, 0.01);
 
         // 3. Chemical and Tendency Views
@@ -164,7 +183,7 @@ namespace catchem {
             state->n_cols, state->n_levels, state->n_species, state->time.timestep, diagnostics_enabled ? 1 : 0,
             state->time.year, state->time.month, state->time.day, state->time.hour, state->time.minute,
             state->time.second, airden_ptr, cldf_ptr, delp_ptr, pmid_ptr, t_ptr, z_ptr, hflux_ptr, lat_ptr, lon_ptr,
-            lwi.data(), pblh_ptr, u10m.data(), ustar_ptr, v10m.data(), z0h.data(), mw_g.data(),
+            lwi.data(), pblh_ptr, u10m_ptr, ustar_ptr, v10m_ptr, z0h.data(), mw_g.data(),
             state->chem.species_names_c_arr.data(), conc_ptr, mock_tendency.data(), (bool*)firsttime.data(),
             nymd_last.data(), nhms_last_recycle.data(), xh2o2_init.data(), pso4_so2.data(), pso4_g_so2.data(),
             pso4_aq_so2.data(), pso2_dms.data(), dms_flux.data(), diagnostic_species_id.data(),

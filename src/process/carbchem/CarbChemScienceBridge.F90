@@ -153,13 +153,6 @@ contains
             end if
          end do
 
-         do i = 1, n_species
-            if (any(abs(col_tendency(:, i)) > 1.0e-32_fp)) then
-               f_tendency(icol, :, i) = f_tendency(icol, :, i) + real(col_tendency(:, i), c_double)
-               f_conc(icol, :, i) = f_conc(icol, :, i) + real(dt * col_tendency(:, i), c_double)
-            end if
-         end do
-
          if (diagnostics /= 0) then
             f_diag_prod_mass(icol, :, :) = real(col_prod_mass(:, :), c_double)
             f_diag_loss_flux(icol, :) = real(col_loss_flux(:), c_double)

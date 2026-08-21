@@ -1704,7 +1704,7 @@ contains
             if (is_gas) then
                converter = AIRMW / catchem_state_get_species_mw(state_ptr, species_index) * 1.0e6_c_double
             else
-               converter = 1.0_c_double
+               converter = 1.0e9_c_double
             end if
 
             ! Apply BB emission factor if needed (only OC/BC aerosols)
@@ -2234,7 +2234,7 @@ contains
             if (is_gas) then
                converter = AIRMW / catchem_state_get_species_mw(state_ptr, species_index) * 1.0e6_c_double
             else
-               converter = 1.0_c_double
+               converter = 1.0e9_c_double
             end if
 
             do it = 1, npts
