@@ -317,7 +317,7 @@ contains
       real(ESMF_KIND_R8), parameter :: rad_to_deg = 180._ESMF_KIND_R8 / 3.14159265358979323846_ESMF_KIND_R8
       real(ESMF_KIND_R8) :: convet_unit
       integer :: localPet, petCount
-      integer :: item, coord_item, rank, localDeCount, numLevels, localDe, localrc, stat
+      integer :: item, coord_item, rank, localDeCount, numLevels, localDe, localrc
       integer, dimension(2) :: lb, ub
       logical :: has_tracer_array
 
@@ -427,9 +427,10 @@ contains
                line=__LINE__, file=__FILE__, rcToReturn=rc)
          end if
 
-         deallocate(fieldList, stat=stat)
-         if (ESMF_LogFoundDeallocError(statusToCheck=stat, msg="Unable to deallocate internal memory", &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return  ! bail out
+         ! NUOPC owns the member-list storage returned by
+         ! NUOPC_GetStateMemberLists.  Do not deallocate the pointer here:
+         ! doing so can invalidate the shared import-state field handles used
+         ! by the host component during the remainder of initialization.
          nullify(fieldList)
 
       end if
