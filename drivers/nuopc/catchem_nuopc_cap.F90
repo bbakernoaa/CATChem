@@ -427,10 +427,9 @@ contains
                line=__LINE__, file=__FILE__, rcToReturn=rc)
          end if
 
-         ! NUOPC owns the member-list storage returned by
-         ! NUOPC_GetStateMemberLists.  Do not deallocate the pointer here:
-         ! doing so can invalidate the shared import-state field handles used
-         ! by the host component during the remainder of initialization.
+         ! Release the temporary member-list returned by NUOPC, matching the
+         ! convention used by the UFS ATM cap after iterating its list.
+         deallocate(fieldList)
          nullify(fieldList)
 
       end if
