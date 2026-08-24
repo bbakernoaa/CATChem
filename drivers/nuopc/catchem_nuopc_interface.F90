@@ -202,6 +202,7 @@ module catchem_nuopc_interface
       type(buffer_2d_type), allocatable :: met_buf_2d(:)
       type(buffer_3d_type), allocatable :: met_buf_3d(:)
       real(c_double), allocatable :: chem_buf_4d(:,:,:,:)
+      real(c_double), allocatable :: host_tracer_buf_4d(:,:,:,:)
       real(c_double), allocatable :: lat(:,:)
       real(c_double), allocatable :: lon(:,:)
       real(c_double), allocatable :: area_m2(:,:)
@@ -956,6 +957,7 @@ contains
       if (allocated(cc_wrap%met_buf_2d)) deallocate(cc_wrap%met_buf_2d)
       if (allocated(cc_wrap%met_buf_3d)) deallocate(cc_wrap%met_buf_3d)
       if (allocated(cc_wrap%chem_buf_4d)) deallocate(cc_wrap%chem_buf_4d)
+      if (allocated(cc_wrap%host_tracer_buf_4d)) deallocate(cc_wrap%host_tracer_buf_4d)
 
       ! Clean up lat/lon stitched output resources
       call AQMIO_LatlonCleanup(rc=rc)
@@ -1309,6 +1311,21 @@ contains
             return
          end if
 
+         ! Preserve every host tracer, including host-owned tracers that are
+         ! not in the active CATChem mechanism (for example moisture).  The
+         ! export state is not guaranteed to alias the import state, so an
+         ! unowned slot must never be left undefined for the host component.
+         if (.not. allocated(cc_wrap%host_tracer_buf_4d) .or. &
+             size(cc_wrap%host_tracer_buf_4d,1) /= size(fptr4d,1) .or. &
+             size(cc_wrap%host_tracer_buf_4d,2) /= size(fptr4d,2) .or. &
+             size(cc_wrap%host_tracer_buf_4d,3) /= size(fptr4d,3) .or. &
+             size(cc_wrap%host_tracer_buf_4d,4) /= size(fptr4d,4)) then
+            if (allocated(cc_wrap%host_tracer_buf_4d)) deallocate(cc_wrap%host_tracer_buf_4d)
+            allocate(cc_wrap%host_tracer_buf_4d(size(fptr4d,1), size(fptr4d,2), &
+               size(fptr4d,3), size(fptr4d,4)))
+         end if
+         cc_wrap%host_tracer_buf_4d = real(fptr4d, c_double)
+
 #ifdef CATCHEM_TRACE_NUOPC
          write(*, '(A,A,A,A,A,I0,A,I0,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 4D: ', &
             trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
@@ -1499,6 +1516,11 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
          if (.not. associated(fptr4d)) return
+
+         if (allocated(cc_wrap%host_tracer_buf_4d) .and. &
+             all(shape(cc_wrap%host_tracer_buf_4d) == shape(fptr4d))) then
+            fptr4d = real(cc_wrap%host_tracer_buf_4d, ESMF_KIND_R8)
+         end if
 
          ni = size(fptr4d, 1)
          nj = size(fptr4d, 2)
