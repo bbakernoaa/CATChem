@@ -498,4 +498,22 @@ if(CATCHEM_BUILD_NUOPC)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   )
   catchem_label_tests("integration;dataflow;boundary" test_nuopc_transform)
+
+  add_executable(nuopc_contract_harness nuopc_contract_harness.F90)
+  target_link_libraries(nuopc_contract_harness PRIVATE cc_nuopc CATChem CATChem_core MPI::MPI_Fortran MPI::MPI_CXX)
+  set_target_properties(nuopc_contract_harness PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include LINKER_LANGUAGE Fortran)
+  target_include_directories(nuopc_contract_harness PRIVATE ${CMAKE_BINARY_DIR}/include
+    $<TARGET_PROPERTY:cc_nuopc,Fortran_MODULE_DIRECTORY>)
+  file(COPY ${PROJECT_SOURCE_DIR}/drivers/nuopc/CATChem_field_mapping.yml
+             ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_new_config.yml
+             ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_species.yml
+             ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_emission.yml
+             ${CMAKE_CURRENT_SOURCE_DIR}/nuopc_contract_run.yml
+       DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+  file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/host_conformance
+       DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+  add_test(NAME nuopc_contract_valid COMMAND nuopc_contract_harness
+           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+  catchem_label_tests("integration;contract;boundary" nuopc_contract_valid)
 endif()

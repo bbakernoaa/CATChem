@@ -313,7 +313,9 @@ contains
       character(len=128), allocatable :: tracer_names(:) !< NUOPC tracer name
       character(len=128), allocatable :: tracer_units(:) !< NUOPC tracer unit
       type(CATChem_InternalState) :: is
+      type(CATChem_InternalState) :: verify_is
       type(cc_wrap_type), pointer:: cc_wrap
+      integer :: verify_rc
 
       ! Initialize
       rc = CC_SUCCESS
@@ -415,10 +417,9 @@ contains
          line=__LINE__,  file=__FILE__)) return  ! bail out
 
       if (.not.allocated(tracer_names)) then
-         call ESMF_LogWrite("Unable to retrieve imported tracer list", &
-            ESMF_LOGMSG_WARNING, line=__LINE__, file=__FILE__, rc=rc)
-         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__)) return
+         call ESMF_LogSetError(ESMF_RC_ARG_BAD, &
+            msg="CATChem requires tracerNames metadata on its rank-4 host tracer field", &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)
          return
       end if
 
@@ -546,10 +547,17 @@ contains
       ! Mark this process as initialized
       cc_wrap%initialized = .true.
 
-      !store cc_wrap into component
-      call ESMF_GridCompSetInternalState(model, is, rc)
+    call ESMF_GridCompSetInternalState(model, is, rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__,  file=__FILE__)) return  ! bail out
+      nullify(verify_is%wrap)
+    call ESMF_GridCompGetInternalState(model, verify_is, verify_rc)
+      if (verify_rc /= ESMF_SUCCESS .or. .not. associated(verify_is%wrap, cc_wrap)) then
+         call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
+            msg="CATChem internal state registration did not round-trip", &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)
+         return
+      end if
 
       !deallocate variable
       if (allocated(tracer_names)) deallocate(tracer_names)
@@ -1315,12 +1323,16 @@ contains
          ! not in the active CATChem mechanism (for example moisture).  The
          ! export state is not guaranteed to alias the import state, so an
          ! unowned slot must never be left undefined for the host component.
-         if (.not. allocated(cc_wrap%host_tracer_buf_4d) .or. &
-             size(cc_wrap%host_tracer_buf_4d,1) /= size(fptr4d,1) .or. &
-             size(cc_wrap%host_tracer_buf_4d,2) /= size(fptr4d,2) .or. &
-             size(cc_wrap%host_tracer_buf_4d,3) /= size(fptr4d,3) .or. &
-             size(cc_wrap%host_tracer_buf_4d,4) /= size(fptr4d,4)) then
-            if (allocated(cc_wrap%host_tracer_buf_4d)) deallocate(cc_wrap%host_tracer_buf_4d)
+         ! Fortran does not short-circuit .or. expressions, so do not query
+         ! SIZE on the unallocated buffer in the same logical expression.
+         if (.not. allocated(cc_wrap%host_tracer_buf_4d)) then
+            allocate(cc_wrap%host_tracer_buf_4d(size(fptr4d,1), size(fptr4d,2), &
+               size(fptr4d,3), size(fptr4d,4)))
+         else if (size(cc_wrap%host_tracer_buf_4d,1) /= size(fptr4d,1) .or. &
+                  size(cc_wrap%host_tracer_buf_4d,2) /= size(fptr4d,2) .or. &
+                  size(cc_wrap%host_tracer_buf_4d,3) /= size(fptr4d,3) .or. &
+                  size(cc_wrap%host_tracer_buf_4d,4) /= size(fptr4d,4)) then
+            deallocate(cc_wrap%host_tracer_buf_4d)
             allocate(cc_wrap%host_tracer_buf_4d(size(fptr4d,1), size(fptr4d,2), &
                size(fptr4d,3), size(fptr4d,4)))
          end if
@@ -1422,6 +1434,7 @@ contains
       real(ESMF_KIND_R8) :: unit_conv
       integer :: i, j, k, v, col, ni, nj, nk, kk, nv, v_cc, found_index
       integer(c_int) :: catchem_status, species_count
+      character(len=256) :: export_msg
 
       rc = ESMF_SUCCESS
 
@@ -1517,9 +1530,18 @@ contains
             line=__LINE__, file=__FILE__)) return
          if (.not. associated(fptr4d)) return
 
-         if (allocated(cc_wrap%host_tracer_buf_4d) .and. &
-             all(shape(cc_wrap%host_tracer_buf_4d) == shape(fptr4d))) then
-            fptr4d = real(cc_wrap%host_tracer_buf_4d, ESMF_KIND_R8)
+         write(export_msg, '(A,A,A,I0,A,I0,A,I0,A,I0)') &
+            'CATChem export field ', trim(field_map%standard_name), ' shape=', &
+            size(fptr4d,1), 'x', size(fptr4d,2), 'x', size(fptr4d,3), 'x', size(fptr4d,4)
+         call ESMF_LogWrite(trim(export_msg), ESMF_LOGMSG_INFO, rc=rc)
+         if (rc /= ESMF_SUCCESS) return
+
+         ! As above, avoid relying on logical short-circuiting when checking
+         ! an allocatable buffer before querying its shape.
+         if (allocated(cc_wrap%host_tracer_buf_4d)) then
+            if (all(shape(cc_wrap%host_tracer_buf_4d) == shape(fptr4d))) then
+               fptr4d = real(cc_wrap%host_tracer_buf_4d, ESMF_KIND_R8)
+            end if
          end if
 
 #ifdef CATCHEM_TRACE_NUOPC

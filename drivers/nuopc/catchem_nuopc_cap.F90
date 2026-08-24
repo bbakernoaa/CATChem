@@ -521,8 +521,9 @@ contains
             ESMF_LOGMSG_INFO, rc=rc)
       end if
 
-      ! -- get component's internal state
-      call ESMF_GridCompGetInternalState(model, is, rc)
+    ! -- get component's internal state
+    nullify(is%wrap)
+    call ESMF_GridCompGetInternalState(model, is, rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__,  file=__FILE__))  return  ! bail out
 
@@ -635,6 +636,7 @@ contains
          line=__LINE__, file=__FILE__)) return
 
       ! -- get component's internal state
+      nullify(is%wrap)
       call ESMF_GridCompGetInternalState(model, is, rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__,  file=__FILE__))  return  ! bail out
