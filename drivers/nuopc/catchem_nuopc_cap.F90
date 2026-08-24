@@ -195,6 +195,11 @@ contains
       !if (size(fieldList) == 0) then
       ! Advertise import fields using MPI-safe accessor functions
       do i = 1, size(field_config%import_fields)
+         ! Optional imports are consumed when a producer supplies them, but
+         ! must not be advertised as mandatory NUOPC imports. Advertising an
+         ! optional field makes NUOPC require a connection during IPDvXp07,
+         ! which is incompatible with UFS configurations that omit humidity.
+         if (field_config%import_fields(i)%optional) cycle
          if (.not. NUOPC_FieldDictionaryHasEntry(trim(field_config%import_fields(i)%standard_name), rc=rc)) then
             block
                character(len=64) :: units_to_use
