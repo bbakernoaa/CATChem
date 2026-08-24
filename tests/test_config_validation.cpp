@@ -35,6 +35,15 @@ int main() {
                                  "different lengths", "absent from active mechanism", "unknown_section"})
         assert(text.find(required) != std::string::npos);
 
+    catchem::ConfigManager met_mapping;
+    met_mapping.load_from_file(fixtures + "platform_integrity_valid.yml");
+    met_mapping.load_species_file(fixtures + "platform_integrity_species.yml");
+    catchem::EmissionFieldMapping met_field;
+    met_field.map = {"MET_CLAYFRAC"};
+    met_field.scale = {1.0};
+    met_mapping.data.emission_mappings["dust"].fields["clayfrac"] = met_field;
+    assert(!met_mapping.validate().has_errors());
+
     void* core = reinterpret_cast<void*>(1);
     assert(catchem_core_create_from_config_checked((fixtures + "platform_integrity_invalid.yml").c_str(), &core) !=
            CATCHEM_SUCCESS);
