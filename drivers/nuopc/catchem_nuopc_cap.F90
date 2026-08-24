@@ -167,10 +167,17 @@ contains
       type(ESMF_State) :: importState, exportState
       !type(ESMF_Field), pointer :: fieldList(:)
       character(len=*), parameter :: routine = 'InitializeP1'
-      integer :: i
+      integer :: i, localPet, advertised_imports, advertised_exports
       character(len=218) :: errmsg
+      character(len=256) :: contract_msg
 
       rc = ESMF_SUCCESS
+      advertised_imports = 0
+      advertised_exports = 0
+
+      call ESMF_GridCompGet(model, localPet=localPet, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
 
       ! Get import and export states
       call NUOPC_ModelGet(model, importState=importState, exportState=exportState, rc=rc)
@@ -228,6 +235,7 @@ contains
             SharePolicyField="share", rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
+         advertised_imports = advertised_imports + 1
       end do
 
       ! Advertise export fields using MPI-safe accessor functions
@@ -251,9 +259,15 @@ contains
             SharePolicyField="share", rc=rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
+         advertised_exports = advertised_exports + 1
       end do
 
       ! Log successful completion
+      write(contract_msg, '(A,I0,A,I0,A,I0)') 'CATChem: advertisement complete on PET ', localPet, &
+         '; imports=', advertised_imports, '; exports=', advertised_exports
+      call ESMF_LogWrite(trim(contract_msg), ESMF_LOGMSG_INFO, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
       call ESMF_LogWrite("CATChem: Completed "//routine, ESMF_LOGMSG_INFO, rc=rc)
 
    end subroutine InitializeP1
