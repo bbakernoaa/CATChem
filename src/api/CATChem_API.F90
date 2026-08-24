@@ -502,7 +502,6 @@ contains
       integer, intent(out) :: rc
 
       character(kind=c_char) :: c_filename(512)
-      integer :: cleanup_status
 
       call to_c_string(config_file, c_filename)
 
@@ -515,18 +514,25 @@ contains
       call catchem_register_wetdep_cpp()
 
       ! Configuration comes from YAML; grid dimensions are dictated by host
-      rc = catchem_core_create_from_config_with_grid_checked( &
-         c_filename, int(nx*ny, c_int), int(nz, c_int), this%cpp_core_ptr)
-      if (rc /= CC_SUCCESS .or. .not. c_associated(this%cpp_core_ptr)) then
-         call capture_boundary_error(this)
+      ! Keep the established UFS/NUOPC ABI at this boundary.  The checked C
+      ! API is useful for diagnostic clients, but the model object's lifetime
+      ! predates it and must continue to use its original pointer-returning
+      ! entry points.  In particular, no Fortran-managed output descriptor is
+      ! passed across the C++ boundary while ESMF owns the surrounding state.
+      this%cpp_core_ptr = catchem_core_create_from_config_with_grid( &
+         c_filename, int(nx*ny, c_int), int(nz, c_int))
+      if (.not. c_associated(this%cpp_core_ptr)) then
+         rc = CC_FAILURE
+         this%last_error = 'core_create_from_config_with_grid returned a null handle'
          return
       end if
 
-      rc = catchem_core_get_state_manager_checked(this%cpp_core_ptr, this%state_mgr_ptr)
-      if (rc /= CC_SUCCESS .or. .not. c_associated(this%state_mgr_ptr)) then
-         call capture_boundary_error(this)
-         cleanup_status = catchem_core_destroy_checked(this%cpp_core_ptr)
+      this%state_mgr_ptr = catchem_core_get_state_manager(this%cpp_core_ptr)
+      if (.not. c_associated(this%state_mgr_ptr)) then
+         call catchem_core_destroy(this%cpp_core_ptr)
          this%cpp_core_ptr = c_null_ptr
+         rc = CC_FAILURE
+         this%last_error = 'core_get_state_manager returned a null handle'
          return
       end if
 
@@ -545,8 +551,8 @@ contains
       integer, intent(out) :: rc
 
       if (c_associated(this%cpp_core_ptr)) then
-         rc = catchem_core_destroy_checked(this%cpp_core_ptr)
-         if (rc /= CC_SUCCESS) call capture_boundary_error(this)
+         call catchem_core_destroy(this%cpp_core_ptr)
+         rc = CC_SUCCESS
          this%cpp_core_ptr = c_null_ptr
          this%state_mgr_ptr = c_null_ptr
       else
@@ -572,11 +578,7 @@ contains
    function model_get_num_processes(this) result(num_processes)
       class(CATChem_Model), intent(inout) :: this
       integer :: num_processes
-      integer(c_int) :: count, status
-
-      status = catchem_core_get_num_processes_checked(this%cpp_core_ptr, count)
-      num_processes = int(count)
-      if (status /= 0_c_int) call capture_boundary_error(this)
+      num_processes = int(catchem_core_get_num_processes(this%cpp_core_ptr))
    end function model_get_num_processes
 
    ! Execute standard timestep
@@ -587,16 +589,11 @@ contains
       integer, intent(out) :: rc
 
       if (c_associated(this%cpp_core_ptr)) then
-         rc = catchem_state_sync_to_device_checked(this%state_mgr_ptr)
-         if (rc /= CC_SUCCESS) then
-            call capture_boundary_error(this)
-            return
-         end if
+         call catchem_state_sync_to_device(this%state_mgr_ptr)
          rc = catchem_core_run_timestep(this%cpp_core_ptr, real(dt, c_double))
          if (rc == CC_SUCCESS) then
-            rc = catchem_state_sync_to_host_checked(this%state_mgr_ptr)
+            call catchem_state_sync_to_host(this%state_mgr_ptr)
          end if
-         if (rc /= CC_SUCCESS) call capture_boundary_error(this)
       else
          rc = CC_FAILURE
          this%last_error = 'run_timestep: model is not initialized'
@@ -798,13 +795,8 @@ contains
       character(kind=c_char) :: c_name(64)
 
       call to_c_string(name, c_name)
-      block
-         integer(c_int) :: status
-         status = catchem_state_bind_met_3d_checked(this%state_mgr_ptr, c_name, c_loc(arr(1,1,1)), &
-            int(size(arr,1) * size(arr,2), c_int), int(size(arr,3), c_int), 1_c_int)
-         if (present(rc)) rc = int(status)
-         if (status /= 0_c_int) call capture_boundary_error(this)
-      end block
+      call catchem_state_bind_met_3d(this%state_mgr_ptr, c_name, c_loc(arr(1,1,1)))
+      if (present(rc)) rc = CC_SUCCESS
    end subroutine model_bind_met_3d
 
    ! Bind a 2D meteorological field
@@ -817,13 +809,8 @@ contains
       character(kind=c_char) :: c_name(64)
 
       call to_c_string(name, c_name)
-      block
-         integer(c_int) :: status
-         status = catchem_state_bind_met_2d_checked(this%state_mgr_ptr, c_name, c_loc(arr(1,1)), &
-            int(size(arr,1) * size(arr,2), c_int), 1_c_int)
-         if (present(rc)) rc = int(status)
-         if (status /= 0_c_int) call capture_boundary_error(this)
-      end block
+      call catchem_state_bind_met_2d(this%state_mgr_ptr, c_name, c_loc(arr(1,1)))
+      if (present(rc)) rc = CC_SUCCESS
    end subroutine model_bind_met_2d
 
    ! Bind unified chemical concentrations 3D array
@@ -832,13 +819,8 @@ contains
       real(c_double), target, contiguous, intent(in) :: arr(:,:,:)
       integer, optional, intent(out) :: rc
 
-      block
-         integer(c_int) :: status
-         status = catchem_state_bind_unified_chemistry_checked(this%state_mgr_ptr, c_loc(arr(1,1,1)), &
-            int(size(arr,1), c_int), int(size(arr,2), c_int), int(size(arr,3), c_int))
-         if (present(rc)) rc = int(status)
-         if (status /= 0_c_int) call capture_boundary_error(this)
-      end block
+      call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr(1,1,1)))
+      if (present(rc)) rc = CC_SUCCESS
    end subroutine model_bind_unified_chemistry_3d
 
    ! Bind unified chemical concentrations 4D array
@@ -847,13 +829,8 @@ contains
       real(c_double), target, contiguous, intent(in) :: arr(:,:,:,:)
       integer, optional, intent(out) :: rc
 
-      block
-         integer(c_int) :: status
-         status = catchem_state_bind_unified_chemistry_checked(this%state_mgr_ptr, c_loc(arr(1,1,1,1)), &
-            int(size(arr,1) * size(arr,2), c_int), int(size(arr,3), c_int), int(size(arr,4), c_int))
-         if (present(rc)) rc = int(status)
-         if (status /= 0_c_int) call capture_boundary_error(this)
-      end block
+      call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr(1,1,1,1)))
+      if (present(rc)) rc = CC_SUCCESS
    end subroutine model_bind_unified_chemistry_4d
 
    ! Register a 3D diagnostic field in the C++ DiagnosticManager
