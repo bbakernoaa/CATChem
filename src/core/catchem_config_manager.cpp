@@ -786,6 +786,13 @@ namespace catchem {
                     std::string canonical = target;
                     std::transform(canonical.begin(), canonical.end(), canonical.begin(),
                                    [](unsigned char value) { return static_cast<char>(std::toupper(value)); });
+                    // Emission mappings may also carry meteorological inputs.
+                    // These use the runtime-resolved MET_ namespace and are
+                    // intentionally not mechanism species.  Keep this rule
+                    // namespace-based so configurations remain mechanism
+                    // agnostic (and do not require a list of field names).
+                    if (canonical.rfind("MET_", 0) == 0)
+                        continue;
                     if (species_names.find(canonical) == species_names.end())
                         add("emissions", base + "/map", "target is absent from active mechanism: " + target,
                             "map to a mechanism species");
