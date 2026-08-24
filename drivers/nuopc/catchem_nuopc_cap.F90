@@ -199,7 +199,13 @@ contains
          ! must not be advertised as mandatory NUOPC imports. Advertising an
          ! optional field makes NUOPC require a connection during IPDvXp07,
          ! which is incompatible with UFS configurations that omit humidity.
-         if (field_config%import_fields(i)%optional) cycle
+         if (field_config%import_fields(i)%optional) then
+            call ESMF_LogWrite('CATChem: optional import not advertised: ' // &
+               trim(field_config%import_fields(i)%standard_name), ESMF_LOGMSG_INFO, rc=rc)
+            if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__)) return
+            cycle
+         end if
          if (.not. NUOPC_FieldDictionaryHasEntry(trim(field_config%import_fields(i)%standard_name), rc=rc)) then
             block
                character(len=64) :: units_to_use
