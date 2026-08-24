@@ -337,7 +337,7 @@ contains
 
       if (rc /= CC_SUCCESS) then
          call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
-            msg="CATChem initialization failed", &
+            msg="CATChem initialization failed: "//trim(cc_wrap%catchem_model%last_error), &
             line=__LINE__, file=__FILE__, rcToReturn=rc)
          return  ! bail out
       end if
