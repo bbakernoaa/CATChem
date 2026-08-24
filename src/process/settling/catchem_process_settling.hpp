@@ -26,6 +26,7 @@ namespace catchem {
     public:
         SettlingProcess();
         std::string get_name() const override { return "settling"; }
+        ProcessContract get_contract() const override;
         void init(std::shared_ptr<StateManager> state) override;
         void run(std::shared_ptr<StateManager> state) override;
         void finalize() override;

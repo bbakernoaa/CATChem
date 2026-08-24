@@ -51,6 +51,7 @@ The complete API documentation includes:
 | `catchem::StateManager` | C++ Namespace `catchem` | Central memory state (using Kokkos Views) |
 | `catchem::ProcessInterface` | C++ Namespace `catchem` | Base virtual interface class for physics/chemistry processes |
 | `catchem::ProcessRegistry` | C++ Namespace `catchem` | Creator-lambda process registry |
+| `catchem::CoreCreateOptions` | C++ Namespace `catchem` | Unified direct, configured, or host-grid Core construction inputs |
 | `CATChemType` | Fortran `CATChemAPI_Mod` | BIND(C) wrapper API delegate |
 | `StateContainerType` | Fortran `state_mod` | Fortran delegate container wrapping C++ StateManager |
 
@@ -61,9 +62,9 @@ The complete API documentation includes:
     ```cpp
     #include <catchem_process_registry.hpp>
 
-    // Retrieve creator and instantiate process
-    auto process = catchem::ProcessRegistry::get_instance().create("gaschem");
-    process->init(state_mgr);
+    // Register implementations at link/load time; YAML activation determines
+    // which registered processes are instantiated for this Core.
+    auto core = catchem::Core("CATChem_config.yml");
     ```
 
 === "Process Initialization (Fortran)"

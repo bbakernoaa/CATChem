@@ -1,8 +1,10 @@
 #pragma once
+#include "catchem_field_contract.hpp"
 #include "catchem_kokkos_compat.hpp"
 #include <array>
 #include <memory>
 #include <type_traits>
+#include <stdexcept>
 #include <vector>
 #ifdef CATCHEM_ENABLE_KOKKOS
 #include <mdspan/mdspan.hpp>
@@ -44,6 +46,61 @@ namespace catchem {
     template <typename DataType, int Rank> class InteropField {
     public:
         using MdspanType = typename MdspanTypeHelper<DataType, Rank>::type;
+        std::array<std::size_t, Rank> immutable_extents{};
+        FieldContract contract;
+        std::size_t generation = 0;
+        AvailabilityState availability = AvailabilityState::Current;
+        LatestWriter latest_writer = LatestWriter::HostCurrent;
+        std::size_t host_to_device_sync_count = 0;
+        std::size_t device_to_host_sync_count = 0;
+
+        void mark_host_modified() { latest_writer = LatestWriter::HostCurrent; }
+        void mark_device_modified() { latest_writer = LatestWriter::DeviceCurrent; }
+        void set_generation(std::size_t value) {
+            generation = value;
+            availability = AvailabilityState::Current;
+        }
+        void invalidate() { availability = AvailabilityState::Unavailable; }
+        bool is_current(std::size_t value) const {
+            return availability == AvailabilityState::Current && generation == value;
+        }
+        std::size_t extent(int axis) const { return immutable_extents.at(static_cast<std::size_t>(axis)); }
+
+        const DataType* host_read() {
+            sync_to_host();
+            return host_data();
+        }
+
+        DataType* host_write() {
+            sync_to_host();
+            mark_host_modified();
+            return host_data();
+        }
+
+        auto device_read() {
+            sync_to_device();
+            return view();
+        }
+
+        auto device_write() {
+            sync_to_device();
+            mark_device_modified();
+            return view();
+        }
+
+    private:
+        void validate_dimensions(const std::vector<int>& dims) {
+            if (dims.size() != static_cast<std::size_t>(Rank))
+                throw std::invalid_argument("InteropField dimension rank mismatch");
+            for (int r = 0; r < Rank; ++r) {
+                if (dims[r] <= 0)
+                    throw std::invalid_argument("InteropField dimensions must be positive");
+                immutable_extents[r] = static_cast<std::size_t>(dims[r]);
+            }
+            contract.extents.assign(immutable_extents.begin(), immutable_extents.end());
+        }
+
+    public:
 
 #ifdef CATCHEM_ENABLE_KOKKOS
         using HostSpace = Kokkos::HostSpace;
@@ -86,9 +143,7 @@ namespace catchem {
             if (ptr == nullptr) {
                 throw std::invalid_argument("InteropField constructor failed: input pointer is null.");
             }
-            if (dims.size() != static_cast<size_t>(Rank)) {
-                throw std::invalid_argument("InteropField constructor failed: dimension size mismatch.");
-            }
+            validate_dimensions(dims);
 
             is_gpu_target = !std::is_same_v<HostSpace, DeviceSpace>;
 
@@ -109,9 +164,13 @@ namespace catchem {
 
         /** @brief Copy host data buffer to the selected Kokkos device view. */
         void sync_to_device() {
+            if (latest_writer != LatestWriter::HostCurrent)
+                return;
             if constexpr (!std::is_same_v<HostSpace, DeviceSpace>) {
                 Kokkos::deep_copy(device_view, host_view);
             }
+            ++host_to_device_sync_count;
+            latest_writer = LatestWriter::Synchronized;
         }
 
         /** @brief Updates the host raw pointer and updates the unmanaged host view. */
@@ -119,6 +178,7 @@ namespace catchem {
             if (ptr == nullptr) {
                 throw std::invalid_argument("InteropField::update_host_pointer failed: input pointer is null.");
             }
+            mark_host_modified();
             if constexpr (Rank == 1) {
                 host_view = HostViewType(ptr, host_view.extent(0));
             } else if constexpr (Rank == 2) {
@@ -130,9 +190,13 @@ namespace catchem {
 
         /** @brief Sync calculated outputs from Kokkos device back to host buffer. */
         void sync_to_host() {
+            if (latest_writer != LatestWriter::DeviceCurrent)
+                return;
             if constexpr (!std::is_same_v<HostSpace, DeviceSpace>) {
                 Kokkos::deep_copy(host_view, device_view);
             }
+            ++device_to_host_sync_count;
+            latest_writer = LatestWriter::Synchronized;
         }
 
         /** @brief Retrieves the active Kokkos view mapped to current execution space. */
@@ -167,15 +231,13 @@ namespace catchem {
             if (ptr == nullptr) {
                 throw std::invalid_argument("InteropField constructor failed: input pointer is null.");
             }
-            if (dim_vec.size() != static_cast<size_t>(Rank)) {
-                throw std::invalid_argument("InteropField constructor failed: dimension size mismatch.");
-            }
+            validate_dimensions(dim_vec);
             for (int r = 0; r < Rank; ++r)
                 dims[r] = dim_vec[r];
         }
 
-        void sync_to_device() {}
-        void sync_to_host() {}
+        void sync_to_device() { if (latest_writer == LatestWriter::HostCurrent) { ++host_to_device_sync_count; latest_writer = LatestWriter::Synchronized; } }
+        void sync_to_host() { if (latest_writer == LatestWriter::DeviceCurrent) { ++device_to_host_sync_count; latest_writer = LatestWriter::Synchronized; } }
 
         /** @brief Updates the host raw pointer. */
         void update_host_pointer(DataType* ptr) {
@@ -183,6 +245,7 @@ namespace catchem {
                 throw std::invalid_argument("InteropField::update_host_pointer failed: input pointer is null.");
             }
             data_ptr = ptr;
+            mark_host_modified();
         }
 
         /** @brief Raw pointer to the host-side buffer. */

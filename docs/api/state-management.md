@@ -148,3 +148,10 @@ state->sync_to_host();
 ---
 
 **Auto-Generated Documentation:** [Complete State Management Reference](../CATChem/namespacestatemanager__mod.md)
+# Dataflow ownership and freshness
+
+Shared meteorology and unified chemistry use non-owning `InteropField` views. Each view has immutable extents, a generation, availability, and a latest-writer state. A NUOPC import generation invalidates the preceding generation before current fields are rebound. Missing optional fields therefore cannot silently retain a current pointer.
+
+Concentration slabs are mechanism-relative: callers resolve a species name against the active species configuration, validate the returned 1-based index, and only then form the checked `[column, level]` slab. No process or emission mapping may assume a fixed chemical-species slot.
+
+`HostCurrent` permits only host-to-execution synchronization; `DeviceCurrent` permits only execution-to-host synchronization; `Synchronized` performs no copy. Rebinding marks host storage current.

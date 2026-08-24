@@ -10,10 +10,11 @@ program test_CATChem_API
    implicit none
 
    type(CATChem_Model) :: model
-   real(c_double), target, allocatable :: lat(:,:), lon(:,:), temp(:,:,:)
+   real(c_double), target, allocatable :: lat(:,:), lon(:,:), temp(:,:,:), wrong_temp(:,:,:)
    real(c_double), target, allocatable :: sst(:,:), frocean(:,:), frseaice(:,:), ustar(:,:), u10m(:,:), v10m(:,:)
    real(c_double), target, allocatable :: delp(:,:,:), chem_conc(:,:,:)
-   integer :: rc, g_nx, g_ny, g_nz
+   integer :: rc, g_nx, g_ny, g_nz, issue_count
+   character(len=512) :: physical_detail
    integer, parameter :: nx = 4, ny = 2, nz = 5
    integer, parameter :: n_species = 22
    character(len=*), parameter :: config_file = 'CATChem_new_config.yml'
@@ -44,6 +45,20 @@ program test_CATChem_API
       error stop 1
    end if
    print *, 'PASS: initialize with host-local grid dimensions'
+
+   call model%set_physical_validation_policy(1, rc)
+   if (rc /= 0) error stop 'FAIL: could not set physical validation policy'
+   call model%get_physical_validation_report(issue_count, physical_detail, rc)
+   if (rc /= 0 .or. issue_count /= 0 .or. len_trim(physical_detail) /= 0) then
+      error stop 'FAIL: initial physical report was not empty'
+   end if
+   call model%set_physical_validation_policy(99, rc)
+   if (rc /= 8 .or. index(model%last_error, 'supported enumeration') == 0) then
+      print *, 'FAIL: physical policy status/detail not preserved:', rc, trim(model%last_error)
+      error stop 1
+   end if
+   call model%set_physical_validation_policy(1, rc)
+   print *, 'PASS: physical policy and report facade'
 
    ! 2. Grid dimensions check
    call model%get_grid_dimensions(g_nx, g_ny, g_nz)
@@ -91,6 +106,21 @@ program test_CATChem_API
    call model%bind_unified_chemistry(chem_conc)
    print *, 'PASS: met arrays bound directly to C++ core'
 
+   ! Checked calls preserve the exact boundary category and detail text.
+   allocate(wrong_temp(nx*ny - 1, 1, nz))
+   wrong_temp = 290.0_c_double
+   call model%bind_met_3d('T', wrong_temp, rc)
+   if (rc /= 4) then
+      print *, 'FAIL: expected extent-mismatch status 4, got ', rc
+      error stop 1
+   end if
+   if (index(model%last_error, 'field extents') == 0) then
+      print *, 'FAIL: missing preserved boundary detail: ', trim(model%last_error)
+      error stop 1
+   end if
+   deallocate(wrong_temp)
+   print *, 'PASS: checked status and detail propagation'
+
    ! 4. A timestep runs
    call model%run_timestep(1, 300.0_fp, rc)
    if (rc /= 0) then
@@ -107,7 +137,7 @@ program test_CATChem_API
    end if
    print *, 'PASS: finalize'
 
-   deallocate(lat, lon, sst, frocean, frseaice, ustar, temp, delp, chem_conc)
+   deallocate(lat, lon, sst, frocean, frseaice, ustar, u10m, v10m, temp, delp, chem_conc)
 
    print *, 'All CATChem_API init-sequence tests passed!'
 end program test_CATChem_API

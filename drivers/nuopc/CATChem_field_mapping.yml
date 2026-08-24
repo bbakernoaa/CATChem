@@ -4,15 +4,25 @@ import_fields:
     dimensions: 3
     units: "K"
     optional: false
+  - standard_name: "inst_spec_humid_levels"
+    catchem_var: "QV"
+    dimensions: 3
+    units: "kg/kg"
+    optional: true
+  - standard_name: "inst_rel_humid_levels"
+    catchem_var: "RH"
+    dimensions: 3
+    units: "1"
+    optional: true
   - standard_name: "inst_geop_interface"
     catchem_var: "Z"
     dimensions: 3
-    units: "Pa"
+    units: "m"
     optional: false
   - standard_name: "inst_geop_levels"
     catchem_var: "ZMID"
     dimensions: 3
-    units: "Pa"
+    units: "m"
     optional: false
   - standard_name: "inst_pres_interface"
     catchem_var: "PEDGE"

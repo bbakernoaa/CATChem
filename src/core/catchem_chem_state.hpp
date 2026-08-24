@@ -2,7 +2,10 @@
 #include "catchem_config_manager.hpp"
 #include "catchem_interop_field.hpp"
 #include "catchem_species_metadata.hpp"
+#include <algorithm>
+#include <cctype>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -12,6 +15,7 @@ namespace catchem {
     struct ChemState {
         // Single unified 3D View (cols, levels, species)
         std::shared_ptr<InteropField<double, 3>> conc;
+        std::shared_ptr<const MechanismDefinition> mechanism;
 
         // Species metadata database
         std::vector<SpeciesMetadata> species_list;
@@ -46,11 +50,18 @@ namespace catchem {
             seasalt_indices.clear();
 
             int index = 0;
+            auto descriptor = std::make_shared<MechanismDefinition>();
+            descriptor->identity = config_mgr.data.mechanism_identity.empty() ? "configured" : config_mgr.data.mechanism_identity;
+            descriptor->source = config_mgr.config_file_path;
+            for (const auto& capability : config_mgr.data.mechanism_capabilities)
+                descriptor->capabilities.insert(canonical_species_name(capability));
             for (const auto& sp : config_mgr.data.species) {
                 SpeciesMetadata meta;
                 meta.short_name = sp.name;
                 meta.long_name = sp.long_name.empty() ? sp.name : sp.long_name;
                 meta.description = sp.description;
+                meta.aliases = sp.aliases;
+                meta.roles = sp.roles;
 
                 meta.is_gas = sp.is_gas;
                 meta.is_aerosol = sp.is_aerosol;
@@ -90,7 +101,15 @@ namespace catchem {
                 meta.mie_name = sp.mie_name;
 
                 species_list.push_back(meta);
-                species_name_to_index[meta.short_name] = index;
+                descriptor->species.push_back(meta);
+                std::string canonical_name = meta.short_name;
+                std::transform(canonical_name.begin(), canonical_name.end(), canonical_name.begin(),
+                               [](unsigned char c) { return std::toupper(c); });
+                if (canonical_name.empty())
+                    throw std::invalid_argument("Chemical mechanism contains an empty species name");
+                if (!species_name_to_index.emplace(canonical_name, index).second)
+                    throw std::invalid_argument("Chemical mechanism contains duplicate species name: " +
+                                                meta.short_name);
 
                 // Classify species
                 if (meta.is_gas)
@@ -114,6 +133,8 @@ namespace catchem {
 
                 index++;
             }
+            descriptor->rebuild_index();
+            mechanism = descriptor;
 
             // Pre-compute and cache flat C-linkable species name character array
             species_names_c_arr.assign(species_list.size() * 32, ' ');

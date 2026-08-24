@@ -131,12 +131,8 @@ namespace catchem {
                 PEDGE = field;
             else if (upper_name == "AIRDEN" || upper_name == "AIR_DENSITY") {
                 AIRDEN = field;
-                if (!AIRDEN_DRY)
-                    AIRDEN_DRY = field;
             } else if (upper_name == "AIRDEN_DRY" || upper_name == "AIR_DENSITY_DRY") {
                 AIRDEN_DRY = field;
-                if (!AIRDEN)
-                    AIRDEN = field;
             } else if (upper_name == "BXHEIGHT" || upper_name == "DZ" || upper_name == "DELZ")
                 BXHEIGHT = field;
         }

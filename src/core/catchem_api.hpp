@@ -11,6 +11,26 @@
 extern "C" {
 #endif
 
+enum catchem_dataflow_status {
+    CATCHEM_SUCCESS = 0, CATCHEM_NULL_ARGUMENT = 1, CATCHEM_MISSING_FIELD = 2,
+    CATCHEM_RANK_MISMATCH = 3, CATCHEM_EXTENT_MISMATCH = 4,
+    CATCHEM_INVALID_INDEX = 5, CATCHEM_STALE_GENERATION = 6,
+    CATCHEM_DUPLICATE_MAPPING = 7, CATCHEM_INVALID_STATE = 8,
+    CATCHEM_INTERNAL_ERROR = 9, CATCHEM_INVALID_HANDLE = 10,
+    CATCHEM_WRONG_HANDLE_TYPE = 11, CATCHEM_RUNTIME_UNAVAILABLE = 12,
+    CATCHEM_CONTRACT_VIOLATION = 13, CATCHEM_INVALID_CONFIGURATION = 14,
+    CATCHEM_PROCESS_FAILURE = 15, CATCHEM_SHUTDOWN_FAILURE = 16,
+    CATCHEM_PHYSICAL_VALIDATION_FAILURE = 17
+};
+
+int catchem_core_create_checked(int nc, int nl, int ns, void** core_out);
+int catchem_core_create_from_config_checked(const char* config_file, void** core_out);
+int catchem_core_create_from_config_with_grid_checked(const char* config_file, int ncols, int nlevels,
+                                                      void** core_out);
+int catchem_core_destroy_checked(void* core_ptr);
+int catchem_core_get_state_manager_checked(void* core_ptr, void** state_out);
+int catchem_get_last_error(char* buffer, int max_len);
+
 /**
  * @brief Creates the C++ Core orchestrator instance.
  * @param nc Number of horizontal columns.
@@ -54,36 +74,56 @@ void* catchem_core_get_state_manager(void* core_ptr);
 
 /** @brief Bind a 1D double field to the StateManager registry. */
 void catchem_state_bind_1d(void* state_ptr, const char* name, double* ptr);
+int catchem_state_bind_1d_checked(void* state_ptr, const char* name, double* ptr, int dim1);
 
 /** @brief Bind a 2D double field to the StateManager registry. */
 void catchem_state_bind_2d(void* state_ptr, const char* name, double* ptr);
+int catchem_state_bind_2d_checked(void* state_ptr, const char* name, double* ptr, int dim1, int dim2);
 
 /** @brief Bind a 3D double field to the StateManager registry. */
 void catchem_state_bind_3d(void* state_ptr, const char* name, double* ptr);
+int catchem_state_bind_3d_checked(void* state_ptr, const char* name, double* ptr, int dim1, int dim2, int dim3);
 
 /** @brief Bind a 2D meteorological field by name. */
 void catchem_state_bind_met_2d(void* state_ptr, const char* name, double* ptr);
 
 /** @brief Bind a 3D meteorological field by name. */
 void catchem_state_bind_met_3d(void* state_ptr, const char* name, double* ptr);
+int catchem_state_begin_import_generation(void* state_ptr);
+int catchem_state_set_physical_validation_policy_checked(void* state_ptr, int policy);
+int catchem_state_get_physical_validation_report_checked(void* state_ptr, int* issue_count,
+                                                          char* detail, int detail_length);
+int catchem_state_bind_met_2d_checked(void* state_ptr, const char* name, double* ptr, int dim1, int dim2);
+int catchem_state_bind_met_3d_checked(void* state_ptr, const char* name, double* ptr, int dim1, int dim2, int dim3);
+int catchem_state_bind_met_3d_axis_checked(void* state_ptr, const char* name, double* ptr, int dim1, int dim2,
+                                           int dim3, int semantic_axis);
 
 /** @brief Binds the contiguous, multi-species unified chemistry concentrations array. */
 void catchem_state_bind_unified_chemistry(void* state_ptr, double* ptr);
+int catchem_state_bind_unified_chemistry_checked(void* state_ptr, double* ptr, int dim1, int dim2, int dim3);
+int catchem_state_mark_chem_host_modified(void* state_ptr);
 
 /** @brief Sets current simulation time within the state. */
 void catchem_state_set_time(void* state_ptr, int yr, int mo, int dy, int hr, int mn, int sc, int doy, double tstep);
+int catchem_state_set_time_checked(void* state_ptr, int yr, int mo, int dy, int hr, int mn, int sc, int doy,
+                                   double tstep);
 
 /** @brief Synchronizes registered host pointers to Kokkos device memory space. */
 void catchem_state_sync_to_device(void* state_ptr);
+int catchem_state_sync_to_device_checked(void* state_ptr);
 
 /** @brief Synchronizes Kokkos device calculations back to host buffers. */
 void catchem_state_sync_to_host(void* state_ptr);
+int catchem_state_sync_to_host_checked(void* state_ptr);
 
 /** @brief Retrieves direct host pointers from the 1D, 2D, or 3D fields. */
 double* catchem_state_get_pointer_1d(void* state_ptr, const char* name);
 double* catchem_state_get_pointer_2d(void* state_ptr, const char* name);
 double* catchem_state_get_pointer_3d(void* state_ptr, const char* name);
+int catchem_state_get_pointer_3d_checked(void* state_ptr, const char* name, void** ptr_out);
 double* catchem_state_get_species_conc_pointer(void* state_ptr, int species_index);
+int catchem_state_get_species_conc_pointer_checked(void* state_ptr, int species_index, int dim1, int dim2,
+                                                   double** ptr_out);
 
 /**
  * @brief Executes a single timestepped execution over scheduled processes.
@@ -91,12 +131,16 @@ double* catchem_state_get_species_conc_pointer(void* state_ptr, int species_inde
  * @param dt Step size in seconds.
  */
 int catchem_core_run_timestep(void* core_ptr, double dt);
+int catchem_core_get_timestep_outcome(void* core_ptr, int* status, long long* timestep, double* duration,
+                                      long long* import_generation, int* process_index, int* state_classification,
+                                      char* process_name, int process_name_len, char* cause, int cause_len);
 
 /** @brief Registers and attaches an active physics process handler. */
 void catchem_core_add_process_by_name(void* core_ptr, const char* name);
 
 /** @brief Returns the number of active physics processes scheduled on the Core. */
 int catchem_core_get_num_processes(void* core_ptr);
+int catchem_core_get_num_processes_checked(void* core_ptr, int* count_out);
 
 // Grid and Configuration API
 void catchem_get_grid_dimensions(void* core_ptr, int* nx, int* ny, int* nz);
@@ -189,19 +233,35 @@ void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int 
 // Diagnostic API
 void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1,
                            int dim2, int dim3);
+int catchem_diag_register_checked(void* core_ptr, const char* name, const char* desc, const char* units, int rank,
+                                  int dim1, int dim2, int dim3);
+int catchem_diag_register_contract_checked(void* core_ptr, const char* name, const char* desc, const char* units,
+                                           int rank, const int* dims, const int* axes, int policy,
+                                           double reset_value);
+int catchem_diag_get_contract(void* core_ptr, const char* name, int* generation, int* availability,
+                              int* latest_writer, int* policy);
 void* catchem_diag_get_pointer(void* core_ptr, const char* name);
 int catchem_diag_get_rank(void* core_ptr, const char* name);
+int catchem_diag_get_rank_checked(void* core_ptr, const char* name, int* rank_out);
 void catchem_diag_get_dims(void* core_ptr, const char* name, int* dims_out);
+int catchem_diag_get_dims_checked(void* core_ptr, const char* name, int* dims_out, int dims_length);
+int catchem_diag_get_pointer_checked(void* core_ptr, const char* name, int rank, const int* dims, void** ptr_out);
+int catchem_diag_mark_host_modified(void* core_ptr, const char* name);
+int catchem_diag_mark_device_modified(void* core_ptr, const char* name);
 void catchem_diag_sync_to_host(void* core_ptr);
 void catchem_diag_reset(void* core_ptr);
 int catchem_diag_get_count(void* core_ptr);
+int catchem_diag_get_count_checked(void* core_ptr, int* count_out);
 void catchem_diag_get_name_at(void* core_ptr, int index, char* name_out);
+int catchem_diag_get_name_at_checked(void* core_ptr, int index, char* name_out, int name_length);
 
 // YAML Species Metadata
 void catchem_state_load_species_config(void* state_ptr, const char* filename);
 int catchem_state_get_species_count(void* state_ptr);
+int catchem_state_get_species_count_checked(void* state_ptr, int* count_out);
 int catchem_state_get_species_index(void* state_ptr,
                                     const char* name); // returns 1-based index matching Fortran, or -1 if not found
+int catchem_state_get_species_index_checked(void* state_ptr, const char* name, int* index_out);
 
 // Categorized counts and list getters
 int catchem_state_get_gas_species_count(void* state_ptr);
@@ -211,24 +271,23 @@ void catchem_state_get_aerosol_indices(void* state_ptr, int* indices_out);
 
 // Individual property getters (by 1-based index)
 double catchem_state_get_species_mw(void* state_ptr, int index);
+int catchem_state_get_species_mw_checked(void* state_ptr, int index, double* molecular_weight_out);
 int catchem_state_is_species_gas(void* state_ptr, int index);
+int catchem_state_is_species_gas_checked(void* state_ptr, int index, int* value_out);
 int catchem_state_is_species_aerosol(void* state_ptr, int index);
+int catchem_state_is_species_aerosol_checked(void* state_ptr, int index, int* value_out);
 void catchem_state_get_species_name_at(void* state_ptr, int index, char* name_out);
+int catchem_state_get_species_name_at_checked(void* state_ptr, int index, char* name_out, int name_length);
+int catchem_state_get_species_is_advected_checked(void* state_ptr, int index, int* value_out);
 void catchem_state_get_species_long_name_at(void* state_ptr, int index, char* name_out);
 void catchem_state_get_species_desc_at(void* state_ptr, int index, char* desc_out);
-double catchem_state_get_species_density(void* state_ptr, int index);
-double catchem_state_get_species_radius(void* state_ptr, int index);
-double catchem_state_get_species_lower_radius(void* state_ptr, int index);
-double catchem_state_get_species_upper_radius(void* state_ptr, int index);
-int catchem_state_is_species_dust(void* state_ptr, int index);
-int catchem_state_is_species_seasalt(void* state_ptr, int index);
-int catchem_state_is_species_drydep(void* state_ptr, int index);
-int catchem_state_is_species_wetdep(void* state_ptr, int index);
 void catchem_state_get_species_mie_name(void* state_ptr, int index, char* mie_out);
 
 // Physics derivations
 void catchem_state_derive_bxheight(void* state_ptr);
+int catchem_state_derive_bxheight_checked(void* state_ptr);
 void catchem_state_derive_airden_dry(void* state_ptr);
+int catchem_state_derive_airden_dry_checked(void* state_ptr);
 
 // TimeState C-Linkable API
 void* catchem_time_state_create();
@@ -276,35 +335,18 @@ int catchem_convert_process_flux_units(catchem::fp* values, int size, const char
 void catchem_state_get_species_name_at(void* state_ptr, int index, char* name_out);
 void catchem_state_get_species_long_name_at(void* state_ptr, int index, char* name_out);
 void catchem_state_get_species_desc_at(void* state_ptr, int index, char* desc_out);
-double catchem_state_get_species_density(void* state_ptr, int index);
-double catchem_state_get_species_radius(void* state_ptr, int index);
-double catchem_state_get_species_lower_radius(void* state_ptr, int index);
-double catchem_state_get_species_upper_radius(void* state_ptr, int index);
-double catchem_state_get_species_viscosity(void* state_ptr, int index);
-int catchem_state_get_species_is_tracer(void* state_ptr, int index);
-int catchem_state_get_species_is_advected(void* state_ptr, int index);
-int catchem_state_get_species_is_drydep(void* state_ptr, int index);
-int catchem_state_get_species_is_wetdep(void* state_ptr, int index);
-int catchem_state_get_species_is_photolysis(void* state_ptr, int index);
-int catchem_state_get_species_is_dust(void* state_ptr, int index);
-int catchem_state_get_species_is_seasalt(void* state_ptr, int index);
+#define CATCHEM_SPECIES_DOUBLE_PROPERTY(api, member, fallback) \
+    double catchem_state_get_species_##api(void* state_ptr, int index);
+#define CATCHEM_SPECIES_BOOL_PROPERTY(api, member) \
+    int catchem_state_get_species_##api(void* state_ptr, int index);
+#define CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY(api, member) \
+    int catchem_state_is_species_##api(void* state_ptr, int index);
+#include "catchem_species_properties.def"
+#undef CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY
+#undef CATCHEM_SPECIES_BOOL_PROPERTY
+#undef CATCHEM_SPECIES_DOUBLE_PROPERTY
 
-double catchem_state_get_species_dd_f0(void* state_ptr, int index);
-double catchem_state_get_species_dd_hstar(void* state_ptr, int index);
-double catchem_state_get_species_dd_DvzAerSnow(void* state_ptr, int index);
-double catchem_state_get_species_dd_DvzMinVal_snow(void* state_ptr, int index);
-double catchem_state_get_species_dd_DvzMinVal_land(void* state_ptr, int index);
-
-double catchem_state_get_species_henry_k0(void* state_ptr, int index);
-double catchem_state_get_species_henry_cr(void* state_ptr, int index);
-double catchem_state_get_species_henry_pKa(void* state_ptr, int index);
-double catchem_state_get_species_wd_retfactor(void* state_ptr, int index);
-int catchem_state_get_species_wd_LiqAndGas(void* state_ptr, int index);
-double catchem_state_get_species_wd_convfacI2G(void* state_ptr, int index);
 void catchem_state_get_species_wd_rainouteff(void* state_ptr, int index, double* eff_out);
-double catchem_state_get_species_wd_reevap_frac(void* state_ptr, int index);
-double catchem_state_get_species_t_chem_loss(void* state_ptr, int index);
-double catchem_state_get_species_BackgroundVV(void* state_ptr, int index);
 void catchem_state_get_species_mie_name(void* state_ptr, int index, char* name_out);
 
 // =========================================================================

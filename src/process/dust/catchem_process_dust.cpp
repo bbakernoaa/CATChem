@@ -21,70 +21,66 @@ void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil
 
 namespace catchem {
 
+    ProcessContract DustProcess::get_contract() const {
+        return {get_name(), {host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
+                            host_field_3d("DELP", "Pa", FieldRequirement::Optional),
+                            host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
+                            host_field_3d("BXHEIGHT", "m", FieldRequirement::Optional),
+                            host_field_3d("SOILM", "kg/kg"),
+                            host_field_2d("CLAYFRAC", "1"), host_field_2d("FRLAKE", "1"),
+                            host_field_2d("FRSNO", "1"), host_field_2d("GVF", "1"),
+                            host_field_2d("LAI", "1"), host_field_2d("LWI", "1"),
+                            host_field_2d("CMM", "1"), host_field_2d("SNDFRC", "1"),
+                            host_field_2d("GWETTOP", "1"), host_field_2d("TS", "K"),
+                            host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s"),
+                            host_field_2d("USTAR", "m/s"), host_field_2d("USTAR_THRESHOLD", "m/s"),
+                            host_field_2d("Z0", "m"),
+                            host_concentration()}, {}};
+    }
+
     DustProcess::DustProcess() : active_scheme("fengsha"), diagnostics_enabled(true) {}
 
     void DustProcess::init(std::shared_ptr<StateManager> state) {
         // 1. Setup diagnostic species ID dynamically based on is_dust metadata switch
-        for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
-            if (state->chem.species_list[i].is_dust) {
+        for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
+            if (state->chemistry().species_list[i].is_dust) {
                 diagnostic_species_id.push_back(i + 1); // 1-based for Fortran bridge
             }
         }
 
         // 2. Register C++ Diagnostic fields (registering 1D fields as 2D with second dimension of 1)
-        std::vector<int> dims_1d_as_2d = {state->n_cols, 1};
-        std::vector<int> dims_2d = {state->n_cols, state->n_species};
+        std::vector<int> dims_1d_as_2d = {state->column_count(), 1};
+        std::vector<int> dims_2d = {state->column_count(), state->species_count()};
 
-        state->diag_mgr->register_field("dust_emission_total", "Total Dust Emission", "kg/m2/s", DiagType::FIELD_2D,
+        state->diagnostic_manager()->register_field("dust_emission_total", "Total Dust Emission", "kg/m2/s", DiagType::FIELD_2D,
                                         dims_1d_as_2d);
-        state->diag_mgr->register_field("dust_emission_bin", "Dust Emission Per Bin", "kg/m2/s", DiagType::FIELD_2D,
+        state->diagnostic_manager()->register_field("dust_emission_bin", "Dust Emission Per Bin", "kg/m2/s", DiagType::FIELD_2D,
                                         dims_2d);
-        state->diag_mgr->register_field("dust_horizontal_flux", "Dust Horizontal Flux", "kg/m/s", DiagType::FIELD_2D,
+        state->diagnostic_manager()->register_field("dust_horizontal_flux", "Dust Horizontal Flux", "kg/m/s", DiagType::FIELD_2D,
                                         dims_1d_as_2d);
-        state->diag_mgr->register_field("dust_moisture_correction", "Dust Moisture Correction", "unitless",
+        state->diagnostic_manager()->register_field("dust_moisture_correction", "Dust Moisture Correction", "unitless",
                                         DiagType::FIELD_2D, dims_1d_as_2d);
-        state->diag_mgr->register_field("dust_effective_threshold", "Dust Effective Threshold", "m/s",
+        state->diagnostic_manager()->register_field("dust_effective_threshold", "Dust Effective Threshold", "m/s",
                                         DiagType::FIELD_2D, dims_1d_as_2d);
-        state->diag_mgr->register_field("dust_utar_threshold", "Dust Ustar Threshold Per Bin", "m/s",
+        state->diagnostic_manager()->register_field("dust_utar_threshold", "Dust Ustar Threshold Per Bin", "m/s",
                                         DiagType::FIELD_2D, dims_2d);
     }
 
     void DustProcess::run(std::shared_ptr<StateManager> state) {
-        state->sync_to_host();
-
-        auto find_3d_ptr = [&](std::initializer_list<const char*> names) -> double* {
-            for (const char* name : names) {
-                auto it = state->met.fields_3d.find(name);
-                if (it != state->met.fields_3d.end()) {
-                    return it->second->host_data();
-                }
-            }
-            return nullptr;
-        };
-
-        auto find_2d_ptr = [&](std::initializer_list<const char*> names) -> double* {
-            for (const char* name : names) {
-                auto it = state->met.fields_2d.find(name);
-                if (it != state->met.fields_2d.end()) {
-                    return it->second->host_data();
-                }
-            }
-            return nullptr;
-        };
 
         // 1. Retrieve Meteorological state pointers
-        double* airden_ptr = find_3d_ptr({"AIRDEN_DRY", "air_density_dry"});
-        double* bxheight_ptr = find_3d_ptr({"BXHEIGHT", "box_height"});
-        double* delp_ptr = find_3d_ptr({"DELP", "pressure_thickness_of_atmospheric_layer"});
+        double* airden_ptr = state->write_field<3>("AIRDEN_DRY");
+        double* bxheight_ptr = state->write_field<3>("BXHEIGHT");
+        double* delp_ptr = state->write_field<3>("DELP");
         std::vector<double> derived_delp;
-        if (delp_ptr == nullptr && state->met.PEDGE) {
-            auto pedge = state->met.PEDGE->host_data();
+        if (delp_ptr == nullptr && state->meteorology().PEDGE) {
+            auto pedge = state->meteorology().PEDGE->host_write();
             if (pedge != nullptr) {
-                derived_delp.assign(static_cast<size_t>(state->n_cols) * state->n_levels, 0.0);
-                for (int lev = 0; lev < state->n_levels; ++lev) {
-                    for (int col = 0; col < state->n_cols; ++col) {
-                        const int lower_idx = col + lev * state->n_cols;
-                        const int upper_idx = col + (lev + 1) * state->n_cols;
+                derived_delp.assign(static_cast<size_t>(state->column_count()) * state->level_count(), 0.0);
+                for (int lev = 0; lev < state->level_count(); ++lev) {
+                    for (int col = 0; col < state->column_count(); ++col) {
+                        const int lower_idx = col + lev * state->column_count();
+                        const int upper_idx = col + (lev + 1) * state->column_count();
                         derived_delp[lower_idx] = std::abs(pedge[lower_idx] - pedge[upper_idx]);
                     }
                 }
@@ -93,32 +89,32 @@ namespace catchem {
         }
         std::vector<double> fallback_delp;
         if (!delp_ptr) {
-            fallback_delp.assign(static_cast<size_t>(state->n_cols) * state->n_levels, 2000.0);
+            fallback_delp.assign(static_cast<size_t>(state->column_count()) * state->level_count(), 2000.0);
             delp_ptr = fallback_delp.data();
         }
 
-        double* clayfrac_ptr = find_2d_ptr({"CLAYFRAC", "clay_fraction"});
-        double* frlake_ptr = find_2d_ptr({"FRLAKE", "lake_fraction"});
-        double* frsno_ptr = find_2d_ptr({"FRSNO", "snow_fraction"});
-        double* gvf_ptr = find_2d_ptr({"GVF", "vegetation_fraction"});
-        double* lai_ptr = find_2d_ptr({"LAI", "leaf_area_index"});
-        double* lwi_double_ptr = find_2d_ptr({"LWI", "lwi", "land_water_ice_mask"});
-        std::vector<int> lwi(state->n_cols, 1);
+        double* clayfrac_ptr = state->write_field<2>("CLAYFRAC");
+        double* frlake_ptr = state->write_field<2>("FRLAKE");
+        double* frsno_ptr = state->write_field<2>("FRSNO");
+        double* gvf_ptr = state->write_field<2>("GVF");
+        double* lai_ptr = state->write_field<2>("LAI");
+        double* lwi_double_ptr = state->write_field<2>("LWI");
+        std::vector<int> lwi(state->column_count(), 1);
         if (lwi_double_ptr) {
-            for (int col = 0; col < state->n_cols; ++col) {
+            for (int col = 0; col < state->column_count(); ++col) {
                 lwi[col] = static_cast<int>(lwi_double_ptr[col]);
             }
         }
-        double* rdrag_ptr = find_2d_ptr({"CMM", "drag_coefficient"});
-        double* sandfrac_ptr = find_2d_ptr({"SNDFRC", "sand_fraction"});
-        double* soilm_ptr = find_3d_ptr({"SOILM", "soil_moisture"});
-        double* ssm_ptr = find_2d_ptr({"GWETTOP", "surface_soil_moisture"});
-        double* tskin_ptr = find_2d_ptr({"TS", "skin_temperature"});
-        double* u10m_ptr = find_2d_ptr({"U10M", "u_10m"});
-        double* v10m_ptr = find_2d_ptr({"V10M", "v_10m"});
-        double* ustar_ptr = find_2d_ptr({"USTAR", "friction_velocity"});
-        double* ustar_th_ptr = find_2d_ptr({"USTAR_THRESHOLD", "threshold_friction_velocity"});
-        double* z0_ptr = find_2d_ptr({"Z0", "roughness_length"});
+        double* rdrag_ptr = state->write_field<2>("CMM");
+        double* sandfrac_ptr = state->write_field<2>("SNDFRC");
+        double* soilm_ptr = state->write_field<3>("SOILM");
+        double* ssm_ptr = state->write_field<2>("GWETTOP");
+        double* tskin_ptr = state->write_field<2>("TS");
+        double* u10m_ptr = state->write_field<2>("U10M");
+        double* v10m_ptr = state->write_field<2>("V10M");
+        double* ustar_ptr = state->write_field<2>("USTAR");
+        double* ustar_th_ptr = state->write_field<2>("USTAR_THRESHOLD");
+        double* z0_ptr = state->write_field<2>("Z0");
 
         require_field_pointer("Dust", "AIRDEN_DRY", airden_ptr);
         require_field_pointer("Dust", "BXHEIGHT", bxheight_ptr);
@@ -148,16 +144,16 @@ namespace catchem {
         double* diag_effective_threshold = nullptr;
         double* diag_utar_threshold = nullptr;
 
-        if (state->diag_mgr && diagnostics_enabled) {
-            diag_emission_total = (double*)state->diag_mgr->get_host_pointer("dust_emission_total");
-            diag_emission_bin = (double*)state->diag_mgr->get_host_pointer("dust_emission_bin");
-            diag_horizontal_flux = (double*)state->diag_mgr->get_host_pointer("dust_horizontal_flux");
-            diag_moisture_correction = (double*)state->diag_mgr->get_host_pointer("dust_moisture_correction");
-            diag_effective_threshold = (double*)state->diag_mgr->get_host_pointer("dust_effective_threshold");
-            diag_utar_threshold = (double*)state->diag_mgr->get_host_pointer("dust_utar_threshold");
+        if (state->diagnostic_manager() && diagnostics_enabled) {
+            diag_emission_total = (double*)state->diagnostic_manager()->get_host_pointer("dust_emission_total");
+            diag_emission_bin = (double*)state->diagnostic_manager()->get_host_pointer("dust_emission_bin");
+            diag_horizontal_flux = (double*)state->diagnostic_manager()->get_host_pointer("dust_horizontal_flux");
+            diag_moisture_correction = (double*)state->diagnostic_manager()->get_host_pointer("dust_moisture_correction");
+            diag_effective_threshold = (double*)state->diagnostic_manager()->get_host_pointer("dust_effective_threshold");
+            diag_utar_threshold = (double*)state->diagnostic_manager()->get_host_pointer("dust_utar_threshold");
         }
 
-        double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
+        double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("Dust", "CHEM_CONC", conc_ptr);
 
         // 4. Slice dust species so the scheme size distribution matches the legacy Fortran interface.
@@ -166,8 +162,8 @@ namespace catchem {
         std::vector<double> radius;
         std::vector<double> lower_radius;
         std::vector<double> upper_radius;
-        for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
-            const auto& meta = state->chem.species_list[i];
+        for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
+            const auto& meta = state->chemistry().species_list[i];
             if (meta.is_dust) {
                 const double radius_value = meta.radius > 0.0 ? meta.radius : 1e-6;
                 const double lower_radius_value = meta.lower_radius > 0.0 ? meta.lower_radius : radius_value * 0.1;
@@ -187,30 +183,30 @@ namespace catchem {
             return;
         }
 
-        std::vector<double> sliced_conc(static_cast<size_t>(state->n_cols) * state->n_levels * n_dust, 0.0);
+        std::vector<double> sliced_conc(static_cast<size_t>(state->column_count()) * state->level_count() * n_dust, 0.0);
         for (int local_idx = 0; local_idx < n_dust; ++local_idx) {
             const int global_idx = dust_global_indices[local_idx];
-            for (int col = 0; col < state->n_cols; ++col) {
-                for (int lev = 0; lev < state->n_levels; ++lev) {
-                    const int src_idx = col + lev * state->n_cols + global_idx * state->n_cols * state->n_levels;
-                    const int dest_idx = col + lev * state->n_cols + local_idx * state->n_cols * state->n_levels;
+            for (int col = 0; col < state->column_count(); ++col) {
+                for (int lev = 0; lev < state->level_count(); ++lev) {
+                    const int src_idx = col + lev * state->column_count() + global_idx * state->column_count() * state->level_count();
+                    const int dest_idx = col + lev * state->column_count() + local_idx * state->column_count() * state->level_count();
                     sliced_conc[dest_idx] = conc_ptr[src_idx];
                 }
             }
         }
 
-        std::vector<double> mock_tendency(static_cast<size_t>(state->n_cols) * state->n_levels * n_dust, 0.0);
+        std::vector<double> mock_tendency(static_cast<size_t>(state->column_count()) * state->level_count() * n_dust, 0.0);
         std::vector<int> local_diagnostic_species_id(n_dust);
         for (int local_idx = 0; local_idx < n_dust; ++local_idx) {
             local_diagnostic_species_id[local_idx] = local_idx + 1;
         }
 
-        std::vector<double> local_diag_emission_bin(static_cast<size_t>(state->n_cols) * n_dust, 0.0);
-        std::vector<double> local_diag_utar_threshold(static_cast<size_t>(state->n_cols) * n_dust, 0.0);
+        std::vector<double> local_diag_emission_bin(static_cast<size_t>(state->column_count()) * n_dust, 0.0);
+        std::vector<double> local_diag_utar_threshold(static_cast<size_t>(state->column_count()) * n_dust, 0.0);
 
         // 5. Invoke flat science bridge
         run_dust_science_bridge(
-            state->n_cols, state->n_levels, n_dust, 4, state->time.timestep, // n_soil=4
+            state->column_count(), state->level_count(), n_dust, 4, state->clock().timestep, // n_soil=4
             active_scheme.c_str(), diagnostics_enabled ? 1 : 0, airden_ptr, bxheight_ptr, delp_ptr, clayfrac_ptr,
             frlake_ptr, frsno_ptr, gvf_ptr, lai_ptr, lwi.data(), rdrag_ptr, sandfrac_ptr, soilm_ptr, ssm_ptr, tskin_ptr,
             u10m_ptr, v10m_ptr, ustar_ptr, ustar_th_ptr, z0_ptr, density.data(), radius.data(), lower_radius.data(),
@@ -220,25 +216,25 @@ namespace catchem {
 
         for (int local_idx = 0; local_idx < n_dust; ++local_idx) {
             const int global_idx = dust_global_indices[local_idx];
-            for (int col = 0; col < state->n_cols; ++col) {
-                for (int lev = 0; lev < state->n_levels; ++lev) {
-                    const int src_idx = col + lev * state->n_cols + local_idx * state->n_cols * state->n_levels;
-                    const int dest_idx = col + lev * state->n_cols + global_idx * state->n_cols * state->n_levels;
+            for (int col = 0; col < state->column_count(); ++col) {
+                for (int lev = 0; lev < state->level_count(); ++lev) {
+                    const int src_idx = col + lev * state->column_count() + local_idx * state->column_count() * state->level_count();
+                    const int dest_idx = col + lev * state->column_count() + global_idx * state->column_count() * state->level_count();
                     conc_ptr[dest_idx] = sliced_conc[src_idx];
                 }
 
                 if (diag_emission_bin) {
-                    diag_emission_bin[col + global_idx * state->n_cols] =
-                        local_diag_emission_bin[col + local_idx * state->n_cols];
+                    diag_emission_bin[col + global_idx * state->column_count()] =
+                        local_diag_emission_bin[col + local_idx * state->column_count()];
                 }
                 if (diag_utar_threshold) {
-                    diag_utar_threshold[col + global_idx * state->n_cols] =
-                        local_diag_utar_threshold[col + local_idx * state->n_cols];
+                    diag_utar_threshold[col + global_idx * state->column_count()] =
+                        local_diag_utar_threshold[col + local_idx * state->column_count()];
                 }
             }
         }
 
-        state->sync_to_device();
+        if (state->chemistry().conc) state->chemistry().conc->mark_host_modified();
     }
 
     void DustProcess::finalize() {}

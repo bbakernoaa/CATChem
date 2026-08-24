@@ -63,7 +63,7 @@ namespace catchem {
         service.append(15 - service.length(), ' ');
 
         // 4. Assemble Trace ID (exactly 8 chars)
-        std::string trace = (state && !state->trace_id.empty()) ? state->trace_id : "global  ";
+        std::string trace = (state && !state->runtime_trace_id().empty()) ? state->runtime_trace_id() : "global  ";
         if (trace.length() < 8)
             trace.append(8 - trace.length(), ' ');
 

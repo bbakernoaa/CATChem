@@ -8,12 +8,13 @@
 !! asserting success and the Z0 cm->m conversion landing in the met
 !! state (the 2026-08-11 first-timestep abort regression).
 program test_nuopc_transform
-   use iso_c_binding, only: c_ptr, c_char, c_double, c_associated, c_f_pointer, c_null_char
+   use iso_c_binding, only: c_ptr, c_char, c_double, c_int, c_associated, c_f_pointer, c_null_char
    use ESMF
    use catchem_nuopc_interface, only: load_field_config, transform_nuopc_to_catchem, &
       transform_catchem_to_nuopc, field_config, cc_wrap_type, update_pm_diagnostics
    use catchem_bridge_error, only: CC_SUCCESS
    use catchem_bridge_precision, only: fp
+   use CATChem_API, only: CATChem_Model
 
    implicit none
 
@@ -23,10 +24,24 @@ program test_nuopc_transform
          type(c_ptr), value :: state_ptr
          character(kind=c_char), intent(in) :: name(*)
       end function
+      integer(c_int) function catchem_state_get_species_count_checked(state, count) &
+         bind(C, name="catchem_state_get_species_count_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state
+         integer(c_int), intent(out) :: count
+      end function
+      integer(c_int) function catchem_state_get_species_name_at_checked(state, index, name, length) &
+         bind(C, name="catchem_state_get_species_name_at_checked")
+         import :: c_ptr, c_int, c_char
+         type(c_ptr), value :: state
+         integer(c_int), value :: index, length
+         character(c_char), intent(out) :: name(*)
+      end function
    end interface
 
    integer, parameter :: nx = 4, ny = 2, nz = 5, ntr = 2
    type(cc_wrap_type) :: cc_wrap
+   type(CATChem_Model) :: parity_model
    type(ESMF_Grid) :: grid
    type(ESMF_State) :: importState, exportState
    type(ESMF_Field) :: field
@@ -35,7 +50,13 @@ program test_nuopc_transform
    real(c_double), pointer :: z0_ptr(:,:) => null()
    type(c_ptr) :: raw_z0_ptr
    character(len=256) :: errmsg
-   integer :: rc, i, nzf
+   integer :: rc, i, nzf, parity_issues
+   integer(c_int) :: parity_count, parity_status
+   character(kind=c_char) :: parity_c_name(64)
+   character(len=64) :: parity_name
+   character(len=512) :: parity_report
+   character(len=64), parameter :: parity_expected(3) = [character(len=64) :: &
+      'unfamiliar_alpha', 'unfamiliar_beta', 'unfamiliar_gamma']
 
    call ESMF_Initialize(defaultCalKind=ESMF_CALKIND_GREGORIAN, &
       defaultlogfilename="test_nuopc_transform.log", rc=rc)
@@ -55,6 +76,26 @@ program test_nuopc_transform
       error stop 1
    end if
    cc_wrap%field_config = field_config
+
+   ! Shared host-conformance fixture: mechanism order, failure category, and report shape.
+   call parity_model%initialize('host_conformance/CATChem_config.yml', 2, 1, 3, rc=rc)
+   if (rc /= 0) error stop 'NUOPC parity fixture initialization failed'
+   parity_status = catchem_state_get_species_count_checked(parity_model%state_mgr_ptr, parity_count)
+   if (parity_status /= 0_c_int .or. parity_count /= 3_c_int) error stop 'NUOPC mechanism count parity failed'
+   do i = 1, 3
+      parity_status = catchem_state_get_species_name_at_checked( &
+         parity_model%state_mgr_ptr, int(i, c_int), parity_c_name, 64_c_int)
+      if (parity_status /= 0_c_int) error stop 'NUOPC mechanism name query failed'
+      call parity_from_c(parity_c_name, parity_name)
+      if (trim(parity_name) /= trim(parity_expected(i))) error stop 'NUOPC mechanism ordering parity failed'
+   end do
+   call parity_model%set_physical_validation_policy(99, rc)
+   if (rc /= 8) error stop 'NUOPC invalid-policy category parity failed'
+   call parity_model%set_physical_validation_policy(0, rc)
+   call parity_model%get_physical_validation_report(parity_issues, parity_report, rc)
+   if (rc /= 0 .or. parity_issues /= 0) error stop 'NUOPC physical-report parity failed'
+   call parity_model%finalize(rc)
+   if (rc /= 0) error stop 'NUOPC parity fixture finalization failed'
    call ESMF_TimeIntervalSet(cc_wrap%timeStep, s=600, rc=rc)
    call check(rc, "TimeIntervalSet")
 
@@ -88,7 +129,8 @@ program test_nuopc_transform
          end if
        case (3)
          nzf = nz
-         if (trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'PEDGE') nzf = nz + 1
+         if (trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'PEDGE' .or. &
+             trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'Z') nzf = nz + 1
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
             ungriddedLBound=(/1/), ungriddedUBound=(/nzf/), &
             name=trim(cc_wrap%field_config%import_fields(i)%standard_name), rc=rc)
@@ -100,7 +142,22 @@ program test_nuopc_transform
             do iz = 1, nzf
                do iy = 1, ny
                   do ix = 1, nx
-                     fptr3(ix, iy, iz) = real(ix + 10 * iy + 100 * iz, ESMF_KIND_R8)
+                     select case (trim(cc_wrap%field_config%import_fields(i)%catchem_var))
+                     case ('T')
+                        fptr3(ix, iy, iz) = 280.0_ESMF_KIND_R8
+                     case ('QV')
+                        fptr3(ix, iy, iz) = 0.01_ESMF_KIND_R8
+                     case ('RH')
+                        fptr3(ix, iy, iz) = 0.5_ESMF_KIND_R8
+                     case ('PEDGE')
+                        fptr3(ix, iy, iz) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(iz - 1, ESMF_KIND_R8)
+                     case ('PMID')
+                        fptr3(ix, iy, iz) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(iz - 1, ESMF_KIND_R8)
+                     case ('CLDF')
+                        fptr3(ix, iy, iz) = 0.2_ESMF_KIND_R8
+                     case default
+                        fptr3(ix, iy, iz) = real(ix + 10 * iy + 100 * iz, ESMF_KIND_R8)
+                     end select
                   end do
                end do
             end do
@@ -216,6 +273,17 @@ program test_nuopc_transform
    print *, 'All NUOPC transform tests passed!'
 
 contains
+
+   subroutine parity_from_c(c_value, value)
+      character(kind=c_char), intent(in) :: c_value(*)
+      character(len=*), intent(out) :: value
+      integer :: j
+      value = ''
+      do j = 1, len(value)
+         if (c_value(j) == c_null_char) exit
+         value(j:j) = c_value(j)
+      end do
+   end subroutine parity_from_c
 
    subroutine check(rc_in, what)
       integer, intent(in) :: rc_in

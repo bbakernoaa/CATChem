@@ -7,6 +7,64 @@ configure_file(
   "${CMAKE_CURRENT_BINARY_DIR}/catchem_test_config.hpp"
 )
 
+# Attach one or more semicolon-separated integrity labels to tests while
+# rejecting misspelled test names at configure time.
+function(catchem_label_tests labels)
+  foreach(test_name IN LISTS ARGN)
+    if(NOT TEST ${test_name})
+      message(FATAL_ERROR "Cannot label unknown CATChem test '${test_name}'")
+    endif()
+    set_property(TEST ${test_name} APPEND PROPERTY LABELS "${labels}")
+  endforeach()
+endfunction()
+
+# Architecture tests use one helper so labels and core linkage cannot drift.
+function(catchem_add_architecture_test test_name source labels)
+  add_executable(${test_name} ${source})
+  target_link_libraries(${test_name} PRIVATE CATChem_core_cpp)
+  add_test(NAME ${test_name} COMMAND ${test_name})
+  catchem_label_tests("${labels}" ${test_name})
+endfunction()
+
+# Built only when explicitly requested; timing never affects normal CTest pass/fail.
+add_executable(benchmark_core_orchestration EXCLUDE_FROM_ALL benchmark_core_orchestration.cpp)
+target_link_libraries(benchmark_core_orchestration PRIVATE CATChem_core_cpp)
+
+catchem_add_architecture_test(test_mechanism_independence test_mechanism_independence.cpp "mechanism;configuration")
+catchem_add_architecture_test(test_multi_mechanism_instances test_multi_mechanism_instances.cpp "mechanism;lifecycle")
+catchem_add_architecture_test(test_process_contracts test_process_contracts.cpp "process-contract;dataflow")
+target_link_libraries(test_process_contracts PRIVATE CATChem_process_dust CATChem_process_seasalt
+  CATChem_process_drydep CATChem_process_wetdep CATChem_process_so4chem)
+target_include_directories(test_process_contracts PRIVATE
+  ${PROJECT_SOURCE_DIR}/src/process/dust ${PROJECT_SOURCE_DIR}/src/process/seasalt
+  ${PROJECT_SOURCE_DIR}/src/process/drydep ${PROJECT_SOURCE_DIR}/src/process/wetdep
+  ${PROJECT_SOURCE_DIR}/src/process/so4chem)
+catchem_add_architecture_test(test_execution_plan test_execution_plan.cpp "process-contract;dataflow")
+catchem_add_architecture_test(test_selective_sync test_selective_sync.cpp "process-contract;dataflow;performance")
+catchem_add_architecture_test(test_process_lifecycle test_process_lifecycle.cpp "lifecycle;concurrency")
+catchem_add_architecture_test(test_process_registry_concurrency test_process_registry_concurrency.cpp "lifecycle;concurrency")
+catchem_add_architecture_test(test_handle_concurrency test_handle_concurrency.cpp "lifecycle;concurrency;boundary")
+catchem_add_architecture_test(test_physical_validation test_physical_validation.cpp "physical-validation;dataflow")
+catchem_add_architecture_test(test_boundary_errors test_boundary_errors.cpp "boundary;lifecycle;concurrency")
+target_link_libraries(test_boundary_errors PRIVATE CATChem_process_settling CATChem_process_seasalt
+  CATChem_process_drydep CATChem_process_wetdep CATChem_process_so4chem CATChem_process_dust
+  CATChem_process_carbchem)
+catchem_add_architecture_test(test_c_api_compatibility test_c_api_compatibility.cpp "boundary;compatibility")
+catchem_add_architecture_test(test_extension_process test_extension_process.cpp "mechanism;process-contract;lifecycle;dataflow")
+target_compile_definitions(test_extension_process PRIVATE CATCHEM_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+catchem_add_architecture_test(test_core_construction test_core_construction.cpp "mechanism;configuration;lifecycle")
+target_compile_definitions(test_core_construction PRIVATE CATCHEM_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+add_test(NAME check_core_mechanism_independence
+  COMMAND ${CMAKE_COMMAND} -DCATCHEM_SOURCE_DIR=${PROJECT_SOURCE_DIR}
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/check_core_mechanism_independence.cmake)
+catchem_label_tests("mechanism;configuration" check_core_mechanism_independence)
+target_link_libraries(test_c_api_compatibility PRIVATE CATChem_process_settling CATChem_process_seasalt
+  CATChem_process_drydep CATChem_process_wetdep CATChem_process_so4chem CATChem_process_dust
+  CATChem_process_carbchem)
+target_link_libraries(test_handle_concurrency PRIVATE CATChem_process_settling CATChem_process_seasalt
+  CATChem_process_drydep CATChem_process_wetdep CATChem_process_so4chem CATChem_process_dust
+  CATChem_process_carbchem)
+
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 # Automatically link the musica configs folder so that CTest can find relative NetCDF files on GHA CI
@@ -17,6 +75,17 @@ if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/configs")
       "${CMAKE_CURRENT_BINARY_DIR}/configs"
     SYMBOLIC
   )
+endif()
+
+if(CATCHEM_BUILD_CCPP)
+  add_executable(test_ccpp_integration test_ccpp_integration.f90)
+  target_link_libraries(test_ccpp_integration PRIVATE CCPP_CATChem_interface)
+  target_include_directories(test_ccpp_integration PRIVATE ${CMAKE_BINARY_DIR}/include)
+  set_target_properties(test_ccpp_integration PROPERTIES LINKER_LANGUAGE Fortran)
+  add_test(NAME test_ccpp_integration COMMAND test_ccpp_integration)
+  catchem_label_tests("integration;dataflow;boundary;performance" test_ccpp_integration)
+  file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/host_conformance
+       DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 
 # Foundational Fortran testing helper library (quarantined — legacy core replaced by C++)
@@ -119,6 +188,142 @@ target_link_libraries(
 set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
 
+add_executable(test_catchem_dataflow test_catchem_dataflow.cpp)
+target_link_libraries(
+  test_catchem_dataflow
+  PRIVATE
+    CATChem_core_cpp
+    CATChem_core
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+    CATChem_process_dust
+    CATChem_process_carbchem
+)
+set_target_properties(test_catchem_dataflow PROPERTIES CXX_STANDARD 20 LINKER_LANGUAGE CXX)
+add_test(NAME test_catchem_dataflow COMMAND test_catchem_dataflow)
+set_tests_properties(test_catchem_dataflow PROPERTIES LABELS "dataflow;parity")
+if(CATCHEM_ENABLE_KOKKOS)
+  set_tests_properties(test_catchem_dataflow PROPERTIES ENVIRONMENT "OMP_NUM_THREADS=4;KOKKOS_NUM_THREADS=4;OMP_PROC_BIND=false")
+endif()
+
+add_executable(test_c_api_negative test_c_api_negative.cpp)
+target_link_libraries(
+  test_c_api_negative
+  PRIVATE
+    CATChem_core_cpp
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+    CATChem_process_dust
+    CATChem_process_carbchem
+)
+add_test(NAME test_c_api_negative COMMAND test_c_api_negative)
+catchem_label_tests("boundary" test_c_api_negative)
+catchem_label_tests("dataflow;parity" test_catchem_dataflow)
+
+add_executable(test_runtime_lifecycle test_runtime_lifecycle.cpp)
+target_link_libraries(
+  test_runtime_lifecycle
+  PRIVATE
+    CATChem_core_cpp
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+    CATChem_process_dust
+    CATChem_process_carbchem
+)
+add_test(NAME test_runtime_lifecycle COMMAND test_runtime_lifecycle)
+catchem_label_tests("lifecycle;dataflow" test_runtime_lifecycle)
+
+add_executable(test_config_validation test_config_validation.cpp)
+target_link_libraries(
+  test_config_validation
+  PRIVATE
+    CATChem_core_cpp
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+    CATChem_process_dust
+    CATChem_process_carbchem
+)
+target_compile_definitions(test_config_validation PRIVATE CATCHEM_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME test_config_validation COMMAND test_config_validation)
+catchem_label_tests("configuration" test_config_validation)
+
+add_executable(test_diagnostic_lifecycle test_diagnostic_lifecycle.cpp)
+target_link_libraries(
+  test_diagnostic_lifecycle
+  PRIVATE
+    CATChem_core_cpp
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+    CATChem_process_dust
+    CATChem_process_carbchem
+)
+add_test(NAME test_diagnostic_lifecycle COMMAND test_diagnostic_lifecycle)
+catchem_label_tests("diagnostics;dataflow" test_diagnostic_lifecycle)
+
+add_executable(test_timestep_failure test_timestep_failure.cpp)
+target_link_libraries(
+  test_timestep_failure
+  PRIVATE
+    CATChem_core_cpp
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+    CATChem_process_dust
+    CATChem_process_carbchem
+)
+add_test(NAME test_timestep_failure COMMAND test_timestep_failure)
+catchem_label_tests("lifecycle;boundary;dataflow" test_timestep_failure)
+
+add_test(
+  NAME test_build_options
+  COMMAND
+    ${CMAKE_COMMAND}
+    -DCATCHEM_SOURCE_DIR=${PROJECT_SOURCE_DIR}
+    -DCATCHEM_BINARY_ROOT=${CMAKE_CURRENT_BINARY_DIR}/build-option-tests
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/test_build_options.cmake
+)
+catchem_label_tests("configuration;build" test_build_options)
+
+add_executable(test_separate_memory test_separate_memory.cpp)
+target_link_libraries(test_separate_memory PRIVATE CATChem_core_cpp)
+add_test(NAME test_separate_memory COMMAND test_separate_memory)
+catchem_label_tests("dataflow" test_separate_memory)
+if(CATCHEM_ENABLE_KOKKOS AND (Kokkos_ENABLE_CUDA OR Kokkos_ENABLE_HIP OR Kokkos_ENABLE_SYCL))
+  catchem_label_tests("separate-memory" test_separate_memory)
+endif()
+
+add_executable(test_host_integration_conformance test_host_integration_conformance.cpp)
+target_link_libraries(test_host_integration_conformance PRIVATE
+  CATChem_core_cpp CATChem_process_settling CATChem_process_seasalt
+  CATChem_process_drydep CATChem_process_wetdep CATChem_process_so4chem
+  CATChem_process_dust CATChem_process_carbchem)
+target_compile_definitions(test_host_integration_conformance PRIVATE CATCHEM_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME test_host_integration_conformance COMMAND test_host_integration_conformance)
+catchem_label_tests("boundary;integration;dataflow;conformance" test_host_integration_conformance)
+
+# Existing process/property tests are the unchanged science-regression gate.
+set(_catchem_science_regression_tests
+  test_catchem_seasalt test_catchem_dust test_catchem_drydep
+  test_catchem_wetdep test_catchem_settling test_catchem_so4chem
+  test_catchem_carbchem test_catchem_properties test_catchem_scenarios)
+
 # Individual C++ Process Unit Tests
 macro(add_process_unit_test process_name target_lib)
   set(test_name "test_catchem_${process_name}")
@@ -201,6 +406,12 @@ add_test(
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+foreach(_science_test IN LISTS _catchem_science_regression_tests)
+  if(TEST ${_science_test})
+    set_property(TEST ${_science_test} APPEND PROPERTY LABELS "science-regression")
+  endif()
+endforeach()
+
 # Static Fortran Core Import Check
 find_program(PYTHON_EXECUTABLE NAMES python3 python)
 if(PYTHON_EXECUTABLE)
@@ -279,9 +490,12 @@ if(CATCHEM_BUILD_NUOPC)
       ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_emission.yml
     DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
   )
+  file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/host_conformance
+       DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
   add_test(
     NAME test_nuopc_transform
     COMMAND test_nuopc_transform
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   )
+  catchem_label_tests("integration;dataflow;boundary" test_nuopc_transform)
 endif()

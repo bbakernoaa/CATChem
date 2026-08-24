@@ -14,6 +14,7 @@ namespace catchem {
         ~DustProcess() override = default;
 
         std::string get_name() const override { return "dust"; }
+        ProcessContract get_contract() const override;
         void init(std::shared_ptr<StateManager> state) override;
         void run(std::shared_ptr<StateManager> state) override;
         void finalize() override;

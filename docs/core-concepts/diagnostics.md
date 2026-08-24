@@ -39,3 +39,8 @@ The diagnostic system in CATChem provides a number of advanced features, includi
 - **Process-specific diagnostics**: Each process has its own diagnostic registry, which allows it to manage its own diagnostic outputs independently of other processes.
 - **Runtime query and collection**: The system allows users to query and collect diagnostic data at runtime, without having to restart the model.
 - **Optional diagnostic output**: The system allows users to enable or disable diagnostic output for each process and for each diagnostic field.
+# Diagnostic shape and writer rules
+
+Diagnostic registration is idempotent only for an identical name, type, units, and shape. Incompatible re-registration fails without replacing live storage. Pointer retrieval validates rank and every extent; a destination that cannot represent all semantic axes must request an explicit selection instead of receiving an implicit first-species or first-level slice.
+
+Host and device diagnostic writers declare the current side. Final timestep synchronization copies only from the latest writer, preserving diagnostics produced by host-side Fortran bridges as well as execution-space kernels.

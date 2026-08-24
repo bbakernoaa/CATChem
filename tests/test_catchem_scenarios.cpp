@@ -393,8 +393,8 @@ int main(int argc, char* argv[]) {
 
             // Initialize background chemical concentrations per species group
             std::vector<double> conc(total_size, 0.0);
-            for (size_t s = 0; s < state->chem.species_list.size(); ++s) {
-                const auto& spec = state->chem.species_list[s];
+            for (size_t s = 0; s < state->chemistry().species_list.size(); ++s) {
+                const auto& spec = state->chemistry().species_list[s];
                 double bg = sc.gas_bg;
                 if (spec.is_dust)
                     bg = sc.dust_bg;
@@ -477,11 +477,11 @@ int main(int argc, char* argv[]) {
             }
 
             // Validate registered diagnostics pointers remain finite
-            if (state->diag_mgr) {
-                auto diag_names = state->diag_mgr->get_registered_names();
+            if (state->diagnostic_manager()) {
+                auto diag_names = state->diagnostic_manager()->get_registered_names();
                 std::cout << "  Diagnostic Manager registered " << diag_names.size() << " fields." << std::endl;
                 for (const auto& dname : diag_names) {
-                    const double* dptr = static_cast<const double*>(state->diag_mgr->get_host_pointer(dname));
+                    const double* dptr = static_cast<const double*>(state->diagnostic_manager()->get_host_pointer(dname));
                     assert(dptr != nullptr);
                     assert(std::isfinite(dptr[0]) && "Diagnostic field pointer contains non-finite value!");
                 }

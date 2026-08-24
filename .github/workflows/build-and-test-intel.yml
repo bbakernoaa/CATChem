@@ -8,9 +8,13 @@ env:
 
 jobs:
   build-and-test-intel:
-    name: Build and test (Intel)
+    name: Build and test (Intel ${{ matrix.profile }})
     runs-on: ubuntu-latest
     container: ghcr.io/noaa-emc/ci-common-build-cache/ufs-weather-model-ubuntu-24.04-oneapi-2025.3-intel-oneapi-mpi-2021.17
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [host, openmp]
 
     defaults:
       run:
@@ -61,7 +65,8 @@ jobs:
             -DCATCHEM_BUILD_TESTING=ON \
             -DCATCHEM_BUILD_NUOPC=ON \
             -DCATCHEM_BUILD_MUSICA=ON \
-            -DCATCHEM_ENABLE_KOKKOS=ON \
+            -DCATCHEM_ENABLE_KOKKOS=$([[ "${{ matrix.profile }}" == openmp ]] && echo ON || echo OFF) \
+            -DCATCHEM_ENABLE_BOUNDS_CHECK=ON \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/kokkos-install" \
             -DCMAKE_INSTALL_PREFIX=../install \
             -DCMAKE_BUILD_TYPE=Debug

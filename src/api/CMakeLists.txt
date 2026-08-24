@@ -4,6 +4,7 @@ target_link_libraries(
   CATChem
   PUBLIC
     CATChem_core
+    catchem_validation_options
     CATChem_core_cpp
     CATChem_process_seasalt
     CATChem_process_dust

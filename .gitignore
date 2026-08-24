@@ -1,5 +1,13 @@
 build*/
 _build*/
+bin/
+obj/
+out/
+*.o
+*.a
+*.exe
+*.dll
+.env*
 
 # Doxygen
 *:Zone.Identifier
@@ -184,6 +192,7 @@ docs/superpowers/specs/
 .gemini/
 .github/agents/
 .github/prompts/
+.agents/
 
 # PyCharm
 #  JetBrains specific template is maintainted in a separate JetBrains.gitignore that can

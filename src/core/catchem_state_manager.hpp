@@ -5,8 +5,11 @@
 #include "catchem_interop_field.hpp"
 #include "catchem_met_state.hpp"
 #include "catchem_met_utilities.hpp"
+#include "catchem_physical_validation.hpp"
 #include "catchem_time_state.hpp"
+#include <algorithm>
 #include <iostream>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -19,69 +22,268 @@ namespace catchem {
 
     class StateManager {
     public:
-        int n_cols;
-        int n_levels;
-        int n_species;
-
-        std::string config_file_path;
-        std::string trace_id;
-
-        std::shared_ptr<ConfigManager> config_mgr;
-        std::shared_ptr<DiagnosticManager> diag_mgr;
-
-        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 1>>> fields_1d;
-        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 2>>> fields_2d;
-        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 3>>> fields_3d;
-
-        // Structured sub-states
-        MetState met;
-        ChemState chem;
-        TimeState time;
-
         StateManager(int nc, int nl, int ns);
+
+        int column_count() const noexcept { return n_cols; }
+        int level_count() const noexcept { return n_levels; }
+        int species_count() const noexcept { return n_species; }
+        std::size_t current_import_generation() const noexcept { return import_generation; }
+
+        MetState& meteorology() noexcept { return met; }
+        const MetState& meteorology() const noexcept { return met; }
+        ChemState& chemistry() noexcept { return chem; }
+        const ChemState& chemistry() const noexcept { return chem; }
+        TimeState& clock() noexcept { return time; }
+        const TimeState& clock() const noexcept { return time; }
+
+        std::shared_ptr<ConfigManager> config_manager() const noexcept { return config_mgr; }
+        std::shared_ptr<DiagnosticManager> diagnostic_manager() const noexcept { return diag_mgr; }
+        void attach_config_manager(std::shared_ptr<ConfigManager> manager) { config_mgr = std::move(manager); }
+        void attach_diagnostic_manager(std::shared_ptr<DiagnosticManager> manager) { diag_mgr = std::move(manager); }
+
+        const std::string& configuration_path() const noexcept { return config_file_path; }
+        void set_configuration_path(std::string path) { config_file_path = std::move(path); }
+        const std::string& runtime_trace_id() const noexcept { return trace_id; }
+        void set_runtime_trace_id(std::string id) { trace_id = std::move(id); }
+
+        PhysicalValidationPolicy validation_policy() const noexcept { return physical_validation_policy; }
+        void set_validation_policy(PhysicalValidationPolicy policy) noexcept { physical_validation_policy = policy; }
+        const PhysicalValidationReport& validation_report() const noexcept { return physical_validation_report; }
+
+        static std::string canonical_field_name(std::string name) {
+            auto key = canonicalize_field_identity(std::move(name));
+            static const std::unordered_map<std::string, std::string> aliases{
+                {"TEMPERATURE", "T"}, {"TEMP", "T"}, {"SPHUM", "QV"},
+                {"RELATIVE_HUMIDITY", "RH"}, {"PRESSURE_MID", "PMID"},
+                {"PRESSURE_EDGE", "PEDGE"}, {"AIR_DENSITY", "AIRDEN"},
+                {"AIR_DENSITY_DRY", "AIRDEN_DRY"}, {"BOX_HEIGHT", "BXHEIGHT"},
+                {"DZ", "BXHEIGHT"}, {"DELZ", "BXHEIGHT"}, {"LATITUDE", "LAT"},
+                {"LONGITUDE", "LON"}, {"SURFACE_PRESSURE", "PS"},
+                {"SKIN_TEMPERATURE", "TS"}, {"SST", "TS"}, {"FRICTION_VELOCITY", "USTAR"},
+                {"PRESSURE_THICKNESS_OF_ATMOSPHERIC_LAYER", "DELP"},
+                {"CLAY_FRACTION", "CLAYFRAC"}, {"LAKE_FRACTION", "FRLAKE"},
+                {"SNOW_FRACTION", "FRSNO"}, {"VEGETATION_FRACTION", "GVF"},
+                {"LEAF_AREA_INDEX", "LAI"}, {"LAND_WATER_ICE_MASK", "LWI"},
+                {"DRAG_COEFFICIENT", "CMM"}, {"SAND_FRACTION", "SNDFRC"},
+                {"SOIL_MOISTURE", "SOILM"}, {"SURFACE_SOIL_MOISTURE", "GWETTOP"},
+                {"U_10M", "U10M"}, {"V_10M", "V10M"},
+                {"THRESHOLD_FRICTION_VELOCITY", "USTAR_THRESHOLD"},
+                {"ROUGHNESS_LENGTH", "Z0"}, {"HPBL", "PBLH"}, {"OL", "OBK"},
+                {"GEOMETRIC_HEIGHT_EDGE", "Z"}};
+            const auto found = aliases.find(key);
+            return found == aliases.end() ? key : found->second;
+        }
+
+        template <int Rank>
+        std::shared_ptr<InteropField<double, Rank>> find_field(const std::string& name) const {
+            const auto key = canonical_field_name(name);
+            if constexpr (Rank == 1) {
+                auto found = fields_1d.find(key);
+                return found == fields_1d.end() ? nullptr : found->second;
+            } else if constexpr (Rank == 2) {
+                auto found = fields_2d.find(key);
+                if (found != fields_2d.end()) return found->second;
+                return met.get_2d({key.c_str()});
+            } else {
+                auto found = fields_3d.find(key);
+                if (found != fields_3d.end()) return found->second;
+                return met.get_3d({key.c_str()});
+            }
+        }
+
+        bool prepare_field_access(const FieldAccessContract& access) {
+            const auto contract_matches = [&access](const auto& field) {
+                return field && field->contract.units == access.units &&
+                       field->contract.axes == access.axes &&
+                       field->contract.persistence == access.persistence;
+            };
+            const int rank = static_cast<int>(access.axes.size());
+            if (canonical_field_name(access.canonical_name) == "CONCENTRATION") {
+                if (!contract_matches(chem.conc)) return false;
+                if (access.execution_space == ExecutionSpaceIntent::Device) chem.conc->sync_to_device();
+                else chem.conc->sync_to_host();
+                return true;
+            }
+            if (rank == 1) {
+                auto field = find_field<1>(access.canonical_name);
+                if (!contract_matches(field) || (access.persistence == PersistencePolicy::Timestep &&
+                               !field->is_current(import_generation))) return false;
+                if (access.execution_space == ExecutionSpaceIntent::Device) field->sync_to_device();
+                else field->sync_to_host();
+                return true;
+            }
+            if (rank == 2) {
+                auto field = find_field<2>(access.canonical_name);
+                if (!contract_matches(field) || (access.persistence == PersistencePolicy::Timestep &&
+                               !field->is_current(import_generation))) return false;
+                if (access.execution_space == ExecutionSpaceIntent::Device) field->sync_to_device();
+                else field->sync_to_host();
+                return true;
+            }
+            if (rank == 3) {
+                auto field = find_field<3>(access.canonical_name);
+                if (!contract_matches(field) || (access.persistence == PersistencePolicy::Timestep &&
+                               !field->is_current(import_generation))) return false;
+                if (access.execution_space == ExecutionSpaceIntent::Device) field->sync_to_device();
+                else field->sync_to_host();
+                return true;
+            }
+            return false;
+        }
+
+        void complete_field_access(const FieldAccessContract& access) {
+            if (!access.writes()) return;
+            const bool device = access.execution_space == ExecutionSpaceIntent::Device;
+            if (canonical_field_name(access.canonical_name) == "CONCENTRATION") {
+                if (chem.conc) device ? chem.conc->mark_device_modified() : chem.conc->mark_host_modified();
+                return;
+            }
+            const int rank = static_cast<int>(access.axes.size());
+            if (rank == 1) {
+                auto field = find_field<1>(access.canonical_name);
+                if (field) device ? field->mark_device_modified() : field->mark_host_modified();
+            } else if (rank == 2) {
+                auto field = find_field<2>(access.canonical_name);
+                if (field) device ? field->mark_device_modified() : field->mark_host_modified();
+            } else if (rank == 3) {
+                auto field = find_field<3>(access.canonical_name);
+                if (field) device ? field->mark_device_modified() : field->mark_host_modified();
+            }
+        }
+
+        template <int Rank>
+        const double* read_field(const std::string& name, std::size_t required_generation = 0) const {
+            auto field = find_field<Rank>(name);
+            if (!field) return nullptr;
+            if (required_generation != 0 && !field->is_current(required_generation)) return nullptr;
+            return field->host_read();
+        }
+
+        template <int Rank>
+        double* write_field(const std::string& name, std::size_t required_generation = 0) {
+            auto field = find_field<Rank>(name);
+            if (!field) return nullptr;
+            if (required_generation != 0 && !field->is_current(required_generation)) return nullptr;
+            return field->host_write();
+        }
+
+        static PersistencePolicy persistence_for(const std::string& name) {
+            const auto key = canonical_field_name(name);
+            return (key == "LAT" || key == "LON" || key == "AREA_M2")
+                       ? PersistencePolicy::Persistent : PersistencePolicy::Timestep;
+        }
+
+        static std::string units_for(const std::string& name) {
+            const auto key = canonical_field_name(name);
+            if (key == "T" || key == "TS") return "K";
+            if (key == "QV") return "kg/kg";
+            if (key == "RH") return "1";
+            if (key == "PMID" || key == "PEDGE" || key == "PS") return "Pa";
+            if (key == "Z" || key == "ZMID" || key == "BXHEIGHT" || key == "PBLH") return "m";
+            if (key == "AIRDEN" || key == "AIRDEN_DRY") return "kg/m3";
+            if (key == "LAT" || key == "LON") return "degrees";
+            if (key == "AREA_M2") return "m2";
+            if (key == "DELP" || key == "PFILSAN" || key == "PFLLSAN" || key == "REEVAPLS") return "Pa";
+            if (key == "FROCEAN" || key == "FRSEAICE" || key == "CLAYFRAC" || key == "FRLAKE" ||
+                key == "FRSNO" || key == "GVF" || key == "LAI" || key == "LWI" || key == "SNDFRC" ||
+                key == "GWETTOP" || key == "CLDF") return "1";
+            if (key == "SST") return "K";
+            if (key == "U10M" || key == "V10M" || key == "USTAR" || key == "USTAR_THRESHOLD") return "m/s";
+            if (key == "CMM") return "1";
+            if (key == "SOILM") return "kg/kg";
+            if (key == "Z0" || key == "OBK") return "m";
+            if (key == "HFLUX") return "W/m2";
+            return "";
+        }
+
+        static std::vector<std::string> aliases_for(const std::string& name) {
+            const auto key = canonical_field_name(name);
+            if (key == "T") return {"TEMPERATURE", "TEMP"};
+            if (key == "QV") return {"SPHUM"};
+            if (key == "RH") return {"RELATIVE_HUMIDITY"};
+            if (key == "PMID") return {"PRESSURE_MID"};
+            if (key == "PEDGE") return {"PRESSURE_EDGE"};
+            if (key == "Z") return {"GEOMETRIC_HEIGHT_EDGE"};
+            if (key == "AIRDEN") return {"AIR_DENSITY"};
+            if (key == "AIRDEN_DRY") return {"AIR_DENSITY_DRY"};
+            if (key == "BXHEIGHT") return {"DZ", "DELZ"};
+            if (key == "LAT") return {"LATITUDE"};
+            if (key == "LON") return {"LONGITUDE"};
+            return {};
+        }
+
+        template <int Rank>
+        static void populate_contract(const std::string& name, InteropField<double, Rank>& field,
+                                      std::vector<SemanticAxis> axes) {
+            field.contract.canonical_name = canonical_field_name(name);
+            field.contract.units = units_for(name);
+            field.contract.axes = std::move(axes);
+            field.contract.aliases = aliases_for(name);
+            field.contract.persistence = persistence_for(name);
+        }
+
+        void begin_import_generation() {
+            ++import_generation;
+            for (auto& [name, field] : met.fields_2d)
+                if (field && field->contract.persistence == PersistencePolicy::Timestep) field->invalidate();
+            for (auto& [name, field] : met.fields_3d)
+                if (field && field->contract.persistence == PersistencePolicy::Timestep) field->invalidate();
+        }
 
         void load_species_config(const std::string& filename) { chem.load_species_config(filename, config_mgr.get()); }
 
         void bind_met_field_2d(const std::string& name, double* ptr) {
-            auto field = met.get_2d({name.c_str()});
+            const auto canonical_name = canonical_field_name(name);
+            auto field = met.get_2d({canonical_name.c_str()});
             if (field) {
                 field->update_host_pointer(ptr);
+                field->set_generation(import_generation);
             } else {
                 auto new_field = std::make_shared<InteropField<double, 2>>(ptr, std::vector<int>{n_cols, 1});
-                met.bind_2d_field(name, new_field);
+                populate_contract(canonical_name, *new_field, {SemanticAxis::Column, SemanticAxis::Singleton});
+                met.bind_2d_field(canonical_name, new_field);
+                new_field->set_generation(import_generation);
             }
         }
 
         void bind_met_field_3d(const std::string& name, double* ptr) {
-            auto field = met.get_3d({name.c_str()});
+            std::string upper_name = canonical_field_name(name);
+            const bool is_interface = upper_name == "PEDGE" || upper_name == "Z";
+            bind_met_field_3d_contract(name, ptr, is_interface ? n_levels + 1 : n_levels,
+                                       is_interface ? SemanticAxis::Interface : SemanticAxis::Level);
+        }
+
+        void bind_met_field_3d_contract(const std::string& name, double* ptr, int vertical_extent,
+                                        SemanticAxis vertical_axis) {
+            const auto canonical_name = canonical_field_name(name);
+            auto field = met.get_3d({canonical_name.c_str()});
             if (field) {
+                if (field->extent(1) != static_cast<std::size_t>(vertical_extent) ||
+                    field->contract.axes.size() != 3 || field->contract.axes[1] != vertical_axis)
+                    throw std::invalid_argument("Rebinding field with a different vertical contract: " + name);
                 field->update_host_pointer(ptr);
+                field->set_generation(import_generation);
             } else {
-                std::string upper_name = name;
-                std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(),
-                               [](unsigned char c) { return std::toupper(c); });
-                int nl = (upper_name == "PEDGE") ? n_levels + 1 : n_levels;
                 auto new_field = std::make_shared<InteropField<double, 3>>(
-                    ptr, std::vector<int>{n_cols, nl, 1}); // Using 1 for single-field layout
-                met.bind_3d_field(name, new_field);
+                    ptr, std::vector<int>{n_cols, vertical_extent, 1});
+                populate_contract(canonical_name, *new_field,
+                                  {SemanticAxis::Column, vertical_axis, SemanticAxis::Singleton});
+                met.bind_3d_field(canonical_name, new_field);
+                new_field->set_generation(import_generation);
             }
         }
 
         double* find_3d_ptr(std::initializer_list<const char*> names) const {
             auto f = met.get_3d(names);
-            if (f)
-                return f->host_data();
-            if (met.AIRDEN)
-                return met.AIRDEN->host_data();
-            if (met.AIRDEN_DRY)
-                return met.AIRDEN_DRY->host_data();
+            if (f && f->availability == AvailabilityState::Current)
+                return f->host_write();
             return nullptr;
         }
 
         double* find_2d_ptr(std::initializer_list<const char*> names) const {
             auto f = met.get_2d(names);
-            if (f)
-                return f->host_data();
+            if (f && f->availability == AvailabilityState::Current)
+                return f->host_write();
             return nullptr;
         }
 
@@ -91,10 +293,12 @@ namespace catchem {
             } else {
                 chem.conc =
                     std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, n_levels, n_species});
+                chem.conc->contract.canonical_name = "CONCENTRATION";
+                chem.conc->contract.units = "mol/mol";
+                chem.conc->contract.axes = {SemanticAxis::Column, SemanticAxis::Level, SemanticAxis::Species};
+                chem.conc->contract.persistence = PersistencePolicy::Persistent;
             }
         }
-
-        std::vector<std::shared_ptr<std::vector<double>>> owned_buffers;
 
         /**
          * @brief Derives layer thicknesses (BXHEIGHT / dz) hydrostatically.
@@ -102,8 +306,32 @@ namespace catchem {
          * Computes the vertical distance of each grid cell based on pressure edges, temperature, and moisture content.
          */
         void derive_bxheight() {
-            if (!met.PEDGE || !met.T)
+            if (!met.PEDGE || !met.T || met.PEDGE->availability != AvailabilityState::Current ||
+                met.T->availability != AvailabilityState::Current)
                 return;
+
+            physical_validation_report.clear();
+            met.PEDGE->sync_to_host();
+            met.T->sync_to_host();
+            if (met.QV) met.QV->sync_to_host();
+            const double* physical_pedge = met.PEDGE->host_data();
+            const double* physical_temperature = met.T->host_data();
+            for (int icol = 0; icol < n_cols; ++icol) for (int ilev = 0; ilev < n_levels; ++ilev) {
+                const auto location = static_cast<std::size_t>(icol + ilev * n_cols);
+                const double lower = physical_pedge[icol + ilev * n_cols];
+                const double upper = physical_pedge[icol + (ilev + 1) * n_cols];
+                const double temperature = physical_temperature[location];
+                if (!std::isfinite(lower) || !std::isfinite(upper) || lower <= 0.0 || upper <= 0.0 || lower <= upper)
+                    physical_validation_report.observe("PEDGE", "positive-descending", lower, location,
+                                                        "invalid layers produce zero thickness");
+                if (!std::isfinite(temperature) || temperature <= 0.0)
+                    physical_validation_report.observe("T", "finite-positive", temperature, location,
+                                                        "temperature is clamped to 1 K");
+            }
+            if (physical_validation_policy == PhysicalValidationPolicy::Reject &&
+                !physical_validation_report.empty())
+                throw std::domain_error("Physical validation failed before BXHEIGHT mutation:\n" +
+                                        physical_validation_report.format());
 
             if (!met.BXHEIGHT) {
                 auto buf = std::make_shared<std::vector<double>>(n_cols * n_levels, 0.0);
@@ -111,6 +339,9 @@ namespace catchem {
                 bind_met_field_3d("BXHEIGHT", buf->data());
             }
 
+            met.PEDGE->sync_to_device();
+            met.T->sync_to_device();
+            if (met.QV) met.QV->sync_to_device();
             int nc = n_cols;
             int nl = n_levels;
 
@@ -127,8 +358,11 @@ namespace catchem {
                     double p_upper = pedge(icol, ilev + 1, 0);
 
                     if (p_upper > 0.0 && p_lower > 0.0 && p_lower > p_upper) {
-                        double q_val = met.QV ? met.QV->view()(icol, ilev, 0) : 0.0;
-                        double virtual_t = met_utilities::virtual_temperature(temp(icol, ilev, 0), q_val);
+                        double q_val = (met.QV && met.QV->availability == AvailabilityState::Current) ? met.QV->view()(icol, ilev, 0) : 0.0;
+                        if (!(q_val >= 0.0 && q_val < 1.0)) q_val = q_val == q_val ? (q_val < 0.0 ? 0.0 : 0.9999) : 0.0;
+                        double t_val = temp(icol, ilev, 0);
+                        if (!(t_val > 0.0)) t_val = 1.0;
+                        double virtual_t = met_utilities::virtual_temperature(t_val, q_val);
                         bxheight(icol, ilev, 0) =
                             (constants::RD / constants::G0) * virtual_t * std::log(p_lower / p_upper);
                     } else {
@@ -142,8 +376,12 @@ namespace catchem {
                     double p_upper = pedge(icol, ilev + 1, 0);
 
                     if (p_upper > 0.0 && p_lower > 0.0 && p_lower > p_upper) {
-                        double q_val = met.QV ? met.QV->view()(icol, ilev, 0) : 0.0;
-                        double virtual_t = met_utilities::virtual_temperature(temp(icol, ilev, 0), q_val);
+                        double q_val = (met.QV && met.QV->availability == AvailabilityState::Current) ? met.QV->view()(icol, ilev, 0) : 0.0;
+                        if (!std::isfinite(q_val)) q_val = 0.0;
+                        q_val = std::clamp(q_val, 0.0, 0.9999);
+                        double t_val = temp(icol, ilev, 0);
+                        if (!std::isfinite(t_val) || t_val <= 0.0) t_val = 1.0;
+                        double virtual_t = met_utilities::virtual_temperature(t_val, q_val);
                         bxheight(icol, ilev, 0) =
                             (constants::RD / constants::G0) * virtual_t * std::log(p_lower / p_upper);
                     } else {
@@ -152,6 +390,8 @@ namespace catchem {
                 }
             }
 #endif
+            met.BXHEIGHT->mark_device_modified();
+            met.BXHEIGHT->set_generation(import_generation);
         }
 
         /**
@@ -160,8 +400,35 @@ namespace catchem {
          * Calculates dry air mass densities based on mid-point pressures, temperature, and specific humidity.
          */
         void derive_airden_dry() {
-            if (!met.PMID || !met.T)
+            if (!met.PMID || !met.T || met.PMID->availability != AvailabilityState::Current ||
+                met.T->availability != AvailabilityState::Current)
                 return;
+
+            physical_validation_report.clear();
+            met.PMID->sync_to_host();
+            met.T->sync_to_host();
+            if (met.QV) met.QV->sync_to_host();
+            const double* physical_pmid = met.PMID->host_data();
+            const double* physical_temperature = met.T->host_data();
+            const double* physical_humidity = met.QV ? met.QV->host_data() : nullptr;
+            for (int icol = 0; icol < n_cols; ++icol) for (int ilev = 0; ilev < n_levels; ++ilev) {
+                const auto location = static_cast<std::size_t>(icol + ilev * n_cols);
+                const double pressure = physical_pmid[location];
+                const double temperature = physical_temperature[location];
+                const double humidity = physical_humidity ? physical_humidity[location] : 0.0;
+                if (!std::isfinite(pressure) || pressure <= 0.0)
+                    physical_validation_report.observe("PMID", "finite-positive", pressure, location);
+                if (!std::isfinite(temperature) || temperature <= 0.0)
+                    physical_validation_report.observe("T", "finite-positive", temperature, location,
+                                                        "temperature is clamped to 1 K");
+                if (!std::isfinite(humidity) || humidity < 0.0 || humidity >= 1.0)
+                    physical_validation_report.observe("QV", "finite-[0,1)", humidity, location,
+                                                        "humidity is clamped to [0,0.9999]");
+            }
+            if (physical_validation_policy == PhysicalValidationPolicy::Reject &&
+                !physical_validation_report.empty())
+                throw std::domain_error("Physical validation failed before AIRDEN_DRY mutation:\n" +
+                                        physical_validation_report.format());
 
             if (!met.AIRDEN_DRY) {
                 auto buf = std::make_shared<std::vector<double>>(n_cols * n_levels, 0.0);
@@ -169,6 +436,9 @@ namespace catchem {
                 bind_met_field_3d("AIRDEN_DRY", buf->data());
             }
 
+            met.PMID->sync_to_device();
+            met.T->sync_to_device();
+            if (met.QV) met.QV->sync_to_device();
             int nc = n_cols;
             int nl = n_levels;
 
@@ -181,35 +451,40 @@ namespace catchem {
                 "derive_airden_dry_kernel",
                 Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({0, 0}, {nc, nl}),
                 KOKKOS_LAMBDA(int icol, int ilev) {
-                    double q = met.QV ? met.QV->view()(icol, ilev, 0) : 0.0;
-                    if (q >= 1.0)
-                        q = 0.9999;
+                    double q = (met.QV && met.QV->availability == AvailabilityState::Current) ? met.QV->view()(icol, ilev, 0) : 0.0;
+                    if (!(q >= 0.0 && q < 1.0)) q = q == q ? (q < 0.0 ? 0.0 : 0.9999) : 0.0;
                     double avgw = (constants::AIR_MW / constants::H2O_MW) * q / (1.0 - q);
                     double xh2o = avgw / (1.0 + avgw);
 
-                    double p_dry = pmid(icol, ilev, 0) * (1.0 - xh2o);
+                    double pressure = pmid(icol, ilev, 0);
+                    if (!(pressure > 0.0)) pressure = 1.0;
+                    double p_dry = pressure * (1.0 - xh2o);
                     double t_val = temp(icol, ilev, 0);
-                    if (t_val <= 0.0)
+                    if (!(t_val > 0.0))
                         t_val = 1.0;
                     airden_dry(icol, ilev, 0) = p_dry / (constants::RD * t_val);
                 });
 #else
             for (int icol = 0; icol < nc; ++icol) {
                 for (int ilev = 0; ilev < nl; ++ilev) {
-                    double q = met.QV ? met.QV->view()(icol, ilev, 0) : 0.0;
-                    if (q >= 1.0)
-                        q = 0.9999;
+                    double q = (met.QV && met.QV->availability == AvailabilityState::Current) ? met.QV->view()(icol, ilev, 0) : 0.0;
+                    if (!std::isfinite(q)) q = 0.0;
+                    q = std::clamp(q, 0.0, 0.9999);
                     double avgw = (constants::AIR_MW / constants::H2O_MW) * q / (1.0 - q);
                     double xh2o = avgw / (1.0 + avgw);
 
-                    double p_dry = pmid(icol, ilev, 0) * (1.0 - xh2o);
+                    double pressure = pmid(icol, ilev, 0);
+                    if (!std::isfinite(pressure) || pressure <= 0.0) pressure = 1.0;
+                    double p_dry = pressure * (1.0 - xh2o);
                     double t_val = temp(icol, ilev, 0);
-                    if (t_val <= 0.0)
+                    if (!std::isfinite(t_val) || t_val <= 0.0)
                         t_val = 1.0;
                     airden_dry(icol, ilev, 0) = p_dry / (constants::RD * t_val);
                 }
             }
 #endif
+            met.AIRDEN_DRY->mark_device_modified();
+            met.AIRDEN_DRY->set_generation(import_generation);
         }
 
         void sync_to_device() {
@@ -225,6 +500,14 @@ namespace catchem {
                 v->sync_to_device();
             if (chem.conc)
                 chem.conc->sync_to_device();
+        }
+
+        void validate_ready_for_execution() const {
+            if (chem.conc &&
+                (chem.conc->extent(0) != static_cast<std::size_t>(n_cols) ||
+                 chem.conc->extent(1) != static_cast<std::size_t>(n_levels) ||
+                 chem.conc->extent(2) != static_cast<std::size_t>(n_species)))
+                throw std::runtime_error("Chemistry concentration contract does not match the active grid/mechanism");
         }
 
         void sync_to_host() {
@@ -273,24 +556,91 @@ namespace catchem {
         double* get_host_pointer_1d(const std::string& name) {
             if (fields_1d.find(name) == fields_1d.end())
                 return nullptr;
-            return fields_1d.at(name)->host_data();
+            return fields_1d.at(name)->host_write();
+        }
+
+        const double* get_host_read_pointer_1d(const std::string& name) {
+            const auto found = fields_1d.find(name);
+            return found == fields_1d.end() ? nullptr : found->second->host_read();
         }
 
         double* get_host_pointer_2d(const std::string& name) {
             if (fields_2d.find(name) != fields_2d.end())
-                return fields_2d.at(name)->host_data();
+                return fields_2d.at(name)->host_write();
             if (met.fields_2d.find(name) != met.fields_2d.end())
-                return met.fields_2d.at(name)->host_data();
+                return met.fields_2d.at(name)->host_write();
+            return nullptr;
+        }
+
+        const double* get_host_read_pointer_2d(const std::string& name) {
+            if (fields_2d.find(name) != fields_2d.end()) return fields_2d.at(name)->host_read();
+            if (met.fields_2d.find(name) != met.fields_2d.end()) return met.fields_2d.at(name)->host_read();
             return nullptr;
         }
 
         double* get_host_pointer_3d(const std::string& name) {
             if (fields_3d.find(name) != fields_3d.end())
-                return fields_3d.at(name)->host_data();
+                return fields_3d.at(name)->host_write();
             if (met.fields_3d.find(name) != met.fields_3d.end())
-                return met.fields_3d.at(name)->host_data();
+                return met.fields_3d.at(name)->host_write();
             return nullptr;
         }
+
+        const double* get_host_read_pointer_3d(const std::string& name) {
+            if (fields_3d.find(name) != fields_3d.end()) return fields_3d.at(name)->host_read();
+            if (met.fields_3d.find(name) != met.fields_3d.end()) return met.fields_3d.at(name)->host_read();
+            return nullptr;
+        }
+
+        std::pair<std::size_t, std::size_t> transfer_statistics() const {
+            std::size_t transfers = 0;
+            std::size_t bytes = 0;
+            const auto collect = [&transfers, &bytes](const auto& fields) {
+                for (const auto& [name, field] : fields) {
+                    (void)name;
+                    const auto count = field->host_to_device_sync_count + field->device_to_host_sync_count;
+                    std::size_t elements = 1;
+                    for (const auto extent : field->immutable_extents) elements *= extent;
+                    transfers += count;
+                    bytes += count * elements * sizeof(double);
+                }
+            };
+            collect(fields_1d);
+            collect(fields_2d);
+            collect(fields_3d);
+            collect(met.fields_2d);
+            collect(met.fields_3d);
+            if (chem.conc) {
+                const auto count = chem.conc->host_to_device_sync_count + chem.conc->device_to_host_sync_count;
+                std::size_t elements = 1;
+                for (const auto extent : chem.conc->immutable_extents) elements *= extent;
+                transfers += count;
+                bytes += count * elements * sizeof(double);
+            }
+            return {transfers, bytes};
+        }
+
+    private:
+        int n_cols;
+        int n_levels;
+        int n_species;
+        std::size_t import_generation = 0;
+        PhysicalValidationPolicy physical_validation_policy = PhysicalValidationPolicy::WarnAndClamp;
+        PhysicalValidationReport physical_validation_report;
+
+        std::string config_file_path;
+        std::string trace_id;
+        std::shared_ptr<ConfigManager> config_mgr;
+        std::shared_ptr<DiagnosticManager> diag_mgr;
+
+        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 1>>> fields_1d;
+        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 2>>> fields_2d;
+        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 3>>> fields_3d;
+        std::vector<std::shared_ptr<std::vector<double>>> owned_buffers;
+
+        MetState met;
+        ChemState chem;
+        TimeState time;
     };
 
 } // namespace catchem

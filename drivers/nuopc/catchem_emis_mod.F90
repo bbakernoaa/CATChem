@@ -1590,10 +1590,17 @@ contains
             type(c_ptr), value :: state_ptr
             character(kind=c_char), intent(in) :: name(*)
          end function
-         type(c_ptr) function catchem_state_get_species_conc_pointer(state_ptr, index) bind(C, name="catchem_state_get_species_conc_pointer")
+         integer(c_int) function catchem_state_get_species_conc_pointer_checked( &
+            state_ptr, index, dim1, dim2, ptr_out) bind(C, name="catchem_state_get_species_conc_pointer_checked")
             import :: c_ptr, c_int
             type(c_ptr), value :: state_ptr
-            integer(c_int), value :: index
+            integer(c_int), value :: index, dim1, dim2
+            type(c_ptr), intent(out) :: ptr_out
+         end function
+         integer(c_int) function catchem_state_mark_chem_host_modified(state_ptr) &
+            bind(C, name="catchem_state_mark_chem_host_modified")
+            import :: c_ptr, c_int
+            type(c_ptr), value :: state_ptr
          end function
       end interface
 
@@ -1694,8 +1701,11 @@ contains
                cycle
             end if
 
-            c_conc = catchem_state_get_species_conc_pointer(state_ptr, species_index)
-            if (.not. c_associated(c_conc)) cycle
+            if (catchem_state_get_species_conc_pointer_checked(state_ptr, species_index, &
+               int(nx * ny, c_int), int(nz, c_int), c_conc) /= 0_c_int) then
+               rc = CC_FAILURE
+               return
+            end if
 
             call c_f_pointer(c_conc, f_conc, [nx, ny, nz])
 
@@ -1753,6 +1763,11 @@ contains
 
          end do
       end do
+
+      if (catchem_state_mark_chem_host_modified(state_ptr) /= 0_c_int) then
+         rc = CC_FAILURE
+         return
+      end if
 
       deallocate(f_delp, emission_flux)
       if (allocated(f_bb)) deallocate(f_bb)
@@ -2134,10 +2149,17 @@ contains
             type(c_ptr), value :: state_ptr
             character(kind=c_char), intent(in) :: name(*)
          end function
-         type(c_ptr) function catchem_state_get_species_conc_pointer(state_ptr, index) bind(C, name="catchem_state_get_species_conc_pointer")
+         integer(c_int) function catchem_state_get_species_conc_pointer_checked( &
+            state_ptr, index, dim1, dim2, ptr_out) bind(C, name="catchem_state_get_species_conc_pointer_checked")
             import :: c_ptr, c_int
             type(c_ptr), value :: state_ptr
-            integer(c_int), value :: index
+            integer(c_int), value :: index, dim1, dim2
+            type(c_ptr), intent(out) :: ptr_out
+         end function
+         integer(c_int) function catchem_state_mark_chem_host_modified(state_ptr) &
+            bind(C, name="catchem_state_mark_chem_host_modified")
+            import :: c_ptr, c_int
+            type(c_ptr), value :: state_ptr
          end function
          integer(c_int) function catchem_state_get_nx(state_ptr) bind(C, name="catchem_state_get_nx")
             import :: c_ptr, c_int
@@ -2224,8 +2246,11 @@ contains
 
             if (species_index <= 0) cycle
 
-            c_conc = catchem_state_get_species_conc_pointer(state_ptr, species_index)
-            if (.not. c_associated(c_conc)) cycle
+            if (catchem_state_get_species_conc_pointer_checked(state_ptr, species_index, &
+               int(nx * ny, c_int), int(nz, c_int), c_conc) /= 0_c_int) then
+               rc = CC_FAILURE
+               return
+            end if
 
             call c_f_pointer(c_conc, f_conc, [nx, ny, nz])
 
@@ -2240,7 +2265,12 @@ contains
             do it = 1, npts
                i = category%fields(ifield)%ip(it)
                j = category%fields(ifield)%jp(it)
-               if (i < 1 .or. j < 1) cycle
+               if (i < 1 .or. i > nx .or. j < 1 .or. j > ny) then
+                  call ESMF_LogWrite(trim(pName)//': point source maps outside the local grid', &
+                     ESMF_LOGMSG_ERROR, rc=localrc)
+                  rc = CC_FAILURE
+                  return
+               end if
 
                area = f_area(i,j)
                if (area <= 1.0_c_double) cycle
@@ -2276,6 +2306,8 @@ contains
       end do
 
       deallocate(f_delp)
+
+      if (catchem_state_mark_chem_host_modified(state_ptr) /= 0_c_int) rc = CC_FAILURE
 
    end subroutine catchem_emis_apply_points
    !!

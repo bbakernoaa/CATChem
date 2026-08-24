@@ -33,6 +33,7 @@ namespace catchem {
             // 2. Invoke the Fortran bridging callback
             if (bridge_callback) {
                 bridge_callback(static_cast<void*>(state.get()));
+                if (state->chemistry().conc) state->chemistry().conc->mark_host_modified();
             }
 
             // 3. Sync modified host buffers back to device Views

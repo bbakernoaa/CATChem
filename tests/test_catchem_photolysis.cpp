@@ -42,13 +42,13 @@ int main(int argc, char* argv[]) {
         auto state = core->get_state_manager();
 
         // Configure the simulation time to be noon (12:00 PM) during summer to ensure positive solar radiation
-        state->time.year = 2026;
-        state->time.month = 7;
-        state->time.day = 13;
-        state->time.hour = 12; // Noon
-        state->time.minute = 0;
-        state->time.second = 0;
-        state->time.calculate_derived_fields();
+        state->clock().year = 2026;
+        state->clock().month = 7;
+        state->clock().day = 13;
+        state->clock().hour = 12; // Noon
+        state->clock().minute = 0;
+        state->clock().second = 0;
+        state->clock().calculate_derived_fields();
 
         // 3. Define mock Meteorological profiles
         std::vector<double> lat(n_cols, 40.0);
@@ -93,9 +93,9 @@ int main(int argc, char* argv[]) {
         main_conf_writer.close();
 
         // Propagate config file path
-        state->config_file_path = temp_main_config;
-        if (state->config_mgr) {
-            state->config_mgr->load_from_file(temp_main_config);
+        state->set_configuration_path(temp_main_config);
+        if (state->config_manager()) {
+            state->config_manager()->load_from_file(temp_main_config);
         }
 
         // 5. Create and initialize the photolysis process

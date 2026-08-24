@@ -6,10 +6,21 @@
 
 namespace catchem {
 
+    ProcessContract SettlingProcess::get_contract() const {
+        ProcessContract contract{
+            get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
+                         host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
+                         host_field_3d("BXHEIGHT", "m"),
+                         host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
+                         host_field_interface("PEDGE", "Pa"), host_concentration()}, {}};
+        for (auto& field : contract.fields) field.execution_space = ExecutionSpaceIntent::Device;
+        return contract;
+    }
+
     SettlingProcess::SettlingProcess() : active_scheme("c++_kokkos"), fortran_callback(nullptr) {}
 
     void SettlingProcess::init(std::shared_ptr<StateManager> state) {
-        int num_aerosols = state->chem.aerosol_indices.size();
+        int num_aerosols = state->chemistry().aerosol_indices.size();
         if (num_aerosols > 0) {
 #ifdef CATCHEM_ENABLE_KOKKOS
             dev_aero_indices =
@@ -29,10 +40,10 @@ namespace catchem {
 #endif
 
             for (int i = 0; i < num_aerosols; ++i) {
-                int ispec = state->chem.aerosol_indices[i];
+                int ispec = state->chemistry().aerosol_indices[i];
                 host_aero_indices[i] = ispec;
-                double r_val = state->chem.species_list[ispec].radius;
-                double d_val = state->chem.species_list[ispec].density;
+                double r_val = state->chemistry().species_list[ispec].radius;
+                double d_val = state->chemistry().species_list[ispec].density;
                 host_radius_dry[i] = (r_val > 0.0 ? r_val : 1.0) * 1e-6; // Convert microns to meters
                 host_rhop_dry[i] = d_val > 0.0 ? d_val : 2500.0;
             }
@@ -52,39 +63,38 @@ namespace catchem {
     void SettlingProcess::run(std::shared_ptr<StateManager> state) {
         if (fortran_callback) {
             // Fallback for tests explicitly requesting the Fortran bridge
-            state->sync_to_host();
             fortran_callback(static_cast<void*>(state.get()));
-            state->sync_to_device();
+            if (state->chemistry().conc) state->chemistry().conc->mark_host_modified();
             return;
         }
 
-        int num_aerosols = state->chem.aerosol_indices.size();
+        int num_aerosols = state->chemistry().aerosol_indices.size();
         if (num_aerosols == 0)
             return;
 
-        if (!state->met.BXHEIGHT && state->met.PEDGE && state->met.T) {
+        if (!state->meteorology().BXHEIGHT && state->meteorology().PEDGE && state->meteorology().T) {
             state->derive_bxheight();
         }
-        if (!state->met.AIRDEN && state->met.AIRDEN_DRY) {
-            state->met.AIRDEN = state->met.AIRDEN_DRY;
+        if (!state->meteorology().AIRDEN && state->meteorology().AIRDEN_DRY) {
+            state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
         }
-        if (!state->met.AIRDEN && !state->met.AIRDEN_DRY && state->met.PMID && state->met.T) {
+        if (!state->meteorology().AIRDEN && !state->meteorology().AIRDEN_DRY && state->meteorology().PMID && state->meteorology().T) {
             state->derive_airden_dry();
-            state->met.AIRDEN = state->met.AIRDEN_DRY;
+            state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
         }
 
-        require_field_pointer("Settling", "T", state->met.T ? state->met.T->host_data() : nullptr);
-        require_field_pointer("Settling", "AIRDEN", state->met.AIRDEN ? state->met.AIRDEN->host_data() : nullptr);
-        require_field_pointer("Settling", "PEDGE", state->met.PEDGE ? state->met.PEDGE->host_data() : nullptr);
-        require_field_pointer("Settling", "BXHEIGHT", state->met.BXHEIGHT ? state->met.BXHEIGHT->host_data() : nullptr);
-        require_field_pointer("Settling", "CHEM_CONC", state->chem.conc ? state->chem.conc->host_data() : nullptr);
+        require_field_pointer("Settling", "T", state->meteorology().T ? state->meteorology().T->host_data() : nullptr);
+        require_field_pointer("Settling", "AIRDEN", state->meteorology().AIRDEN ? state->meteorology().AIRDEN->host_data() : nullptr);
+        require_field_pointer("Settling", "PEDGE", state->meteorology().PEDGE ? state->meteorology().PEDGE->host_data() : nullptr);
+        require_field_pointer("Settling", "BXHEIGHT", state->meteorology().BXHEIGHT ? state->meteorology().BXHEIGHT->host_data() : nullptr);
+        require_field_pointer("Settling", "CHEM_CONC", state->chemistry().conc ? state->chemistry().conc->host_data() : nullptr);
 
         settling::SettlingFunctor functor;
-        functor.conc = state->chem.conc->view();
-        functor.t = state->met.T->view();
-        functor.airden = state->met.AIRDEN->view();
-        functor.pedge = state->met.PEDGE->view();
-        functor.dz = state->met.BXHEIGHT->view();
+        functor.conc = state->chemistry().conc->view();
+        functor.t = state->meteorology().T->view();
+        functor.airden = state->meteorology().AIRDEN->view();
+        functor.pedge = state->meteorology().PEDGE->view();
+        functor.dz = state->meteorology().BXHEIGHT->view();
 
 #ifdef CATCHEM_ENABLE_KOKKOS
         functor.aerosol_indices = dev_aero_indices;
@@ -99,17 +109,17 @@ namespace catchem {
             MdspanTypeHelper<double, 1>::type(host_rhop_dry.data(), static_cast<int>(host_rhop_dry.size()));
 #endif
 
-        functor.cdt = state->time.timestep;
-        functor.n_levels = state->n_levels;
+        functor.cdt = state->clock().timestep;
+        functor.n_levels = state->level_count();
 
 #ifdef CATCHEM_ENABLE_KOKKOS
         Kokkos::parallel_for("settling_compute_c++",
                              Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>(
-                                 {0, 0}, {state->n_cols, num_aerosols}),
+                                 {0, 0}, {state->column_count(), num_aerosols}),
                              functor);
         Kokkos::fence();
 #else
-        for (int icol = 0; icol < state->n_cols; ++icol)
+        for (int icol = 0; icol < state->column_count(); ++icol)
             for (int iaero = 0; iaero < num_aerosols; ++iaero)
                 functor(icol, iaero);
 #endif

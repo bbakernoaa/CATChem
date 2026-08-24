@@ -102,26 +102,37 @@ int main(int argc, char* argv[]) {
             std::vector<double> ps_v1(n_cols * n_levels, 100000.0);
             std::vector<double> ps_v2(n_cols * n_levels, 101325.0);
             sm.bind_met_field_2d("PS", ps_v1.data());
-            auto orig_ps_field = sm.met.PS;
+            auto orig_ps_field = sm.meteorology().PS;
             sm.bind_met_field_2d("PS", ps_v2.data());
-            assert(sm.met.PS == orig_ps_field);
-            assert(sm.met.PS->host_data() == ps_v2.data());
+            assert(sm.meteorology().PS == orig_ps_field);
+            assert(sm.meteorology().PS->host_data() == ps_v2.data());
 
             std::vector<double> t_v1(n_cols * n_levels, 290.0);
             std::vector<double> t_v2(n_cols * n_levels, 300.0);
             sm.bind_met_field_3d("T", t_v1.data());
-            auto orig_t_field = sm.met.T;
+            auto orig_t_field = sm.meteorology().T;
             sm.bind_met_field_3d("T", t_v2.data());
-            assert(sm.met.T == orig_t_field);
-            assert(sm.met.T->host_data() == t_v2.data());
+            assert(sm.meteorology().T == orig_t_field);
+            assert(sm.meteorology().T->host_data() == t_v2.data());
+            assert(sm.find_3d_ptr({"RH", "relative_humidity"}) == nullptr);
+            assert(sm.meteorology().T->extent(0) == static_cast<std::size_t>(n_cols));
+            assert(sm.meteorology().T->extent(1) == static_cast<std::size_t>(n_levels));
+            sm.meteorology().T->set_generation(2);
+            assert(sm.meteorology().T->is_current(2));
+            sm.meteorology().T->invalidate();
+            assert(!sm.meteorology().T->is_current(2));
+            sm.meteorology().T->set_generation(3);
+            sm.meteorology().T->mark_host_modified();
+            sm.meteorology().T->sync_to_host();
+            assert(sm.meteorology().T->latest_writer == catchem::LatestWriter::HostCurrent);
 
             std::vector<double> chem_v1(n_cols * n_levels * n_species, 1e-9);
             std::vector<double> chem_v2(n_cols * n_levels * n_species, 2e-9);
             sm.bind_unified_chemistry(chem_v1.data());
-            auto orig_chem_field = sm.chem.conc;
+            auto orig_chem_field = sm.chemistry().conc;
             sm.bind_unified_chemistry(chem_v2.data());
-            assert(sm.chem.conc == orig_chem_field);
-            assert(sm.chem.conc->host_data() == chem_v2.data());
+            assert(sm.chemistry().conc == orig_chem_field);
+            assert(sm.chemistry().conc->host_data() == chem_v2.data());
 
             // 2. Sync to active space
             catchem_state_sync_to_device(state);
@@ -273,12 +284,12 @@ int main(int argc, char* argv[]) {
 
             // Assert unified chemistry array mapped accurately
             auto* state_obj = static_cast<catchem::StateManager*>(state);
-            assert(state_obj->chem.conc != nullptr);
-            assert(state_obj->chem.conc->host_data()[0] == 4.2);
+            assert(state_obj->chemistry().conc != nullptr);
+            assert(state_obj->chemistry().conc->host_data()[0] == 4.2);
 
             // 7. Test portable Time State calculations
             catchem_state_set_time(state, 2026, 7, 8, 12, 0, 0, 189, 3600.0);
-            double cos_sza = state_obj->time.get_cos_sza(40.0, -80.0);
+            double cos_sza = state_obj->clock().get_cos_sza(40.0, -80.0);
             assert(cos_sza >= -1.0 && cos_sza <= 1.0);
             std::cout << "INFO: Calculated Cos(SZA) at lat=40, lon=-80: " << cos_sza << "\n";
 

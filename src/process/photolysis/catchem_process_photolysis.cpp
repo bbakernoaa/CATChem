@@ -20,15 +20,28 @@
 
 namespace catchem {
 
+    ProcessContract PhotolysisProcess::get_contract() const {
+        return {get_name(), {host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                                                          PersistencePolicy::Persistent),
+                            host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                                                          PersistencePolicy::Persistent),
+                            host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
+                            host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
+                            host_field_3d("BXHEIGHT", "m"),
+                            host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
+                            host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
+                            host_concentration()}, {{"photolysis.ozone", "", true}}};
+    }
+
     PhotolysisProcess::PhotolysisProcess() : config_path("") {}
     PhotolysisProcess::~PhotolysisProcess() = default;
 
     void PhotolysisProcess::init(std::shared_ptr<StateManager> state) {
         Logger::debug(state.get(), "PhotolysisProcess::init started");
-        if (state->config_mgr) {
-            std::string cfg = state->config_mgr->get_string("processes/photolysis/config_file", "");
+        if (state->config_manager()) {
+            std::string cfg = state->config_manager()->get_string("processes/photolysis/config_file", "");
             if (cfg.empty()) {
-                cfg = state->config_mgr->get_string("process/photolysis/config_file", "");
+                cfg = state->config_manager()->get_string("process/photolysis/config_file", "");
             }
             if (!cfg.empty()) {
                 this->config_path = cfg;
@@ -61,12 +74,12 @@ namespace catchem {
         radiators = musica::CreateRadiatorMap(&err);
 
         Logger::debug(state.get(), "Creating height grid");
-        musica::Grid* height_grid = musica::CreateGrid("height", "km", state->n_levels, &err);
-        std::vector<double> dummy_edges(state->n_levels + 1, 0.0);
-        std::vector<double> dummy_mids(state->n_levels, 0.0);
-        for (int i = 0; i <= state->n_levels; ++i) {
+        musica::Grid* height_grid = musica::CreateGrid("height", "km", state->level_count(), &err);
+        std::vector<double> dummy_edges(state->level_count() + 1, 0.0);
+        std::vector<double> dummy_mids(state->level_count(), 0.0);
+        for (int i = 0; i <= state->level_count(); ++i) {
             dummy_edges[i] = i * 1.0;
-            if (i < state->n_levels) {
+            if (i < state->level_count()) {
                 dummy_mids[i] = i * 1.0 + 0.5;
             }
         }
@@ -125,13 +138,13 @@ namespace catchem {
 
         // 3. Register profiles safely only if missing from the config file definition
         register_profile_if_missing(state.get(), config_defined_profiles, "temperature", "K", height_grid, 280.0,
-                                    state->n_levels, &err);
+                                    state->level_count(), &err);
         register_profile_if_missing(state.get(), config_defined_profiles, "air", "molecule cm-3", height_grid, 1e12,
-                                    state->n_levels, &err);
+                                    state->level_count(), &err);
         register_profile_if_missing(state.get(), config_defined_profiles, "O2", "molecule cm-3", height_grid, 1e12,
-                                    state->n_levels, &err);
+                                    state->level_count(), &err);
         register_profile_if_missing(state.get(), config_defined_profiles, "O3", "molecule cm-3", height_grid, 1e12,
-                                    state->n_levels, &err);
+                                    state->level_count(), &err);
         register_profile_if_missing(state.get(), config_defined_profiles, "surface albedo", "none", wl_grid, 0.1,
                                     wl_sections, &err);
         register_profile_if_missing(state.get(), config_defined_profiles, "extraterrestrial flux", "photon cm-2 s-1",
@@ -158,12 +171,12 @@ namespace catchem {
         musica::GetPhotolysisRateConstantsOrdering(tuvx_instance, &photo_mappings, &err);
 
         Logger::debug(state.get(), "Dynamic diagnostic field registration");
-        if (state->diag_mgr) {
-            std::vector<int> dims_2d = {state->n_cols, state->n_levels};
+        if (state->diagnostic_manager()) {
+            std::vector<int> dims_2d = {state->column_count(), state->level_count()};
             for (size_t i = 0; i < photo_mappings.size_; ++i) {
                 std::string rx_name =
                     photo_mappings.mappings_[i].name_.value_ ? photo_mappings.mappings_[i].name_.value_ : "";
-                state->diag_mgr->register_field("photolysis_rate_" + rx_name, "Photolysis rate for " + rx_name, "s-1",
+                state->diagnostic_manager()->register_field("photolysis_rate_" + rx_name, "Photolysis rate for " + rx_name, "s-1",
                                                 DiagType::FIELD_2D, dims_2d);
             }
         }
@@ -178,16 +191,11 @@ namespace catchem {
         }
 
         Logger::debug(state.get(), "Syncing state to host");
-        state->sync_to_host();
 
-        Logger::debug(state.get(), "Locating Ozone index");
-        int i_o3 = -1;
-        for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
-            if (state->chem.species_list[i].short_name == "O3") {
-                i_o3 = i;
-                break;
-            }
-        }
+        Logger::debug(state.get(), "Resolving configured ozone role");
+        if (!state->chemistry().mechanism || !state->chemistry().mechanism->has_role("photolysis.ozone"))
+            throw std::runtime_error("Photolysis requires mechanism role photolysis.ozone");
+        const int i_o3 = static_cast<int>(state->chemistry().mechanism->index_for_role("photolysis.ozone"));
         Logger::debug(state.get(), "Ozone index resolved", {{"index", std::to_string(i_o3)}});
 
         musica::Error err;
@@ -228,46 +236,46 @@ namespace catchem {
         grid_ss << height_grid;
         Logger::debug(state.get(), "height_grid retrieved", {{"ptr", grid_ss.str()}});
 
-        std::vector<double> height_edges(state->n_levels + 1, 0.0);
-        std::vector<double> air_profile(state->n_levels, 0.0);
-        std::vector<double> o2_profile(state->n_levels, 0.0);
-        std::vector<double> o3_profile(state->n_levels, 0.0);
-        std::vector<double> temp_profile(state->n_levels, 0.0);
+        std::vector<double> height_edges(state->level_count() + 1, 0.0);
+        std::vector<double> air_profile(state->level_count(), 0.0);
+        std::vector<double> o2_profile(state->level_count(), 0.0);
+        std::vector<double> o3_profile(state->level_count(), 0.0);
+        std::vector<double> temp_profile(state->level_count(), 0.0);
 
-        if (!state->met.BXHEIGHT && state->met.PEDGE && state->met.T) {
+        if (!state->meteorology().BXHEIGHT && state->meteorology().PEDGE && state->meteorology().T) {
             state->derive_bxheight();
         }
-        if (!state->met.AIRDEN && state->met.AIRDEN_DRY) {
-            state->met.AIRDEN = state->met.AIRDEN_DRY;
+        if (!state->meteorology().AIRDEN && state->meteorology().AIRDEN_DRY) {
+            state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
         }
-        if (!state->met.AIRDEN && !state->met.AIRDEN_DRY && state->met.PMID && state->met.T) {
+        if (!state->meteorology().AIRDEN && !state->meteorology().AIRDEN_DRY && state->meteorology().PMID && state->meteorology().T) {
             state->derive_airden_dry();
-            if (!state->met.AIRDEN && state->met.AIRDEN_DRY) {
-                state->met.AIRDEN = state->met.AIRDEN_DRY;
+            if (!state->meteorology().AIRDEN && state->meteorology().AIRDEN_DRY) {
+                state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
             }
         }
 
-        require_field_pointer("Photolysis", "LAT", state->met.LAT ? state->met.LAT->host_data() : nullptr);
-        require_field_pointer("Photolysis", "LON", state->met.LON ? state->met.LON->host_data() : nullptr);
+        require_field_pointer("Photolysis", "LAT", state->meteorology().LAT ? state->meteorology().LAT->host_write() : nullptr);
+        require_field_pointer("Photolysis", "LON", state->meteorology().LON ? state->meteorology().LON->host_write() : nullptr);
         require_field_pointer("Photolysis", "BXHEIGHT",
-                              state->met.BXHEIGHT ? state->met.BXHEIGHT->host_data() : nullptr);
-        require_field_pointer("Photolysis", "AIRDEN", state->met.AIRDEN ? state->met.AIRDEN->host_data() : nullptr);
-        require_field_pointer("Photolysis", "T", state->met.T ? state->met.T->host_data() : nullptr);
-        require_field_pointer("Photolysis", "CHEM_CONC", state->chem.conc ? state->chem.conc->host_data() : nullptr);
+                              state->meteorology().BXHEIGHT ? state->meteorology().BXHEIGHT->host_write() : nullptr);
+        require_field_pointer("Photolysis", "AIRDEN", state->meteorology().AIRDEN ? state->meteorology().AIRDEN->host_write() : nullptr);
+        require_field_pointer("Photolysis", "T", state->meteorology().T ? state->meteorology().T->host_write() : nullptr);
+        require_field_pointer("Photolysis", "CHEM_CONC", state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr);
 
         Logger::debug(state.get(), "Starting column-wise calculation loop");
-        for (int i_col = 0; i_col < state->n_cols; ++i_col) {
+        for (int i_col = 0; i_col < state->column_count(); ++i_col) {
             std::string col_str = std::to_string(i_col);
             Logger::debug(state.get(), "Calculating SZA for column", {{"col", col_str}});
-            double lat_deg = state->met.LAT->host_view(i_col, 0);
-            double lon_deg = state->met.LON->host_view(i_col, 0);
-            double cos_sza = state->time.get_cos_sza(lat_deg, lon_deg, true);
+            double lat_deg = state->meteorology().LAT->host_view(i_col, 0);
+            double lon_deg = state->meteorology().LON->host_view(i_col, 0);
+            double cos_sza = state->clock().get_cos_sza(lat_deg, lon_deg, true);
             double sza_rad = std::acos(std::max(-1.0, std::min(1.0, cos_sza)));
 
             Logger::debug(state.get(), "Updating grid height edges for column", {{"col", col_str}});
             height_edges[0] = 0.0;
-            for (int i_lvl = 0; i_lvl < state->n_levels; ++i_lvl) {
-                double dz_m = state->met.BXHEIGHT->host_view(i_col, i_lvl, 0);
+            for (int i_lvl = 0; i_lvl < state->level_count(); ++i_lvl) {
+                double dz_m = state->meteorology().BXHEIGHT->host_view(i_col, i_lvl, 0);
                 height_edges[i_lvl + 1] = height_edges[i_lvl] + dz_m / 1000.0;
             }
             if (height_grid) {
@@ -275,14 +283,14 @@ namespace catchem {
             }
 
             Logger::debug(state.get(), "Populating profile midpoint vectors for column", {{"col", col_str}});
-            for (int i_lvl = 0; i_lvl < state->n_levels; ++i_lvl) {
-                double airden_kg_m3 = state->met.AIRDEN->host_view(i_col, i_lvl, 0);
+            for (int i_lvl = 0; i_lvl < state->level_count(); ++i_lvl) {
+                double airden_kg_m3 = state->meteorology().AIRDEN->host_view(i_col, i_lvl, 0);
                 air_profile[i_lvl] = airden_kg_m3 * 2.079153e19;
                 o2_profile[i_lvl] = air_profile[i_lvl] * 0.2095;
-                temp_profile[i_lvl] = state->met.T->host_view(i_col, i_lvl, 0);
+                temp_profile[i_lvl] = state->meteorology().T->host_view(i_col, i_lvl, 0);
 
-                if (i_o3 >= 0 && state->chem.conc) {
-                    o3_profile[i_lvl] = state->chem.conc->host_view(i_col, i_lvl, i_o3);
+                if (i_o3 >= 0 && state->chemistry().conc) {
+                    o3_profile[i_lvl] = state->chemistry().conc->host_view(i_col, i_lvl, i_o3);
                 } else {
                     o3_profile[i_lvl] = air_profile[i_lvl] * 3e-7;
                 }
@@ -291,23 +299,23 @@ namespace catchem {
             Logger::debug(state.get(), "Updating profiles in TUVX for column", {{"col", col_str}});
             if (profile_air) {
                 Logger::debug(state.get(), "SetProfileMidpointValues for air in column", {{"col", col_str}});
-                musica::SetProfileMidpointValues(profile_air, air_profile.data(), state->n_levels, &err);
+                musica::SetProfileMidpointValues(profile_air, air_profile.data(), state->level_count(), &err);
             }
             if (profile_o2) {
                 Logger::debug(state.get(), "SetProfileMidpointValues for O2 in column", {{"col", col_str}});
-                musica::SetProfileMidpointValues(profile_o2, o2_profile.data(), state->n_levels, &err);
+                musica::SetProfileMidpointValues(profile_o2, o2_profile.data(), state->level_count(), &err);
             }
             if (profile_o3) {
                 Logger::debug(state.get(), "SetProfileMidpointValues for O3 in column", {{"col", col_str}});
-                musica::SetProfileMidpointValues(profile_o3, o3_profile.data(), state->n_levels, &err);
+                musica::SetProfileMidpointValues(profile_o3, o3_profile.data(), state->level_count(), &err);
             }
             if (profile_temp) {
                 Logger::debug(state.get(), "SetProfileMidpointValues for temperature in column", {{"col", col_str}});
-                musica::SetProfileMidpointValues(profile_temp, temp_profile.data(), state->n_levels, &err);
+                musica::SetProfileMidpointValues(profile_temp, temp_profile.data(), state->level_count(), &err);
             }
 
-            std::vector<double> edge_photolysis_rates((state->n_levels + 1) * num_reactions, 0.0);
-            std::vector<double> edge_heating_rates((state->n_levels + 1) * tuvx_instance->GetHeatingRateCount(), 0.0);
+            std::vector<double> edge_photolysis_rates((state->level_count() + 1) * num_reactions, 0.0);
+            std::vector<double> edge_heating_rates((state->level_count() + 1) * tuvx_instance->GetHeatingRateCount(), 0.0);
 
             Logger::debug(state.get(), "Calling musica::RunTuvx for column", {{"col", col_str}});
             musica::RunTuvx(tuvx_instance, sza_rad, 1.0, edge_photolysis_rates.data(), edge_heating_rates.data(),
@@ -321,23 +329,23 @@ namespace catchem {
 
             Logger::debug(state.get(), "Copying midpoint-interpolated J-rates to diagnostics for column",
                           {{"col", col_str}});
-            if (state->diag_mgr) {
+            if (state->diagnostic_manager()) {
                 for (size_t rx_idx = 0; rx_idx < photo_mappings.size_; ++rx_idx) {
                     std::string rx_name = photo_mappings.mappings_[rx_idx].name_.value_
                                               ? photo_mappings.mappings_[rx_idx].name_.value_
                                               : "";
                     std::string diag_name = "photolysis_rate_" + rx_name;
-                    double* diag_ptr = static_cast<double*>(state->diag_mgr->get_host_pointer(diag_name));
+                    double* diag_ptr = static_cast<double*>(state->diagnostic_manager()->get_host_pointer(diag_name));
 
                     if (diag_ptr) {
-                        for (int i_lvl = 0; i_lvl < state->n_levels; ++i_lvl) {
-                            int idx_edge1 = rx_idx * (state->n_levels + 1) + i_lvl;
-                            int idx_edge2 = rx_idx * (state->n_levels + 1) + (i_lvl + 1);
+                        for (int i_lvl = 0; i_lvl < state->level_count(); ++i_lvl) {
+                            int idx_edge1 = rx_idx * (state->level_count() + 1) + i_lvl;
+                            int idx_edge2 = rx_idx * (state->level_count() + 1) + (i_lvl + 1);
 
                             double rate_midpoint =
                                 0.5 * (edge_photolysis_rates[idx_edge1] + edge_photolysis_rates[idx_edge2]);
 
-                            int diag_idx = i_lvl * state->n_cols + i_col;
+                            int diag_idx = i_lvl * state->column_count() + i_col;
                             diag_ptr[diag_idx] = rate_midpoint;
                         }
                     }
@@ -346,10 +354,6 @@ namespace catchem {
         }
 
         Logger::debug(state.get(), "Syncing diagnostics and state to device");
-        state->sync_to_device();
-        if (state->diag_mgr) {
-            state->diag_mgr->sync_to_device();
-        }
         Logger::debug(state.get(), "PhotolysisProcess::run complete");
     }
 

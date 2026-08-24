@@ -14,12 +14,38 @@ module CATChem_API
    implicit none
    private
 
-   public :: CATChem_Model
+   public :: CATChem_Model, catchem_diag_register_contract_checked, catchem_diag_get_contract
 
    !=========================================================================
    ! C-API Interfaces to catchem_api.cpp
    !=========================================================================
    interface
+      integer(c_int) function catchem_core_create_from_config_with_grid_checked(config_file, ncols, nlevels, core_out) &
+         bind(C, name="catchem_core_create_from_config_with_grid_checked")
+         import :: c_char, c_ptr, c_int
+         character(kind=c_char), intent(in) :: config_file(*)
+         integer(c_int), value :: ncols, nlevels
+         type(c_ptr), intent(out) :: core_out
+      end function
+
+      integer(c_int) function catchem_core_destroy_checked(core_ptr) bind(C, name="catchem_core_destroy_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      integer(c_int) function catchem_core_get_state_manager_checked(core_ptr, state_out) &
+         bind(C, name="catchem_core_get_state_manager_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+         type(c_ptr), intent(out) :: state_out
+      end function
+
+      integer(c_int) function catchem_get_last_error(buffer, max_len) bind(C, name="catchem_get_last_error")
+         import :: c_char, c_int
+         character(kind=c_char), intent(out) :: buffer(*)
+         integer(c_int), value :: max_len
+      end function
+
       type(c_ptr) function catchem_core_create_from_config(config_file) bind(C, name="catchem_core_create_from_config")
          import :: c_char, c_ptr
          character(kind=c_char), intent(in) :: config_file(*)
@@ -74,6 +100,13 @@ module CATChem_API
          type(c_ptr), value :: core_ptr
       end function
 
+      integer(c_int) function catchem_core_get_num_processes_checked(core_ptr, count_out) &
+         bind(C, name="catchem_core_get_num_processes_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), intent(out) :: count_out
+      end function
+
       integer(c_int) function catchem_core_run_timestep(core_ptr, dt) bind(C, name="catchem_core_run_timestep")
          import :: c_ptr, c_double, c_int
          type(c_ptr), value :: core_ptr
@@ -87,6 +120,14 @@ module CATChem_API
          type(c_ptr), value :: ptr
       end subroutine
 
+      integer(c_int) function catchem_state_bind_met_3d_checked(state_ptr, name, ptr, dim1, dim2, dim3) &
+         bind(C, name="catchem_state_bind_met_3d_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: state_ptr, ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), value :: dim1, dim2, dim3
+      end function
+
       subroutine catchem_state_bind_met_2d(state_ptr, name, ptr) bind(C, name="catchem_state_bind_met_2d")
          import :: c_ptr, c_char
          type(c_ptr), value :: state_ptr
@@ -94,27 +135,62 @@ module CATChem_API
          type(c_ptr), value :: ptr
       end subroutine
 
+      integer(c_int) function catchem_state_bind_met_2d_checked(state_ptr, name, ptr, dim1, dim2) &
+         bind(C, name="catchem_state_bind_met_2d_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: state_ptr, ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), value :: dim1, dim2
+      end function
+
       subroutine catchem_state_bind_unified_chemistry(state_ptr, ptr) bind(C, name="catchem_state_bind_unified_chemistry")
          import :: c_ptr
          type(c_ptr), value :: state_ptr
          type(c_ptr), value :: ptr
       end subroutine
 
+      integer(c_int) function catchem_state_bind_unified_chemistry_checked(state_ptr, ptr, dim1, dim2, dim3) &
+         bind(C, name="catchem_state_bind_unified_chemistry_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr, ptr
+         integer(c_int), value :: dim1, dim2, dim3
+      end function
+
       subroutine catchem_state_sync_to_device(state_ptr) bind(C, name="catchem_state_sync_to_device")
          import :: c_ptr
          type(c_ptr), value :: state_ptr
       end subroutine
+
+      integer(c_int) function catchem_state_sync_to_device_checked(state_ptr) &
+         bind(C, name="catchem_state_sync_to_device_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+      end function
 
       subroutine catchem_state_sync_to_host(state_ptr) bind(C, name="catchem_state_sync_to_host")
          import :: c_ptr
          type(c_ptr), value :: state_ptr
       end subroutine
 
+      integer(c_int) function catchem_state_sync_to_host_checked(state_ptr) &
+         bind(C, name="catchem_state_sync_to_host_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+      end function
+
       type(c_ptr) function catchem_state_get_species_conc_pointer(state_ptr, index) &
          bind(C, name="catchem_state_get_species_conc_pointer")
          import :: c_ptr, c_int
          type(c_ptr), value :: state_ptr
          integer(c_int), value :: index
+      end function
+
+      integer(c_int) function catchem_state_get_species_conc_pointer_checked(state_ptr, index, dim1, dim2, ptr_out) &
+         bind(C, name="catchem_state_get_species_conc_pointer_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index, dim1, dim2
+         type(c_ptr), intent(out) :: ptr_out
       end function
 
       subroutine catchem_get_grid_dimensions(core_ptr, nx, ny, nz) bind(C, name="catchem_get_grid_dimensions")
@@ -202,10 +278,28 @@ module CATChem_API
          character(kind=c_char), intent(in) :: name(*)
       end function
 
+      integer(c_int) function catchem_diag_get_pointer_checked(core_ptr, name, rank, dims, ptr_out) &
+         bind(C, name="catchem_diag_get_pointer_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), value :: rank
+         integer(c_int), intent(in) :: dims(*)
+         type(c_ptr), intent(out) :: ptr_out
+      end function
+
       integer(c_int) function catchem_diag_get_rank(core_ptr, name) bind(C, name="catchem_diag_get_rank")
          import :: c_ptr, c_char, c_int
          type(c_ptr), value :: core_ptr
          character(kind=c_char), intent(in) :: name(*)
+      end function
+
+      integer(c_int) function catchem_diag_get_rank_checked(core_ptr, name, rank_out) &
+         bind(C, name="catchem_diag_get_rank_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), intent(out) :: rank_out
       end function
 
       subroutine catchem_diag_get_dims(core_ptr, name, dims_out) bind(C, name="catchem_diag_get_dims")
@@ -214,6 +308,15 @@ module CATChem_API
          character(kind=c_char), intent(in) :: name(*)
          integer(c_int), intent(out) :: dims_out(*)
       end subroutine
+
+      integer(c_int) function catchem_diag_get_dims_checked(core_ptr, name, dims_out, dims_length) &
+         bind(C, name="catchem_diag_get_dims_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), intent(out) :: dims_out(*)
+         integer(c_int), value :: dims_length
+      end function
 
       subroutine catchem_diag_register(core_ptr, name, desc, units, rank, dim1, dim2, dim3) &
          bind(C, name="catchem_diag_register")
@@ -225,6 +328,33 @@ module CATChem_API
          integer(c_int), value :: rank, dim1, dim2, dim3
       end subroutine
 
+      integer(c_int) function catchem_diag_register_checked(core_ptr, name, desc, units, rank, dim1, dim2, dim3) &
+         bind(C, name="catchem_diag_register_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*), desc(*), units(*)
+         integer(c_int), value :: rank, dim1, dim2, dim3
+      end function
+
+      integer(c_int) function catchem_diag_register_contract_checked(core_ptr, name, desc, units, rank, dims, axes, &
+                                                                      policy, reset_value) &
+         bind(C, name="catchem_diag_register_contract_checked")
+         import :: c_ptr, c_char, c_int, c_double
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*), desc(*), units(*)
+         integer(c_int), value :: rank, policy
+         integer(c_int), intent(in) :: dims(*), axes(*)
+         real(c_double), value :: reset_value
+      end function
+
+      integer(c_int) function catchem_diag_get_contract(core_ptr, name, generation, availability, latest_writer, &
+                                                         policy) bind(C, name="catchem_diag_get_contract")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), intent(out) :: generation, availability, latest_writer, policy
+      end function
+
       subroutine catchem_diag_sync_to_host(core_ptr) bind(C, name="catchem_diag_sync_to_host")
          import :: c_ptr
          type(c_ptr), value :: core_ptr
@@ -235,6 +365,13 @@ module CATChem_API
          type(c_ptr), value :: core_ptr
       end function
 
+      integer(c_int) function catchem_diag_get_count_checked(core_ptr, count_out) &
+         bind(C, name="catchem_diag_get_count_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), intent(out) :: count_out
+      end function
+
       subroutine catchem_diag_get_name_at(core_ptr, index, name_out) bind(C, name="catchem_diag_get_name_at")
          import :: c_ptr, c_int, c_char
          type(c_ptr), value :: core_ptr
@@ -242,9 +379,34 @@ module CATChem_API
          character(kind=c_char), intent(out) :: name_out(*)
       end subroutine
 
+      integer(c_int) function catchem_diag_get_name_at_checked(core_ptr, index, name_out, name_length) &
+         bind(C, name="catchem_diag_get_name_at_checked")
+         import :: c_ptr, c_int, c_char
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: index, name_length
+         character(kind=c_char), intent(out) :: name_out(*)
+      end function
+
       integer(c_int) function catchem_state_get_species_count(state_ptr) bind(C, name="catchem_state_get_species_count")
          import :: c_ptr, c_int
          type(c_ptr), value :: state_ptr
+      end function
+
+      integer(c_int) function catchem_state_set_physical_validation_policy_checked(state_ptr, policy) &
+         bind(C, name="catchem_state_set_physical_validation_policy_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: policy
+      end function
+
+      integer(c_int) function catchem_state_get_physical_validation_report_checked( &
+         state_ptr, issue_count, detail, detail_length) &
+         bind(C, name="catchem_state_get_physical_validation_report_checked")
+         import :: c_ptr, c_int, c_char
+         type(c_ptr), value :: state_ptr
+         integer(c_int), intent(out) :: issue_count
+         character(kind=c_char), intent(out) :: detail(*)
+         integer(c_int), value :: detail_length
       end function
 
       real(c_double) function catchem_state_get_species_mw(state_ptr, index) bind(C, name="catchem_state_get_species_mw")
@@ -265,6 +427,7 @@ module CATChem_API
       integer :: ny = 0
       integer :: nz = 0
       logical :: initialized = .false.
+      character(len=512), public :: last_error = ''
    contains
       procedure :: initialize => model_initialize
       procedure :: finalize => model_finalize
@@ -295,9 +458,23 @@ module CATChem_API
       procedure :: get_diag_species_at => model_get_diag_species_at
       procedure :: is_process_active => model_is_process_active
       procedure :: has_emission_mapping => model_has_emission_mapping
+      procedure :: set_physical_validation_policy => model_set_physical_validation_policy
+      procedure :: get_physical_validation_report => model_get_physical_validation_report
    end type CATChem_Model
 
 contains
+
+   subroutine capture_boundary_error(this)
+      class(CATChem_Model), intent(inout) :: this
+      character(kind=c_char) :: buffer(512)
+      integer :: i, ignored_status
+      this%last_error = ''
+      ignored_status = catchem_get_last_error(buffer, int(size(buffer), c_int))
+      do i = 1, min(len(this%last_error), size(buffer))
+         if (buffer(i) == c_null_char) exit
+         this%last_error(i:i) = buffer(i)
+      end do
+   end subroutine capture_boundary_error
 
    ! Helper to convert standard Fortran string to null-terminated C char array
    subroutine to_c_string(f_str, c_arr)
@@ -325,6 +502,7 @@ contains
       integer, intent(out) :: rc
 
       character(kind=c_char) :: c_filename(512)
+      integer :: cleanup_status
 
       call to_c_string(config_file, c_filename)
 
@@ -337,14 +515,20 @@ contains
       call catchem_register_wetdep_cpp()
 
       ! Configuration comes from YAML; grid dimensions are dictated by host
-      this%cpp_core_ptr = catchem_core_create_from_config_with_grid( &
-         c_filename, int(nx*ny, c_int), int(nz, c_int))
-      if (.not. c_associated(this%cpp_core_ptr)) then
-         rc = CC_FAILURE
+      rc = catchem_core_create_from_config_with_grid_checked( &
+         c_filename, int(nx*ny, c_int), int(nz, c_int), this%cpp_core_ptr)
+      if (rc /= CC_SUCCESS .or. .not. c_associated(this%cpp_core_ptr)) then
+         call capture_boundary_error(this)
          return
       end if
 
-      this%state_mgr_ptr = catchem_core_get_state_manager(this%cpp_core_ptr)
+      rc = catchem_core_get_state_manager_checked(this%cpp_core_ptr, this%state_mgr_ptr)
+      if (rc /= CC_SUCCESS .or. .not. c_associated(this%state_mgr_ptr)) then
+         call capture_boundary_error(this)
+         cleanup_status = catchem_core_destroy_checked(this%cpp_core_ptr)
+         this%cpp_core_ptr = c_null_ptr
+         return
+      end if
 
       ! Host-local dimensions are authoritative
       this%nx = nx
@@ -361,12 +545,15 @@ contains
       integer, intent(out) :: rc
 
       if (c_associated(this%cpp_core_ptr)) then
-         call catchem_core_destroy(this%cpp_core_ptr)
+         rc = catchem_core_destroy_checked(this%cpp_core_ptr)
+         if (rc /= CC_SUCCESS) call capture_boundary_error(this)
          this%cpp_core_ptr = c_null_ptr
          this%state_mgr_ptr = c_null_ptr
+      else
+         rc = CC_SUCCESS
       end if
       this%initialized = .false.
-      rc = CC_SUCCESS
+      if (rc == CC_SUCCESS) this%last_error = ''
    end subroutine model_finalize
 
    ! Register process list
@@ -385,8 +572,11 @@ contains
    function model_get_num_processes(this) result(num_processes)
       class(CATChem_Model), intent(inout) :: this
       integer :: num_processes
+      integer(c_int) :: count, status
 
-      num_processes = int(catchem_core_get_num_processes(this%cpp_core_ptr))
+      status = catchem_core_get_num_processes_checked(this%cpp_core_ptr, count)
+      num_processes = int(count)
+      if (status /= 0_c_int) call capture_boundary_error(this)
    end function model_get_num_processes
 
    ! Execute standard timestep
@@ -397,13 +587,19 @@ contains
       integer, intent(out) :: rc
 
       if (c_associated(this%cpp_core_ptr)) then
-         call catchem_state_sync_to_device(this%state_mgr_ptr)
+         rc = catchem_state_sync_to_device_checked(this%state_mgr_ptr)
+         if (rc /= CC_SUCCESS) then
+            call capture_boundary_error(this)
+            return
+         end if
          rc = catchem_core_run_timestep(this%cpp_core_ptr, real(dt, c_double))
          if (rc == CC_SUCCESS) then
-            call catchem_state_sync_to_host(this%state_mgr_ptr)
+            rc = catchem_state_sync_to_host_checked(this%state_mgr_ptr)
          end if
+         if (rc /= CC_SUCCESS) call capture_boundary_error(this)
       else
          rc = CC_FAILURE
+         this%last_error = 'run_timestep: model is not initialized'
       end if
    end subroutine model_run_timestep
 
@@ -415,15 +611,29 @@ contains
       integer, intent(out) :: rc
 
       integer :: i, count
+      integer(c_int) :: c_count, status
       character(kind=c_char) :: c_name(64)
       character(len=64) :: f_name
 
-      count = int(catchem_diag_get_count(this%cpp_core_ptr))
+      status = catchem_diag_get_count_checked(this%cpp_core_ptr, c_count)
+      if (status /= 0_c_int) then
+         allocate(diagnostic_names(0))
+         if (present(diagnostic_fields)) allocate(diagnostic_fields(0))
+         rc = int(status)
+         call capture_boundary_error(this)
+         return
+      end if
+      count = int(c_count)
       allocate(diagnostic_names(count))
       if (present(diagnostic_fields)) allocate(diagnostic_fields(count))
 
       do i = 1, count
-         call catchem_diag_get_name_at(this%cpp_core_ptr, i - 1, c_name)
+         status = catchem_diag_get_name_at_checked(this%cpp_core_ptr, int(i - 1, c_int), c_name, 64_c_int)
+         if (status /= 0_c_int) then
+            rc = int(status)
+            call capture_boundary_error(this)
+            return
+         end if
          f_name = ""
          block
             integer :: j
@@ -453,16 +663,23 @@ contains
       real(c_double), pointer :: f_ptr_3d(:,:,:) => null()
 
       call to_c_string(diagnostic_name, c_name)
-      raw_ptr = catchem_diag_get_pointer(this%cpp_core_ptr, c_name)
-
-      if (.not. c_associated(raw_ptr)) then
-         rc = CC_FAILURE
+      raw_ptr = c_null_ptr
+      rc = int(catchem_diag_get_rank_checked(this%cpp_core_ptr, c_name, rank))
+      if (rc /= CC_SUCCESS) then
+         call capture_boundary_error(this)
          return
       end if
-
-      rank = catchem_diag_get_rank(this%cpp_core_ptr, c_name)
       dims = 0
-      call catchem_diag_get_dims(this%cpp_core_ptr, c_name, dims)
+      rc = int(catchem_diag_get_dims_checked(this%cpp_core_ptr, c_name, dims, 3_c_int))
+      if (rc /= CC_SUCCESS) then
+         call capture_boundary_error(this)
+         return
+      end if
+      rc = int(catchem_diag_get_pointer_checked(this%cpp_core_ptr, c_name, rank, dims, raw_ptr))
+      if (rc /= CC_SUCCESS .or. .not. c_associated(raw_ptr)) then
+         call capture_boundary_error(this)
+         return
+      end if
 
       allocate(diagnostic_data(this%nx, this%ny, this%nz))
       diagnostic_data = 0.0_fp
@@ -476,10 +693,12 @@ contains
          end if
       else if (rank == 3) then
          call c_f_pointer(raw_ptr, f_ptr_3d, [dims(1), dims(2), dims(3)])
-         if (dims(1) == this%nx * this%ny .and. dims(2) == this%nz) then
-            diagnostic_data = real(reshape(f_ptr_3d(:,:,1), [this%nx, this%ny, this%nz]), fp)
-         else if (dims(1) == this%nx .and. dims(2) == this%ny .and. dims(3) == this%nz) then
+         if (dims(1) == this%nx .and. dims(2) == this%ny .and. dims(3) == this%nz) then
             diagnostic_data = real(f_ptr_3d, fp)
+         else
+            deallocate(diagnostic_data)
+            rc = CC_FAILURE
+            return
          end if
       end if
 
@@ -534,44 +753,107 @@ contains
       is_initialized = this%initialized
    end function model_is_initialized
 
+   subroutine model_set_physical_validation_policy(this, policy, rc)
+      class(CATChem_Model), intent(inout) :: this
+      integer, intent(in) :: policy
+      integer, intent(out) :: rc
+
+      rc = int(catchem_state_set_physical_validation_policy_checked( &
+         this%state_mgr_ptr, int(policy, c_int)))
+      if (rc /= CC_SUCCESS) call capture_boundary_error(this)
+   end subroutine model_set_physical_validation_policy
+
+   subroutine model_get_physical_validation_report(this, issue_count, detail, rc)
+      class(CATChem_Model), intent(inout) :: this
+      integer, intent(out) :: issue_count
+      character(len=*), intent(out) :: detail
+      integer, intent(out) :: rc
+      character(kind=c_char) :: c_detail(1024)
+      integer(c_int) :: c_count, status
+      integer :: i
+
+      issue_count = 0
+      detail = ''
+      status = catchem_state_get_physical_validation_report_checked( &
+         this%state_mgr_ptr, c_count, c_detail, int(size(c_detail), c_int))
+      rc = int(status)
+      issue_count = int(c_count)
+      if (status /= 0_c_int) then
+         call capture_boundary_error(this)
+         return
+      end if
+      do i = 1, min(len(detail), size(c_detail))
+         if (c_detail(i) == c_null_char) exit
+         detail(i:i) = c_detail(i)
+      end do
+   end subroutine model_get_physical_validation_report
+
    ! Bind a 3D meteorological field
-   subroutine model_bind_met_3d(this, name, arr)
+   subroutine model_bind_met_3d(this, name, arr, rc)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: name
       real(c_double), target, contiguous, intent(in) :: arr(:,:,:)
+      integer, optional, intent(out) :: rc
 
       character(kind=c_char) :: c_name(64)
 
       call to_c_string(name, c_name)
-      call catchem_state_bind_met_3d(this%state_mgr_ptr, c_name, c_loc(arr(1,1,1)))
+      block
+         integer(c_int) :: status
+         status = catchem_state_bind_met_3d_checked(this%state_mgr_ptr, c_name, c_loc(arr(1,1,1)), &
+            int(size(arr,1) * size(arr,2), c_int), int(size(arr,3), c_int), 1_c_int)
+         if (present(rc)) rc = int(status)
+         if (status /= 0_c_int) call capture_boundary_error(this)
+      end block
    end subroutine model_bind_met_3d
 
    ! Bind a 2D meteorological field
-   subroutine model_bind_met_2d(this, name, arr)
+   subroutine model_bind_met_2d(this, name, arr, rc)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: name
       real(c_double), target, contiguous, intent(in) :: arr(:,:)
+      integer, optional, intent(out) :: rc
 
       character(kind=c_char) :: c_name(64)
 
       call to_c_string(name, c_name)
-      call catchem_state_bind_met_2d(this%state_mgr_ptr, c_name, c_loc(arr(1,1)))
+      block
+         integer(c_int) :: status
+         status = catchem_state_bind_met_2d_checked(this%state_mgr_ptr, c_name, c_loc(arr(1,1)), &
+            int(size(arr,1) * size(arr,2), c_int), 1_c_int)
+         if (present(rc)) rc = int(status)
+         if (status /= 0_c_int) call capture_boundary_error(this)
+      end block
    end subroutine model_bind_met_2d
 
    ! Bind unified chemical concentrations 3D array
-   subroutine model_bind_unified_chemistry_3d(this, arr)
+   subroutine model_bind_unified_chemistry_3d(this, arr, rc)
       class(CATChem_Model), intent(inout) :: this
       real(c_double), target, contiguous, intent(in) :: arr(:,:,:)
+      integer, optional, intent(out) :: rc
 
-      call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr(1,1,1)))
+      block
+         integer(c_int) :: status
+         status = catchem_state_bind_unified_chemistry_checked(this%state_mgr_ptr, c_loc(arr(1,1,1)), &
+            int(size(arr,1), c_int), int(size(arr,2), c_int), int(size(arr,3), c_int))
+         if (present(rc)) rc = int(status)
+         if (status /= 0_c_int) call capture_boundary_error(this)
+      end block
    end subroutine model_bind_unified_chemistry_3d
 
    ! Bind unified chemical concentrations 4D array
-   subroutine model_bind_unified_chemistry_4d(this, arr)
+   subroutine model_bind_unified_chemistry_4d(this, arr, rc)
       class(CATChem_Model), intent(inout) :: this
       real(c_double), target, contiguous, intent(in) :: arr(:,:,:,:)
+      integer, optional, intent(out) :: rc
 
-      call catchem_state_bind_unified_chemistry(this%state_mgr_ptr, c_loc(arr(1,1,1,1)))
+      block
+         integer(c_int) :: status
+         status = catchem_state_bind_unified_chemistry_checked(this%state_mgr_ptr, c_loc(arr(1,1,1,1)), &
+            int(size(arr,1) * size(arr,2), c_int), int(size(arr,3), c_int), int(size(arr,4), c_int))
+         if (present(rc)) rc = int(status)
+         if (status /= 0_c_int) call capture_boundary_error(this)
+      end block
    end subroutine model_bind_unified_chemistry_4d
 
    ! Register a 3D diagnostic field in the C++ DiagnosticManager
@@ -588,9 +870,9 @@ contains
       call to_c_string(name, c_name)
       call to_c_string(desc, c_desc)
       call to_c_string(units, c_units)
-      call catchem_diag_register(this%cpp_core_ptr, c_name, c_desc, c_units, &
-         3_c_int, int(dims(1), c_int), int(dims(2), c_int), int(dims(3), c_int))
-      rc = CC_SUCCESS
+      rc = int(catchem_diag_register_checked(this%cpp_core_ptr, c_name, c_desc, c_units, &
+         3_c_int, int(dims(1), c_int), int(dims(2), c_int), int(dims(3), c_int)))
+      if (rc /= CC_SUCCESS) call capture_boundary_error(this)
    end subroutine model_register_diagnostic
 
    subroutine model_get_species_conc_ptr(this, species_index, ptr3d, dims, rc)
@@ -600,12 +882,18 @@ contains
       integer, intent(in) :: dims(3)
       integer, intent(out) :: rc
       type(c_ptr) :: raw_ptr
+      integer(c_int) :: status
 
       rc = CC_FAILURE
       nullify(ptr3d)
       if (.not. c_associated(this%state_mgr_ptr)) return
-      raw_ptr = catchem_state_get_species_conc_pointer(this%state_mgr_ptr, int(species_index, c_int))
-      if (.not. c_associated(raw_ptr)) return
+      status = catchem_state_get_species_conc_pointer_checked(this%state_mgr_ptr, int(species_index, c_int), &
+         int(dims(1) * dims(2), c_int), int(dims(3), c_int), raw_ptr)
+      if (status /= 0_c_int .or. .not. c_associated(raw_ptr)) then
+         rc = int(status)
+         call capture_boundary_error(this)
+         return
+      end if
       call c_f_pointer(raw_ptr, ptr3d, dims)
       rc = CC_SUCCESS
    end subroutine model_get_species_conc_ptr
@@ -621,13 +909,19 @@ contains
 
       character(kind=c_char) :: c_name(64)
       type(c_ptr) :: raw_ptr
+      integer(c_int) :: c_dims(3), status
 
       rc = CC_FAILURE
       nullify(ptr3d)
       if (.not. c_associated(this%cpp_core_ptr)) return
       call to_c_string(name, c_name)
-      raw_ptr = catchem_diag_get_pointer(this%cpp_core_ptr, c_name)
-      if (.not. c_associated(raw_ptr)) return
+      c_dims = int(dims, c_int)
+      status = catchem_diag_get_pointer_checked(this%cpp_core_ptr, c_name, 3_c_int, c_dims, raw_ptr)
+      if (status /= 0_c_int .or. .not. c_associated(raw_ptr)) then
+         rc = int(status)
+         call capture_boundary_error(this)
+         return
+      end if
       call c_f_pointer(raw_ptr, ptr3d, dims)
       rc = CC_SUCCESS
    end subroutine model_get_diagnostic_ptr

@@ -22,9 +22,6 @@ project(CATChem VERSION ${CATCHEM_VERSION} LANGUAGES Fortran C CXX)
 set(CATCHEM_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 set(CATCHEM_SRC_DIR "${CATCHEM_ROOT_DIR}/src")
 
-# Option to build NUOPC cap (defaults to OFF)
-option(BUILD_NUOPC "Build NUOPC cap and drivers" OFF)
-
 # Deprecated: ENABLE_KOKKOS was renamed to CATCHEM_ENABLE_KOKKOS to match the
 # other CATCHEM_* options. Honor the old name for out-of-tree callers.
 if(DEFINED ENABLE_KOKKOS AND NOT DEFINED CATCHEM_ENABLE_KOKKOS)
@@ -157,10 +154,49 @@ else()
     INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/src/external/mdspan/include"
   )
 endif()
-# Option to build NUOPC cap (defaults to OFF)
+# Integration build options. CATCHEM_BUILD_NUOPC is authoritative; retain the
+# historical BUILD_NUOPC cache variable only as a migration path.
+set(_catchem_nuopc_option_was_defined FALSE)
+if(DEFINED CATCHEM_BUILD_NUOPC)
+  set(_catchem_nuopc_option_was_defined TRUE)
+endif()
 option(CATCHEM_BUILD_NUOPC "Build NUOPC cap and drivers" OFF)
+if(DEFINED BUILD_NUOPC)
+  if(
+    _catchem_nuopc_option_was_defined
+    AND NOT "${BUILD_NUOPC}" STREQUAL "${CATCHEM_BUILD_NUOPC}"
+  )
+    message(
+      FATAL_ERROR
+      "BUILD_NUOPC=${BUILD_NUOPC} conflicts with "
+      "CATCHEM_BUILD_NUOPC=${CATCHEM_BUILD_NUOPC}; remove BUILD_NUOPC and "
+      "use the CATCHEM_* option"
+    )
+  endif()
+  message(
+    DEPRECATION
+    "BUILD_NUOPC is deprecated; use CATCHEM_BUILD_NUOPC"
+  )
+  set(
+    CATCHEM_BUILD_NUOPC
+    "${BUILD_NUOPC}"
+    CACHE BOOL "Build NUOPC cap and drivers" FORCE
+  )
+endif()
+option(CATCHEM_BUILD_CCPP "Build the CCPP host interface" OFF)
+option(CATCHEM_CCPP_TEST_STUBS "Build minimal CCPP framework stubs for contract testing" OFF)
+set(CATCHEM_CCPP_HOST_MODULE_DIR "" CACHE PATH "Directory containing host CCPP Fortran modules")
 option(CATCHEM_BUILD_TESTING "Build CATChem testing framework" ON)
+option(CATCHEM_ENABLE_SANITIZERS "Enable target-scoped address and undefined-behavior sanitizers" OFF)
+option(CATCHEM_ENABLE_BOUNDS_CHECK "Enable target-scoped Fortran bounds checking" OFF)
 option(CATCHEM_TRACE_NUOPC "Enable ESMF trace regions in NUOPC cap" OFF)
+
+if(CATCHEM_TRACE_NUOPC AND NOT CATCHEM_BUILD_NUOPC)
+  message(
+    FATAL_ERROR
+    "CATCHEM_TRACE_NUOPC=ON requires CATCHEM_BUILD_NUOPC=ON"
+  )
+endif()
 
 if(CATCHEM_TRACE_NUOPC)
   add_compile_definitions(CATCHEM_TRACE_NUOPC)
@@ -184,6 +220,28 @@ cmake_print_variables(
   CMAKE_BUILD_TYPE
 )
 set(_catchem_compiler_options "")
+
+add_library(catchem_validation_options INTERFACE)
+if(CATCHEM_ENABLE_SANITIZERS)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+    target_compile_options(
+      catchem_validation_options
+      INTERFACE "$<$<COMPILE_LANGUAGE:C,CXX>:-fsanitize=address,undefined;-fno-omit-frame-pointer>"
+    )
+    target_link_options(catchem_validation_options INTERFACE -fsanitize=address,undefined)
+  else()
+    message(FATAL_ERROR "CATCHEM_ENABLE_SANITIZERS is unsupported by ${CMAKE_CXX_COMPILER_ID}")
+  endif()
+endif()
+if(CATCHEM_ENABLE_BOUNDS_CHECK)
+  if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU|G95")
+    target_compile_options(catchem_validation_options INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:-fcheck=bounds>")
+  elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel|IntelLLVM")
+    target_compile_options(catchem_validation_options INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:-check;bounds>")
+  else()
+    message(FATAL_ERROR "CATCHEM_ENABLE_BOUNDS_CHECK is unsupported by ${CMAKE_Fortran_COMPILER_ID}")
+  endif()
+endif()
 
 # Handle Intel compiler deprecation warnings
 if(CMAKE_Fortran_COMPILER_ID MATCHES "^Intel")
@@ -213,7 +271,6 @@ if(
     -Wextra
     -pedantic
     -fcheck=all
-    -fno-sanitize=all
     -ffpe-trap=invalid,zero,overflow
     -fbacktrace
     -fmax-errors=0
@@ -236,24 +293,6 @@ elseif(
     -error-limit
     0
   )
-endif()
-
-# Disable memory sanitizer to avoid linking issues
-if(
-  CMAKE_C_COMPILER_ID STREQUAL "GNU"
-  OR CMAKE_C_COMPILER_ID STREQUAL "IntelLLVM"
-)
-  # gcc and icx both accept standard sanitizer flags
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-sanitize=all")
-  # Note: Intel Classic C (icc) doesn't use -fsanitize, so we safely do nothing
-endif()
-if(
-  CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
-  OR CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM"
-)
-  # g++ and icpx both accept standard sanitizer flags
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sanitize=all")
-  # Note: Intel Classic C++ (icpc) doesn't use -fsanitize, so we safely do nothing
 endif()
 
 # Disable Intel oneAPI C/C++ warning about -g without -O0
@@ -307,6 +346,10 @@ if(NOT TARGET yaml-cpp::yaml-cpp AND NOT TARGET yaml-cpp)
 endif()
 
 add_subdirectory(src)
+
+if(CATCHEM_BUILD_CCPP)
+  add_subdirectory(drivers/ccpp)
+endif()
 
 # Enable testing for standalone builds
 if(CATCHEM_BUILD_TESTING)

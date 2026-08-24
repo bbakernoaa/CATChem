@@ -116,6 +116,31 @@ During a simulation timestep, the execution pipeline flows sequentially through 
 
 ### Thread and GPU Portability
 *   Always write process loops using standard **Kokkos Parallel policies** (e.g. `Kokkos::parallel_for`) to ensure performance compatibility across CUDA, HIP, OpenMP, and threads.
+
+## Mechanisms and runtime process schedules
+
+Each `Core` owns one immutable mechanism descriptor. Species identity, aliases, properties, ordering, and semantic
+roles are resolved from that descriptor; generic orchestration must not branch on a mechanism name or species
+position. Host tracer mappings therefore resolve canonical identities against the active instance.
+
+The process registry is only a factory catalog. The YAML `active_processes` selection creates the instance schedule,
+and inactive registry entries contribute no field requirements, validation, diagnostics, or transfers. After typed
+settings are validated and the selected adapter is initialized, its `ProcessContract` is compiled into the execution
+plan. Contracts declare field units, semantic axes, persistence, optionality, access intent, execution space,
+produced outputs, diagnostics, and mechanism roles/capabilities.
+
+## Lifecycle and boundary ownership
+
+Initialized processes finalize exactly once in reverse order. Cleanup continues after an error and checked
+destruction returns the preserved cleanup failure. Public handles are stable registry records: admitted calls retain
+the object and its owning Core, while destruction closes admission, waits for existing leases without holding the
+global registry lock, invalidates children, and then releases storage.
+
+## Physical validation
+
+Configured integrations default to `reject`. `warn_and_clamp` and `count_and_continue` are explicit compatibility
+policies. Derived meteorology validates finite values, ranges, and pressure ordering before output mutation and
+records aggregate field/rule/count/range information with bounded example locations.
 *   Avoid standard standard C++ heap allocations (like `new` or `malloc`) or STL vector operations inside the `run()` loops; perform all resource allocations in the `init()` phase.
 
 ### Mixed-Language Bridging

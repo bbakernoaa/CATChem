@@ -267,3 +267,8 @@ void PhotolysisProcess::run(std::shared_ptr<StateManager> state) {
 - [Configuration API](configuration.md) - C++ YAML Configuration Manager
 - [GasChem Process Documentation](../processes/gaschem/index.md) - Details on C++ MICM solver integration
 - [Photolysis Process Documentation](../processes/photolysis/index.md) - Details on C++ TUV-x engine integration
+# Process data contracts
+
+Processes request canonical scientific fields or declared aliases. Missing lookup never substitutes an unrelated allocation. In particular, relative humidity cannot resolve to air density, and sulfate chemistry obtains interface geometric height from `Z` (or explicitly reconstructs it from `BXHEIGHT`) rather than pressure edges.
+
+Fortran science bridges mark unified chemistry as host-current after modification. Device writers mark their views device-current. This writer declaration controls the next synchronization direction and prevents stale-side overwrites.

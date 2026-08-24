@@ -1,4 +1,5 @@
 #pragma once
+#include "catchem_physical_validation.hpp"
 #include <map>
 #include <string>
 #include <string_view>
@@ -6,6 +7,22 @@
 #include <yaml-cpp/yaml.h>
 
 namespace catchem {
+
+    enum class ValidationSeverity { Warning, Error };
+
+    struct ValidationIssue {
+        ValidationSeverity severity = ValidationSeverity::Error;
+        std::string category;
+        std::string path;
+        std::string message;
+        std::string suggested_correction;
+    };
+
+    struct ValidationReport {
+        std::vector<ValidationIssue> issues;
+        bool has_errors() const;
+        std::string format() const;
+    };
 
     /// @brief Basic simulation file and verbosity settings from YAML.
     struct SimulationConfig {
@@ -64,6 +81,7 @@ namespace catchem {
     struct ProcessConfig {
     private:
         YAML::Node settings_node;
+        friend class ConfigManager;
 
     public:
         bool activate = false;
@@ -72,7 +90,6 @@ namespace catchem {
         std::vector<std::string> diag_species;
 
         void set_settings_node(const YAML::Node& node) { settings_node = node; }
-        const YAML::Node& get_settings_node() const { return settings_node; }
 
         bool get_bool(std::string_view key, bool default_val = false) const;
         double get_double(std::string_view key, double default_val = 0.0) const;
@@ -85,6 +102,8 @@ namespace catchem {
         std::string name;
         std::string long_name;
         std::string description;
+        std::vector<std::string> aliases;
+        std::vector<std::string> roles;
 
         bool is_gas = false;
         bool is_aerosol = false;
@@ -151,6 +170,9 @@ namespace catchem {
         std::vector<std::string> active_processes;
         std::map<std::string, ProcessConfig> processes;
         std::vector<SpeciesConfig> species;
+        std::string mechanism_identity;
+        std::vector<std::string> mechanism_capabilities;
+        PhysicalValidationPolicy physical_validation_policy = PhysicalValidationPolicy::Reject;
         std::map<std::string, EmissionCategoryMapping> emission_mappings;
     };
 
@@ -162,13 +184,14 @@ namespace catchem {
         ConfigData data;
         bool is_loaded = false;
         std::string config_file_path;
+        ValidationReport validation_report;
 
         ConfigManager() = default;
         void load_from_file(const std::string& filename);
         void load_species_file(const std::string& filename);
         void load_emission_mapping_file(const std::string& filename);
-
-        const YAML::Node& get_root_node() const { return root_node; }
+        const ValidationReport& validate(bool strict = true);
+        void validate_or_throw(bool strict = true);
 
         // Safe path-based queries
         bool get_bool(std::string_view path, bool default_val = false) const;
@@ -182,24 +205,6 @@ namespace catchem {
         bool is_category_active(std::string_view category_name) const;
         std::string find_process_file_setting(std::string_view process_name) const;
 
-        YAML::Node get_process_config(std::string_view process_name) const {
-            if (!is_loaded) {
-                return YAML::Node();
-            }
-            if (root_node["processes"]) {
-                std::string key(process_name);
-                if (root_node["processes"][key]) {
-                    return root_node["processes"][key];
-                }
-            }
-            if (root_node["process"]) {
-                std::string key(process_name);
-                if (root_node["process"][key]) {
-                    return root_node["process"][key];
-                }
-            }
-            return YAML::Node();
-        }
     };
 
 } // namespace catchem

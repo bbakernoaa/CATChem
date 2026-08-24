@@ -174,26 +174,26 @@ void CatchemPropertiesTest_StateBindingAndRebinding() {
     std::vector<double> chem2(nc * nl * ns, 2.0e-9);
 
     state.bind_met_field_3d("T", t1.data());
-    assert(state.met.T->host_data() == t1.data());
+    assert(state.meteorology().T->host_data() == t1.data());
     assert(state.get_host_pointer_3d("T") == t1.data());
 
     // Rebind to new host buffer
     state.bind_met_field_3d("T", t2.data());
-    assert(state.met.T->host_data() == t2.data());
+    assert(state.meteorology().T->host_data() == t2.data());
     assert(state.get_host_pointer_3d("T") == t2.data());
 
     state.bind_met_field_2d("PS", ps1.data());
-    assert(state.met.PS->host_data() == ps1.data());
+    assert(state.meteorology().PS->host_data() == ps1.data());
     assert(state.get_host_pointer_2d("PS") == ps1.data());
 
     state.bind_met_field_2d("PS", ps2.data());
-    assert(state.met.PS->host_data() == ps2.data());
+    assert(state.meteorology().PS->host_data() == ps2.data());
 
     state.bind_unified_chemistry(chem1.data());
-    assert(state.chem.conc->host_data() == chem1.data());
+    assert(state.chemistry().conc->host_data() == chem1.data());
 
     state.bind_unified_chemistry(chem2.data());
-    assert(state.chem.conc->host_data() == chem2.data());
+    assert(state.chemistry().conc->host_data() == chem2.data());
 
     std::cout << "=== PASS: CatchemPropertiesTest.StateBindingAndRebinding ===" << std::endl;
 }
@@ -268,7 +268,7 @@ void CatchemPropertiesTest_SpeciesMetadataAPI() {
     std::cout << "=== Running CatchemPropertiesTest.SpeciesMetadataAPI ===" << std::endl;
     catchem::StateManager state(4, 10, 50);
     std::string species_path = find_fixture("CATChem_species.yml");
-    state.chem.load_species_config(species_path);
+    state.chemistry().load_species_config(species_path);
 
     int count = catchem_state_get_species_count(&state);
     assert(count > 20);
@@ -295,6 +295,10 @@ void CatchemPropertiesTest_SpeciesMetadataAPI() {
     assert(catchem_state_is_species_dust(&state, dust1_idx) == 1);
     assert(catchem_state_is_species_aerosol(&state, dust1_idx) == 1);
     assert(catchem_state_get_species_density(&state, dust1_idx) == 2500.0);
+    assert(catchem_state_get_species_radius(&state, dust1_idx) == 0.73);
+    assert(catchem_state_get_species_lower_radius(&state, dust1_idx) == 0.1);
+    assert(catchem_state_get_species_upper_radius(&state, dust1_idx) == 1.0);
+    assert(catchem_state_get_species_radius(&state, count + 1) == 0.0);
     catchem_state_get_species_mie_name(&state, dust1_idx, mie_buf);
     assert(std::string(mie_buf) == "DU");
 
@@ -348,14 +352,12 @@ void CatchemPropertiesTest_ConfigManagerLoadsTypedFixtureData() {
     assert(no_mapping.scale.size() == 1);
     assert(no_mapping.scale[0] == 1.0);
     assert(no_mapping.map.size() == 1);
-    assert(no_mapping.map[0] == "NO");
+    assert(no_mapping.map[0] == "no3");
 
     catchem::ConfigManager legacy_mgr;
     legacy_mgr.load_from_file(find_fixture("CATChem_config.yml"));
-    YAML::Node legacy_seasalt = legacy_mgr.get_process_config(std::string_view("seasalt"));
-    assert(legacy_seasalt);
-    assert(legacy_seasalt["activate"].as<bool>());
-    assert(legacy_seasalt["scheme_opt"].as<int>() == 3);
+    assert(legacy_mgr.is_process_active("seasalt"));
+    assert(legacy_mgr.data.processes.at("seasalt").get_int("scheme_opt", 0) == 3);
 
     std::cout << "=== PASS: CatchemPropertiesTest.ConfigManagerLoadsTypedFixtureData ===" << std::endl;
 }
@@ -449,6 +451,38 @@ void CatchemPropertiesTest_MetUtilities() {
     std::cout << "=== PASS: CatchemPropertiesTest.MetUtilities ===" << std::endl;
 }
 
+void CatchemPropertiesTest_ValidDerivationVectors() {
+    catchem::StateManager state(1, 2, 1);
+    std::vector<double> pressure_edge{100000.0, 85000.0, 70000.0};
+    std::vector<double> pressure_mid{92500.0, 77500.0};
+    std::vector<double> temperature{290.0, 270.0};
+    std::vector<double> humidity{0.005, 0.010};
+    state.bind_met_field_3d("PEDGE", pressure_edge.data());
+    state.bind_met_field_3d("PMID", pressure_mid.data());
+    state.bind_met_field_3d("T", temperature.data());
+    state.bind_met_field_3d("QV", humidity.data());
+    state.set_validation_policy(catchem::PhysicalValidationPolicy::Reject);
+
+    state.derive_bxheight();
+    state.derive_airden_dry();
+    state.sync_to_host();
+    assert(state.validation_report().empty());
+    for (int level = 0; level < 2; ++level) {
+        const double virtual_temperature = catchem::met_utilities::virtual_temperature(
+            temperature[level], humidity[level]);
+        const double expected_height = (catchem::constants::RD / catchem::constants::G0) *
+            virtual_temperature * std::log(pressure_edge[level] / pressure_edge[level + 1]);
+        assert(std::abs(state.meteorology().BXHEIGHT->host_data()[level] - expected_height) < 1.0e-10);
+
+        const double ratio = (catchem::constants::AIR_MW / catchem::constants::H2O_MW) *
+            humidity[level] / (1.0 - humidity[level]);
+        const double water_mole_fraction = ratio / (1.0 + ratio);
+        const double expected_density = pressure_mid[level] * (1.0 - water_mole_fraction) /
+            (catchem::constants::RD * temperature[level]);
+        assert(std::abs(state.meteorology().AIRDEN_DRY->host_data()[level] - expected_density) < 1.0e-12);
+    }
+}
+
 void CatchemPropertiesTest_ConstantsAndPrecision() {
     std::cout << "=== Running CatchemPropertiesTest.ConstantsAndPrecision ===" << std::endl;
     assert(std::abs(catchem::constants::RD - 287.05) < 0.1);
@@ -480,8 +514,8 @@ int main(int argc, char* argv[]) {
         // Verify Trace ID Generation
         {
             auto test_state = std::make_shared<catchem::StateManager>(4, 10, 50);
-            assert(test_state->trace_id.length() == 8);
-            assert(!test_state->trace_id.empty());
+            assert(test_state->runtime_trace_id().length() == 8);
+            assert(!test_state->runtime_trace_id().empty());
         }
 
         CatchemPropertiesTest_RobustMetDerivations();
@@ -496,6 +530,7 @@ int main(int argc, char* argv[]) {
         CatchemPropertiesTest_DiagnosticsManagerAndAPI();
         CatchemPropertiesTest_UnitConversions();
         CatchemPropertiesTest_MetUtilities();
+        CatchemPropertiesTest_ValidDerivationVectors();
         CatchemPropertiesTest_ConstantsAndPrecision();
         CatchemPropertiesTest_CoreConstructsConfiguredProcesses();
 
@@ -628,11 +663,11 @@ int main(int argc, char* argv[]) {
         carbchem->init(state);
         core->add_process(carbchem);
 
-        std::cout << "state->met.T = " << state->met.T.get() << std::endl;
-        std::cout << "state->met.AIRDEN = " << state->met.AIRDEN.get() << std::endl;
-        std::cout << "state->met.PEDGE = " << state->met.PEDGE.get() << std::endl;
-        std::cout << "state->met.BXHEIGHT = " << state->met.BXHEIGHT.get() << std::endl;
-        std::cout << "state->chem.conc = " << state->chem.conc.get() << std::endl;
+        std::cout << "state->meteorology().T = " << state->meteorology().T.get() << std::endl;
+        std::cout << "state->meteorology().AIRDEN = " << state->meteorology().AIRDEN.get() << std::endl;
+        std::cout << "state->meteorology().PEDGE = " << state->meteorology().PEDGE.get() << std::endl;
+        std::cout << "state->meteorology().BXHEIGHT = " << state->meteorology().BXHEIGHT.get() << std::endl;
+        std::cout << "state->chemistry().conc = " << state->chemistry().conc.get() << std::endl;
 
         std::cout << "Executing 100 high-fuzz property iterations over 7 synchronized processes..." << std::endl;
 

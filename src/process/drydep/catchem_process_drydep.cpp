@@ -21,92 +21,109 @@ void run_drydep_science_bridge(int n_cols, int n_levels, int n_species, double d
 
 namespace catchem {
 
+    ProcessContract DryDepProcess::get_contract() const {
+        return {get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
+                            host_field_interface("PEDGE", "Pa"), host_field_3d("BXHEIGHT", "m"),
+                            host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
+                            host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
+                            host_field_3d("RH", "1", FieldRequirement::Optional),
+                            host_field_2d("PS", "Pa"), host_field_2d("TS", "K"),
+                            host_field_2d("LAT", "degrees", FieldRequirement::Optional, AccessIntent::Read,
+                                                          PersistencePolicy::Persistent),
+                            host_field_2d("LON", "degrees", FieldRequirement::Optional, AccessIntent::Read,
+                                                          PersistencePolicy::Persistent),
+                            host_field_2d("USTAR", "m/s", FieldRequirement::Optional),
+                            host_field_2d("HFLUX", "W/m2", FieldRequirement::Optional),
+                            host_field_2d("OBK", "m", FieldRequirement::Optional),
+                            host_field_2d("PBLH", "m", FieldRequirement::Optional), host_concentration()}, {}};
+    }
+
     DryDepProcess::DryDepProcess() : gas_scheme("wesely"), aero_scheme("gocart"), diagnostics_enabled(true) {}
 
     void DryDepProcess::init(std::shared_ptr<StateManager> state) {
         // 1. Setup diagnostic species ID dynamically based on the is_drydep metadata switch
-        for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
-            if (state->chem.species_list[i].is_drydep) {
+        for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
+            if (state->chemistry().species_list[i].is_drydep) {
                 diagnostic_species_id.push_back(i + 1); // 1-based for Fortran bridge
             }
         }
 
         // 2. Register C++ Diagnostic fields
-        std::vector<int> dims_2d = {state->n_cols, state->n_species};
-        state->diag_mgr->register_field("drydep_con_per_species", "Deposition Concentration", "ug/kg",
+        std::vector<int> dims_2d = {state->column_count(), state->species_count()};
+        state->diagnostic_manager()->register_field("drydep_con_per_species", "Deposition Concentration", "ug/kg",
                                         DiagType::FIELD_2D, dims_2d);
-        state->diag_mgr->register_field("drydep_velocity_per_species", "Deposition Velocity", "m/s", DiagType::FIELD_2D,
+        state->diagnostic_manager()->register_field("drydep_velocity_per_species", "Deposition Velocity", "m/s", DiagType::FIELD_2D,
                                         dims_2d);
     }
 
     void DryDepProcess::run(std::shared_ptr<StateManager> state) {
-        state->sync_to_host();
 
         // 1. Fetch 3D Met Views with fallbacks and derivations
-        if (!state->met.BXHEIGHT && state->met.PEDGE && state->met.T) {
+        if (!state->meteorology().BXHEIGHT && state->meteorology().PEDGE && state->meteorology().T) {
             state->derive_bxheight();
         }
-        double* bxheight_ptr = state->find_3d_ptr({"BXHEIGHT", "bxheight", "dz", "DELZ"});
+        double* bxheight_ptr = state->write_field<3>("BXHEIGHT");
 
-        double* airden_ptr = state->find_3d_ptr({"AIRDEN", "AIRDEN_DRY", "air_density", "air_density_dry"});
-        if (!airden_ptr && state->met.PMID && state->met.T) {
+        double* airden_ptr = state->write_field<3>("AIRDEN");
+        if (!airden_ptr) airden_ptr = state->write_field<3>("AIRDEN_DRY");
+        if (!airden_ptr && state->meteorology().PMID && state->meteorology().T) {
             state->derive_airden_dry();
-            airden_ptr = state->find_3d_ptr({"AIRDEN", "AIRDEN_DRY", "air_density", "air_density_dry"});
+            airden_ptr = state->write_field<3>("AIRDEN_DRY");
         }
 
-        double* t_ptr = state->find_3d_ptr({"T", "temperature", "temp"});
-        double* pedge_ptr = state->find_3d_ptr({"PEDGE", "pedge", "pressure_edge"});
+        double* t_ptr = state->write_field<3>("T");
+        double* pedge_ptr = state->write_field<3>("PEDGE");
 
-        double* rh_ptr = state->find_3d_ptr({"RH", "rh", "relative_humidity"});
+        double* rh_ptr = state->write_field<3>("RH");
         std::vector<double> fallback_rh;
         if (!rh_ptr) {
-            fallback_rh.assign(static_cast<size_t>(state->n_cols) * state->n_levels, 0.5);
+            fallback_rh.assign(static_cast<size_t>(state->column_count()) * state->level_count(), 0.5);
             rh_ptr = fallback_rh.data();
         }
 
         // 2. Retrieve surface met and grid positions
-        double* ps_ptr = state->find_2d_ptr({"PS", "ps", "surface_pressure"});
-        double* ts_ptr = state->find_2d_ptr({"TS", "ts", "SST", "sst", "skin_temperature"});
+        double* ps_ptr = state->write_field<2>("PS");
+        double* ts_ptr = state->write_field<2>("TS");
 
-        double* lat_ptr = state->find_2d_ptr({"LAT", "lat", "latitude"});
+        double* lat_ptr = state->write_field<2>("LAT");
         std::vector<double> fallback_lat;
         if (!lat_ptr) {
-            fallback_lat.assign(state->n_cols, 0.0);
+            fallback_lat.assign(state->column_count(), 0.0);
             lat_ptr = fallback_lat.data();
         }
 
-        double* lon_ptr = state->find_2d_ptr({"LON", "lon", "longitude"});
+        double* lon_ptr = state->write_field<2>("LON");
         std::vector<double> fallback_lon;
         if (!lon_ptr) {
-            fallback_lon.assign(state->n_cols, 0.0);
+            fallback_lon.assign(state->column_count(), 0.0);
             lon_ptr = fallback_lon.data();
         }
 
-        double* ustar_ptr = state->find_2d_ptr({"USTAR", "ustar", "friction_velocity"});
+        double* ustar_ptr = state->write_field<2>("USTAR");
         std::vector<double> fallback_ustar;
         if (!ustar_ptr) {
-            fallback_ustar.assign(state->n_cols, 0.2);
+            fallback_ustar.assign(state->column_count(), 0.2);
             ustar_ptr = fallback_ustar.data();
         }
 
-        double* hflux_ptr = state->find_2d_ptr({"HFLUX", "hflux"});
+        double* hflux_ptr = state->write_field<2>("HFLUX");
         std::vector<double> fallback_hflux;
         if (!hflux_ptr) {
-            fallback_hflux.assign(state->n_cols, 10.0);
+            fallback_hflux.assign(state->column_count(), 10.0);
             hflux_ptr = fallback_hflux.data();
         }
 
-        double* obk_ptr = state->find_2d_ptr({"OBK", "obk", "ol"});
+        double* obk_ptr = state->write_field<2>("OBK");
         std::vector<double> fallback_obk;
         if (!obk_ptr) {
-            fallback_obk.assign(state->n_cols, 100.0);
+            fallback_obk.assign(state->column_count(), 100.0);
             obk_ptr = fallback_obk.data();
         }
 
-        double* pblh_ptr = state->find_2d_ptr({"PBLH", "pblh", "hpbl"});
+        double* pblh_ptr = state->write_field<2>("PBLH");
         std::vector<double> fallback_pblh;
         if (!pblh_ptr) {
-            fallback_pblh.assign(state->n_cols, 1000.0);
+            fallback_pblh.assign(state->column_count(), 1000.0);
             pblh_ptr = fallback_pblh.data();
         }
 
@@ -118,62 +135,62 @@ namespace catchem {
         require_field_pointer("DryDep", "TS", ts_ptr);
 
         // Mock/Fallbacks for remaining metadata arrays - Using char for bool to support standard .data()
-        std::vector<double> cldfrc(state->n_cols, 0.1);
+        std::vector<double> cldfrc(state->column_count(), 0.1);
 
         // Multi-dimensional standard C++20 views using standard layout_left to match Fortran column-major
-        std::vector<double> frlai_storage(state->n_cols * 1 * 20, 1.5);
-        std::vector<double> frlanduse_storage(state->n_cols * 1 * 20, 0.05);
-        std::vector<int> iland_storage(state->n_cols * 1 * 20, 1);
+        std::vector<double> frlai_storage(state->column_count() * 1 * 20, 1.5);
+        std::vector<double> frlanduse_storage(state->column_count() * 1 * 20, 0.05);
+        std::vector<int> iland_storage(state->column_count() * 1 * 20, 1);
 
         Kokkos::mdspan<double, Kokkos::extents<int, Kokkos::dynamic_extent, 1, 20>, Kokkos::layout_left> frlai(
-            frlai_storage.data(), state->n_cols);
+            frlai_storage.data(), state->column_count());
         Kokkos::mdspan<double, Kokkos::extents<int, Kokkos::dynamic_extent, 1, 20>, Kokkos::layout_left> frlanduse(
-            frlanduse_storage.data(), state->n_cols);
+            frlanduse_storage.data(), state->column_count());
         Kokkos::mdspan<int, Kokkos::extents<int, Kokkos::dynamic_extent, 1, 20>, Kokkos::layout_left> iland(
-            iland_storage.data(), state->n_cols);
+            iland_storage.data(), state->column_count());
 
-        std::vector<char> is_ice(state->n_cols, 0);
-        std::vector<char> is_land(state->n_cols, 1);
-        std::vector<char> is_snow(state->n_cols, 0);
-        std::vector<double> salinity(state->n_cols, 35.0);
-        std::vector<double> suncosmid(state->n_cols, 0.8);
-        std::vector<double> swgdn(state->n_cols, 400.0);
-        std::vector<double> tskin(state->n_cols, 288.15);
-        std::vector<double> z0(state->n_cols, 0.1);
-        std::vector<double> frlake(state->n_cols, 0.0);
-        std::vector<double> gwettop(state->n_cols, 0.5);
-        std::vector<int> lwi(state->n_cols, 1);
-        std::vector<double> u10m(state->n_cols, 5.0);
-        std::vector<double> v10m(state->n_cols, 2.0);
-        std::vector<double> z0h(state->n_cols, 0.01);
+        std::vector<char> is_ice(state->column_count(), 0);
+        std::vector<char> is_land(state->column_count(), 1);
+        std::vector<char> is_snow(state->column_count(), 0);
+        std::vector<double> salinity(state->column_count(), 35.0);
+        std::vector<double> suncosmid(state->column_count(), 0.8);
+        std::vector<double> swgdn(state->column_count(), 400.0);
+        std::vector<double> tskin(state->column_count(), 288.15);
+        std::vector<double> z0(state->column_count(), 0.1);
+        std::vector<double> frlake(state->column_count(), 0.0);
+        std::vector<double> gwettop(state->column_count(), 0.5);
+        std::vector<int> lwi(state->column_count(), 1);
+        std::vector<double> u10m(state->column_count(), 5.0);
+        std::vector<double> v10m(state->column_count(), 2.0);
+        std::vector<double> z0h(state->column_count(), 0.01);
 
         // 3. Extract chemical arrays & C++ allocated diagnostics
-        double* conc_ptr = state->chem.conc ? state->chem.conc->host_data() : nullptr;
+        double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("DryDep", "CHEM_CONC", conc_ptr);
 
         // Allocate local tendencies buffer
-        std::vector<double> mock_tendency(state->n_cols * state->n_levels * state->n_species, 0.0);
+        std::vector<double> mock_tendency(state->column_count() * state->level_count() * state->species_count(), 0.0);
 
-        double* diag_con = (double*)state->diag_mgr->get_host_pointer("drydep_con_per_species");
-        double* diag_vel = (double*)state->diag_mgr->get_host_pointer("drydep_velocity_per_species");
+        double* diag_con = (double*)state->diagnostic_manager()->get_host_pointer("drydep_con_per_species");
+        double* diag_vel = (double*)state->diagnostic_manager()->get_host_pointer("drydep_velocity_per_species");
 
         // 4. Retrieve species configuration properties from ChemState
-        std::vector<double> mw_g(state->n_species, 29.0);
-        std::vector<double> dd_f0(state->n_species, 0.0);
-        std::vector<double> dd_hstar(state->n_species, 0.0);
-        std::vector<double> dd_DvzAerSnow(state->n_species, 0.0);
-        std::vector<double> dd_DvzMinVal_snow(state->n_species, 0.0);
-        std::vector<double> dd_DvzMinVal_land(state->n_species, 0.0);
-        std::vector<double> density(state->n_species, 1000.0);
-        std::vector<double> radius(state->n_species, 1e-6);
-        std::vector<char> is_seasalt(state->n_species, 0);
-        std::vector<char> is_dust(state->n_species, 0);
-        std::vector<double> lower_radius(state->n_species, 0.0);
-        std::vector<double> upper_radius(state->n_species, 0.0);
-        std::vector<char> is_gas(state->n_species, 1);
+        std::vector<double> mw_g(state->species_count(), 29.0);
+        std::vector<double> dd_f0(state->species_count(), 0.0);
+        std::vector<double> dd_hstar(state->species_count(), 0.0);
+        std::vector<double> dd_DvzAerSnow(state->species_count(), 0.0);
+        std::vector<double> dd_DvzMinVal_snow(state->species_count(), 0.0);
+        std::vector<double> dd_DvzMinVal_land(state->species_count(), 0.0);
+        std::vector<double> density(state->species_count(), 1000.0);
+        std::vector<double> radius(state->species_count(), 1e-6);
+        std::vector<char> is_seasalt(state->species_count(), 0);
+        std::vector<char> is_dust(state->species_count(), 0);
+        std::vector<double> lower_radius(state->species_count(), 0.0);
+        std::vector<double> upper_radius(state->species_count(), 0.0);
+        std::vector<char> is_gas(state->species_count(), 1);
 
-        for (size_t i = 0; i < state->chem.species_list.size(); ++i) {
-            auto& meta = state->chem.species_list[i];
+        for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
+            auto& meta = state->chemistry().species_list[i];
             if (meta.mw_g > 0.0)
                 mw_g[i] = meta.mw_g;
             dd_f0[i] = meta.dd_f0;
@@ -200,7 +217,7 @@ namespace catchem {
 
         // 5. Invoke flat science bridge (casting char* vectors to bool* pointers)
         run_drydep_science_bridge(
-            state->n_cols, state->n_levels, state->n_species, state->time.timestep, gas_scheme.c_str(),
+            state->column_count(), state->level_count(), state->species_count(), state->clock().timestep, gas_scheme.c_str(),
             aero_scheme.c_str(), diagnostics_enabled ? 1 : 0, bxheight_ptr, airden_ptr, t_ptr, pedge_ptr, rh_ptr,
             cldfrc.data(), frlai.data_handle(), frlanduse.data_handle(), iland.data_handle(), (bool*)is_ice.data(),
             (bool*)is_land.data(), (bool*)is_snow.data(), lat_ptr, lon_ptr, obk_ptr, ps_ptr, salinity.data(),
@@ -211,7 +228,7 @@ namespace catchem {
             (bool*)is_gas.data(), conc_ptr, mock_tendency.data(), diag_con, diag_vel, diagnostic_species_id.data(),
             diagnostic_species_id.size());
 
-        state->sync_to_device();
+        if (state->chemistry().conc) state->chemistry().conc->mark_host_modified();
     }
 
 } // namespace catchem

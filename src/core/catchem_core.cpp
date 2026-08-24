@@ -4,19 +4,6 @@
 
 namespace {
 
-    // The core owns the Kokkos runtime for hosts that drive it through the
-    // C API (e.g. the NUOPC cap): managed Views (diagnostics, device
-    // mirrors) require an initialized runtime. No-op when Kokkos is off or
-    // when the host already initialized it. Finalization is intentionally
-    // left to the host/test harness.
-    void ensure_kokkos_initialized() {
-#ifdef CATCHEM_ENABLE_KOKKOS
-        if (!Kokkos::is_initialized()) {
-            Kokkos::initialize();
-        }
-#endif
-    }
-
     // Resolve a (possibly relative) species path against the config file's
     // directory, so YAML-relative paths work regardless of the host's CWD.
     std::string resolve_against_config(const std::string& config_file, const std::string& path) {
@@ -28,82 +15,107 @@ namespace {
         return config_file.substr(0, slash + 1) + path;
     }
 
-    // Load the species list declared by the config (if any) and size the
-    // state's species dimension from it.
-    void load_configured_species(catchem::StateManager& state, const std::string& config_file,
-                                 const std::string& species_filename) {
-        if (species_filename.empty())
-            return;
-        state.chem.load_species_config(resolve_against_config(config_file, species_filename));
-        if (!state.chem.species_list.empty()) {
-            state.n_species = static_cast<int>(state.chem.species_list.size());
-        }
+    void load_and_validate_configuration(catchem::ConfigManager& config, const std::string& config_file) {
+        if (!config.data.species_filename.empty())
+            config.load_species_file(resolve_against_config(config_file, config.data.species_filename));
+        if (!config.data.simulation.emission_filename.empty())
+            config.load_emission_mapping_file(
+                resolve_against_config(config_file, config.data.simulation.emission_filename));
+        config.validate_or_throw();
     }
 
 } // namespace
 
 namespace catchem {
 
-    Core::Core(int nc, int nl, int ns) {
-        ensure_kokkos_initialized();
-        config_mgr = std::make_shared<ConfigManager>();
-        config_mgr->data.runtime.nx = nc;
-        config_mgr->data.runtime.ny = 1;
-        config_mgr->data.runtime.nz = nl;
-
-        grid_mgr = std::make_shared<GridManager>(nc, 1, nl);
-        state_mgr = std::make_shared<StateManager>(nc, nl, ns);
-        state_mgr->config_mgr = config_mgr;
-        diag_mgr = std::make_shared<DiagnosticManager>();
-        state_mgr->diag_mgr = diag_mgr;
+    CoreCreateOptions CoreCreateOptions::direct_dimensions(int columns, int levels, int species) {
+        return {.config_file = {}, .columns = columns, .levels = levels, .species = species,
+                .use_configuration_grid = false};
     }
 
-    Core::Core(const std::string& config_file) {
-        ensure_kokkos_initialized();
-        config_mgr = std::make_shared<ConfigManager>();
-        config_mgr->load_from_file(config_file);
+    CoreCreateOptions CoreCreateOptions::configured(std::string config_file) {
+        return {.config_file = std::move(config_file), .columns = 1, .levels = 1, .species = 0,
+                .use_configuration_grid = true};
+    }
 
-        int nx = config_mgr->data.runtime.nx;
-        int ny = config_mgr->data.runtime.ny;
-        int nz = config_mgr->data.runtime.nz;
+    CoreCreateOptions CoreCreateOptions::configured_with_host_grid(
+        std::string config_file, int columns, int levels) {
+        return {.config_file = std::move(config_file), .columns = columns, .levels = levels, .species = 0,
+                .use_configuration_grid = false};
+    }
+
+    Core::~Core() noexcept {
+        try { shutdown(); } catch (...) {}
+    }
+
+    void Core::shutdown() {
+        std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+        if (shutdown_) return;
+        std::exception_ptr first_error;
+        for (std::size_t i = processes.size(); i-- > 0;) {
+            if (i >= initialized_processes_.size() || !initialized_processes_[i]) continue;
+            try { processes[i]->finalize(); }
+            catch (...) { if (!first_error) first_error = std::current_exception(); }
+            initialized_processes_[i] = false;
+        }
+        shutdown_ = true;
+        runtime_lease_.release();
+        if (first_error) std::rethrow_exception(first_error);
+    }
+
+    Core::Core(const CoreCreateOptions& options) {
+        initialize(options);
+    }
+
+    Core::Core(int nc, int nl, int ns)
+        : Core(CoreCreateOptions::direct_dimensions(nc, nl, ns)) {}
+
+    Core::Core(const std::string& config_file)
+        : Core(CoreCreateOptions::configured(config_file)) {}
+
+    Core::Core(const std::string& config_file, int nc, int nl)
+        : Core(CoreCreateOptions::configured_with_host_grid(config_file, nc, nl)) {}
+
+    void Core::initialize(const CoreCreateOptions& options) {
+        runtime_lease_ = RuntimeLease(RuntimeMode::CATChemOwned);
+        config_mgr = std::make_shared<ConfigManager>();
+        const bool configured = !options.config_file.empty();
+        int nx = options.columns;
+        int ny = 1;
+        int nz = options.levels;
+        int species_count = options.species;
+
+        if (configured) {
+            config_mgr->load_from_file(options.config_file);
+            if (options.use_configuration_grid) {
+                nx = config_mgr->data.runtime.nx;
+                ny = config_mgr->data.runtime.ny;
+                nz = config_mgr->data.runtime.nz;
+            } else {
+                // A coupled host owns its local grid; YAML still owns all other settings.
+                config_mgr->data.runtime.nx = nx;
+                config_mgr->data.runtime.ny = ny;
+                config_mgr->data.runtime.nz = nz;
+            }
+            load_and_validate_configuration(*config_mgr, options.config_file);
+            species_count = static_cast<int>(config_mgr->data.species.size());
+        } else {
+            config_mgr->data.runtime.nx = nx;
+            config_mgr->data.runtime.ny = ny;
+            config_mgr->data.runtime.nz = nz;
+        }
 
         grid_mgr = std::make_shared<GridManager>(nx, ny, nz);
-        state_mgr = std::make_shared<StateManager>(nx * ny, nz, 50);
-        state_mgr->config_mgr = config_mgr;
-        state_mgr->config_file_path = config_mgr->config_file_path;
+        state_mgr = std::make_shared<StateManager>(nx * ny, nz, species_count);
+        if (configured) state_mgr->set_validation_policy(config_mgr->data.physical_validation_policy);
+        state_mgr->attach_config_manager(config_mgr);
         diag_mgr = std::make_shared<DiagnosticManager>();
-        state_mgr->diag_mgr = diag_mgr;
-        load_configured_species(*state_mgr, config_file, config_mgr->data.species_filename);
-        if (!config_mgr->data.simulation.emission_filename.empty()) {
-            config_mgr->load_emission_mapping_file(
-                resolve_against_config(config_file, config_mgr->data.simulation.emission_filename));
+        state_mgr->attach_diagnostic_manager(diag_mgr);
+        if (configured) {
+            state_mgr->set_configuration_path(config_mgr->config_file_path);
+            state_mgr->chemistry().load_from_config_manager(*config_mgr);
+            add_configured_processes();
         }
-        add_configured_processes();
-    }
-
-    Core::Core(const std::string& config_file, int nc, int nl) {
-        ensure_kokkos_initialized();
-        config_mgr = std::make_shared<ConfigManager>();
-        config_mgr->load_from_file(config_file);
-
-        // The host (e.g. UFS per-rank domain decomposition) dictates the grid
-        // dimensions; the YAML grid section applies to standalone runs only.
-        config_mgr->data.runtime.nx = nc;
-        config_mgr->data.runtime.ny = 1;
-        config_mgr->data.runtime.nz = nl;
-
-        grid_mgr = std::make_shared<GridManager>(nc, 1, nl);
-        state_mgr = std::make_shared<StateManager>(nc, nl, 50); // 50 = fallback when no species file
-        state_mgr->config_mgr = config_mgr;
-        state_mgr->config_file_path = config_mgr->config_file_path;
-        diag_mgr = std::make_shared<DiagnosticManager>();
-        state_mgr->diag_mgr = diag_mgr;
-        load_configured_species(*state_mgr, config_file, config_mgr->data.species_filename);
-        if (!config_mgr->data.simulation.emission_filename.empty()) {
-            config_mgr->load_emission_mapping_file(
-                resolve_against_config(config_file, config_mgr->data.simulation.emission_filename));
-        }
-        add_configured_processes();
     }
 
     std::shared_ptr<ConfigManager> Core::get_config_manager() {
@@ -129,34 +141,92 @@ namespace catchem {
     void Core::add_configured_processes() {
         auto& registry = ProcessRegistry::get_instance();
         for (const auto& process_name : config_mgr->data.active_processes) {
+            const auto settings = config_mgr->data.processes.find(process_name);
+            if (settings != config_mgr->data.processes.end()) registry.validate_settings(process_name, settings->second);
             auto process = registry.create(process_name);
             process->init(state_mgr);
-            add_process(process);
+            try { add_process(process); }
+            catch (...) { try { process->finalize(); } catch (...) {} throw; }
         }
     }
 
     void Core::add_process(std::shared_ptr<ProcessInterface> process) {
+        if (!process) throw std::invalid_argument("Cannot add a null process");
+        std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+        if (shutdown_) throw std::logic_error("Cannot add a process after shutdown");
         processes.push_back(process);
+        initialized_processes_.push_back(true);
+        execution_plan_.compile(processes, state_mgr->chemistry().mechanism.get());
+        if (execution_plan_.validation().has_errors()) {
+            const auto issue_summary = execution_plan_.validation().format();
+            processes.pop_back();
+            initialized_processes_.pop_back();
+            execution_plan_.compile(processes, state_mgr->chemistry().mechanism.get());
+            throw std::invalid_argument("Invalid process schedule: " + issue_summary);
+        }
     }
 
     void Core::run_timestep(double dt) {
+        if (tainted_) {
+            if (state_mgr->current_import_generation() > last_outcome_.import_generation) {
+                tainted_ = false;
+            } else {
+                throw std::runtime_error("Previous timestep partially updated state; a new import generation is required");
+            }
+        }
+        last_outcome_ = {};
+        last_outcome_.timestep = ++timestep_counter_;
+        last_outcome_.duration = dt;
+        last_outcome_.import_generation = state_mgr->current_import_generation();
         if (dt <= 0.0 || dt > 86400.0) {
+            last_outcome_.status = TimestepStatus::ValidationFailed;
+            last_outcome_.state = StateClassification::RequiresReimport;
+            last_outcome_.cause = "invalid timestep duration";
             throw std::out_of_range(
                 "Timestep dt must be positive and within a plausible physical daily limit (0 < dt <= 86400).");
         }
 
-        // Sync shared boundary arrays to active execution spaces
-        state_mgr->sync_to_device();
-
-        for (auto& process : processes) {
-            process->run(state_mgr);
+        try {
+            state_mgr->validate_ready_for_execution();
+        } catch (const std::exception& error) {
+            last_outcome_.status = TimestepStatus::ValidationFailed;
+            last_outcome_.state = StateClassification::RequiresReimport;
+            last_outcome_.cause = error.what();
+            throw;
         }
+        last_outcome_.status = TimestepStatus::Running;
+        diag_mgr->begin_timestep();
 
-        // Sync execution outputs back to Fortran-accessible memory
-        state_mgr->sync_to_host();
+        for (std::size_t index = 0; index < processes.size(); ++index) {
+            try {
+                execution_plan_.prepare(index, *state_mgr);
+                processes[index]->run(state_mgr);
+                execution_plan_.complete(index, *state_mgr);
+            } catch (const std::exception& error) {
+                last_outcome_.status = TimestepStatus::PartialUpdate;
+                last_outcome_.process_name = processes[index]->get_name();
+                last_outcome_.process_index = index;
+                last_outcome_.cause = error.what();
+                last_outcome_.state = StateClassification::RequiresReimport;
+                tainted_ = true;
+                diag_mgr->mark_generation_failed();
+                throw;
+            } catch (...) {
+                last_outcome_.status = TimestepStatus::PartialUpdate;
+                last_outcome_.process_name = processes[index]->get_name();
+                last_outcome_.process_index = index;
+                last_outcome_.cause = "unknown non-standard exception";
+                last_outcome_.state = StateClassification::RequiresReinitialize;
+                tainted_ = true;
+                diag_mgr->mark_generation_failed();
+                throw;
+            }
+        }
 
         // Sync diagnostics
         diag_mgr->sync_to_host();
+        last_outcome_.status = TimestepStatus::Succeeded;
+        last_outcome_.state = StateClassification::Reusable;
     }
 
     void Core::run_timestep() {

@@ -480,6 +480,7 @@ contains
       if (associated(GOCART_PRESS)) deallocate(GOCART_PRESS); nullify(GOCART_PRESS)
       if (associated(GOCART_LWI)) deallocate(GOCART_LWI); nullify(GOCART_LWI)
       if (associated(GOCART_USTAR)) deallocate(GOCART_USTAR); nullify(GOCART_USTAR)
+      if (associated(GOCART_PBLH)) deallocate(GOCART_PBLH); nullify(GOCART_PBLH)
       if (associated(GOCART_HFLUX)) deallocate(GOCART_HFLUX); nullify(GOCART_HFLUX)
       if (associated(GOCART_U10M)) deallocate(GOCART_U10M); nullify(GOCART_U10M)
       if (associated(GOCART_V10M)) deallocate(GOCART_V10M); nullify(GOCART_V10M)

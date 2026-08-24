@@ -8,7 +8,7 @@ int main(int argc, char* argv[]) {
     Kokkos::initialize(argc, argv);
     {
         auto state = std::make_shared<catchem::StateManager>(4, 10, 50);
-        state->trace_id = "testtrac";
+        state->set_runtime_trace_id("testtrac");
 
         // Manual redirect stringstream capture is optional, we assert logger successfully formats and prints
         catchem::Logger::info(state.get(), "Simulation timestep advanced", {{"step", "12"}, {"dt", "300.0"}});
