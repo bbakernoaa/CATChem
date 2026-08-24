@@ -178,7 +178,7 @@ module catchem_nuopc_interface
    !! \{
    type :: tracer_index_map
       integer, allocatable :: nuopc_to_cc(:)  !< mapping index from NUOPC to CATChem
-      integer, allocatable :: entry_kind(:)   !< 1=prognostic, 2=diagnostic pseudo-tracer, 0=invalid
+      integer, allocatable :: entry_kind(:)   !< 1=CATChem species, 2=diagnostic pseudo-tracer, 0=host-owned
       character(len=128), allocatable :: names(:) !< NUOPC tracer name
       character(len=128), allocatable :: units(:) !< NUOPC tracer unit
    end type tracer_index_map
@@ -478,11 +478,14 @@ contains
                   trim(cc_wrap%tracer_map%names(i)) == 'PM10') then
             cc_wrap%tracer_map%entry_kind(i) = 2
          else
+            ! NUOPC tracer metadata can include host prognostics that are not
+            ! part of the active chemistry mechanism (for example sphum).
+            ! Keep those slots in the host array, but leave them untouched by
+            ! CATChem.  Chemical membership remains entirely mechanism- and
+            ! configuration-driven; no host tracer names are hardcoded here.
             cc_wrap%tracer_map%entry_kind(i) = 0
-            call ESMF_LogWrite("Unknown prognostic tracer: " // trim(cc_wrap%tracer_map%names(i)), &
-               ESMF_LOGMSG_ERROR, rc=rc)
-            rc = ESMF_FAILURE
-            return
+            call ESMF_LogWrite("Ignoring host-owned tracer not present in active mechanism: " // &
+               trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_INFO, rc=rc)
          end if
       end do
 
