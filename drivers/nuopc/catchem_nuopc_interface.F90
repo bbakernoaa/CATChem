@@ -154,6 +154,7 @@ module catchem_nuopc_interface
       integer :: dimensions               !< Number of spatial dimensions (2D/3D)
       character(len=64) :: units          !< Physical units for conversion
       logical :: optional = .false.       !< Whether field is required or optional
+      logical :: advertise = .false.      !< Advertise an optional field for a host coupling contract
    end type field_mapping_type
    !! \}
 
@@ -2647,6 +2648,7 @@ contains
       current_field%dimensions = 0
       current_field%units = ''
       current_field%optional = .false.
+      current_field%advertise = .false.
 
       ! Open file for reading
       open(newunit=unit_num, file=trim(filename), status='old', action='read', iostat=io_stat)
@@ -2731,6 +2733,7 @@ contains
                   current_field%dimensions = 0
                   current_field%units = ''
                   current_field%optional = .false.
+                  current_field%advertise = .false.
 
                   ! Parse the first property if it's on the same line as the dash
                   if (len_trim(trimmed_line) > 2) then
@@ -2867,8 +2870,17 @@ contains
             field%optional = .true.
           case ('false', 'False', 'FALSE', '.false.')
             field%optional = .false.
-          case default
+         case default
             field%optional = .false.
+         end select
+       case ('advertise')
+         select case (trim(clean_value))
+         case ('true', 'True', 'TRUE', '.true.')
+            field%advertise = .true.
+         case ('false', 'False', 'FALSE', '.false.')
+            field%advertise = .false.
+         case default
+            field%advertise = .false.
          end select
       end select
 

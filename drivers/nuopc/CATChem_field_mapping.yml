@@ -134,16 +134,19 @@ import_fields:
     dimensions: 2
     units: "m"
     optional: true
+    advertise: true
   - standard_name: "canopy_moisture_storage"
     catchem_var: "WCA"
     dimensions: 2
     units: "m3"
     optional: true
+    advertise: true
   - standard_name: "inst_canopy_resistance"
     catchem_var: "RCA"
     dimensions: 2
     units: "s/m"
     optional: true
+    advertise: true
   - standard_name: "surface_cell_area"
     catchem_var: "AREA_M2"
     dimensions: 2
@@ -214,11 +217,13 @@ import_fields:
     dimensions: 3
     units: "K"
     optional: true
+    advertise: true
   - standard_name: "inst_up_sensi_heat_flx"
     catchem_var: "HFLUX_UP"
     dimensions: 2
     units: "w/m2"
     optional: true
+    advertise: true
   - standard_name: "inst_tracer_mass_frac"
     catchem_var: "chem"
     dimensions: 4

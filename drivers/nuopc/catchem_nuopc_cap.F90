@@ -195,11 +195,14 @@ contains
       !if (size(fieldList) == 0) then
       ! Advertise import fields using MPI-safe accessor functions
       do i = 1, size(field_config%import_fields)
-         ! Optional imports are consumed when a producer supplies them, but
-         ! must not be advertised as mandatory NUOPC imports. Advertising an
-         ! optional field makes NUOPC require a connection during IPDvXp07,
-         ! which is incompatible with UFS configurations that omit humidity.
-         if (field_config%import_fields(i)%optional) then
+         ! Optional fields normally remain unadvertised so a host that does
+         ! not produce them (for example humidity diagnostics) is valid.
+         ! Some hosts require a complete field contract even for data that is
+         ! optional to CATChem physics; YAML marks those entries advertise:
+         ! true.  This keeps host-specific contracts declarative rather than
+         ! hardcoding field names in the cap.
+         if (field_config%import_fields(i)%optional .and. &
+             .not. field_config%import_fields(i)%advertise) then
             call ESMF_LogWrite('CATChem: optional import not advertised: ' // &
                trim(field_config%import_fields(i)%standard_name), ESMF_LOGMSG_INFO, rc=rc)
             if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
