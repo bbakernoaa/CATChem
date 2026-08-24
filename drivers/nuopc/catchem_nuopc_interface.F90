@@ -1522,6 +1522,15 @@ contains
             fptr4d = real(cc_wrap%host_tracer_buf_4d, ESMF_KIND_R8)
          end if
 
+#ifdef CATCHEM_TRACE_NUOPC
+         write(*, '(A,A,A,I0,A,I0,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') &
+            '[CATCHEM DEBUG] export 4D pre-overlay: ', trim(field_map%standard_name), &
+            ' shape=[', size(fptr4d,1), ',', size(fptr4d,2), ',', size(fptr4d,3), ',', size(fptr4d,4), &
+            '] ptr=', transfer(c_loc(fptr4d(1,1,1,1)), 0_c_intptr_t), &
+            ' min=', minval(fptr4d), ' max=', maxval(fptr4d)
+         call flush(6)
+#endif
+
          ni = size(fptr4d, 1)
          nj = size(fptr4d, 2)
          nk = size(fptr4d, 3)
@@ -1591,6 +1600,12 @@ contains
                end if
             end do   !nv
          end if
+
+#ifdef CATCHEM_TRACE_NUOPC
+         write(*, '(A,A,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] export 4D post-overlay: ', &
+            trim(field_map%standard_name), ' min=', minval(fptr4d), ' max=', maxval(fptr4d)
+         call flush(6)
+#endif
 
        case default
          call ESMF_LogWrite("Unknown export field dimension for: "//trim(field_map%catchem_var), &
