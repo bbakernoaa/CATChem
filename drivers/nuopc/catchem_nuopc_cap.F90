@@ -94,6 +94,10 @@ contains
 
       rc = ESMF_SUCCESS
 
+      call ESMF_LogWrite('CATChem: Enter SetServices', ESMF_LOGMSG_INFO, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+
       ! Set the model services
       call NUOPC_CompDerive(model, modelSS, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -133,6 +137,8 @@ contains
          specRoutine=ModelFinalize, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
+
+      call ESMF_LogWrite('CATChem: Completed SetServices', ESMF_LOGMSG_INFO, rc=rc)
 
    end subroutine SetServices
 
