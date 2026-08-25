@@ -2265,8 +2265,12 @@ contains
             do it = 1, npts
                i = category%fields(ifield)%ip(it)
                j = category%fields(ifield)%jp(it)
+               ! The distributed locator assigns each global point to exactly
+               ! one PET and deliberately stores (-1,-1) on every non-owner.
+               ! Those points are not errors on this local tile.
+               if (i == -1 .and. j == -1) cycle
                if (i < 1 .or. i > nx .or. j < 1 .or. j > ny) then
-                  call ESMF_LogWrite(trim(pName)//': point source maps outside the local grid', &
+                  call ESMF_LogWrite(trim(pName)//': invalid local point-source mapping', &
                      ESMF_LOGMSG_ERROR, rc=localrc)
                   rc = CC_FAILURE
                   return
