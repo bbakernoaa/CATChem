@@ -161,6 +161,7 @@ module catchem_nuopc_interface
       character(len=128) :: catchem_var   !< Corresponding CATChem variable path
       integer :: dimensions               !< Number of spatial dimensions (2D/3D)
       character(len=64) :: units          !< Physical units for conversion
+      character(len=32) :: vertical_axis = 'level' !< Vertical coordinate semantic for 3D fields
       logical :: optional = .false.       !< Whether field is required or optional
       logical :: advertise = .false.      !< Advertise an optional field for a host coupling contract
    end type field_mapping_type
@@ -1320,9 +1321,20 @@ contains
             return
          end if
 
-         expected_levels = cc_wrap%catchem_model%nz
-         if (trim(field_map%catchem_var) == 'PEDGE' .or. trim(field_map%catchem_var) == 'Z') &
-            expected_levels = expected_levels + 1
+         select case (trim(field_map%vertical_axis))
+         case ('level')
+            expected_levels = cc_wrap%catchem_model%nz
+         case ('interface')
+            expected_levels = cc_wrap%catchem_model%nz + 1
+         case ('soil_layer')
+            expected_levels = size(fptr3d, 3)
+         case default
+            call ESMF_LogWrite("Unsupported vertical_axis for 3D import field: " // &
+               trim(field_map%standard_name) // " (" // trim(field_map%vertical_axis) // ")", &
+               ESMF_LOGMSG_ERROR, rc=rc)
+            rc = ESMF_FAILURE
+            return
+         end select
          if (size(fptr3d,1) /= cc_wrap%catchem_model%nx .or. &
              size(fptr3d,2) /= cc_wrap%catchem_model%ny .or. size(fptr3d,3) /= expected_levels) then
             call ESMF_LogWrite("Shape mismatch for 3D import field: " // trim(field_map%standard_name), &
@@ -1344,8 +1356,20 @@ contains
          end if
          cc_wrap%met_buf_3d(fidx)%data = real(fptr3d, c_double)
 
-         ! Direct pointer mapping to C++ core StateManager via persistent contiguous buffer
-         call cc_wrap%catchem_model%bind_met_3d(trim(field_map%catchem_var), cc_wrap%met_buf_3d(fidx)%data, rc)
+         ! Bind through the checked semantic contract.  The field mapping, not
+         ! a variable-name special case, defines whether vertical extent is
+         ! atmospheric levels, interfaces, or host-defined soil layers.
+         select case (trim(field_map%vertical_axis))
+         case ('level')
+            call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%catchem_var), &
+               cc_wrap%met_buf_3d(fidx)%data, 0, rc)
+         case ('interface')
+            call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%catchem_var), &
+               cc_wrap%met_buf_3d(fidx)%data, 1, rc)
+         case ('soil_layer')
+            call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%catchem_var), &
+               cc_wrap%met_buf_3d(fidx)%data, 2, rc)
+         end select
          if (rc /= CC_SUCCESS) return
 
          if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(is_met_set)) then
@@ -2701,6 +2725,7 @@ contains
       current_field%catchem_var = ''
       current_field%dimensions = 0
       current_field%units = ''
+      current_field%vertical_axis = 'level'
       current_field%optional = .false.
       current_field%advertise = .false.
 
@@ -2786,6 +2811,7 @@ contains
                   current_field%catchem_var = ''
                   current_field%dimensions = 0
                   current_field%units = ''
+                  current_field%vertical_axis = 'level'
                   current_field%optional = .false.
                   current_field%advertise = .false.
 
@@ -2918,6 +2944,8 @@ contains
          if (read_stat /= 0) field%dimensions = 0
        case ('units')
          field%units = trim(clean_value)
+       case ('vertical_axis')
+         field%vertical_axis = trim(clean_value)
        case ('optional')
          select case (trim(clean_value))
           case ('true', 'True', 'TRUE', '.true.')

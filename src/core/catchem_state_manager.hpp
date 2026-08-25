@@ -190,7 +190,7 @@ namespace catchem {
             if (key == "SST") return "K";
             if (key == "U10M" || key == "V10M" || key == "USTAR" || key == "USTAR_THRESHOLD") return "m/s";
             if (key == "CMM") return "1";
-            if (key == "SOILM") return "kg/kg";
+            if (key == "SOILM") return "m3/m3";
             if (key == "Z0" || key == "OBK") return "m";
             if (key == "HFLUX") return "W/m2";
             return "";

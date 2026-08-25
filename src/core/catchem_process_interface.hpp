@@ -77,6 +77,14 @@ namespace catchem {
                 PersistencePolicy::Timestep, requirement, access, ExecutionSpaceIntent::Host};
     }
 
+    inline FieldAccessContract host_field_soil_layer(std::string name, std::string units,
+                                                      FieldRequirement requirement = FieldRequirement::Required,
+                                                      AccessIntent access = AccessIntent::Read) {
+        return {std::move(name), std::move(units),
+                {SemanticAxis::Column, SemanticAxis::SoilLayer, SemanticAxis::Singleton},
+                PersistencePolicy::Timestep, requirement, access, ExecutionSpaceIntent::Host};
+    }
+
     inline FieldAccessContract host_field_2d(std::string name, std::string units,
                                               FieldRequirement requirement = FieldRequirement::Required,
                                               AccessIntent access = AccessIntent::Read,

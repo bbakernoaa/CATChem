@@ -128,6 +128,14 @@ module CATChem_API
          integer(c_int), value :: dim1, dim2, dim3
       end function
 
+      integer(c_int) function catchem_state_bind_met_3d_axis_checked(state_ptr, name, ptr, dim1, dim2, dim3, axis) &
+         bind(C, name="catchem_state_bind_met_3d_axis_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: state_ptr, ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), value :: dim1, dim2, dim3, axis
+      end function
+
       subroutine catchem_state_bind_met_2d(state_ptr, name, ptr) bind(C, name="catchem_state_bind_met_2d")
          import :: c_ptr, c_char
          type(c_ptr), value :: state_ptr
@@ -444,6 +452,7 @@ module CATChem_API
       procedure :: get_grid_dimensions => model_get_grid_dimensions
       procedure :: is_initialized => model_is_initialized
       procedure :: bind_met_3d => model_bind_met_3d
+      procedure :: bind_met_3d_axis => model_bind_met_3d_axis
       procedure :: bind_met_2d => model_bind_met_2d
       procedure :: bind_unified_chemistry_3d => model_bind_unified_chemistry_3d
       procedure :: bind_unified_chemistry_4d => model_bind_unified_chemistry_4d
@@ -798,6 +807,31 @@ contains
       call catchem_state_bind_met_3d(this%state_mgr_ptr, c_name, c_loc(arr(1,1,1)))
       if (present(rc)) rc = CC_SUCCESS
    end subroutine model_bind_met_3d
+
+   ! Bind a 3D meteorological field with an explicit vertical semantic axis.
+   ! CATChem stores horizontal Fortran dimensions as one flattened column axis.
+   subroutine model_bind_met_3d_axis(this, name, arr, semantic_axis, rc)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: name
+      real(c_double), target, contiguous, intent(in) :: arr(:,:,:)
+      integer, intent(in) :: semantic_axis
+      integer, optional, intent(out) :: rc
+
+      character(kind=c_char) :: c_name(64)
+      integer(c_int) :: status
+
+      call to_c_string(name, c_name)
+      status = catchem_state_bind_met_3d_axis_checked(this%state_mgr_ptr, c_name, c_loc(arr(1,1,1)), &
+         int(size(arr, 1) * size(arr, 2), c_int), int(size(arr, 3), c_int), 1_c_int, int(semantic_axis, c_int))
+      if (present(rc)) then
+         if (status == 0_c_int) then
+            rc = CC_SUCCESS
+         else
+            rc = CC_FAILURE
+            call capture_boundary_error(this)
+         end if
+      end if
+   end subroutine model_bind_met_3d_axis
 
    ! Bind a 2D meteorological field
    subroutine model_bind_met_2d(this, name, arr, rc)

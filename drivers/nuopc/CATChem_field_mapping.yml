@@ -17,6 +17,7 @@ import_fields:
   - standard_name: "inst_geop_interface"
     catchem_var: "Z"
     dimensions: 3
+    vertical_axis: "interface"
     units: "m"
     optional: false
   - standard_name: "inst_geop_levels"
@@ -27,6 +28,7 @@ import_fields:
   - standard_name: "inst_pres_interface"
     catchem_var: "PEDGE"
     dimensions: 3
+    vertical_axis: "interface"
     units: "Pa"
     optional: false
   - standard_name: "inst_pres_levels"
@@ -210,11 +212,13 @@ import_fields:
   - standard_name: "inst_soil_moisture_content"
     catchem_var: "SOILM"
     dimensions: 3
+    vertical_axis: "soil_layer"
     units: "m3/m3"
     optional: false
   - standard_name: "temperature_of_soil_layer"
     catchem_var: "SOILT"
     dimensions: 3
+    vertical_axis: "soil_layer"
     units: "K"
     optional: true
     advertise: true

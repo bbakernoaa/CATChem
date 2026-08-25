@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <stdexcept>
 
 extern "C" {
 void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil, double dt, const char* active_scheme,
@@ -26,7 +27,7 @@ namespace catchem {
                             host_field_3d("DELP", "Pa", FieldRequirement::Optional),
                             host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
                             host_field_3d("BXHEIGHT", "m", FieldRequirement::Optional),
-                            host_field_3d("SOILM", "kg/kg"),
+                            host_field_soil_layer("SOILM", "m3/m3"),
                             host_field_2d("CLAYFRAC", "1"), host_field_2d("FRLAKE", "1"),
                             host_field_2d("FRSNO", "1"), host_field_2d("GVF", "1"),
                             host_field_2d("LAI", "1"), host_field_2d("LWI", "1"),
@@ -108,6 +109,8 @@ namespace catchem {
         double* rdrag_ptr = state->write_field<2>("CMM");
         double* sandfrac_ptr = state->write_field<2>("SNDFRC");
         double* soilm_ptr = state->write_field<3>("SOILM");
+        const auto soilm_field = state->find_field<3>("SOILM");
+        const int n_soil = soilm_field ? static_cast<int>(soilm_field->extent(1)) : 0;
         double* ssm_ptr = state->write_field<2>("GWETTOP");
         double* tskin_ptr = state->write_field<2>("TS");
         double* u10m_ptr = state->write_field<2>("U10M");
@@ -126,6 +129,7 @@ namespace catchem {
         require_field_pointer("Dust", "CMM", rdrag_ptr);
         require_field_pointer("Dust", "SNDFRC", sandfrac_ptr);
         require_field_pointer("Dust", "SOILM", soilm_ptr);
+        if (n_soil <= 0) throw std::runtime_error("Dust: SOILM has no soil-layer extent");
         require_field_pointer("Dust", "GWETTOP", ssm_ptr);
         require_field_pointer("Dust", "TS", tskin_ptr);
         require_field_pointer("Dust", "U10M", u10m_ptr);
@@ -206,7 +210,7 @@ namespace catchem {
 
         // 5. Invoke flat science bridge
         run_dust_science_bridge(
-            state->column_count(), state->level_count(), n_dust, 4, state->clock().timestep, // n_soil=4
+            state->column_count(), state->level_count(), n_dust, n_soil, state->clock().timestep,
             active_scheme.c_str(), diagnostics_enabled ? 1 : 0, airden_ptr, bxheight_ptr, delp_ptr, clayfrac_ptr,
             frlake_ptr, frsno_ptr, gvf_ptr, lai_ptr, lwi.data(), rdrag_ptr, sandfrac_ptr, soilm_ptr, ssm_ptr, tskin_ptr,
             u10m_ptr, v10m_ptr, ustar_ptr, ustar_th_ptr, z0_ptr, density.data(), radius.data(), lower_radius.data(),

@@ -5,6 +5,7 @@
 #include "catchem_process_seasalt.hpp"
 #include "catchem_process_so4chem.hpp"
 #include "catchem_process_wetdep.hpp"
+#include <algorithm>
 #include <cassert>
 
 class ContractProcess : public catchem::test::RecordingProcess {
@@ -56,6 +57,14 @@ int main() {
             has_surface_input = has_surface_input || field.axes.size() == 2;
         assert(has_surface_input);
     }
+    const auto dust_contract = catchem::DustProcess().get_contract();
+    const auto soil_field = std::find_if(dust_contract.fields.begin(), dust_contract.fields.end(),
+        [](const catchem::FieldAccessContract& field) { return field.canonical_name == "SOILM"; });
+    assert(soil_field != dust_contract.fields.end());
+    assert(soil_field->units == "m3/m3");
+    const std::vector<catchem::SemanticAxis> soil_axes{
+        catchem::SemanticAxis::Column, catchem::SemanticAxis::SoilLayer, catchem::SemanticAxis::Singleton};
+    assert(soil_field->axes == soil_axes);
     assert(catchem::WetDepProcess().get_contract().structurally_valid());
 
     std::vector<std::shared_ptr<catchem::ProcessInterface>> reversed;
