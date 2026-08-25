@@ -62,10 +62,12 @@ namespace catchem {
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 const auto found = creators.find(name);
-                if (found == creators.end()) throw std::invalid_argument("Process not registered in C++: " + name);
+                if (found == creators.end())
+                    throw std::invalid_argument("Process not registered in C++: " + name);
                 validator = found->second.settings_validator;
             }
-            if (validator) validator(settings);
+            if (validator)
+                validator(settings);
         }
 
         void clear() {

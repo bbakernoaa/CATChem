@@ -30,49 +30,65 @@ namespace {
 namespace catchem {
 
     CoreCreateOptions CoreCreateOptions::direct_dimensions(int columns, int levels, int species) {
-        return {.config_file = {}, .columns = columns, .levels = levels, .species = species,
+        return {.config_file = {},
+                .columns = columns,
+                .levels = levels,
+                .species = species,
                 .use_configuration_grid = false};
     }
 
     CoreCreateOptions CoreCreateOptions::configured(std::string config_file) {
-        return {.config_file = std::move(config_file), .columns = 1, .levels = 1, .species = 0,
+        return {.config_file = std::move(config_file),
+                .columns = 1,
+                .levels = 1,
+                .species = 0,
                 .use_configuration_grid = true};
     }
 
-    CoreCreateOptions CoreCreateOptions::configured_with_host_grid(
-        std::string config_file, int columns, int levels) {
-        return {.config_file = std::move(config_file), .columns = columns, .levels = levels, .species = 0,
+    CoreCreateOptions CoreCreateOptions::configured_with_host_grid(std::string config_file, int columns, int levels) {
+        return {.config_file = std::move(config_file),
+                .columns = columns,
+                .levels = levels,
+                .species = 0,
                 .use_configuration_grid = false};
     }
 
     Core::~Core() noexcept {
-        try { shutdown(); } catch (...) {}
+        try {
+            shutdown();
+        } catch (...) {
+        }
     }
 
     void Core::shutdown() {
         std::lock_guard<std::mutex> lock(lifecycle_mutex_);
-        if (shutdown_) return;
+        if (shutdown_)
+            return;
         std::exception_ptr first_error;
         for (std::size_t i = processes.size(); i-- > 0;) {
-            if (i >= initialized_processes_.size() || !initialized_processes_[i]) continue;
-            try { processes[i]->finalize(); }
-            catch (...) { if (!first_error) first_error = std::current_exception(); }
+            if (i >= initialized_processes_.size() || !initialized_processes_[i])
+                continue;
+            try {
+                processes[i]->finalize();
+            } catch (...) {
+                if (!first_error)
+                    first_error = std::current_exception();
+            }
             initialized_processes_[i] = false;
         }
         shutdown_ = true;
         runtime_lease_.release();
-        if (first_error) std::rethrow_exception(first_error);
+        if (first_error)
+            std::rethrow_exception(first_error);
     }
 
     Core::Core(const CoreCreateOptions& options) {
         initialize(options);
     }
 
-    Core::Core(int nc, int nl, int ns)
-        : Core(CoreCreateOptions::direct_dimensions(nc, nl, ns)) {}
+    Core::Core(int nc, int nl, int ns) : Core(CoreCreateOptions::direct_dimensions(nc, nl, ns)) {}
 
-    Core::Core(const std::string& config_file)
-        : Core(CoreCreateOptions::configured(config_file)) {}
+    Core::Core(const std::string& config_file) : Core(CoreCreateOptions::configured(config_file)) {}
 
     Core::Core(const std::string& config_file, int nc, int nl)
         : Core(CoreCreateOptions::configured_with_host_grid(config_file, nc, nl)) {}
@@ -109,7 +125,8 @@ namespace catchem {
 
             grid_mgr = std::make_shared<GridManager>(nx, ny, nz);
             state_mgr = std::make_shared<StateManager>(nx * ny, nz, species_count);
-            if (configured) state_mgr->set_validation_policy(config_mgr->data.physical_validation_policy);
+            if (configured)
+                state_mgr->set_validation_policy(config_mgr->data.physical_validation_policy);
             state_mgr->attach_config_manager(config_mgr);
             diag_mgr = std::make_shared<DiagnosticManager>();
             state_mgr->attach_diagnostic_manager(diag_mgr);
@@ -123,7 +140,10 @@ namespace catchem {
             // run Core's destructor.  Release initialized processes and the
             // runtime lease explicitly before propagating the configuration
             // or process-registration failure.
-            try { shutdown(); } catch (...) {}
+            try {
+                shutdown();
+            } catch (...) {
+            }
             throw;
         }
     }
@@ -158,18 +178,28 @@ namespace catchem {
             // a common schedule without hardcoding a process selection.
             if (settings == config_mgr->data.processes.end() || !settings->second.activate)
                 continue;
-            if (settings != config_mgr->data.processes.end()) registry.validate_settings(process_name, settings->second);
+            if (settings != config_mgr->data.processes.end())
+                registry.validate_settings(process_name, settings->second);
             auto process = registry.create(process_name);
             process->init(state_mgr);
-            try { add_process(process); }
-            catch (...) { try { process->finalize(); } catch (...) {} throw; }
+            try {
+                add_process(process);
+            } catch (...) {
+                try {
+                    process->finalize();
+                } catch (...) {
+                }
+                throw;
+            }
         }
     }
 
     void Core::add_process(std::shared_ptr<ProcessInterface> process) {
-        if (!process) throw std::invalid_argument("Cannot add a null process");
+        if (!process)
+            throw std::invalid_argument("Cannot add a null process");
         std::lock_guard<std::mutex> lock(lifecycle_mutex_);
-        if (shutdown_) throw std::logic_error("Cannot add a process after shutdown");
+        if (shutdown_)
+            throw std::logic_error("Cannot add a process after shutdown");
         processes.push_back(process);
         initialized_processes_.push_back(true);
         execution_plan_.compile(processes, state_mgr->chemistry().mechanism.get());
@@ -193,7 +223,8 @@ namespace catchem {
             if (state_mgr->current_import_generation() > last_outcome_.import_generation) {
                 tainted_ = false;
             } else {
-                throw std::runtime_error("Previous timestep partially updated state; a new import generation is required");
+                throw std::runtime_error(
+                    "Previous timestep partially updated state; a new import generation is required");
             }
         }
         last_outcome_ = {};
@@ -219,42 +250,42 @@ namespace catchem {
         last_outcome_.status = TimestepStatus::Running;
         const bool verbose = config_mgr && config_mgr->data.simulation.verbose_enabled;
         if (verbose) {
-            Logger::debug(state_mgr.get(), "Core timestep begin", {
-                {"step", std::to_string(last_outcome_.timestep)},
-                {"dt_s", std::to_string(dt)},
-                {"processes", std::to_string(processes.size())},
-                {"import_generation", std::to_string(last_outcome_.import_generation)}});
+            Logger::debug(state_mgr.get(), "Core timestep begin",
+                          {{"step", std::to_string(last_outcome_.timestep)},
+                           {"dt_s", std::to_string(dt)},
+                           {"processes", std::to_string(processes.size())},
+                           {"import_generation", std::to_string(last_outcome_.import_generation)}});
         }
         diag_mgr->begin_timestep();
 
         for (std::size_t index = 0; index < processes.size(); ++index) {
             try {
                 if (verbose) {
-                    Logger::debug(state_mgr.get(), "Core process prepare", {
-                        {"step", std::to_string(last_outcome_.timestep)},
-                        {"index", std::to_string(index)},
-                        {"process", processes[index]->get_name()}});
+                    Logger::debug(state_mgr.get(), "Core process prepare",
+                                  {{"step", std::to_string(last_outcome_.timestep)},
+                                   {"index", std::to_string(index)},
+                                   {"process", processes[index]->get_name()}});
                 }
                 execution_plan_.prepare(index, *state_mgr);
                 if (verbose) {
-                    Logger::debug(state_mgr.get(), "Core process run", {
-                        {"step", std::to_string(last_outcome_.timestep)},
-                        {"index", std::to_string(index)},
-                        {"process", processes[index]->get_name()}});
+                    Logger::debug(state_mgr.get(), "Core process run",
+                                  {{"step", std::to_string(last_outcome_.timestep)},
+                                   {"index", std::to_string(index)},
+                                   {"process", processes[index]->get_name()}});
                 }
                 processes[index]->run(state_mgr);
                 if (verbose) {
-                    Logger::debug(state_mgr.get(), "Core process bookkeeping", {
-                        {"step", std::to_string(last_outcome_.timestep)},
-                        {"index", std::to_string(index)},
-                        {"process", processes[index]->get_name()}});
+                    Logger::debug(state_mgr.get(), "Core process bookkeeping",
+                                  {{"step", std::to_string(last_outcome_.timestep)},
+                                   {"index", std::to_string(index)},
+                                   {"process", processes[index]->get_name()}});
                 }
                 execution_plan_.complete(index, *state_mgr);
                 if (verbose) {
-                    Logger::debug(state_mgr.get(), "Core process complete", {
-                        {"step", std::to_string(last_outcome_.timestep)},
-                        {"index", std::to_string(index)},
-                        {"process", processes[index]->get_name()}});
+                    Logger::debug(state_mgr.get(), "Core process complete",
+                                  {{"step", std::to_string(last_outcome_.timestep)},
+                                   {"index", std::to_string(index)},
+                                   {"process", processes[index]->get_name()}});
                 }
             } catch (const std::exception& error) {
                 last_outcome_.status = TimestepStatus::PartialUpdate;
@@ -264,11 +295,11 @@ namespace catchem {
                 last_outcome_.state = StateClassification::RequiresReimport;
                 tainted_ = true;
                 diag_mgr->mark_generation_failed();
-                Logger::error(state_mgr.get(), "Core process failed", {
-                    {"step", std::to_string(last_outcome_.timestep)},
-                    {"index", std::to_string(index)},
-                    {"process", last_outcome_.process_name},
-                    {"cause", last_outcome_.cause}});
+                Logger::error(state_mgr.get(), "Core process failed",
+                              {{"step", std::to_string(last_outcome_.timestep)},
+                               {"index", std::to_string(index)},
+                               {"process", last_outcome_.process_name},
+                               {"cause", last_outcome_.cause}});
                 throw;
             } catch (...) {
                 last_outcome_.status = TimestepStatus::PartialUpdate;
@@ -278,23 +309,24 @@ namespace catchem {
                 last_outcome_.state = StateClassification::RequiresReinitialize;
                 tainted_ = true;
                 diag_mgr->mark_generation_failed();
-                Logger::error(state_mgr.get(), "Core process failed", {
-                    {"step", std::to_string(last_outcome_.timestep)},
-                    {"index", std::to_string(index)},
-                    {"process", last_outcome_.process_name},
-                    {"cause", last_outcome_.cause}});
+                Logger::error(state_mgr.get(), "Core process failed",
+                              {{"step", std::to_string(last_outcome_.timestep)},
+                               {"index", std::to_string(index)},
+                               {"process", last_outcome_.process_name},
+                               {"cause", last_outcome_.cause}});
                 throw;
             }
         }
 
         // Sync diagnostics
-        if (verbose) Logger::debug(state_mgr.get(), "Core diagnostics sync", {
-            {"step", std::to_string(last_outcome_.timestep)}});
+        if (verbose)
+            Logger::debug(state_mgr.get(), "Core diagnostics sync", {{"step", std::to_string(last_outcome_.timestep)}});
         diag_mgr->sync_to_host();
         last_outcome_.status = TimestepStatus::Succeeded;
         last_outcome_.state = StateClassification::Reusable;
-        if (verbose) Logger::debug(state_mgr.get(), "Core timestep complete", {
-            {"step", std::to_string(last_outcome_.timestep)}});
+        if (verbose)
+            Logger::debug(state_mgr.get(), "Core timestep complete",
+                          {{"step", std::to_string(last_outcome_.timestep)}});
     }
 
     void Core::run_timestep() {

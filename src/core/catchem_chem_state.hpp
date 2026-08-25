@@ -51,7 +51,8 @@ namespace catchem {
 
             int index = 0;
             auto descriptor = std::make_shared<MechanismDefinition>();
-            descriptor->identity = config_mgr.data.mechanism_identity.empty() ? "configured" : config_mgr.data.mechanism_identity;
+            descriptor->identity =
+                config_mgr.data.mechanism_identity.empty() ? "configured" : config_mgr.data.mechanism_identity;
             descriptor->source = config_mgr.config_file_path;
             for (const auto& capability : config_mgr.data.mechanism_capabilities)
                 descriptor->capabilities.insert(canonical_species_name(capability));

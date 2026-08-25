@@ -9,21 +9,26 @@ public:
     explicit ExtensionProcess(bool& finalized) : finalized_(finalized) {}
     std::string get_name() const override { return "test-extension"; }
     catchem::ProcessContract get_contract() const override {
-        return {get_name(), {catchem::host_field_3d("T", "K"), catchem::host_concentration()},
+        return {get_name(),
+                {catchem::host_field_3d("T", "K"), catchem::host_concentration()},
                 {{"extension.marker", "", true}},
-                {{"extension_value", "1", {catchem::SemanticAxis::Column, catchem::SemanticAxis::Singleton},
+                {{"extension_value",
+                  "1",
+                  {catchem::SemanticAxis::Column, catchem::SemanticAxis::Singleton},
                   catchem::PersistencePolicy::Timestep}}};
     }
     void init(std::shared_ptr<catchem::StateManager> state) override {
         state->diagnostic_manager()->register_field("extension_value", "extension output", "1",
-                                        catchem::DiagType::FIELD_2D, {state->column_count(), 1});
+                                                    catchem::DiagType::FIELD_2D, {state->column_count(), 1});
     }
     void run(std::shared_ptr<catchem::StateManager> state) override {
         auto* concentration = state->chemistry().conc->host_write();
         concentration[0] += state->write_field<3>("T")[0] * 0.001;
-        static_cast<double*>(state->diagnostic_manager()->get_host_write_pointer("extension_value"))[0] = concentration[0];
+        static_cast<double*>(state->diagnostic_manager()->get_host_write_pointer("extension_value"))[0] =
+            concentration[0];
     }
     void finalize() override { finalized_ = true; }
+
 private:
     bool& finalized_;
 };
@@ -31,11 +36,13 @@ private:
 int main() {
     bool finalized = false;
     auto& registry = catchem::ProcessRegistry::get_instance();
-    registry.register_process("test-extension", [&] { return std::make_shared<ExtensionProcess>(finalized); },
-                              [&] { return ExtensionProcess(finalized).get_contract(); },
-                              [](const catchem::ProcessConfig& config) {
-                                  if (config.scheme != "custom") throw std::invalid_argument("custom scheme required");
-                              });
+    registry.register_process(
+        "test-extension", [&] { return std::make_shared<ExtensionProcess>(finalized); },
+        [&] { return ExtensionProcess(finalized).get_contract(); },
+        [](const catchem::ProcessConfig& config) {
+            if (config.scheme != "custom")
+                throw std::invalid_argument("custom scheme required");
+        });
     catchem::ProcessConfig settings;
     settings.scheme = "custom";
     registry.validate_settings("test-extension", settings);

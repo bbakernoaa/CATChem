@@ -36,7 +36,8 @@ int main() {
     assert(role_failed);
 
     std::vector<std::string> many;
-    for (int i = 0; i < 2000; ++i) many.push_back("species_" + std::to_string(i));
+    for (int i = 0; i < 2000; ++i)
+        many.push_back("species_" + std::to_string(i));
     assert(catchem::test::synthetic_mechanism(std::move(many)).species.size() == 2000);
     return 0;
 }

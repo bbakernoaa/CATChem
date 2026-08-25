@@ -17,12 +17,13 @@ void run_carbchem_science_bridge(int n_cols, int n_levels, int n_species, double
 namespace catchem {
 
     ProcessContract CarbChemProcess::get_contract() const {
-        return {get_name(), {host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
-                            host_field_3d("T", "K", FieldRequirement::Optional),
-                            host_field_3d("DELP", "Pa", FieldRequirement::Optional),
-                            host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
-                            host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                            host_concentration()}, {}};
+        return {get_name(),
+                {host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
+                 host_field_3d("T", "K", FieldRequirement::Optional),
+                 host_field_3d("DELP", "Pa", FieldRequirement::Optional),
+                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
+                 host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional), host_concentration()},
+                {}};
     }
 
     CarbChemProcess::CarbChemProcess() : active_scheme("gocart"), diagnostics_enabled(true) {}
@@ -39,20 +40,21 @@ namespace catchem {
         std::vector<int> dims_2d = {state->column_count(), state->species_count()};
 
         state->diagnostic_manager()->register_field("carbchem_prod_mass", "Carbon Chemistry Production Mass", "kg/kg",
-                                        DiagType::FIELD_3D, dims_3d);
+                                                    DiagType::FIELD_3D, dims_3d);
         state->diagnostic_manager()->register_field("carbchem_loss_flux", "Carbon Chemistry Loss Flux", "kg/m2/s",
-                                        DiagType::FIELD_2D, dims_2d);
-        state->diagnostic_manager()->register_field("carbchem_phobic_mass", "Carbon Chemistry Phobic to Philic Mass", "kg/kg",
-                                        DiagType::FIELD_3D, dims_3d);
-        state->diagnostic_manager()->register_field("carbchem_phobic_flux", "Carbon Chemistry Phobic to Philic Flux", "kg/m2/s",
-                                        DiagType::FIELD_2D, dims_2d);
+                                                    DiagType::FIELD_2D, dims_2d);
+        state->diagnostic_manager()->register_field("carbchem_phobic_mass", "Carbon Chemistry Phobic to Philic Mass",
+                                                    "kg/kg", DiagType::FIELD_3D, dims_3d);
+        state->diagnostic_manager()->register_field("carbchem_phobic_flux", "Carbon Chemistry Phobic to Philic Flux",
+                                                    "kg/m2/s", DiagType::FIELD_2D, dims_2d);
     }
 
     void CarbChemProcess::run(std::shared_ptr<StateManager> state) {
 
         // 1. Retrieve 3D Meteorological state pointers
         double* airden_ptr = state->write_field<3>("AIRDEN_DRY");
-        if (!airden_ptr) airden_ptr = state->write_field<3>("AIRDEN");
+        if (!airden_ptr)
+            airden_ptr = state->write_field<3>("AIRDEN");
         if (!airden_ptr && state->meteorology().PMID && state->meteorology().T) {
             state->derive_airden_dry();
             airden_ptr = state->write_field<3>("AIRDEN_DRY");
@@ -109,14 +111,16 @@ namespace catchem {
         }
 
         // 5. Invoke flat science bridge
-        run_carbchem_science_bridge(
-            state->column_count(), state->level_count(), state->species_count(), state->clock().timestep, active_scheme.c_str(),
-            diagnostics_enabled ? 1 : 0, state->clock().year, state->clock().month, state->clock().day, state->clock().hour,
-            state->clock().minute, state->clock().second, airden_ptr, delp_ptr, pmid_ptr, t_chem_loss.data(),
-            state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(), diag_prod_mass, diag_loss_flux,
-            diag_phobic_mass, diag_phobic_flux, diagnostic_species_id.data(), diagnostic_species_id.size());
+        run_carbchem_science_bridge(state->column_count(), state->level_count(), state->species_count(),
+                                    state->clock().timestep, active_scheme.c_str(), diagnostics_enabled ? 1 : 0,
+                                    state->clock().year, state->clock().month, state->clock().day, state->clock().hour,
+                                    state->clock().minute, state->clock().second, airden_ptr, delp_ptr, pmid_ptr,
+                                    t_chem_loss.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
+                                    mock_tendency.data(), diag_prod_mass, diag_loss_flux, diag_phobic_mass,
+                                    diag_phobic_flux, diagnostic_species_id.data(), diagnostic_species_id.size());
 
-        if (state->chemistry().conc) state->chemistry().conc->mark_host_modified();
+        if (state->chemistry().conc)
+            state->chemistry().conc->mark_host_modified();
     }
 
     void CarbChemProcess::finalize() {}

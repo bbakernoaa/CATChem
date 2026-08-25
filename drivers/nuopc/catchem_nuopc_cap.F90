@@ -231,7 +231,7 @@ contains
          ! true.  This keeps host-specific contracts declarative rather than
          ! hardcoding field names in the cap.
          if (field_config%import_fields(i)%optional .and. &
-             .not. field_config%import_fields(i)%advertise) then
+            .not. field_config%import_fields(i)%advertise) then
             call ESMF_LogWrite('CATChem: optional import not advertised: ' // &
                trim(field_config%import_fields(i)%standard_name), ESMF_LOGMSG_INFO, rc=rc)
             if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -578,9 +578,9 @@ contains
             ESMF_LOGMSG_INFO, rc=rc)
       end if
 
-    ! -- get component's internal state
-    nullify(is%wrap)
-    call ESMF_GridCompGetInternalState(model, is, rc)
+      ! -- get component's internal state
+      nullify(is%wrap)
+      call ESMF_GridCompGetInternalState(model, is, rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__,  file=__FILE__))  return  ! bail out
 

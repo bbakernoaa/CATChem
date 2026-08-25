@@ -15,8 +15,8 @@ int main() {
     assert(catchem_state_set_physical_validation_policy_checked(state, 99) == CATCHEM_INVALID_STATE);
     int physical_issues = -1;
     char physical_detail[8] = {'x'};
-    assert(catchem_state_get_physical_validation_report_checked(
-               state, &physical_issues, physical_detail, sizeof(physical_detail)) == CATCHEM_SUCCESS);
+    assert(catchem_state_get_physical_validation_report_checked(state, &physical_issues, physical_detail,
+                                                                sizeof(physical_detail)) == CATCHEM_SUCCESS);
     assert(physical_issues == 0 && physical_detail[0] == '\0');
 
     std::vector<double> one(2, 0.0);
@@ -54,11 +54,11 @@ int main() {
     assert(catchem_diag_register_checked(core, "bad", "bad", "1", 1, 2, 1, 1) == CATCHEM_RANK_MISMATCH);
     int contract_dims[2] = {2, 1};
     int contract_axes[2] = {0, 4};
-    assert(catchem_diag_register_contract_checked(
-               core, "bad", "bad", "1", 2, nullptr, contract_axes, 0, 0.0) == CATCHEM_NULL_ARGUMENT);
+    assert(catchem_diag_register_contract_checked(core, "bad", "bad", "1", 2, nullptr, contract_axes, 0, 0.0) ==
+           CATCHEM_NULL_ARGUMENT);
     void* diagnostic_pointer = random;
-    assert(catchem_diag_get_pointer_checked(
-               core, "missing", 2, contract_dims, &diagnostic_pointer) == CATCHEM_MISSING_FIELD);
+    assert(catchem_diag_get_pointer_checked(core, "missing", 2, contract_dims, &diagnostic_pointer) ==
+           CATCHEM_MISSING_FIELD);
     assert(diagnostic_pointer == nullptr);
     output = 77;
     assert(catchem_state_get_species_count_checked(core, &output) == CATCHEM_WRONG_HANDLE_TYPE);
@@ -89,34 +89,40 @@ int main() {
     std::vector<double> invalid_temperature(6, -1.0);
     std::vector<double> valid_pressure(6, 90000.0);
     std::vector<double> valid_humidity(6, 0.01);
-    assert(catchem_state_bind_met_3d_checked(
-               state, "T", invalid_temperature.data(), 2, 3, 1) == CATCHEM_SUCCESS);
+    assert(catchem_state_bind_met_3d_checked(state, "T", invalid_temperature.data(), 2, 3, 1) == CATCHEM_SUCCESS);
     assert(catchem_state_bind_met_3d_checked(state, "PMID", valid_pressure.data(), 2, 3, 1) == CATCHEM_SUCCESS);
     assert(catchem_state_bind_met_3d_checked(state, "QV", valid_humidity.data(), 2, 3, 1) == CATCHEM_SUCCESS);
     assert(catchem_state_derive_airden_dry_checked(state) == CATCHEM_PHYSICAL_VALIDATION_FAILURE);
     char derivation_error[256] = {};
-    assert(catchem_get_last_error(derivation_error, sizeof(derivation_error)) ==
-           CATCHEM_PHYSICAL_VALIDATION_FAILURE);
+    assert(catchem_get_last_error(derivation_error, sizeof(derivation_error)) == CATCHEM_PHYSICAL_VALIDATION_FAILURE);
     assert(std::string(derivation_error).find("Physical validation") != std::string::npos);
     assert(catchem_state_derive_bxheight_checked(core) == CATCHEM_WRONG_HANDLE_TYPE);
     assert(catchem_state_bind_met_2d_checked(state, "LAT", one.data(), 3, 1) == CATCHEM_EXTENT_MISMATCH);
-    assert(catchem_state_bind_met_3d_axis_checked(
-               state, "soil", three.data(), 2, 3, 1, 99) == CATCHEM_INVALID_STATE);
+    assert(catchem_state_bind_met_3d_axis_checked(state, "soil", three.data(), 2, 3, 1, 99) == CATCHEM_INVALID_STATE);
     double* concentration_pointer = reinterpret_cast<double*>(static_cast<std::uintptr_t>(0x12345));
-    assert(catchem_state_get_species_conc_pointer_checked(
-               state, 9, 2, 3, &concentration_pointer) == CATCHEM_INVALID_INDEX);
+    assert(catchem_state_get_species_conc_pointer_checked(state, 9, 2, 3, &concentration_pointer) ==
+           CATCHEM_INVALID_INDEX);
     assert(concentration_pointer == nullptr);
 
     int misuse_cases = 0;
     for (int repetition = 0; repetition < 10; ++repetition) {
-        assert(catchem_core_create_checked(0, 3, 4, &random) == CATCHEM_EXTENT_MISMATCH); ++misuse_cases;
-        assert(catchem_core_get_state_manager_checked(state, &random) == CATCHEM_WRONG_HANDLE_TYPE); ++misuse_cases;
-        assert(catchem_state_bind_1d_checked(core, "x", one.data(), 2) == CATCHEM_WRONG_HANDLE_TYPE); ++misuse_cases;
-        assert(catchem_state_bind_2d_checked(state, "x", two.data(), 3, 1) == CATCHEM_EXTENT_MISMATCH); ++misuse_cases;
-        assert(catchem_state_bind_3d_checked(state, "x", three.data(), 2, 4, 1) == CATCHEM_EXTENT_MISMATCH); ++misuse_cases;
-        assert(catchem_state_bind_met_3d_checked(state, nullptr, three.data(), 2, 3, 1) == CATCHEM_NULL_ARGUMENT); ++misuse_cases;
-        assert(catchem_state_bind_met_3d_checked(state, "T", nullptr, 2, 3, 1) == CATCHEM_NULL_ARGUMENT); ++misuse_cases;
-        assert(catchem_state_bind_unified_chemistry_checked(state, chemistry.data(), 2, 3, 5) == CATCHEM_EXTENT_MISMATCH); ++misuse_cases;
+        assert(catchem_core_create_checked(0, 3, 4, &random) == CATCHEM_EXTENT_MISMATCH);
+        ++misuse_cases;
+        assert(catchem_core_get_state_manager_checked(state, &random) == CATCHEM_WRONG_HANDLE_TYPE);
+        ++misuse_cases;
+        assert(catchem_state_bind_1d_checked(core, "x", one.data(), 2) == CATCHEM_WRONG_HANDLE_TYPE);
+        ++misuse_cases;
+        assert(catchem_state_bind_2d_checked(state, "x", two.data(), 3, 1) == CATCHEM_EXTENT_MISMATCH);
+        ++misuse_cases;
+        assert(catchem_state_bind_3d_checked(state, "x", three.data(), 2, 4, 1) == CATCHEM_EXTENT_MISMATCH);
+        ++misuse_cases;
+        assert(catchem_state_bind_met_3d_checked(state, nullptr, three.data(), 2, 3, 1) == CATCHEM_NULL_ARGUMENT);
+        ++misuse_cases;
+        assert(catchem_state_bind_met_3d_checked(state, "T", nullptr, 2, 3, 1) == CATCHEM_NULL_ARGUMENT);
+        ++misuse_cases;
+        assert(catchem_state_bind_unified_chemistry_checked(state, chemistry.data(), 2, 3, 5) ==
+               CATCHEM_EXTENT_MISMATCH);
+        ++misuse_cases;
     }
     assert(misuse_cases >= 50);
 

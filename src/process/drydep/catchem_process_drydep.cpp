@@ -22,20 +22,22 @@ void run_drydep_science_bridge(int n_cols, int n_levels, int n_species, double d
 namespace catchem {
 
     ProcessContract DryDepProcess::get_contract() const {
-        return {get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
-                            host_field_interface("PEDGE", "Pa"), host_field_3d("BXHEIGHT", "m"),
-                            host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                            host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
-                            host_field_3d("RH", "1", FieldRequirement::Optional),
-                            host_field_2d("PS", "Pa"), host_field_2d("TS", "K"),
-                            host_field_2d("LAT", "degrees", FieldRequirement::Optional, AccessIntent::Read,
-                                                          PersistencePolicy::Persistent),
-                            host_field_2d("LON", "degrees", FieldRequirement::Optional, AccessIntent::Read,
-                                                          PersistencePolicy::Persistent),
-                            host_field_2d("USTAR", "m/s", FieldRequirement::Optional),
-                            host_field_2d("HFLUX", "W/m2", FieldRequirement::Optional),
-                            host_field_2d("OBK", "m", FieldRequirement::Optional),
-                            host_field_2d("PBLH", "m", FieldRequirement::Optional), host_concentration()}, {}};
+        return {get_name(),
+                {host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
+                 host_field_interface("PEDGE", "Pa"), host_field_3d("BXHEIGHT", "m"),
+                 host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
+                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
+                 host_field_3d("RH", "1", FieldRequirement::Optional), host_field_2d("PS", "Pa"),
+                 host_field_2d("TS", "K"),
+                 host_field_2d("LAT", "degrees", FieldRequirement::Optional, AccessIntent::Read,
+                               PersistencePolicy::Persistent),
+                 host_field_2d("LON", "degrees", FieldRequirement::Optional, AccessIntent::Read,
+                               PersistencePolicy::Persistent),
+                 host_field_2d("USTAR", "m/s", FieldRequirement::Optional),
+                 host_field_2d("HFLUX", "W/m2", FieldRequirement::Optional),
+                 host_field_2d("OBK", "m", FieldRequirement::Optional),
+                 host_field_2d("PBLH", "m", FieldRequirement::Optional), host_concentration()},
+                {}};
     }
 
     DryDepProcess::DryDepProcess() : gas_scheme("wesely"), aero_scheme("gocart"), diagnostics_enabled(true) {}
@@ -51,9 +53,9 @@ namespace catchem {
         // 2. Register C++ Diagnostic fields
         std::vector<int> dims_2d = {state->column_count(), state->species_count()};
         state->diagnostic_manager()->register_field("drydep_con_per_species", "Deposition Concentration", "ug/kg",
-                                        DiagType::FIELD_2D, dims_2d);
-        state->diagnostic_manager()->register_field("drydep_velocity_per_species", "Deposition Velocity", "m/s", DiagType::FIELD_2D,
-                                        dims_2d);
+                                                    DiagType::FIELD_2D, dims_2d);
+        state->diagnostic_manager()->register_field("drydep_velocity_per_species", "Deposition Velocity", "m/s",
+                                                    DiagType::FIELD_2D, dims_2d);
     }
 
     void DryDepProcess::run(std::shared_ptr<StateManager> state) {
@@ -65,7 +67,8 @@ namespace catchem {
         double* bxheight_ptr = state->write_field<3>("BXHEIGHT");
 
         double* airden_ptr = state->write_field<3>("AIRDEN");
-        if (!airden_ptr) airden_ptr = state->write_field<3>("AIRDEN_DRY");
+        if (!airden_ptr)
+            airden_ptr = state->write_field<3>("AIRDEN_DRY");
         if (!airden_ptr && state->meteorology().PMID && state->meteorology().T) {
             state->derive_airden_dry();
             airden_ptr = state->write_field<3>("AIRDEN_DRY");
@@ -217,18 +220,19 @@ namespace catchem {
 
         // 5. Invoke flat science bridge (casting char* vectors to bool* pointers)
         run_drydep_science_bridge(
-            state->column_count(), state->level_count(), state->species_count(), state->clock().timestep, gas_scheme.c_str(),
-            aero_scheme.c_str(), diagnostics_enabled ? 1 : 0, bxheight_ptr, airden_ptr, t_ptr, pedge_ptr, rh_ptr,
-            cldfrc.data(), frlai.data_handle(), frlanduse.data_handle(), iland.data_handle(), (bool*)is_ice.data(),
-            (bool*)is_land.data(), (bool*)is_snow.data(), lat_ptr, lon_ptr, obk_ptr, ps_ptr, salinity.data(),
-            suncosmid.data(), swgdn.data(), ts_ptr, tskin.data(), ustar_ptr, z0.data(), frlake.data(), gwettop.data(),
-            hflux_ptr, lwi.data(), pblh_ptr, u10m.data(), v10m.data(), z0h.data(), mw_g.data(), dd_f0.data(),
-            dd_hstar.data(), dd_DvzAerSnow.data(), dd_DvzMinVal_snow.data(), dd_DvzMinVal_land.data(), density.data(),
-            radius.data(), (bool*)is_seasalt.data(), (bool*)is_dust.data(), lower_radius.data(), upper_radius.data(),
-            (bool*)is_gas.data(), conc_ptr, mock_tendency.data(), diag_con, diag_vel, diagnostic_species_id.data(),
-            diagnostic_species_id.size());
+            state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
+            gas_scheme.c_str(), aero_scheme.c_str(), diagnostics_enabled ? 1 : 0, bxheight_ptr, airden_ptr, t_ptr,
+            pedge_ptr, rh_ptr, cldfrc.data(), frlai.data_handle(), frlanduse.data_handle(), iland.data_handle(),
+            (bool*)is_ice.data(), (bool*)is_land.data(), (bool*)is_snow.data(), lat_ptr, lon_ptr, obk_ptr, ps_ptr,
+            salinity.data(), suncosmid.data(), swgdn.data(), ts_ptr, tskin.data(), ustar_ptr, z0.data(), frlake.data(),
+            gwettop.data(), hflux_ptr, lwi.data(), pblh_ptr, u10m.data(), v10m.data(), z0h.data(), mw_g.data(),
+            dd_f0.data(), dd_hstar.data(), dd_DvzAerSnow.data(), dd_DvzMinVal_snow.data(), dd_DvzMinVal_land.data(),
+            density.data(), radius.data(), (bool*)is_seasalt.data(), (bool*)is_dust.data(), lower_radius.data(),
+            upper_radius.data(), (bool*)is_gas.data(), conc_ptr, mock_tendency.data(), diag_con, diag_vel,
+            diagnostic_species_id.data(), diagnostic_species_id.size());
 
-        if (state->chemistry().conc) state->chemistry().conc->mark_host_modified();
+        if (state->chemistry().conc)
+            state->chemistry().conc->mark_host_modified();
     }
 
 } // namespace catchem

@@ -173,29 +173,42 @@ if(DEFINED BUILD_NUOPC)
       "use the CATCHEM_* option"
     )
   endif()
-  message(
-    DEPRECATION
-    "BUILD_NUOPC is deprecated; use CATCHEM_BUILD_NUOPC"
-  )
+  message(DEPRECATION "BUILD_NUOPC is deprecated; use CATCHEM_BUILD_NUOPC")
   set(
     CATCHEM_BUILD_NUOPC
     "${BUILD_NUOPC}"
-    CACHE BOOL "Build NUOPC cap and drivers" FORCE
+    CACHE BOOL
+    "Build NUOPC cap and drivers"
+    FORCE
   )
 endif()
 option(CATCHEM_BUILD_CCPP "Build the CCPP host interface" OFF)
-option(CATCHEM_CCPP_TEST_STUBS "Build minimal CCPP framework stubs for contract testing" OFF)
-set(CATCHEM_CCPP_HOST_MODULE_DIR "" CACHE PATH "Directory containing host CCPP Fortran modules")
+option(
+  CATCHEM_CCPP_TEST_STUBS
+  "Build minimal CCPP framework stubs for contract testing"
+  OFF
+)
+set(
+  CATCHEM_CCPP_HOST_MODULE_DIR
+  ""
+  CACHE PATH
+  "Directory containing host CCPP Fortran modules"
+)
 option(CATCHEM_BUILD_TESTING "Build CATChem testing framework" ON)
-option(CATCHEM_ENABLE_SANITIZERS "Enable target-scoped address and undefined-behavior sanitizers" OFF)
-option(CATCHEM_ENABLE_BOUNDS_CHECK "Enable target-scoped Fortran bounds checking" OFF)
+option(
+  CATCHEM_ENABLE_SANITIZERS
+  "Enable target-scoped address and undefined-behavior sanitizers"
+  OFF
+)
+option(
+  CATCHEM_ENABLE_BOUNDS_CHECK
+  "Enable target-scoped Fortran bounds checking"
+  OFF
+)
 option(CATCHEM_TRACE_NUOPC "Enable ESMF trace regions in NUOPC cap" OFF)
 
 if(CATCHEM_TRACE_NUOPC AND NOT CATCHEM_BUILD_NUOPC)
-  message(
-    FATAL_ERROR
-    "CATCHEM_TRACE_NUOPC=ON requires CATCHEM_BUILD_NUOPC=ON"
-  )
+  message(FATAL_ERROR "CATCHEM_TRACE_NUOPC=ON requires CATCHEM_BUILD_NUOPC=ON")
 endif()
 
 if(CATCHEM_TRACE_NUOPC)
@@ -226,20 +239,36 @@ if(CATCHEM_ENABLE_SANITIZERS)
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     target_compile_options(
       catchem_validation_options
-      INTERFACE "$<$<COMPILE_LANGUAGE:C,CXX>:-fsanitize=address,undefined;-fno-omit-frame-pointer>"
+      INTERFACE
+        "$<$<COMPILE_LANGUAGE:C,CXX>:-fsanitize=address,undefined;-fno-omit-frame-pointer>"
     )
-    target_link_options(catchem_validation_options INTERFACE -fsanitize=address,undefined)
+    target_link_options(
+      catchem_validation_options
+      INTERFACE -fsanitize=address,undefined
+    )
   else()
-    message(FATAL_ERROR "CATCHEM_ENABLE_SANITIZERS is unsupported by ${CMAKE_CXX_COMPILER_ID}")
+    message(
+      FATAL_ERROR
+      "CATCHEM_ENABLE_SANITIZERS is unsupported by ${CMAKE_CXX_COMPILER_ID}"
+    )
   endif()
 endif()
 if(CATCHEM_ENABLE_BOUNDS_CHECK)
   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU|G95")
-    target_compile_options(catchem_validation_options INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:-fcheck=bounds>")
+    target_compile_options(
+      catchem_validation_options
+      INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:-fcheck=bounds>"
+    )
   elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel|IntelLLVM")
-    target_compile_options(catchem_validation_options INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:-check;bounds>")
+    target_compile_options(
+      catchem_validation_options
+      INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:-check;bounds>"
+    )
   else()
-    message(FATAL_ERROR "CATCHEM_ENABLE_BOUNDS_CHECK is unsupported by ${CMAKE_Fortran_COMPILER_ID}")
+    message(
+      FATAL_ERROR
+      "CATCHEM_ENABLE_BOUNDS_CHECK is unsupported by ${CMAKE_Fortran_COMPILER_ID}"
+    )
   endif()
 endif()
 
@@ -439,8 +468,7 @@ if(CATCHEM_BUILD_NUOPC)
   # Include directories for compilation
   target_include_directories(
     cc_nuopc
-    PUBLIC
-      $<BUILD_INTERFACE:${CATCHEM_NUOPC_MODULE_DIR}>
+    PUBLIC $<BUILD_INTERFACE:${CATCHEM_NUOPC_MODULE_DIR}>
     #$<TARGET_PROPERTY:CATChem,INTERFACE_INCLUDE_DIRECTORIES>
     #$<TARGET_PROPERTY:esmf,INTERFACE_INCLUDE_DIRECTORIES>
     #$<TARGET_PROPERTY:NetCDF::NetCDF_Fortran,INTERFACE_INCLUDE_DIRECTORIES>
@@ -461,10 +489,14 @@ if(CATCHEM_BUILD_NUOPC)
   # search path.  Keep that layout usable while the public target interface
   # above remains the canonical dependency-safe path.
   add_custom_command(
-    TARGET cc_nuopc POST_BUILD
+    TARGET cc_nuopc
+    POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/mod
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CATCHEM_NUOPC_MODULE_DIR} ${CMAKE_BINARY_DIR}/mod
-    COMMENT "Publishing CATChem NUOPC Fortran modules to mod/ for UFS compatibility"
+    COMMAND
+      ${CMAKE_COMMAND} -E copy_directory ${CATCHEM_NUOPC_MODULE_DIR}
+      ${CMAKE_BINARY_DIR}/mod
+    COMMENT
+      "Publishing CATChem NUOPC Fortran modules to mod/ for UFS compatibility"
   )
 
   target_compile_options(cc_nuopc PRIVATE ${_catchem_compiler_options})

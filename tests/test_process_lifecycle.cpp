@@ -10,8 +10,10 @@ public:
         : RecordingProcess(std::move(name), events), fail_(fail) {}
     void finalize() override {
         RecordingProcess::finalize();
-        if (fail_) throw std::runtime_error("injected finalize failure");
+        if (fail_)
+            throw std::runtime_error("injected finalize failure");
     }
+
 private:
     bool fail_;
 };
@@ -28,10 +30,14 @@ int main() {
         core.add_process(process);
     }
     bool failed = false;
-    try { core.shutdown(); } catch (const std::runtime_error&) { failed = true; }
+    try {
+        core.shutdown();
+    } catch (const std::runtime_error&) {
+        failed = true;
+    }
     assert(failed);
-    assert((events == std::vector<std::string>{"init:first", "init:second", "init:third",
-                                               "finalize:third", "finalize:second", "finalize:first"}));
+    assert((events == std::vector<std::string>{"init:first", "init:second", "init:third", "finalize:third",
+                                               "finalize:second", "finalize:first"}));
     core.shutdown();
     assert(events.size() == 6);
 
@@ -41,9 +47,11 @@ int main() {
     initialized->init(partial.get_state_manager());
     partial.add_process(initialized);
     auto rejected = std::make_shared<catchem::test::RecordingProcess>("rejected", partial_events, true);
-    try { rejected->init(partial.get_state_manager()); } catch (const std::runtime_error&) {}
+    try {
+        rejected->init(partial.get_state_manager());
+    } catch (const std::runtime_error&) {
+    }
     partial.shutdown();
-    assert((partial_events == std::vector<std::string>{"init:initialized", "init:rejected",
-                                                       "finalize:initialized"}));
+    assert((partial_events == std::vector<std::string>{"init:initialized", "init:rejected", "finalize:initialized"}));
     return 0;
 }

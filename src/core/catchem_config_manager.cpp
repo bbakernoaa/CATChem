@@ -10,17 +10,17 @@
 namespace catchem {
 
     bool ValidationReport::has_errors() const {
-        return std::any_of(issues.begin(), issues.end(), [](const ValidationIssue& issue) {
-            return issue.severity == ValidationSeverity::Error;
-        });
+        return std::any_of(issues.begin(), issues.end(),
+                           [](const ValidationIssue& issue) { return issue.severity == ValidationSeverity::Error; });
     }
 
     std::string ValidationReport::format() const {
         std::ostringstream output;
         for (const auto& issue : issues) {
-            output << (issue.severity == ValidationSeverity::Error ? "error" : "warning") << " ["
-                   << issue.category << "] " << issue.path << ": " << issue.message;
-            if (!issue.suggested_correction.empty()) output << " (" << issue.suggested_correction << ")";
+            output << (issue.severity == ValidationSeverity::Error ? "error" : "warning") << " [" << issue.category
+                   << "] " << issue.path << ": " << issue.message;
+            if (!issue.suggested_correction.empty())
+                output << " (" << issue.suggested_correction << ")";
             output << '\n';
         }
         return output.str();
@@ -453,8 +453,7 @@ namespace catchem {
 
         const auto extemis = data.processes.find("extemis");
         if (extemis != data.processes.end()) {
-            std::string path =
-                extract_file_setting(safe_get_map_child(extemis->second.settings_node, process_name));
+            std::string path = extract_file_setting(safe_get_map_child(extemis->second.settings_node, process_name));
             if (path.empty()) {
                 path = extract_file_setting(safe_get_map_child(extemis->second.settings_node, "dust"));
             }
@@ -514,13 +513,15 @@ namespace catchem {
             }
             if (config["physical_validation"] && config["physical_validation"].IsMap()) {
                 const auto policy = value_or<std::string>(config["physical_validation"]["policy"], "reject");
-                if (policy == "reject") data.physical_validation_policy = PhysicalValidationPolicy::Reject;
+                if (policy == "reject")
+                    data.physical_validation_policy = PhysicalValidationPolicy::Reject;
                 else if (policy == "warn_and_clamp")
                     data.physical_validation_policy = PhysicalValidationPolicy::WarnAndClamp;
                 else if (policy == "count_and_continue")
                     data.physical_validation_policy = PhysicalValidationPolicy::CountAndContinue;
                 else
-                    throw std::invalid_argument("physical_validation/policy must be reject, warn_and_clamp, or count_and_continue");
+                    throw std::invalid_argument(
+                        "physical_validation/policy must be reject, warn_and_clamp, or count_and_continue");
             }
             if (config["grid"]) {
                 const YAML::Node grid = config["grid"];
@@ -723,12 +724,16 @@ namespace catchem {
 
         if (!root_node || !root_node.IsMap())
             add("schema", "/", "configuration root must be a mapping", "provide a YAML mapping");
-        if (data.runtime.nx <= 0) add("range", "simulation/nx", "must be positive", "set nx > 0");
-        if (data.runtime.ny <= 0) add("range", "simulation/ny", "must be positive", "set ny > 0");
-        if (data.runtime.nz <= 0) add("range", "grid/number_of_levels", "must be positive", "set levels > 0");
+        if (data.runtime.nx <= 0)
+            add("range", "simulation/nx", "must be positive", "set nx > 0");
+        if (data.runtime.ny <= 0)
+            add("range", "simulation/ny", "must be positive", "set ny > 0");
+        if (data.runtime.nz <= 0)
+            add("range", "grid/number_of_levels", "must be positive", "set levels > 0");
         if (data.runtime.dt <= 0.0 || data.runtime.dt > 86400.0)
             add("range", "simulation/timestep", "must satisfy 0 < timestep <= 86400", "set a valid timestep");
-        if (data.runtime.nsteps <= 0) add("range", "simulation/nsteps", "must be positive", "set nsteps > 0");
+        if (data.runtime.nsteps <= 0)
+            add("range", "simulation/nsteps", "must be positive", "set nsteps > 0");
         if (data.grid.number_of_soil_layers < 0)
             add("range", "grid/number_of_soil_layers", "must not be negative", "set soil layers >= 0");
         if (data.timesteps.transport_timestep_in_s < 0)
@@ -743,8 +748,7 @@ namespace catchem {
                 add("diagnostics", "diagnostics/output/compress_lev", "must be between 0 and 9",
                     "choose a compression level from 0 through 9");
             if (!data.diagnostics.output.format.empty() && data.diagnostics.output.format != "netcdf")
-                add("diagnostics", "diagnostics/output/format", "unsupported output format",
-                    "use netcdf");
+                add("diagnostics", "diagnostics/output/format", "unsupported output format", "use netcdf");
         }
         if (data.diagnostics.collection.enabled && data.diagnostics.collection.buffer_size <= 0)
             add("diagnostics", "diagnostics/collection/buffer_size", "must be positive when collection is enabled",
@@ -762,15 +766,15 @@ namespace catchem {
             std::transform(canonical.begin(), canonical.end(), canonical.begin(),
                            [](unsigned char value) { return static_cast<char>(std::toupper(value)); });
             const std::string path = "species[" + std::to_string(index) + "]/name";
-            if (canonical.empty()) add("mechanism", path, "species name must not be empty", "set a canonical name");
+            if (canonical.empty())
+                add("mechanism", path, "species name must not be empty", "set a canonical name");
             else if (!species_names.insert(canonical).second)
                 add("mechanism", path, "duplicate species name after case normalization",
                     "remove or rename the duplicate");
         }
 
-        const std::set<std::string> known_processes = {
-            "carbchem", "drydep", "dust", "extemis", "gaschem", "photolysis", "seasalt", "settling",
-            "so4chem", "wetdep"};
+        const std::set<std::string> known_processes = {"carbchem",   "drydep",  "dust",     "extemis", "gaschem",
+                                                       "photolysis", "seasalt", "settling", "so4chem", "wetdep"};
         for (const auto& process : data.active_processes) {
             if (known_processes.find(process) == known_processes.end())
                 add("process", "run_phases/processes", "unknown process name: " + process,
@@ -801,9 +805,9 @@ namespace catchem {
         }
 
         if (strict && root_node && root_node.IsMap()) {
-            const std::set<std::string> allowed = {"simulation", "mechanism", "physical_validation", "grid",
-                                                   "timesteps", "diagnostics", "mie", "run_phases",
-                                                   "processes", "process"};
+            const std::set<std::string> allowed = {
+                "simulation",  "mechanism", "physical_validation", "grid",      "timesteps",
+                "diagnostics", "mie",       "run_phases",          "processes", "process"};
             for (const auto& entry : root_node) {
                 const std::string key = entry.first.as<std::string>();
                 if (allowed.find(key) == allowed.end())
@@ -815,7 +819,8 @@ namespace catchem {
 
     void ConfigManager::validate_or_throw(bool strict) {
         const auto& report = validate(strict);
-        if (report.has_errors()) throw std::invalid_argument("Invalid CATChem configuration:\n" + report.format());
+        if (report.has_errors())
+            throw std::invalid_argument("Invalid CATChem configuration:\n" + report.format());
     }
 
 } // namespace catchem

@@ -11,14 +11,13 @@ int main() {
     auto* core = static_cast<catchem::Core*>(core_handle);
     auto manager = core->get_diagnostic_manager();
     const std::vector<int> dims = {2, 1};
-    const std::vector<catchem::SemanticAxis> axes = {catchem::SemanticAxis::Column,
-                                                     catchem::SemanticAxis::Singleton};
+    const std::vector<catchem::SemanticAxis> axes = {catchem::SemanticAxis::Column, catchem::SemanticAxis::Singleton};
     manager->register_field_contract("instant", "instantaneous value", "1", catchem::DiagType::FIELD_2D, dims,
-                            catchem::DiagnosticPolicy::Instantaneous, 0.0, axes);
+                                     catchem::DiagnosticPolicy::Instantaneous, 0.0, axes);
     manager->register_field_contract("accumulated", "timestep accumulation", "kg", catchem::DiagType::FIELD_2D, dims,
-                            catchem::DiagnosticPolicy::TimestepAccumulated, -1.0, axes);
+                                     catchem::DiagnosticPolicy::TimestepAccumulated, -1.0, axes);
     manager->register_field_contract("persistent", "persistent value", "m", catchem::DiagType::FIELD_2D, dims,
-                            catchem::DiagnosticPolicy::Persistent, 0.0, axes);
+                                     catchem::DiagnosticPolicy::Persistent, 0.0, axes);
 
     static_cast<double*>(manager->get_host_write_pointer("instant"))[0] = 7.0;
     static_cast<double*>(manager->get_host_write_pointer("accumulated"))[0] = 8.0;
@@ -40,12 +39,14 @@ int main() {
     }
 
     manager->register_field_contract("instant", "instantaneous value", "1", catchem::DiagType::FIELD_2D, dims,
-                            catchem::DiagnosticPolicy::Instantaneous, 0.0, axes);
+                                     catchem::DiagnosticPolicy::Instantaneous, 0.0, axes);
     bool mismatch_rejected = false;
     try {
         manager->register_field_contract("instant", "different meaning", "1", catchem::DiagType::FIELD_2D, dims,
-                                catchem::DiagnosticPolicy::Instantaneous, 0.0, axes);
-    } catch (const std::invalid_argument&) { mismatch_rejected = true; }
+                                         catchem::DiagnosticPolicy::Instantaneous, 0.0, axes);
+    } catch (const std::invalid_argument&) {
+        mismatch_rejected = true;
+    }
     assert(mismatch_rejected);
     assert(catchem_core_destroy_checked(core_handle) == CATCHEM_SUCCESS);
     return 0;

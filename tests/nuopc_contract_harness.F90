@@ -54,7 +54,7 @@ contains
       if (rc /= ESMF_SUCCESS) return
       do i = 1, field_config%n_import_fields
          if (field_config%import_fields(i)%optional .and. &
-             .not. field_config%import_fields(i)%advertise) cycle
+            .not. field_config%import_fields(i)%advertise) cycle
          call NUOPC_Advertise(exportState, &
             StandardName=trim(field_config%import_fields(i)%standard_name), &
             TransferOfferGeomObject='will provide', SharePolicyField='share', rc=rc)
@@ -130,36 +130,36 @@ contains
       call ESMF_FieldGet(field, name=field_name, rank=rank, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       select case (rank)
-      case (2)
+       case (2)
          nullify(f2); call ESMF_FieldGet(field, farrayPtr=f2, rc=rc)
          if (rc /= ESMF_SUCCESS) return
          f2 = 1.0_ESMF_KIND_R8
-      case (3)
+       case (3)
          nullify(f3); call ESMF_FieldGet(field, farrayPtr=f3, rc=rc)
          if (rc /= ESMF_SUCCESS) return
          select case (trim(field_name))
-         case ('inst_pres_interface')
+          case ('inst_pres_interface')
             do k = 1, size(f3, 3)
                f3(:, :, k) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
             end do
-         case ('inst_pres_levels')
+          case ('inst_pres_levels')
             do k = 1, size(f3, 3)
                f3(:, :, k) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
             end do
-         case ('inst_geop_interface')
+          case ('inst_geop_interface')
             do k = 1, size(f3, 3)
                f3(:, :, k) = 1000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
             end do
-         case ('inst_geop_levels')
+          case ('inst_geop_levels')
             do k = 1, size(f3, 3)
                f3(:, :, k) = 500.0_ESMF_KIND_R8 + 1000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
             end do
-         case ('inst_temp_levels')
+          case ('inst_temp_levels')
             f3 = 300.0_ESMF_KIND_R8
-         case default
+          case default
             f3 = 1.0_ESMF_KIND_R8
          end select
-      case (4)
+       case (4)
          nullify(f4); call ESMF_FieldGet(field, farrayPtr=f4, rc=rc)
          if (rc /= ESMF_SUCCESS) return
          f4 = 1.0_ESMF_KIND_R8
@@ -186,23 +186,23 @@ contains
       tracer_units = [character(len=ESMF_MAXSTR) :: 'kg kg-1', 'kg kg-1', 'kg kg-1']
       do i = 1, field_config%n_import_fields
          if (field_config%import_fields(i)%optional .and. &
-             .not. field_config%import_fields(i)%advertise) cycle
+            .not. field_config%import_fields(i)%advertise) cycle
          select case (field_config%import_fields(i)%dimensions)
-         case (2)
+          case (2)
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
                name=trim(field_config%import_fields(i)%standard_name), rc=rc)
-         case (3)
+          case (3)
             nzf = 5
             if (trim(field_config%import_fields(i)%catchem_var) == 'PEDGE' .or. &
-                trim(field_config%import_fields(i)%catchem_var) == 'Z') nzf = 6
+               trim(field_config%import_fields(i)%catchem_var) == 'Z') nzf = 6
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
                ungriddedLBound=(/1/), ungriddedUBound=(/nzf/), &
                name=trim(field_config%import_fields(i)%standard_name), rc=rc)
-         case (4)
+          case (4)
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
                ungriddedLBound=(/1,1/), ungriddedUBound=(/5,ntr/), &
                name=trim(field_config%import_fields(i)%standard_name), rc=rc)
-         case default
+          case default
             cycle
          end select
          if (rc /= ESMF_SUCCESS) return
@@ -229,14 +229,14 @@ contains
       ! outputs; without it a shared NUOPC export remains an uncreated offer.
       do i = 1, field_config%n_export_fields
          select case (field_config%export_fields(i)%dimensions)
-         case (2)
+          case (2)
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
                name=trim(field_config%export_fields(i)%standard_name), rc=rc)
-         case (4)
+          case (4)
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
                ungriddedLBound=(/1,1/), ungriddedUBound=(/5,ntr/), &
                name=trim(field_config%export_fields(i)%standard_name), rc=rc)
-         case default
+          case default
             cycle
          end select
          if (rc /= ESMF_SUCCESS) return
@@ -484,7 +484,7 @@ program nuopc_contract_harness
        case (3)
          nzf = nz
          if (trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'PEDGE' .or. &
-             trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'Z') nzf = nz + 1
+            trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'Z') nzf = nz + 1
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
             ungriddedLBound=(/1/), ungriddedUBound=(/nzf/), &
             name=trim(cc_wrap%field_config%import_fields(i)%standard_name), rc=rc)
@@ -497,19 +497,19 @@ program nuopc_contract_harness
                do iy = 1, ny
                   do ix = 1, nx
                      select case (trim(cc_wrap%field_config%import_fields(i)%catchem_var))
-                     case ('T')
+                      case ('T')
                         fptr3(ix, iy, iz) = 280.0_ESMF_KIND_R8
-                     case ('QV')
+                      case ('QV')
                         fptr3(ix, iy, iz) = 0.01_ESMF_KIND_R8
-                     case ('RH')
+                      case ('RH')
                         fptr3(ix, iy, iz) = 0.5_ESMF_KIND_R8
-                     case ('PEDGE')
+                      case ('PEDGE')
                         fptr3(ix, iy, iz) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(iz - 1, ESMF_KIND_R8)
-                     case ('PMID')
+                      case ('PMID')
                         fptr3(ix, iy, iz) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(iz - 1, ESMF_KIND_R8)
-                     case ('CLDF')
+                      case ('CLDF')
                         fptr3(ix, iy, iz) = 0.2_ESMF_KIND_R8
-                     case default
+                      case default
                         fptr3(ix, iy, iz) = real(ix + 10 * iy + 100 * iz, ESMF_KIND_R8)
                      end select
                   end do

@@ -38,7 +38,10 @@ foreach(_source IN LISTS _catchem_architecture_sources)
   endif()
 endforeach()
 add_library(CATChem_core_cpp STATIC ${_cpp_core_srcs})
-target_link_libraries(CATChem_core_cpp PUBLIC yaml-cpp::yaml-cpp catchem_validation_options)
+target_link_libraries(
+  CATChem_core_cpp
+  PUBLIC yaml-cpp::yaml-cpp catchem_validation_options
+)
 target_include_directories(CATChem_core_cpp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(CATCHEM_ENABLE_KOKKOS)

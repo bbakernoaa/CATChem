@@ -36,9 +36,7 @@ namespace catchem {
 
         const void* get_host_read_pointer(const std::string& name);
         void* get_host_write_pointer(const std::string& name);
-        void* get_host_pointer(const std::string& name) {
-            return const_cast<void*>(get_host_read_pointer(name));
-        }
+        void* get_host_pointer(const std::string& name) { return const_cast<void*>(get_host_read_pointer(name)); }
         void mark_host_modified(const std::string& name);
         void mark_device_modified(const std::string& name);
         void sync_to_host();

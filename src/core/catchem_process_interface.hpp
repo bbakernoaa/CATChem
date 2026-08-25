@@ -51,9 +51,11 @@ namespace catchem {
         std::vector<DiagnosticDeclaration> diagnostics;
 
         bool structurally_valid() const noexcept {
-            if (process_name.empty()) return false;
+            if (process_name.empty())
+                return false;
             for (const auto& field : fields)
-                if (field.canonical_name.empty() || field.units.empty() || field.axes.empty()) return false;
+                if (field.canonical_name.empty() || field.units.empty() || field.axes.empty())
+                    return false;
             for (const auto& diagnostic : diagnostics)
                 if (diagnostic.canonical_name.empty() || diagnostic.units.empty() || diagnostic.axes.empty())
                     return false;
@@ -62,42 +64,61 @@ namespace catchem {
     };
 
     inline FieldAccessContract host_field_3d(std::string name, std::string units,
-                                              FieldRequirement requirement = FieldRequirement::Required,
-                                              AccessIntent access = AccessIntent::Read) {
-        return {std::move(name), std::move(units),
+                                             FieldRequirement requirement = FieldRequirement::Required,
+                                             AccessIntent access = AccessIntent::Read) {
+        return {std::move(name),
+                std::move(units),
                 {SemanticAxis::Column, SemanticAxis::Level, SemanticAxis::Singleton},
-                PersistencePolicy::Timestep, requirement, access, ExecutionSpaceIntent::Host};
+                PersistencePolicy::Timestep,
+                requirement,
+                access,
+                ExecutionSpaceIntent::Host};
     }
 
     inline FieldAccessContract host_field_interface(std::string name, std::string units,
-                                                     FieldRequirement requirement = FieldRequirement::Required,
-                                                     AccessIntent access = AccessIntent::Read) {
-        return {std::move(name), std::move(units),
+                                                    FieldRequirement requirement = FieldRequirement::Required,
+                                                    AccessIntent access = AccessIntent::Read) {
+        return {std::move(name),
+                std::move(units),
                 {SemanticAxis::Column, SemanticAxis::Interface, SemanticAxis::Singleton},
-                PersistencePolicy::Timestep, requirement, access, ExecutionSpaceIntent::Host};
+                PersistencePolicy::Timestep,
+                requirement,
+                access,
+                ExecutionSpaceIntent::Host};
     }
 
     inline FieldAccessContract host_field_soil_layer(std::string name, std::string units,
-                                                      FieldRequirement requirement = FieldRequirement::Required,
-                                                      AccessIntent access = AccessIntent::Read) {
-        return {std::move(name), std::move(units),
+                                                     FieldRequirement requirement = FieldRequirement::Required,
+                                                     AccessIntent access = AccessIntent::Read) {
+        return {std::move(name),
+                std::move(units),
                 {SemanticAxis::Column, SemanticAxis::SoilLayer, SemanticAxis::Singleton},
-                PersistencePolicy::Timestep, requirement, access, ExecutionSpaceIntent::Host};
+                PersistencePolicy::Timestep,
+                requirement,
+                access,
+                ExecutionSpaceIntent::Host};
     }
 
     inline FieldAccessContract host_field_2d(std::string name, std::string units,
-                                              FieldRequirement requirement = FieldRequirement::Required,
-                                              AccessIntent access = AccessIntent::Read,
-                                              PersistencePolicy persistence = PersistencePolicy::Timestep) {
-        return {std::move(name), std::move(units),
-                {SemanticAxis::Column, SemanticAxis::Singleton}, persistence,
-                requirement, access, ExecutionSpaceIntent::Host};
+                                             FieldRequirement requirement = FieldRequirement::Required,
+                                             AccessIntent access = AccessIntent::Read,
+                                             PersistencePolicy persistence = PersistencePolicy::Timestep) {
+        return {std::move(name),
+                std::move(units),
+                {SemanticAxis::Column, SemanticAxis::Singleton},
+                persistence,
+                requirement,
+                access,
+                ExecutionSpaceIntent::Host};
     }
 
     inline FieldAccessContract host_concentration(AccessIntent access = AccessIntent::ReadWrite) {
-        return {"CONCENTRATION", "mol/mol",
+        return {"CONCENTRATION",
+                "mol/mol",
                 {SemanticAxis::Column, SemanticAxis::Level, SemanticAxis::Species},
-                PersistencePolicy::Persistent, FieldRequirement::Required, access,
+                PersistencePolicy::Persistent,
+                FieldRequirement::Required,
+                access,
                 ExecutionSpaceIntent::Host};
     }
 

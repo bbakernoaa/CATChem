@@ -17,17 +17,17 @@ void run_seasalt_science_bridge(int n_cols, int n_levels, int n_species, double 
 namespace catchem {
 
     ProcessContract SeaSaltProcess::get_contract() const {
-        return {get_name(), {host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
-                            host_field_3d("DELP", "Pa", FieldRequirement::Optional),
-                            host_field_2d("FROCEAN", "1"), host_field_2d("FRSEAICE", "1"),
-                            host_field_2d("TS", "K"),
-                            host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                                                          PersistencePolicy::Persistent),
-                            host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                                                          PersistencePolicy::Persistent),
-                            host_field_2d("USTAR", "m/s"), host_field_2d("U10M", "m/s"),
-                            host_field_2d("V10M", "m/s"),
-                            host_concentration()}, {}};
+        return {get_name(),
+                {host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
+                 host_field_3d("DELP", "Pa", FieldRequirement::Optional), host_field_2d("FROCEAN", "1"),
+                 host_field_2d("FRSEAICE", "1"), host_field_2d("TS", "K"),
+                 host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                               PersistencePolicy::Persistent),
+                 host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                               PersistencePolicy::Persistent),
+                 host_field_2d("USTAR", "m/s"), host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s"),
+                 host_concentration()},
+                {}};
     }
 
     SeaSaltProcess::SeaSaltProcess() : active_scheme("geos12"), diagnostics_enabled(true) {}
@@ -36,19 +36,19 @@ namespace catchem {
         if (state->diagnostic_manager()) {
             std::vector<int> dims_1d = {state->column_count(), 1};
             state->diagnostic_manager()->register_field("seasalt_mass_emission_total", "Total Mass Emission", "kg/m2/s",
-                                            DiagType::FIELD_2D, dims_1d);
-            state->diagnostic_manager()->register_field("seasalt_number_emission_total", "Total Number Emission", "#/m2/s",
-                                            DiagType::FIELD_2D, dims_1d);
+                                                        DiagType::FIELD_2D, dims_1d);
+            state->diagnostic_manager()->register_field("seasalt_number_emission_total", "Total Number Emission",
+                                                        "#/m2/s", DiagType::FIELD_2D, dims_1d);
 
             for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
                 auto& meta = state->chemistry().species_list[i];
                 if (meta.is_seasalt) {
                     std::string mass_name = "seasalt_mass_emission_" + meta.short_name;
                     std::string num_name = "seasalt_number_emission_" + meta.short_name;
-                    state->diagnostic_manager()->register_field(mass_name, "Mass Emission " + meta.short_name, "kg/m2/s",
-                                                    DiagType::FIELD_2D, dims_1d);
-                    state->diagnostic_manager()->register_field(num_name, "Number Emission " + meta.short_name, "#/m2/s",
-                                                    DiagType::FIELD_2D, dims_1d);
+                    state->diagnostic_manager()->register_field(mass_name, "Mass Emission " + meta.short_name,
+                                                                "kg/m2/s", DiagType::FIELD_2D, dims_1d);
+                    state->diagnostic_manager()->register_field(num_name, "Number Emission " + meta.short_name,
+                                                                "#/m2/s", DiagType::FIELD_2D, dims_1d);
                 }
             }
         }
@@ -133,7 +133,8 @@ namespace catchem {
             int g_idx = ss_global_indices[i];
             for (int col = 0; col < state->column_count(); ++col) {
                 for (int lvl = 0; lvl < state->level_count(); ++lvl) {
-                    int src_idx = col + lvl * state->column_count() + g_idx * state->column_count() * state->level_count();
+                    int src_idx =
+                        col + lvl * state->column_count() + g_idx * state->column_count() * state->level_count();
                     int dest_idx = col + lvl * state->column_count() + i * state->column_count() * state->level_count();
                     sliced_conc[dest_idx] = conc_ptr[src_idx];
                 }
@@ -145,9 +146,13 @@ namespace catchem {
 
         // 3. Extract diagnostics
         double* diag_mass_total_ptr =
-            state->diagnostic_manager() ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_mass_emission_total") : nullptr;
+            state->diagnostic_manager()
+                ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_mass_emission_total")
+                : nullptr;
         double* diag_num_total_ptr =
-            state->diagnostic_manager() ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_number_emission_total") : nullptr;
+            state->diagnostic_manager()
+                ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_number_emission_total")
+                : nullptr;
 
         std::vector<double> diag_mass_bin(state->column_count() * n_seasalt, 0.0);
         std::vector<double> diag_num_bin(state->column_count() * n_seasalt, 0.0);
@@ -173,7 +178,8 @@ namespace catchem {
             for (int col = 0; col < state->column_count(); ++col) {
                 for (int lvl = 0; lvl < state->level_count(); ++lvl) {
                     int src_idx = col + lvl * state->column_count() + i * state->column_count() * state->level_count();
-                    int dest_idx = col + lvl * state->column_count() + g_idx * state->column_count() * state->level_count();
+                    int dest_idx =
+                        col + lvl * state->column_count() + g_idx * state->column_count() * state->level_count();
                     conc_ptr[dest_idx] = sliced_conc[src_idx];
                 }
             }
@@ -196,7 +202,8 @@ namespace catchem {
             }
         }
 
-        if (state->chemistry().conc) state->chemistry().conc->mark_host_modified();
+        if (state->chemistry().conc)
+            state->chemistry().conc->mark_host_modified();
     }
 
 } // namespace catchem

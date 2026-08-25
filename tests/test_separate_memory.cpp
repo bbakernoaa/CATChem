@@ -26,10 +26,13 @@ int main() {
     state.bind_met_field_3d("T", temperature.data());
     state.bind_met_field_3d("PMID", pressure.data());
     const catchem::FieldAccessContract temperature_on_device{
-        "T", "K", {catchem::SemanticAxis::Column, catchem::SemanticAxis::Level,
-                     catchem::SemanticAxis::Singleton},
-        catchem::PersistencePolicy::Timestep, catchem::FieldRequirement::Required,
-        catchem::AccessIntent::Read, catchem::ExecutionSpaceIntent::Device};
+        "T",
+        "K",
+        {catchem::SemanticAxis::Column, catchem::SemanticAxis::Level, catchem::SemanticAxis::Singleton},
+        catchem::PersistencePolicy::Timestep,
+        catchem::FieldRequirement::Required,
+        catchem::AccessIntent::Read,
+        catchem::ExecutionSpaceIntent::Device};
     assert(state.prepare_field_access(temperature_on_device));
     assert(state.meteorology().T->host_to_device_sync_count == 1);
     assert(state.meteorology().PMID->host_to_device_sync_count == 0);

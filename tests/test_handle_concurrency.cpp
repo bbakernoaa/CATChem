@@ -15,7 +15,8 @@ int main() {
     for (int thread = 0; thread < 8; ++thread) {
         workers.emplace_back([&] {
             ++ready;
-            while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+            while (!start.load(std::memory_order_acquire))
+                std::this_thread::yield();
             for (int operation = 0; operation < 1250; ++operation) {
                 void* state = nullptr;
                 const int status = catchem_core_get_state_manager_checked(core, &state);
@@ -30,10 +31,12 @@ int main() {
             }
         });
     }
-    while (ready.load() != 8) std::this_thread::yield();
+    while (ready.load() != 8)
+        std::this_thread::yield();
     start.store(true, std::memory_order_release);
     assert(catchem_core_destroy_checked(core) == CATCHEM_SUCCESS);
-    for (auto& worker : workers) worker.join();
+    for (auto& worker : workers)
+        worker.join();
     assert(successes + rejections == 10000);
     void* state = reinterpret_cast<void*>(1);
     assert(catchem_core_get_state_manager_checked(core, &state) == CATCHEM_INVALID_HANDLE);

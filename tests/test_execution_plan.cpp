@@ -1,14 +1,20 @@
-#include "catchem_execution_plan.hpp"
 #include "catchem_core_architecture_test_helpers.hpp"
+#include "catchem_execution_plan.hpp"
 #include <cassert>
 
 class OptionalProcess : public catchem::test::RecordingProcess {
 public:
     using RecordingProcess::RecordingProcess;
     catchem::ProcessContract get_contract() const override {
-        return {get_name(), {{"UNRELATED", "1", {catchem::SemanticAxis::Column},
-                             catchem::PersistencePolicy::Timestep, catchem::FieldRequirement::Optional,
-                             catchem::AccessIntent::Read, catchem::ExecutionSpaceIntent::Host}}, {}};
+        return {get_name(),
+                {{"UNRELATED",
+                  "1",
+                  {catchem::SemanticAxis::Column},
+                  catchem::PersistencePolicy::Timestep,
+                  catchem::FieldRequirement::Optional,
+                  catchem::AccessIntent::Read,
+                  catchem::ExecutionSpaceIntent::Host}},
+                {}};
     }
 };
 

@@ -36,13 +36,15 @@ int catchem_state_get_species_count_checked(void* state_ptr, int* count_out) {
     *count_out = 0;
     catchem::AdmissionLease admission;
     const int status = admit_handle(state_ptr, catchem::HandleType::State, "state_get_species_count", admission);
-    if (status != CATCHEM_SUCCESS) return status;
+    if (status != CATCHEM_SUCCESS)
+        return status;
     *count_out = static_cast<int>(static_cast<catchem::StateManager*>(state_ptr)->chemistry().species_list.size());
     return CATCHEM_SUCCESS;
 }
 
 int catchem_state_get_species_index(void* state_ptr, const char* name) {
-    if (!state_ptr || !name) return -1;
+    if (!state_ptr || !name)
+        return -1;
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
     std::string canonical_name(name);
     std::transform(canonical_name.begin(), canonical_name.end(), canonical_name.begin(),
@@ -55,13 +57,15 @@ int catchem_state_get_species_index(void* state_ptr, const char* name) {
 }
 
 int catchem_state_get_species_index_checked(void* state_ptr, const char* name, int* index_out) {
-    if (index_out) *index_out = 0;
+    if (index_out)
+        *index_out = 0;
     if (!name || !index_out)
         return fail(catchem::BoundaryStatus::NullArgument, "state_get_species_index", "argument",
                     "species name and index output are required");
     catchem::AdmissionLease admission;
     const int status = admit_handle(state_ptr, catchem::HandleType::State, "state_get_species_index", admission);
-    if (status != CATCHEM_SUCCESS) return status;
+    if (status != CATCHEM_SUCCESS)
+        return status;
     std::string key(name);
     std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return std::toupper(c); });
     const auto& indices = static_cast<catchem::StateManager*>(state_ptr)->chemistry().species_name_to_index;
@@ -113,7 +117,8 @@ int catchem_state_get_species_mw_checked(void* state_ptr, int index, double* mol
     *molecular_weight_out = 0.0;
     catchem::AdmissionLease admission;
     const int status = admit_handle(state_ptr, catchem::HandleType::State, "state_get_species_mw", admission);
-    if (status != CATCHEM_SUCCESS) return status;
+    if (status != CATCHEM_SUCCESS)
+        return status;
     const auto& species = static_cast<catchem::StateManager*>(state_ptr)->chemistry().species_list;
     if (index < 1 || index > static_cast<int>(species.size()))
         return fail(catchem::BoundaryStatus::InvalidIndex, "state_get_species_mw", "index",
@@ -124,11 +129,13 @@ int catchem_state_get_species_mw_checked(void* state_ptr, int index, double* mol
 
 static int checked_species_classification(void* state_ptr, int index, int* value_out, const char* operation,
                                           bool catchem::SpeciesMetadata::*member) {
-    if (!value_out) return fail(catchem::BoundaryStatus::NullArgument, operation, "output", "output pointer is null");
+    if (!value_out)
+        return fail(catchem::BoundaryStatus::NullArgument, operation, "output", "output pointer is null");
     *value_out = 0;
     catchem::AdmissionLease admission;
     const int status = admit_handle(state_ptr, catchem::HandleType::State, operation, admission);
-    if (status != CATCHEM_SUCCESS) return status;
+    if (status != CATCHEM_SUCCESS)
+        return status;
     const auto& species = static_cast<catchem::StateManager*>(state_ptr)->chemistry().species_list;
     if (index < 1 || index > static_cast<int>(species.size()))
         return fail(catchem::BoundaryStatus::InvalidIndex, operation, "index",
@@ -181,13 +188,15 @@ void catchem_state_get_species_name_at(void* state_ptr, int index, char* name_ou
 }
 
 int catchem_state_get_species_name_at_checked(void* state_ptr, int index, char* name_out, int name_length) {
-    if (name_out && name_length > 0) name_out[0] = '\0';
+    if (name_out && name_length > 0)
+        name_out[0] = '\0';
     if (!name_out || name_length <= 0)
         return fail(catchem::BoundaryStatus::NullArgument, "state_get_species_name", "name_out",
                     "a positive-length name output is required");
     catchem::AdmissionLease admission;
     const int status = admit_handle(state_ptr, catchem::HandleType::State, "state_get_species_name", admission);
-    if (status != CATCHEM_SUCCESS) return status;
+    if (status != CATCHEM_SUCCESS)
+        return status;
     const auto& species = static_cast<catchem::StateManager*>(state_ptr)->chemistry().species_list;
     if (index < 1 || index > static_cast<int>(species.size()))
         return fail(catchem::BoundaryStatus::InvalidIndex, "state_get_species_name", "index",
@@ -505,35 +514,38 @@ void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int 
 // =========================================================================
 // Species Metadata and Property Query C-API
 // =========================================================================
-#define CATCHEM_SPECIES_DOUBLE_PROPERTY(api, member, fallback) \
-    double catchem_state_get_species_##api(void* state_ptr, int index) { \
-        try { \
-            auto* state = static_cast<catchem::StateManager*>(state_ptr); \
-            const int idx_0 = index - 1; \
-            if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size())) \
-                return state->chemistry().species_list[idx_0].member; \
-        } catch (...) {} \
-        return fallback; \
+#define CATCHEM_SPECIES_DOUBLE_PROPERTY(api, member, fallback)                                                         \
+    double catchem_state_get_species_##api(void* state_ptr, int index) {                                               \
+        try {                                                                                                          \
+            auto* state = static_cast<catchem::StateManager*>(state_ptr);                                              \
+            const int idx_0 = index - 1;                                                                               \
+            if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size()))                        \
+                return state->chemistry().species_list[idx_0].member;                                                  \
+        } catch (...) {                                                                                                \
+        }                                                                                                              \
+        return fallback;                                                                                               \
     }
-#define CATCHEM_SPECIES_BOOL_PROPERTY(api, member) \
-    int catchem_state_get_species_##api(void* state_ptr, int index) { \
-        try { \
-            auto* state = static_cast<catchem::StateManager*>(state_ptr); \
-            const int idx_0 = index - 1; \
-            if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size())) \
-                return state->chemistry().species_list[idx_0].member ? 1 : 0; \
-        } catch (...) {} \
-        return 0; \
+#define CATCHEM_SPECIES_BOOL_PROPERTY(api, member)                                                                     \
+    int catchem_state_get_species_##api(void* state_ptr, int index) {                                                  \
+        try {                                                                                                          \
+            auto* state = static_cast<catchem::StateManager*>(state_ptr);                                              \
+            const int idx_0 = index - 1;                                                                               \
+            if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size()))                        \
+                return state->chemistry().species_list[idx_0].member ? 1 : 0;                                          \
+        } catch (...) {                                                                                                \
+        }                                                                                                              \
+        return 0;                                                                                                      \
     }
-#define CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY(api, member) \
-    int catchem_state_is_species_##api(void* state_ptr, int index) { \
-        try { \
-            auto* state = static_cast<catchem::StateManager*>(state_ptr); \
-            const int idx_0 = index - 1; \
-            if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size())) \
-                return state->chemistry().species_list[idx_0].member ? 1 : 0; \
-        } catch (...) {} \
-        return 0; \
+#define CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY(api, member)                                                              \
+    int catchem_state_is_species_##api(void* state_ptr, int index) {                                                   \
+        try {                                                                                                          \
+            auto* state = static_cast<catchem::StateManager*>(state_ptr);                                              \
+            const int idx_0 = index - 1;                                                                               \
+            if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size()))                        \
+                return state->chemistry().species_list[idx_0].member ? 1 : 0;                                          \
+        } catch (...) {                                                                                                \
+        }                                                                                                              \
+        return 0;                                                                                                      \
     }
 #include "catchem_species_properties.def"
 #undef CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY
@@ -557,4 +569,3 @@ void catchem_state_get_species_wd_rainouteff(void* state_ptr, int index, double*
     }
 }
 }
-

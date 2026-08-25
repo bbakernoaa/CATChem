@@ -1,9 +1,9 @@
 #include "catchem_api.hpp"
 #include "catchem_core.hpp"
-#include "catchem_diagnostic_manager.hpp"
-#include "catchem_state_manager.hpp"
-#include "catchem_species_metadata.hpp"
 #include "catchem_dataflow_test_helpers.hpp"
+#include "catchem_diagnostic_manager.hpp"
+#include "catchem_species_metadata.hpp"
+#include "catchem_state_manager.hpp"
 #include <cassert>
 #include <iostream>
 #include <stdexcept>

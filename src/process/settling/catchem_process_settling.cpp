@@ -7,13 +7,15 @@
 namespace catchem {
 
     ProcessContract SettlingProcess::get_contract() const {
-        ProcessContract contract{
-            get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
-                         host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
-                         host_field_3d("BXHEIGHT", "m"),
-                         host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                         host_field_interface("PEDGE", "Pa"), host_concentration()}, {}};
-        for (auto& field : contract.fields) field.execution_space = ExecutionSpaceIntent::Device;
+        ProcessContract contract{get_name(),
+                                 {host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
+                                  host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
+                                  host_field_3d("BXHEIGHT", "m"),
+                                  host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
+                                  host_field_interface("PEDGE", "Pa"), host_concentration()},
+                                 {}};
+        for (auto& field : contract.fields)
+            field.execution_space = ExecutionSpaceIntent::Device;
         return contract;
     }
 
@@ -64,7 +66,8 @@ namespace catchem {
         if (fortran_callback) {
             // Fallback for tests explicitly requesting the Fortran bridge
             fortran_callback(static_cast<void*>(state.get()));
-            if (state->chemistry().conc) state->chemistry().conc->mark_host_modified();
+            if (state->chemistry().conc)
+                state->chemistry().conc->mark_host_modified();
             return;
         }
 
@@ -78,16 +81,21 @@ namespace catchem {
         if (!state->meteorology().AIRDEN && state->meteorology().AIRDEN_DRY) {
             state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
         }
-        if (!state->meteorology().AIRDEN && !state->meteorology().AIRDEN_DRY && state->meteorology().PMID && state->meteorology().T) {
+        if (!state->meteorology().AIRDEN && !state->meteorology().AIRDEN_DRY && state->meteorology().PMID &&
+            state->meteorology().T) {
             state->derive_airden_dry();
             state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
         }
 
         require_field_pointer("Settling", "T", state->meteorology().T ? state->meteorology().T->host_data() : nullptr);
-        require_field_pointer("Settling", "AIRDEN", state->meteorology().AIRDEN ? state->meteorology().AIRDEN->host_data() : nullptr);
-        require_field_pointer("Settling", "PEDGE", state->meteorology().PEDGE ? state->meteorology().PEDGE->host_data() : nullptr);
-        require_field_pointer("Settling", "BXHEIGHT", state->meteorology().BXHEIGHT ? state->meteorology().BXHEIGHT->host_data() : nullptr);
-        require_field_pointer("Settling", "CHEM_CONC", state->chemistry().conc ? state->chemistry().conc->host_data() : nullptr);
+        require_field_pointer("Settling", "AIRDEN",
+                              state->meteorology().AIRDEN ? state->meteorology().AIRDEN->host_data() : nullptr);
+        require_field_pointer("Settling", "PEDGE",
+                              state->meteorology().PEDGE ? state->meteorology().PEDGE->host_data() : nullptr);
+        require_field_pointer("Settling", "BXHEIGHT",
+                              state->meteorology().BXHEIGHT ? state->meteorology().BXHEIGHT->host_data() : nullptr);
+        require_field_pointer("Settling", "CHEM_CONC",
+                              state->chemistry().conc ? state->chemistry().conc->host_data() : nullptr);
 
         settling::SettlingFunctor functor;
         functor.conc = state->chemistry().conc->view();

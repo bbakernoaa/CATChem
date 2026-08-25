@@ -3,8 +3,8 @@
 #include "catchem_kokkos_compat.hpp"
 #include <array>
 #include <memory>
-#include <type_traits>
 #include <stdexcept>
+#include <type_traits>
 #include <vector>
 #ifdef CATCHEM_ENABLE_KOKKOS
 #include <mdspan/mdspan.hpp>
@@ -101,7 +101,6 @@ namespace catchem {
         }
 
     public:
-
 #ifdef CATCHEM_ENABLE_KOKKOS
         using HostSpace = Kokkos::HostSpace;
         using DeviceSpace = Kokkos::DefaultExecutionSpace::memory_space;
@@ -236,8 +235,18 @@ namespace catchem {
                 dims[r] = dim_vec[r];
         }
 
-        void sync_to_device() { if (latest_writer == LatestWriter::HostCurrent) { ++host_to_device_sync_count; latest_writer = LatestWriter::Synchronized; } }
-        void sync_to_host() { if (latest_writer == LatestWriter::DeviceCurrent) { ++device_to_host_sync_count; latest_writer = LatestWriter::Synchronized; } }
+        void sync_to_device() {
+            if (latest_writer == LatestWriter::HostCurrent) {
+                ++host_to_device_sync_count;
+                latest_writer = LatestWriter::Synchronized;
+            }
+        }
+        void sync_to_host() {
+            if (latest_writer == LatestWriter::DeviceCurrent) {
+                ++device_to_host_sync_count;
+                latest_writer = LatestWriter::Synchronized;
+            }
+        }
 
         /** @brief Updates the host raw pointer. */
         void update_host_pointer(DataType* ptr) {

@@ -17,12 +17,12 @@ void run_wetdep_science_bridge(int n_cols, int n_levels, int n_species, double d
 namespace catchem {
 
     ProcessContract WetDepProcess::get_contract() const {
-        return {get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
-                            host_field_interface("PEDGE", "Pa"),
-                            host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                            host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
-                            host_field_3d("PFILSAN", "Pa"), host_field_3d("PFLLSAN", "Pa"),
-                            host_field_3d("REEVAPLS", "Pa"), host_concentration()}, {}};
+        return {get_name(),
+                {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
+                 host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
+                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_field_3d("PFILSAN", "Pa"),
+                 host_field_3d("PFLLSAN", "Pa"), host_field_3d("REEVAPLS", "Pa"), host_concentration()},
+                {}};
     }
 
     WetDepProcess::WetDepProcess() : active_scheme("jacob"), diagnostics_enabled(true) {}
@@ -36,9 +36,9 @@ namespace catchem {
                     std::string mass_name = "wetdep_mass_" + meta.short_name;
                     std::string flux_name = "wetdep_flux_" + meta.short_name;
                     state->diagnostic_manager()->register_field(mass_name, "Wet Mass " + meta.short_name, "kg/m2",
-                                                    DiagType::FIELD_2D, dims_2d);
+                                                                DiagType::FIELD_2D, dims_2d);
                     state->diagnostic_manager()->register_field(flux_name, "Wet Flux " + meta.short_name, "kg/m2/s",
-                                                    DiagType::FIELD_2D, dims_2d);
+                                                                DiagType::FIELD_2D, dims_2d);
 
                     // Track diagnostic species index (1-based)
                     diagnostic_species_id.push_back(i + 1);
@@ -51,9 +51,11 @@ namespace catchem {
 
         // 1. Fetch raw pointers to Met Views
         double* airden_dry_ptr = state->write_field<3>("AIRDEN_DRY");
-        if (!airden_dry_ptr) airden_dry_ptr = state->write_field<3>("AIRDEN");
+        if (!airden_dry_ptr)
+            airden_dry_ptr = state->write_field<3>("AIRDEN");
         double* mairden_ptr = state->write_field<3>("AIRDEN");
-        if (!mairden_ptr) mairden_ptr = state->write_field<3>("AIRDEN_DRY");
+        if (!mairden_ptr)
+            mairden_ptr = state->write_field<3>("AIRDEN_DRY");
 
         if ((!airden_dry_ptr || !mairden_ptr) && state->meteorology().PMID && state->meteorology().T) {
             state->derive_airden_dry();
@@ -151,9 +153,9 @@ namespace catchem {
 
         // 4. Invoke flat science bridge
         run_wetdep_science_bridge(
-            state->column_count(), state->level_count(), state->species_count(), state->clock().timestep, diagnostics_enabled ? 1 : 0,
-            airden_dry_ptr, mairden_ptr, pedge_ptr, pfilsan_ptr, pfllsan_ptr, reevapls_ptr, t_ptr,
-            (bool*)is_aerosol.data(), henry_cr.data(), henry_k0.data(), henry_pKa.data(), wd_retfactor.data(),
+            state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
+            diagnostics_enabled ? 1 : 0, airden_dry_ptr, mairden_ptr, pedge_ptr, pfilsan_ptr, pfllsan_ptr, reevapls_ptr,
+            t_ptr, (bool*)is_aerosol.data(), henry_cr.data(), henry_k0.data(), henry_pKa.data(), wd_retfactor.data(),
             (bool*)wd_LiqAndGas.data(), wd_convfacI2G.data(), wd_rainouteff.data_handle(), wd_reevap_frac.data(),
             radius.data(), mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(),
             diag_mass_bin.data(), diag_flux_bin.data(), diagnostic_species_id.data(), diagnostic_species_id.size());
@@ -169,7 +171,8 @@ namespace catchem {
                     double* num_ptr = (double*)state->diagnostic_manager()->get_host_pointer(flux_name);
                     for (int col = 0; col < state->column_count(); ++col) {
                         for (int lvl = 0; lvl < state->level_count(); ++lvl) {
-                            int idx = col + lvl * state->column_count() + i * state->column_count() * state->level_count();
+                            int idx =
+                                col + lvl * state->column_count() + i * state->column_count() * state->level_count();
                             if (mass_ptr)
                                 mass_ptr[col + lvl * state->column_count()] = diag_mass_bin[idx];
                             if (num_ptr)
@@ -180,7 +183,8 @@ namespace catchem {
             }
         }
 
-        if (state->chemistry().conc) state->chemistry().conc->mark_host_modified();
+        if (state->chemistry().conc)
+            state->chemistry().conc->mark_host_modified();
     }
 
 } // namespace catchem

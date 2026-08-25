@@ -19,21 +19,22 @@ void run_so4chem_science_bridge(int n_cols, int n_levels, int n_species, double 
 namespace catchem {
 
     ProcessContract SO4chemProcess::get_contract() const {
-        return {get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
-                            host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
-                            host_field_interface("Z", "m", FieldRequirement::Optional),
-                            host_field_3d("DELP", "Pa", FieldRequirement::Optional),
-                            host_field_3d("BXHEIGHT", "m", FieldRequirement::Optional),
-                            host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                            host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
-                            host_field_3d("CLDF", "1"), host_field_2d("HFLUX", "W/m2"),
-                            host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                                                          PersistencePolicy::Persistent),
-                            host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                                                          PersistencePolicy::Persistent),
-                            host_field_2d("PBLH", "m"), host_field_2d("USTAR", "m/s"),
-                            host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s"),
-                            host_field_2d("LWI", "1"), host_concentration()}, {}};
+        return {get_name(),
+                {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
+                 host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
+                 host_field_interface("Z", "m", FieldRequirement::Optional),
+                 host_field_3d("DELP", "Pa", FieldRequirement::Optional),
+                 host_field_3d("BXHEIGHT", "m", FieldRequirement::Optional),
+                 host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
+                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_field_3d("CLDF", "1"),
+                 host_field_2d("HFLUX", "W/m2"),
+                 host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                               PersistencePolicy::Persistent),
+                 host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                               PersistencePolicy::Persistent),
+                 host_field_2d("PBLH", "m"), host_field_2d("USTAR", "m/s"), host_field_2d("U10M", "m/s"),
+                 host_field_2d("V10M", "m/s"), host_field_2d("LWI", "1"), host_concentration()},
+                {}};
     }
 
     SO4chemProcess::SO4chemProcess() : active_scheme("gocart"), diagnostics_enabled(true) {}
@@ -56,23 +57,24 @@ namespace catchem {
             std::vector<int> dims_1d = {state->column_count(), 1};
 
             state->diagnostic_manager()->register_field("PSO4_from_gaseous_SO2_per_level", "PSO4 gas source", "kg/kg/s",
-                                            DiagType::FIELD_2D, dims_2d);
+                                                        DiagType::FIELD_2D, dims_2d);
             state->diagnostic_manager()->register_field("PSO4_from_aqueous_SO2_per_level", "PSO4 aq source", "kg/kg/s",
-                                            DiagType::FIELD_2D, dims_2d);
+                                                        DiagType::FIELD_2D, dims_2d);
             state->diagnostic_manager()->register_field("DMS_emission_flux", "DMS emission surface flux", "kg/m2/s",
-                                            DiagType::FIELD_2D, dims_1d);
+                                                        DiagType::FIELD_2D, dims_1d);
 
             const auto configured = state->config_manager() ? state->config_manager()->data.processes.find("so4chem")
-                                                      : std::map<std::string, ProcessConfig>::const_iterator{};
-            const bool has_config = state->config_manager() && configured != state->config_manager()->data.processes.end();
+                                                            : std::map<std::string, ProcessConfig>::const_iterator{};
+            const bool has_config =
+                state->config_manager() && configured != state->config_manager()->data.processes.end();
             const auto diagnostic_names = has_config ? configured->second.diag_species : std::vector<std::string>{};
             for (const auto& species_name : diagnostic_names) {
                 if (state->chemistry().mechanism && state->chemistry().mechanism->contains(species_name)) {
                     const auto i = state->chemistry().mechanism->index_of(species_name);
                     const auto& meta = state->chemistry().species_list[i];
                     std::string diag_name = "Production_rate_" + meta.short_name;
-                    state->diagnostic_manager()->register_field(diag_name, "Production rate " + meta.short_name, "kg/kg/s",
-                                                    DiagType::FIELD_2D, dims_2d);
+                    state->diagnostic_manager()->register_field(diag_name, "Production rate " + meta.short_name,
+                                                                "kg/kg/s", DiagType::FIELD_2D, dims_2d);
 
                     // Track diagnostic species index (1-based)
                     diagnostic_species_id.push_back(i + 1);
@@ -85,7 +87,8 @@ namespace catchem {
 
         // 1. Retrieve 3D Meteorological variables
         double* airden_ptr = state->write_field<3>("AIRDEN");
-        if (!airden_ptr) airden_ptr = state->write_field<3>("AIRDEN_DRY");
+        if (!airden_ptr)
+            airden_ptr = state->write_field<3>("AIRDEN_DRY");
         if (!airden_ptr && state->meteorology().PMID && state->meteorology().T) {
             state->derive_airden_dry();
             airden_ptr = state->write_field<3>("AIRDEN_DRY");
@@ -213,19 +216,21 @@ namespace catchem {
 
         // 5. Invoke flat science bridge
         run_so4chem_science_bridge(
-            state->column_count(), state->level_count(), state->species_count(), state->clock().timestep, diagnostics_enabled ? 1 : 0,
-            state->clock().year, state->clock().month, state->clock().day, state->clock().hour, state->clock().minute,
-            state->clock().second, airden_ptr, cldf_ptr, delp_ptr, pmid_ptr, t_ptr, z_ptr, hflux_ptr, lat_ptr, lon_ptr,
-            lwi.data(), pblh_ptr, u10m_ptr, ustar_ptr, v10m_ptr, z0h.data(), mw_g.data(),
-            state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(), (bool*)firsttime.data(),
-            nymd_last.data(), nhms_last_recycle.data(), xh2o2_init.data(), pso4_so2.data(), pso4_g_so2.data(),
-            pso4_aq_so2.data(), pso2_dms.data(), dms_flux.data(), diagnostic_species_id.data(),
+            state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
+            diagnostics_enabled ? 1 : 0, state->clock().year, state->clock().month, state->clock().day,
+            state->clock().hour, state->clock().minute, state->clock().second, airden_ptr, cldf_ptr, delp_ptr, pmid_ptr,
+            t_ptr, z_ptr, hflux_ptr, lat_ptr, lon_ptr, lwi.data(), pblh_ptr, u10m_ptr, ustar_ptr, v10m_ptr, z0h.data(),
+            mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(),
+            (bool*)firsttime.data(), nymd_last.data(), nhms_last_recycle.data(), xh2o2_init.data(), pso4_so2.data(),
+            pso4_g_so2.data(), pso4_aq_so2.data(), pso2_dms.data(), dms_flux.data(), diagnostic_species_id.data(),
             diagnostic_species_id.size());
 
         // 6. Map persistent column diagnostics straight to registered C++ Diagnostics Views
         if (state->diagnostic_manager() && diagnostics_enabled) {
-            double* diag_pso4_g = (double*)state->diagnostic_manager()->get_host_pointer("PSO4_from_gaseous_SO2_per_level");
-            double* diag_pso4_aq = (double*)state->diagnostic_manager()->get_host_pointer("PSO4_from_aqueous_SO2_per_level");
+            double* diag_pso4_g =
+                (double*)state->diagnostic_manager()->get_host_pointer("PSO4_from_gaseous_SO2_per_level");
+            double* diag_pso4_aq =
+                (double*)state->diagnostic_manager()->get_host_pointer("PSO4_from_aqueous_SO2_per_level");
             double* diag_dms_flux = (double*)state->diagnostic_manager()->get_host_pointer("DMS_emission_flux");
 
             if (diag_pso4_g)
@@ -246,7 +251,8 @@ namespace catchem {
             }
         }
 
-        if (state->chemistry().conc) state->chemistry().conc->mark_host_modified();
+        if (state->chemistry().conc)
+            state->chemistry().conc->mark_host_modified();
     }
 
 } // namespace catchem

@@ -20,7 +20,10 @@ public:
     std::string get_name() const override { return "injected_failure"; }
     void init(std::shared_ptr<catchem::StateManager>) override {}
     void run(std::shared_ptr<catchem::StateManager>) override {
-        if (fail) { fail = false; throw std::runtime_error("injected process failure"); }
+        if (fail) {
+            fail = false;
+            throw std::runtime_error("injected process failure");
+        }
     }
     void finalize() override {}
 };
@@ -44,8 +47,8 @@ int main() {
     double duration = 0.0;
     char process[64] = {}, cause[128] = {};
     assert(catchem_core_get_timestep_outcome(handle, &status, &timestep, &duration, &generation, &process_index,
-                                             &classification, process, sizeof(process), cause, sizeof(cause)) ==
-           CATCHEM_SUCCESS);
+                                             &classification, process, sizeof(process), cause,
+                                             sizeof(cause)) == CATCHEM_SUCCESS);
     assert(status == static_cast<int>(catchem::TimestepStatus::PartialUpdate));
     assert(timestep == 1 && duration == 60.0 && process_index == 1);
     assert(classification == static_cast<int>(catchem::StateClassification::RequiresReimport));

@@ -53,7 +53,8 @@ void* catchem_core_create_from_config(const char* config_file) {
 
 int catchem_core_create_from_config_checked(const char* config_file, void** core_out) {
     catchem::clear_boundary_error();
-    if (core_out) *core_out = nullptr;
+    if (core_out)
+        *core_out = nullptr;
     if (!config_file || !core_out)
         return fail(catchem::BoundaryStatus::NullArgument, "core_create_from_config", "argument",
                     "configuration path and output pointer are required");
@@ -81,7 +82,8 @@ void* catchem_core_create_from_config_with_grid(const char* config_file, int nco
 int catchem_core_create_from_config_with_grid_checked(const char* config_file, int ncols, int nlevels,
                                                       void** core_out) {
     catchem::clear_boundary_error();
-    if (core_out) *core_out = nullptr;
+    if (core_out)
+        *core_out = nullptr;
     if (!config_file || !core_out)
         return fail(catchem::BoundaryStatus::NullArgument, "core_create_from_config_with_grid", "argument",
                     "configuration path and output pointer are required");
@@ -162,8 +164,10 @@ int catchem_get_last_error(char* buffer, int max_len) {
         return CATCHEM_NULL_ARGUMENT;
     const auto& error = catchem::last_boundary_error();
     std::string message = error.operation;
-    if (!error.object.empty()) message += " [" + error.object + "]";
-    if (!error.cause.empty()) message += ": " + error.cause;
+    if (!error.object.empty())
+        message += " [" + error.object + "]";
+    if (!error.cause.empty())
+        message += ": " + error.cause;
     copy_string_to_buffer(message, buffer, max_len);
     return status_code(error.status);
 }
@@ -171,25 +175,29 @@ int catchem_get_last_error(char* buffer, int max_len) {
 int catchem_core_run_timestep(void* core_ptr, double dt) {
     catchem::AdmissionLease admission;
     const int handle_status = admit_handle(core_ptr, catchem::HandleType::Core, "core_run_timestep", admission);
-    if (handle_status != CATCHEM_SUCCESS) return handle_status;
+    if (handle_status != CATCHEM_SUCCESS)
+        return handle_status;
     try {
         auto* core = static_cast<catchem::Core*>(core_ptr);
         core->run_timestep(dt);
         return 0;
     } catch (const std::exception& error) {
         return fail(catchem::BoundaryStatus::InvalidState, "core_run_timestep", "timestep", error.what());
-    } catch (...) { return fail(catchem::BoundaryStatus::InternalError, "core_run_timestep", "timestep",
-                                "unknown exception"); }
+    } catch (...) {
+        return fail(catchem::BoundaryStatus::InternalError, "core_run_timestep", "timestep", "unknown exception");
+    }
 }
 
 int catchem_core_get_timestep_outcome(void* core_ptr, int* status, long long* timestep, double* duration,
                                       long long* import_generation, int* process_index, int* state_classification,
                                       char* process_name, int process_name_len, char* cause, int cause_len) {
     if (!status || !timestep || !duration || !import_generation || !process_index || !state_classification ||
-        !process_name || !cause) return CATCHEM_NULL_ARGUMENT;
+        !process_name || !cause)
+        return CATCHEM_NULL_ARGUMENT;
     catchem::AdmissionLease admission;
     const int handle_status = admit_handle(core_ptr, catchem::HandleType::Core, "core_get_timestep_outcome", admission);
-    if (handle_status != CATCHEM_SUCCESS) return handle_status;
+    if (handle_status != CATCHEM_SUCCESS)
+        return handle_status;
     const auto& outcome = static_cast<catchem::Core*>(core_ptr)->get_timestep_outcome();
     *status = static_cast<int>(outcome.status);
     *timestep = static_cast<long long>(outcome.timestep);
@@ -223,9 +231,9 @@ int catchem_core_get_num_processes_checked(void* core_ptr, int* count_out) {
     *count_out = 0;
     catchem::AdmissionLease admission;
     const int status = admit_handle(core_ptr, catchem::HandleType::Core, "core_get_num_processes", admission);
-    if (status != CATCHEM_SUCCESS) return status;
+    if (status != CATCHEM_SUCCESS)
+        return status;
     *count_out = static_cast<int>(static_cast<catchem::Core*>(core_ptr)->get_num_processes());
     return CATCHEM_SUCCESS;
 }
-
 }

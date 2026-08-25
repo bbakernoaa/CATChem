@@ -11,9 +11,10 @@
 namespace catchem {
 
     ProcessContract GasChemProcess::get_contract() const {
-        return {get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
-                            host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
-                            host_concentration()}, {}};
+        return {get_name(),
+                {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
+                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()},
+                {}};
     }
 
     GasChemProcess::GasChemProcess() = default;
@@ -92,7 +93,8 @@ namespace catchem {
             }
         }
 
-        if (!state->meteorology().T || !state->meteorology().PMID || !state->meteorology().AIRDEN_DRY || !state->chemistry().conc) {
+        if (!state->meteorology().T || !state->meteorology().PMID || !state->meteorology().AIRDEN_DRY ||
+            !state->chemistry().conc) {
             std::cerr << "GasChemProcess: Missing required views (T, PMID, AIRDEN_DRY, or conc)!\n";
             return;
         }
@@ -179,7 +181,8 @@ namespace catchem {
 
                         double rate_val = 0.0;
                         if (state->diagnostic_manager() && state->diagnostic_manager()->has_field(diag_name)) {
-                            double* diag_ptr = static_cast<double*>(state->diagnostic_manager()->get_host_pointer(diag_name));
+                            double* diag_ptr =
+                                static_cast<double*>(state->diagnostic_manager()->get_host_pointer(diag_name));
                             if (diag_ptr) {
                                 int diag_idx = ilev * nc + icol;
                                 rate_val = diag_ptr[diag_idx];
@@ -238,7 +241,8 @@ namespace catchem {
         }
 
         // 6. Sync back to device
-        if (state->chemistry().conc) state->chemistry().conc->mark_host_modified();
+        if (state->chemistry().conc)
+            state->chemistry().conc->mark_host_modified();
     }
 
     void GasChemProcess::finalize() {}

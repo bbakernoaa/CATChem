@@ -21,16 +21,16 @@
 namespace catchem {
 
     ProcessContract PhotolysisProcess::get_contract() const {
-        return {get_name(), {host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                                                          PersistencePolicy::Persistent),
-                            host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                                                          PersistencePolicy::Persistent),
-                            host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
-                            host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
-                            host_field_3d("BXHEIGHT", "m"),
-                            host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                            host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
-                            host_concentration()}, {{"photolysis.ozone", "", true}}};
+        return {get_name(),
+                {host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                               PersistencePolicy::Persistent),
+                 host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                               PersistencePolicy::Persistent),
+                 host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
+                 host_field_interface("PEDGE", "Pa", FieldRequirement::Optional), host_field_3d("BXHEIGHT", "m"),
+                 host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
+                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()},
+                {{"photolysis.ozone", "", true}}};
     }
 
     PhotolysisProcess::PhotolysisProcess() : config_path("") {}
@@ -176,8 +176,8 @@ namespace catchem {
             for (size_t i = 0; i < photo_mappings.size_; ++i) {
                 std::string rx_name =
                     photo_mappings.mappings_[i].name_.value_ ? photo_mappings.mappings_[i].name_.value_ : "";
-                state->diagnostic_manager()->register_field("photolysis_rate_" + rx_name, "Photolysis rate for " + rx_name, "s-1",
-                                                DiagType::FIELD_2D, dims_2d);
+                state->diagnostic_manager()->register_field(
+                    "photolysis_rate_" + rx_name, "Photolysis rate for " + rx_name, "s-1", DiagType::FIELD_2D, dims_2d);
             }
         }
         Logger::debug(state.get(), "PhotolysisProcess::init complete");
@@ -248,20 +248,26 @@ namespace catchem {
         if (!state->meteorology().AIRDEN && state->meteorology().AIRDEN_DRY) {
             state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
         }
-        if (!state->meteorology().AIRDEN && !state->meteorology().AIRDEN_DRY && state->meteorology().PMID && state->meteorology().T) {
+        if (!state->meteorology().AIRDEN && !state->meteorology().AIRDEN_DRY && state->meteorology().PMID &&
+            state->meteorology().T) {
             state->derive_airden_dry();
             if (!state->meteorology().AIRDEN && state->meteorology().AIRDEN_DRY) {
                 state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
             }
         }
 
-        require_field_pointer("Photolysis", "LAT", state->meteorology().LAT ? state->meteorology().LAT->host_write() : nullptr);
-        require_field_pointer("Photolysis", "LON", state->meteorology().LON ? state->meteorology().LON->host_write() : nullptr);
+        require_field_pointer("Photolysis", "LAT",
+                              state->meteorology().LAT ? state->meteorology().LAT->host_write() : nullptr);
+        require_field_pointer("Photolysis", "LON",
+                              state->meteorology().LON ? state->meteorology().LON->host_write() : nullptr);
         require_field_pointer("Photolysis", "BXHEIGHT",
                               state->meteorology().BXHEIGHT ? state->meteorology().BXHEIGHT->host_write() : nullptr);
-        require_field_pointer("Photolysis", "AIRDEN", state->meteorology().AIRDEN ? state->meteorology().AIRDEN->host_write() : nullptr);
-        require_field_pointer("Photolysis", "T", state->meteorology().T ? state->meteorology().T->host_write() : nullptr);
-        require_field_pointer("Photolysis", "CHEM_CONC", state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr);
+        require_field_pointer("Photolysis", "AIRDEN",
+                              state->meteorology().AIRDEN ? state->meteorology().AIRDEN->host_write() : nullptr);
+        require_field_pointer("Photolysis", "T",
+                              state->meteorology().T ? state->meteorology().T->host_write() : nullptr);
+        require_field_pointer("Photolysis", "CHEM_CONC",
+                              state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr);
 
         Logger::debug(state.get(), "Starting column-wise calculation loop");
         for (int i_col = 0; i_col < state->column_count(); ++i_col) {
@@ -315,7 +321,8 @@ namespace catchem {
             }
 
             std::vector<double> edge_photolysis_rates((state->level_count() + 1) * num_reactions, 0.0);
-            std::vector<double> edge_heating_rates((state->level_count() + 1) * tuvx_instance->GetHeatingRateCount(), 0.0);
+            std::vector<double> edge_heating_rates((state->level_count() + 1) * tuvx_instance->GetHeatingRateCount(),
+                                                   0.0);
 
             Logger::debug(state.get(), "Calling musica::RunTuvx for column", {{"col", col_str}});
             musica::RunTuvx(tuvx_instance, sza_rad, 1.0, edge_photolysis_rates.data(), edge_heating_rates.data(),

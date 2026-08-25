@@ -204,7 +204,6 @@ namespace catchem {
         bool is_process_active(std::string_view process_name) const;
         bool is_category_active(std::string_view category_name) const;
         std::string find_process_file_setting(std::string_view process_name) const;
-
     };
 
 } // namespace catchem

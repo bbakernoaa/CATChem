@@ -12,21 +12,29 @@ extern "C" {
 #endif
 
 enum catchem_dataflow_status {
-    CATCHEM_SUCCESS = 0, CATCHEM_NULL_ARGUMENT = 1, CATCHEM_MISSING_FIELD = 2,
-    CATCHEM_RANK_MISMATCH = 3, CATCHEM_EXTENT_MISMATCH = 4,
-    CATCHEM_INVALID_INDEX = 5, CATCHEM_STALE_GENERATION = 6,
-    CATCHEM_DUPLICATE_MAPPING = 7, CATCHEM_INVALID_STATE = 8,
-    CATCHEM_INTERNAL_ERROR = 9, CATCHEM_INVALID_HANDLE = 10,
-    CATCHEM_WRONG_HANDLE_TYPE = 11, CATCHEM_RUNTIME_UNAVAILABLE = 12,
-    CATCHEM_CONTRACT_VIOLATION = 13, CATCHEM_INVALID_CONFIGURATION = 14,
-    CATCHEM_PROCESS_FAILURE = 15, CATCHEM_SHUTDOWN_FAILURE = 16,
+    CATCHEM_SUCCESS = 0,
+    CATCHEM_NULL_ARGUMENT = 1,
+    CATCHEM_MISSING_FIELD = 2,
+    CATCHEM_RANK_MISMATCH = 3,
+    CATCHEM_EXTENT_MISMATCH = 4,
+    CATCHEM_INVALID_INDEX = 5,
+    CATCHEM_STALE_GENERATION = 6,
+    CATCHEM_DUPLICATE_MAPPING = 7,
+    CATCHEM_INVALID_STATE = 8,
+    CATCHEM_INTERNAL_ERROR = 9,
+    CATCHEM_INVALID_HANDLE = 10,
+    CATCHEM_WRONG_HANDLE_TYPE = 11,
+    CATCHEM_RUNTIME_UNAVAILABLE = 12,
+    CATCHEM_CONTRACT_VIOLATION = 13,
+    CATCHEM_INVALID_CONFIGURATION = 14,
+    CATCHEM_PROCESS_FAILURE = 15,
+    CATCHEM_SHUTDOWN_FAILURE = 16,
     CATCHEM_PHYSICAL_VALIDATION_FAILURE = 17
 };
 
 int catchem_core_create_checked(int nc, int nl, int ns, void** core_out);
 int catchem_core_create_from_config_checked(const char* config_file, void** core_out);
-int catchem_core_create_from_config_with_grid_checked(const char* config_file, int ncols, int nlevels,
-                                                      void** core_out);
+int catchem_core_create_from_config_with_grid_checked(const char* config_file, int ncols, int nlevels, void** core_out);
 int catchem_core_destroy_checked(void* core_ptr);
 int catchem_core_get_state_manager_checked(void* core_ptr, void** state_out);
 int catchem_get_last_error(char* buffer, int max_len);
@@ -91,12 +99,12 @@ void catchem_state_bind_met_2d(void* state_ptr, const char* name, double* ptr);
 void catchem_state_bind_met_3d(void* state_ptr, const char* name, double* ptr);
 int catchem_state_begin_import_generation(void* state_ptr);
 int catchem_state_set_physical_validation_policy_checked(void* state_ptr, int policy);
-int catchem_state_get_physical_validation_report_checked(void* state_ptr, int* issue_count,
-                                                          char* detail, int detail_length);
+int catchem_state_get_physical_validation_report_checked(void* state_ptr, int* issue_count, char* detail,
+                                                         int detail_length);
 int catchem_state_bind_met_2d_checked(void* state_ptr, const char* name, double* ptr, int dim1, int dim2);
 int catchem_state_bind_met_3d_checked(void* state_ptr, const char* name, double* ptr, int dim1, int dim2, int dim3);
-int catchem_state_bind_met_3d_axis_checked(void* state_ptr, const char* name, double* ptr, int dim1, int dim2,
-                                           int dim3, int semantic_axis);
+int catchem_state_bind_met_3d_axis_checked(void* state_ptr, const char* name, double* ptr, int dim1, int dim2, int dim3,
+                                           int semantic_axis);
 
 /** @brief Binds the contiguous, multi-species unified chemistry concentrations array. */
 void catchem_state_bind_unified_chemistry(void* state_ptr, double* ptr);
@@ -236,10 +244,9 @@ void catchem_diag_register(void* core_ptr, const char* name, const char* desc, c
 int catchem_diag_register_checked(void* core_ptr, const char* name, const char* desc, const char* units, int rank,
                                   int dim1, int dim2, int dim3);
 int catchem_diag_register_contract_checked(void* core_ptr, const char* name, const char* desc, const char* units,
-                                           int rank, const int* dims, const int* axes, int policy,
-                                           double reset_value);
-int catchem_diag_get_contract(void* core_ptr, const char* name, int* generation, int* availability,
-                              int* latest_writer, int* policy);
+                                           int rank, const int* dims, const int* axes, int policy, double reset_value);
+int catchem_diag_get_contract(void* core_ptr, const char* name, int* generation, int* availability, int* latest_writer,
+                              int* policy);
 void* catchem_diag_get_pointer(void* core_ptr, const char* name);
 int catchem_diag_get_rank(void* core_ptr, const char* name);
 int catchem_diag_get_rank_checked(void* core_ptr, const char* name, int* rank_out);
@@ -335,11 +342,10 @@ int catchem_convert_process_flux_units(catchem::fp* values, int size, const char
 void catchem_state_get_species_name_at(void* state_ptr, int index, char* name_out);
 void catchem_state_get_species_long_name_at(void* state_ptr, int index, char* name_out);
 void catchem_state_get_species_desc_at(void* state_ptr, int index, char* desc_out);
-#define CATCHEM_SPECIES_DOUBLE_PROPERTY(api, member, fallback) \
+#define CATCHEM_SPECIES_DOUBLE_PROPERTY(api, member, fallback)                                                         \
     double catchem_state_get_species_##api(void* state_ptr, int index);
-#define CATCHEM_SPECIES_BOOL_PROPERTY(api, member) \
-    int catchem_state_get_species_##api(void* state_ptr, int index);
-#define CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY(api, member) \
+#define CATCHEM_SPECIES_BOOL_PROPERTY(api, member) int catchem_state_get_species_##api(void* state_ptr, int index);
+#define CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY(api, member)                                                              \
     int catchem_state_is_species_##api(void* state_ptr, int index);
 #include "catchem_species_properties.def"
 #undef CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY

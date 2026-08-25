@@ -518,6 +518,4 @@ double catchem_met_stokes_number(double rho_p, double d_p, double u, double mu, 
 double catchem_met_nuclear_decay(double n0, double lambda, double t) {
     return catchem::met_utilities::nuclear_decay(n0, lambda, t);
 }
-
 }
-

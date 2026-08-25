@@ -504,9 +504,9 @@ contains
                end if
             end do
          else if (trim(cc_wrap%tracer_map%names(i)) == 'pm25' .or. &
-                  trim(cc_wrap%tracer_map%names(i)) == 'pm10' .or. &
-                  trim(cc_wrap%tracer_map%names(i)) == 'PM25' .or. &
-                  trim(cc_wrap%tracer_map%names(i)) == 'PM10') then
+            trim(cc_wrap%tracer_map%names(i)) == 'pm10' .or. &
+            trim(cc_wrap%tracer_map%names(i)) == 'PM25' .or. &
+            trim(cc_wrap%tracer_map%names(i)) == 'PM10') then
             cc_wrap%tracer_map%entry_kind(i) = 2
          else
             ! NUOPC tracer metadata can include host prognostics that are not
@@ -581,11 +581,11 @@ contains
       ! Mark this process as initialized
       cc_wrap%initialized = .true.
 
-    call ESMF_GridCompSetInternalState(model, is, rc)
+      call ESMF_GridCompSetInternalState(model, is, rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__,  file=__FILE__)) return  ! bail out
       nullify(verify_is%wrap)
-    call ESMF_GridCompGetInternalState(model, verify_is, verify_rc)
+      call ESMF_GridCompGetInternalState(model, verify_is, verify_rc)
       if (verify_rc /= ESMF_SUCCESS .or. .not. associated(verify_is%wrap, cc_wrap)) then
          call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
             msg="CATChem internal state registration did not round-trip", &
@@ -1085,7 +1085,7 @@ contains
          ! StateGet for a field the YAML explicitly chose not to advertise
          ! produces an ESMF error log even though absence is valid.
          if (cc_wrap%field_config%import_fields(n)%optional .and. &
-             .not. cc_wrap%field_config%import_fields(n)%advertise) cycle
+            .not. cc_wrap%field_config%import_fields(n)%advertise) cycle
 
          ! Try to get field from import state (will fail if not present)
          call ESMF_StateGet(importState, trim(cc_wrap%field_config%import_fields(n)%standard_name), field, rc=rc)
@@ -1271,7 +1271,7 @@ contains
 #endif
 
          if (size(fptr2d, 1) /= cc_wrap%catchem_model%nx .or. &
-             size(fptr2d, 2) /= cc_wrap%catchem_model%ny) then
+            size(fptr2d, 2) /= cc_wrap%catchem_model%ny) then
             call ESMF_LogWrite("Shape mismatch for 2D import field: " // trim(field_map%standard_name) // &
                " -> " // trim(field_map%catchem_var), ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
@@ -1322,13 +1322,13 @@ contains
          end if
 
          select case (trim(field_map%vertical_axis))
-         case ('level')
+          case ('level')
             expected_levels = cc_wrap%catchem_model%nz
-         case ('interface')
+          case ('interface')
             expected_levels = cc_wrap%catchem_model%nz + 1
-         case ('soil_layer')
+          case ('soil_layer')
             expected_levels = size(fptr3d, 3)
-         case default
+          case default
             call ESMF_LogWrite("Unsupported vertical_axis for 3D import field: " // &
                trim(field_map%standard_name) // " (" // trim(field_map%vertical_axis) // ")", &
                ESMF_LOGMSG_ERROR, rc=rc)
@@ -1336,7 +1336,7 @@ contains
             return
          end select
          if (size(fptr3d,1) /= cc_wrap%catchem_model%nx .or. &
-             size(fptr3d,2) /= cc_wrap%catchem_model%ny .or. size(fptr3d,3) /= expected_levels) then
+            size(fptr3d,2) /= cc_wrap%catchem_model%ny .or. size(fptr3d,3) /= expected_levels) then
             call ESMF_LogWrite("Shape mismatch for 3D import field: " // trim(field_map%standard_name), &
                ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
@@ -1360,13 +1360,13 @@ contains
          ! a variable-name special case, defines whether vertical extent is
          ! atmospheric levels, interfaces, or host-defined soil layers.
          select case (trim(field_map%vertical_axis))
-         case ('level')
+          case ('level')
             call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%catchem_var), &
                cc_wrap%met_buf_3d(fidx)%data, 0, rc)
-         case ('interface')
+          case ('interface')
             call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%catchem_var), &
                cc_wrap%met_buf_3d(fidx)%data, 1, rc)
-         case ('soil_layer')
+          case ('soil_layer')
             call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%catchem_var), &
                cc_wrap%met_buf_3d(fidx)%data, 2, rc)
          end select
@@ -1408,9 +1408,9 @@ contains
             allocate(cc_wrap%host_tracer_buf_4d(size(fptr4d,1), size(fptr4d,2), &
                size(fptr4d,3), size(fptr4d,4)))
          else if (size(cc_wrap%host_tracer_buf_4d,1) /= size(fptr4d,1) .or. &
-                  size(cc_wrap%host_tracer_buf_4d,2) /= size(fptr4d,2) .or. &
-                  size(cc_wrap%host_tracer_buf_4d,3) /= size(fptr4d,3) .or. &
-                  size(cc_wrap%host_tracer_buf_4d,4) /= size(fptr4d,4)) then
+            size(cc_wrap%host_tracer_buf_4d,2) /= size(fptr4d,2) .or. &
+            size(cc_wrap%host_tracer_buf_4d,3) /= size(fptr4d,3) .or. &
+            size(cc_wrap%host_tracer_buf_4d,4) /= size(fptr4d,4)) then
             deallocate(cc_wrap%host_tracer_buf_4d)
             allocate(cc_wrap%host_tracer_buf_4d(size(fptr4d,1), size(fptr4d,2), &
                size(fptr4d,3), size(fptr4d,4)))
@@ -1441,9 +1441,9 @@ contains
          end if
 
          if (size(fptr4d,1) /= cc_wrap%catchem_model%nx .or. &
-             size(fptr4d,2) /= cc_wrap%catchem_model%ny .or. &
-             size(fptr4d,3) /= cc_wrap%catchem_model%nz .or. &
-             .not. tracer_shape_valid) then
+            size(fptr4d,2) /= cc_wrap%catchem_model%ny .or. &
+            size(fptr4d,3) /= cc_wrap%catchem_model%nz .or. &
+            .not. tracer_shape_valid) then
             call ESMF_LogWrite("Shape mismatch for 4D chemistry import field: " // &
                trim(field_map%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
@@ -1454,9 +1454,9 @@ contains
             allocate(cc_wrap%chem_buf_4d(size(fptr4d, 1), size(fptr4d, 2), size(fptr4d, 3), v_cc))
             cc_wrap%chem_buf_4d = 0.0_c_double
          else if (size(cc_wrap%chem_buf_4d, 1) /= size(fptr4d, 1) .or. &
-                  size(cc_wrap%chem_buf_4d, 2) /= size(fptr4d, 2) .or. &
-                  size(cc_wrap%chem_buf_4d, 3) /= size(fptr4d, 3) .or. &
-                  size(cc_wrap%chem_buf_4d, 4) /= v_cc) then
+            size(cc_wrap%chem_buf_4d, 2) /= size(fptr4d, 2) .or. &
+            size(cc_wrap%chem_buf_4d, 3) /= size(fptr4d, 3) .or. &
+            size(cc_wrap%chem_buf_4d, 4) /= v_cc) then
             deallocate(cc_wrap%chem_buf_4d)
             allocate(cc_wrap%chem_buf_4d(size(fptr4d, 1), size(fptr4d, 2), size(fptr4d, 3), v_cc))
             cc_wrap%chem_buf_4d = 0.0_c_double
@@ -2952,16 +2952,16 @@ contains
             field%optional = .true.
           case ('false', 'False', 'FALSE', '.false.')
             field%optional = .false.
-         case default
+          case default
             field%optional = .false.
          end select
        case ('advertise')
          select case (trim(clean_value))
-         case ('true', 'True', 'TRUE', '.true.')
+          case ('true', 'True', 'TRUE', '.true.')
             field%advertise = .true.
-         case ('false', 'False', 'FALSE', '.false.')
+          case ('false', 'False', 'FALSE', '.false.')
             field%advertise = .false.
-         case default
+          case default
             field%advertise = .false.
          end select
       end select

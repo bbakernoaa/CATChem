@@ -38,15 +38,19 @@ namespace catchem {
 
     inline thread_local BoundaryError boundary_error;
 
-    inline void clear_boundary_error() noexcept { boundary_error = {}; }
+    inline void clear_boundary_error() noexcept {
+        boundary_error = {};
+    }
 
-    inline BoundaryStatus set_boundary_error(BoundaryStatus status, std::string operation,
-                                             std::string object, std::string cause) noexcept {
+    inline BoundaryStatus set_boundary_error(BoundaryStatus status, std::string operation, std::string object,
+                                             std::string cause) noexcept {
         boundary_error = {status, std::move(operation), std::move(object), std::move(cause)};
         return status;
     }
 
-    inline const BoundaryError& last_boundary_error() noexcept { return boundary_error; }
+    inline const BoundaryError& last_boundary_error() noexcept {
+        return boundary_error;
+    }
 
     template <typename Function>
     BoundaryStatus guard_boundary_call(const char* operation, const char* object, Function&& function) noexcept {
@@ -55,14 +59,14 @@ namespace catchem {
             function();
             return BoundaryStatus::Success;
         } catch (const std::invalid_argument& error) {
-            return set_boundary_error(BoundaryStatus::InvalidState, operation ? operation : "",
-                                      object ? object : "", error.what());
+            return set_boundary_error(BoundaryStatus::InvalidState, operation ? operation : "", object ? object : "",
+                                      error.what());
         } catch (const std::exception& error) {
-            return set_boundary_error(BoundaryStatus::InternalError, operation ? operation : "",
-                                      object ? object : "", error.what());
+            return set_boundary_error(BoundaryStatus::InternalError, operation ? operation : "", object ? object : "",
+                                      error.what());
         } catch (...) {
-            return set_boundary_error(BoundaryStatus::InternalError, operation ? operation : "",
-                                      object ? object : "", "unknown non-standard exception");
+            return set_boundary_error(BoundaryStatus::InternalError, operation ? operation : "", object ? object : "",
+                                      "unknown non-standard exception");
         }
     }
 

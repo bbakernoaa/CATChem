@@ -126,7 +126,9 @@ namespace catchem {
     }
 
     void DiagnosticField::sync_to_host() {}
-    void DiagnosticField::sync_to_device() { latest_writer = LatestWriter::Synchronized; }
+    void DiagnosticField::sync_to_device() {
+        latest_writer = LatestWriter::Synchronized;
+    }
 
     void DiagnosticField::reset() {
         std::fill(storage.begin(), storage.end(), reset_value);
@@ -173,23 +175,27 @@ namespace catchem {
     void DiagnosticField::advance_generation(std::size_t value) {
         generation = value;
         generation_failed = false;
-        if (reset_policy != DiagnosticPolicy::Persistent) reset();
+        if (reset_policy != DiagnosticPolicy::Persistent)
+            reset();
         availability = AvailabilityState::Current;
     }
 
     void DiagnosticManager::register_field(const std::string& name, const std::string& desc, const std::string& units,
                                            DiagType type, const std::vector<int>& dims) {
         std::vector<SemanticAxis> axes;
-        if (dims.size() >= 1) axes.push_back(SemanticAxis::Column);
-        if (dims.size() >= 2) axes.push_back(dims[1] == 1 ? SemanticAxis::Singleton : SemanticAxis::Level);
-        if (dims.size() >= 3) axes.push_back(SemanticAxis::Species);
+        if (dims.size() >= 1)
+            axes.push_back(SemanticAxis::Column);
+        if (dims.size() >= 2)
+            axes.push_back(dims[1] == 1 ? SemanticAxis::Singleton : SemanticAxis::Level);
+        if (dims.size() >= 3)
+            axes.push_back(SemanticAxis::Species);
         register_field_contract(name, desc, units, type, dims, DiagnosticPolicy::Instantaneous, 0.0, axes);
     }
 
-    void DiagnosticManager::register_field_contract(
-        const std::string& name, const std::string& desc, const std::string& units, DiagType type,
-        const std::vector<int>& dims, DiagnosticPolicy policy, double reset_value,
-        const std::vector<SemanticAxis>& axes) {
+    void DiagnosticManager::register_field_contract(const std::string& name, const std::string& desc,
+                                                    const std::string& units, DiagType type,
+                                                    const std::vector<int>& dims, DiagnosticPolicy policy,
+                                                    double reset_value, const std::vector<SemanticAxis>& axes) {
         if (name.empty() || desc.empty() || units.empty() || dims.empty() || dims.size() != axes.size() ||
             std::any_of(dims.begin(), dims.end(), [](int d) { return d <= 0; }))
             throw std::invalid_argument("Invalid diagnostic contract: " + name);
@@ -236,12 +242,14 @@ namespace catchem {
 
     void DiagnosticManager::begin_timestep() {
         ++generation_;
-        for (auto& [key, field] : fields) field->advance_generation(generation_);
+        for (auto& [key, field] : fields)
+            field->advance_generation(generation_);
     }
 
     void DiagnosticManager::mark_generation_failed() {
         for (auto& [key, field] : fields) {
-            if (field->generation == generation_) field->generation_failed = true;
+            if (field->generation == generation_)
+                field->generation_failed = true;
         }
     }
 
@@ -253,7 +261,11 @@ namespace catchem {
         return names;
     }
 
-    void DiagnosticManager::mark_host_modified(const std::string& name) { get_field(name)->mark_host_modified(); }
-    void DiagnosticManager::mark_device_modified(const std::string& name) { get_field(name)->mark_device_modified(); }
+    void DiagnosticManager::mark_host_modified(const std::string& name) {
+        get_field(name)->mark_host_modified();
+    }
+    void DiagnosticManager::mark_device_modified(const std::string& name) {
+        get_field(name)->mark_device_modified();
+    }
 
 } // namespace catchem

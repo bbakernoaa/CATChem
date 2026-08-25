@@ -1,5 +1,5 @@
-#include "catchem_process_registry.hpp"
 #include "catchem_core_architecture_test_helpers.hpp"
+#include "catchem_process_registry.hpp"
 #include <atomic>
 #include <cassert>
 #include <thread>
@@ -21,7 +21,8 @@ int main() {
             }
         });
     }
-    for (auto& worker : workers) worker.join();
+    for (auto& worker : workers)
+        worker.join();
     assert(created == 10000);
     return 0;
 }

@@ -1,12 +1,12 @@
 #include "catchem_api.hpp"
 
+#include "catchem_core.hpp"
 #include <array>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
-#include "catchem_core.hpp"
 
 // The standalone, NUOPC, and CCPP adapters all terminate in these checked
 // operations. This fixture locks their common failure taxonomy and axis values.
@@ -36,8 +36,7 @@ int main() {
     assert(catchem_state_bind_met_3d_axis_checked(state, "T", layers.data(), 2, 3, 1, 99) == CATCHEM_INVALID_STATE);
     assert(catchem_state_bind_unified_chemistry_checked(state, chemistry.data(), 2, 3, 3) == CATCHEM_EXTENT_MISMATCH);
 
-    const std::string mechanism_file =
-        std::string(CATCHEM_TEST_SOURCE_DIR) + "/fixtures/mechanisms/unfamiliar.yml";
+    const std::string mechanism_file = std::string(CATCHEM_TEST_SOURCE_DIR) + "/fixtures/mechanisms/unfamiliar.yml";
     catchem_state_load_species_config(state, mechanism_file.c_str());
     assert(catchem_state_get_species_count(state) == 3);
     assert(catchem_state_get_species_index(state, "aerosol_c") == 3);
@@ -55,14 +54,14 @@ int main() {
     catchem_state_derive_airden_dry(state);
     int issue_count = -1;
     std::array<char, 512> report{};
-    assert(catchem_state_get_physical_validation_report_checked(
-        state, &issue_count, report.data(), static_cast<int>(report.size())) == CATCHEM_SUCCESS);
+    assert(catchem_state_get_physical_validation_report_checked(state, &issue_count, report.data(),
+                                                                static_cast<int>(report.size())) == CATCHEM_SUCCESS);
     assert(issue_count == 1);
     assert(std::strstr(report.data(), "T") != nullptr);
     issue_count = -1;
     report[0] = 'x';
     assert(catchem_state_get_physical_validation_report_checked(
-        nullptr, &issue_count, report.data(), static_cast<int>(report.size())) == CATCHEM_NULL_ARGUMENT);
+               nullptr, &issue_count, report.data(), static_cast<int>(report.size())) == CATCHEM_NULL_ARGUMENT);
     assert(issue_count == 0 && report[0] == '\0');
 
     void* stale = state;

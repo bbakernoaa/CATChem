@@ -6,8 +6,8 @@
 #pragma once
 #include "catchem_config_manager.hpp"
 #include "catchem_diagnostic_manager.hpp"
-#include "catchem_grid_manager.hpp"
 #include "catchem_execution_plan.hpp"
+#include "catchem_grid_manager.hpp"
 #include "catchem_process_interface.hpp"
 #include "catchem_runtime_lease.hpp"
 #include "catchem_state_manager.hpp"

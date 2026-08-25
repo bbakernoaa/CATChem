@@ -345,7 +345,7 @@ module CATChem_API
       end function
 
       integer(c_int) function catchem_diag_register_contract_checked(core_ptr, name, desc, units, rank, dims, axes, &
-                                                                      policy, reset_value) &
+         policy, reset_value) &
          bind(C, name="catchem_diag_register_contract_checked")
          import :: c_ptr, c_char, c_int, c_double
          type(c_ptr), value :: core_ptr
@@ -356,7 +356,7 @@ module CATChem_API
       end function
 
       integer(c_int) function catchem_diag_get_contract(core_ptr, name, generation, availability, latest_writer, &
-                                                         policy) bind(C, name="catchem_diag_get_contract")
+         policy) bind(C, name="catchem_diag_get_contract")
          import :: c_ptr, c_char, c_int
          type(c_ptr), value :: core_ptr
          character(kind=c_char), intent(in) :: name(*)

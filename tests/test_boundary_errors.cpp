@@ -31,7 +31,8 @@ int main() {
         assert(catchem_get_last_error(detail, sizeof(detail)) == CATCHEM_INVALID_HANDLE);
         second_error = detail;
     });
-    first.join(); second.join();
+    first.join();
+    second.join();
     assert(first_error.find("state_begin_import_generation") != std::string::npos);
     assert(second_error.find("core_get_state") != std::string::npos);
 

@@ -11,7 +11,11 @@ int main() {
     state.bind_met_field_3d("T", temperature.data());
     state.set_validation_policy(catchem::PhysicalValidationPolicy::Reject);
     bool rejected = false;
-    try { state.derive_bxheight(); } catch (const std::domain_error&) { rejected = true; }
+    try {
+        state.derive_bxheight();
+    } catch (const std::domain_error&) {
+        rejected = true;
+    }
     assert(rejected);
     assert(!state.meteorology().BXHEIGHT); // validation precedes output allocation/mutation
     assert(state.validation_report().issue_count() == 2);
@@ -31,7 +35,11 @@ int main() {
     density.bind_met_field_3d("QV", humidity.data());
     density.set_validation_policy(catchem::PhysicalValidationPolicy::Reject);
     rejected = false;
-    try { density.derive_airden_dry(); } catch (const std::domain_error&) { rejected = true; }
+    try {
+        density.derive_airden_dry();
+    } catch (const std::domain_error&) {
+        rejected = true;
+    }
     assert(rejected);
     assert(!density.meteorology().AIRDEN_DRY);
     density.set_validation_policy(catchem::PhysicalValidationPolicy::CountAndContinue);

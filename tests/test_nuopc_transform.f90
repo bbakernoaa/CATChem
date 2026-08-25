@@ -130,7 +130,7 @@ program test_nuopc_transform
        case (3)
          nzf = nz
          if (trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'PEDGE' .or. &
-             trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'Z') nzf = nz + 1
+            trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'Z') nzf = nz + 1
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
             ungriddedLBound=(/1/), ungriddedUBound=(/nzf/), &
             name=trim(cc_wrap%field_config%import_fields(i)%standard_name), rc=rc)
@@ -143,19 +143,19 @@ program test_nuopc_transform
                do iy = 1, ny
                   do ix = 1, nx
                      select case (trim(cc_wrap%field_config%import_fields(i)%catchem_var))
-                     case ('T')
+                      case ('T')
                         fptr3(ix, iy, iz) = 280.0_ESMF_KIND_R8
-                     case ('QV')
+                      case ('QV')
                         fptr3(ix, iy, iz) = 0.01_ESMF_KIND_R8
-                     case ('RH')
+                      case ('RH')
                         fptr3(ix, iy, iz) = 0.5_ESMF_KIND_R8
-                     case ('PEDGE')
+                      case ('PEDGE')
                         fptr3(ix, iy, iz) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(iz - 1, ESMF_KIND_R8)
-                     case ('PMID')
+                      case ('PMID')
                         fptr3(ix, iy, iz) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(iz - 1, ESMF_KIND_R8)
-                     case ('CLDF')
+                      case ('CLDF')
                         fptr3(ix, iy, iz) = 0.2_ESMF_KIND_R8
-                     case default
+                      case default
                         fptr3(ix, iy, iz) = real(ix + 10 * iy + 100 * iz, ESMF_KIND_R8)
                      end select
                   end do

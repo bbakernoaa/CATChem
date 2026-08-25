@@ -13,8 +13,7 @@ int main() {
     assert(legacy_state && checked_state);
     std::vector<double> legacy_temperature(6, 280.0), checked_temperature(6, 280.0);
     catchem_state_bind_3d(legacy_state, "T", legacy_temperature.data());
-    assert(catchem_state_bind_3d_checked(checked_state, "T", checked_temperature.data(), 2, 3, 1) ==
-           CATCHEM_SUCCESS);
+    assert(catchem_state_bind_3d_checked(checked_state, "T", checked_temperature.data(), 2, 3, 1) == CATCHEM_SUCCESS);
     assert(catchem_state_get_pointer_3d(legacy_state, "T") == legacy_temperature.data());
     assert(catchem_state_get_pointer_3d(checked_state, "T") == checked_temperature.data());
     catchem_core_destroy(legacy);

@@ -468,17 +468,17 @@ void CatchemPropertiesTest_ValidDerivationVectors() {
     state.sync_to_host();
     assert(state.validation_report().empty());
     for (int level = 0; level < 2; ++level) {
-        const double virtual_temperature = catchem::met_utilities::virtual_temperature(
-            temperature[level], humidity[level]);
-        const double expected_height = (catchem::constants::RD / catchem::constants::G0) *
-            virtual_temperature * std::log(pressure_edge[level] / pressure_edge[level + 1]);
+        const double virtual_temperature =
+            catchem::met_utilities::virtual_temperature(temperature[level], humidity[level]);
+        const double expected_height = (catchem::constants::RD / catchem::constants::G0) * virtual_temperature *
+                                       std::log(pressure_edge[level] / pressure_edge[level + 1]);
         assert(std::abs(state.meteorology().BXHEIGHT->host_data()[level] - expected_height) < 1.0e-10);
 
-        const double ratio = (catchem::constants::AIR_MW / catchem::constants::H2O_MW) *
-            humidity[level] / (1.0 - humidity[level]);
+        const double ratio =
+            (catchem::constants::AIR_MW / catchem::constants::H2O_MW) * humidity[level] / (1.0 - humidity[level]);
         const double water_mole_fraction = ratio / (1.0 + ratio);
-        const double expected_density = pressure_mid[level] * (1.0 - water_mole_fraction) /
-            (catchem::constants::RD * temperature[level]);
+        const double expected_density =
+            pressure_mid[level] * (1.0 - water_mole_fraction) / (catchem::constants::RD * temperature[level]);
         assert(std::abs(state.meteorology().AIRDEN_DRY->host_data()[level] - expected_density) < 1.0e-12);
     }
 }
