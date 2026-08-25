@@ -162,6 +162,8 @@ module catchem_nuopc_interface
       integer :: dimensions               !< Number of spatial dimensions (2D/3D)
       character(len=64) :: units          !< Physical units for conversion
       character(len=32) :: vertical_axis = 'level' !< Vertical coordinate semantic for 3D fields
+      character(len=128) :: host_tracer_name = '' !< Host tracer to expose as a CATChem met field
+      character(len=128) :: host_tracer_var = ''  !< CATChem met name for host_tracer_name
       logical :: optional = .false.       !< Whether field is required or optional
       logical :: advertise = .false.      !< Advertise an optional field for a host coupling contract
    end type field_mapping_type
@@ -1480,6 +1482,35 @@ contains
          call cc_wrap%catchem_model%bind_unified_chemistry(cc_wrap%chem_buf_4d, rc)
          if (rc /= CC_SUCCESS) return
 
+         ! A host-owned tracer may be a meteorological prerequisite (e.g.,
+         ! specific humidity) rather than an active chemical species.  The
+         ! YAML mapping declares this relationship, keeping host conventions
+         ! out of the mechanism and core process code.
+         if (len_trim(field_map%host_tracer_name) > 0 .and. len_trim(field_map%host_tracer_var) > 0) then
+            found_index = 0
+            if (allocated(cc_wrap%tracer_map%names)) then
+               do v = 1, min(size(fptr4d, 4), size(cc_wrap%tracer_map%names))
+                  if (trim(cc_wrap%tracer_map%names(v)) == trim(field_map%host_tracer_name)) then
+                     found_index = v
+                     exit
+                  end if
+               end do
+            end if
+            if (found_index <= 0) then
+               call ESMF_LogWrite("Configured host tracer is absent from import field: " // &
+                  trim(field_map%host_tracer_name), ESMF_LOGMSG_ERROR, rc=rc)
+               rc = ESMF_FAILURE
+               return
+            end if
+            if (.not. allocated(cc_wrap%met_buf_3d(fidx)%data)) then
+               allocate(cc_wrap%met_buf_3d(fidx)%data(size(fptr4d, 1), size(fptr4d, 2), size(fptr4d, 3)))
+            end if
+            cc_wrap%met_buf_3d(fidx)%data = real(fptr4d(:,:,:,found_index), c_double)
+            call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%host_tracer_var), &
+               cc_wrap%met_buf_3d(fidx)%data, 0, rc)
+            if (rc /= CC_SUCCESS) return
+         end if
+
        case default
          call ESMF_LogWrite("Unknown field mapping dimension for: " // trim(field_map%catchem_var), &
             ESMF_LOGMSG_ERROR, rc=rc)
@@ -2726,6 +2757,8 @@ contains
       current_field%dimensions = 0
       current_field%units = ''
       current_field%vertical_axis = 'level'
+      current_field%host_tracer_name = ''
+      current_field%host_tracer_var = ''
       current_field%optional = .false.
       current_field%advertise = .false.
 
@@ -2812,6 +2845,8 @@ contains
                   current_field%dimensions = 0
                   current_field%units = ''
                   current_field%vertical_axis = 'level'
+                  current_field%host_tracer_name = ''
+                  current_field%host_tracer_var = ''
                   current_field%optional = .false.
                   current_field%advertise = .false.
 
@@ -2946,6 +2981,10 @@ contains
          field%units = trim(clean_value)
        case ('vertical_axis')
          field%vertical_axis = trim(clean_value)
+       case ('host_tracer_name')
+         field%host_tracer_name = trim(clean_value)
+       case ('host_tracer_var')
+         field%host_tracer_var = trim(clean_value)
        case ('optional')
          select case (trim(clean_value))
           case ('true', 'True', 'TRUE', '.true.')

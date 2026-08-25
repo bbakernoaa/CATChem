@@ -231,6 +231,8 @@ import_fields:
   - standard_name: "inst_tracer_mass_frac"
     catchem_var: "chem"
     dimensions: 4
+    host_tracer_name: "sphum"
+    host_tracer_var: "QV"
     units: "1"
     optional: false
 
