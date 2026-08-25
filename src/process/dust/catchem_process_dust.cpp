@@ -1,19 +1,23 @@
 #include "catchem_process_dust.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
+#include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 extern "C" {
 void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil, double dt, const char* active_scheme,
-                             int diagnostics, double* airden, double* bxheight, double* delp, double* clayfrac,
-                             double* frlake, double* frsno, double* gvf, double* lai, int* lwi, double* rdrag,
-                             double* sandfrac, double* soilm, double* ssm, double* tskin, double* u10m, double* v10m,
-                             double* ustar, double* ustar_threshold, double* z0, double* species_density,
-                             double* species_radius, double* species_lower_radius, double* species_upper_radius,
+                             int diagnostics, const double* airden, const double* bxheight, const double* delp,
+                             const double* clayfrac, const double* frlake, const double* frsno, const double* gvf,
+                             const double* lai, int* lwi, const double* rdrag, const double* sandfrac,
+                             const double* soilm, const double* ssm, const double* tskin, const double* u10m,
+                             const double* v10m, const double* ustar, const double* ustar_threshold, const double* z0,
+                             const double* species_density, const double* species_radius,
+                             const double* species_lower_radius, const double* species_upper_radius,
                              double* conc, double* tendency, double* diag_emission_total, double* diag_emission_bin,
                              double* diag_horizontal_flux, double* diag_moisture_correction,
                              double* diag_effective_threshold, double* diag_utar_threshold,
@@ -79,12 +83,12 @@ namespace catchem {
     void DustProcess::run(std::shared_ptr<StateManager> state) {
 
         // 1. Retrieve Meteorological state pointers
-        double* airden_ptr = state->write_field<3>("AIRDEN_DRY");
-        double* bxheight_ptr = state->write_field<3>("BXHEIGHT");
-        double* delp_ptr = state->write_field<3>("DELP");
+        const double* airden_ptr = state->read_field<3>("AIRDEN_DRY");
+        const double* bxheight_ptr = state->read_field<3>("BXHEIGHT");
+        const double* delp_ptr = state->read_field<3>("DELP");
         std::vector<double> derived_delp;
         if (delp_ptr == nullptr && state->meteorology().PEDGE) {
-            auto pedge = state->meteorology().PEDGE->host_write();
+            auto pedge = state->meteorology().PEDGE->host_read();
             if (pedge != nullptr) {
                 derived_delp.assign(static_cast<size_t>(state->column_count()) * state->level_count(), 0.0);
                 for (int lev = 0; lev < state->level_count(); ++lev) {
@@ -97,39 +101,34 @@ namespace catchem {
                 delp_ptr = derived_delp.data();
             }
         }
-        std::vector<double> fallback_delp;
-        if (!delp_ptr) {
-            fallback_delp.assign(static_cast<size_t>(state->column_count()) * state->level_count(), 2000.0);
-            delp_ptr = fallback_delp.data();
-        }
-
-        double* clayfrac_ptr = state->write_field<2>("CLAYFRAC");
-        double* frlake_ptr = state->write_field<2>("FRLAKE");
-        double* frsno_ptr = state->write_field<2>("FRSNO");
-        double* gvf_ptr = state->write_field<2>("GVF");
-        double* lai_ptr = state->write_field<2>("LAI");
-        double* lwi_double_ptr = state->write_field<2>("LWI");
+        const double* clayfrac_ptr = state->read_field<2>("CLAYFRAC");
+        const double* frlake_ptr = state->read_field<2>("FRLAKE");
+        const double* frsno_ptr = state->read_field<2>("FRSNO");
+        const double* gvf_ptr = state->read_field<2>("GVF");
+        const double* lai_ptr = state->read_field<2>("LAI");
+        const double* lwi_double_ptr = state->read_field<2>("LWI");
         std::vector<int> lwi(state->column_count(), 1);
         if (lwi_double_ptr) {
             for (int col = 0; col < state->column_count(); ++col) {
                 lwi[col] = static_cast<int>(lwi_double_ptr[col]);
             }
         }
-        double* rdrag_ptr = state->write_field<2>("CMM");
-        double* sandfrac_ptr = state->write_field<2>("SNDFRC");
-        double* soilm_ptr = state->write_field<3>("SOILM");
+        const double* rdrag_ptr = state->read_field<2>("CMM");
+        const double* sandfrac_ptr = state->read_field<2>("SNDFRC");
+        const double* soilm_ptr = state->read_field<3>("SOILM");
         const auto soilm_field = state->find_field<3>("SOILM");
         const int n_soil = soilm_field ? static_cast<int>(soilm_field->extent(1)) : 0;
-        double* ssm_ptr = state->write_field<2>("GWETTOP");
-        double* tskin_ptr = state->write_field<2>("TS");
-        double* u10m_ptr = state->write_field<2>("U10M");
-        double* v10m_ptr = state->write_field<2>("V10M");
-        double* ustar_ptr = state->write_field<2>("USTAR");
-        double* ustar_th_ptr = state->write_field<2>("USTAR_THRESHOLD");
-        double* z0_ptr = state->write_field<2>("Z0");
+        const double* ssm_ptr = state->read_field<2>("GWETTOP");
+        const double* tskin_ptr = state->read_field<2>("TS");
+        const double* u10m_ptr = state->read_field<2>("U10M");
+        const double* v10m_ptr = state->read_field<2>("V10M");
+        const double* ustar_ptr = state->read_field<2>("USTAR");
+        const double* ustar_th_ptr = state->read_field<2>("USTAR_THRESHOLD");
+        const double* z0_ptr = state->read_field<2>("Z0");
 
         require_field_pointer("Dust", "AIRDEN_DRY", airden_ptr);
         require_field_pointer("Dust", "BXHEIGHT", bxheight_ptr);
+        require_field_pointer("Dust", "DELP (or PEDGE)", delp_ptr);
         require_field_pointer("Dust", "CLAYFRAC", clayfrac_ptr);
         require_field_pointer("Dust", "FRLAKE", frlake_ptr);
         require_field_pointer("Dust", "FRSNO", frsno_ptr);
@@ -148,7 +147,30 @@ namespace catchem {
         require_field_pointer("Dust", "USTAR_THRESHOLD", ustar_th_ptr);
         require_field_pointer("Dust", "Z0", z0_ptr);
 
-        require_field_pointer("Dust", "AIRDEN_DRY", airden_ptr);
+        const auto config = state->config_manager();
+        if (config && config->data.simulation.verbose_enabled) {
+            constexpr double gravity = 9.80665;
+            double min_ratio = std::numeric_limits<double>::infinity();
+            double max_ratio = 0.0;
+            for (int level = 0; level < state->level_count(); ++level) {
+                for (int column = 0; column < state->column_count(); ++column) {
+                    const std::size_t index = static_cast<std::size_t>(column) +
+                                              static_cast<std::size_t>(level) * state->column_count();
+                    const double geometric_mass = airden_ptr[index] * bxheight_ptr[index];
+                    const double pressure_mass = delp_ptr[index] / gravity;
+                    if (std::isfinite(geometric_mass) && std::isfinite(pressure_mass) && geometric_mass > 0.0 &&
+                        pressure_mass > 0.0) {
+                        const double ratio = pressure_mass / geometric_mass;
+                        min_ratio = std::min(min_ratio, ratio);
+                        max_ratio = std::max(max_ratio, ratio);
+                    }
+                }
+            }
+            Logger::debug(state.get(), "Dust layer-mass conversion inputs",
+                          {{"delp_over_g_to_rho_dz_min", std::to_string(min_ratio)},
+                           {"delp_over_g_to_rho_dz_max", std::to_string(max_ratio)},
+                           {"conversion", "flux*g/DELP*1e9 kg/kg-to-ug/kg"}});
+        }
 
         // 2. Diagnostic Views
         double* diag_emission_total = nullptr;
