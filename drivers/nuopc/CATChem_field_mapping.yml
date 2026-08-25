@@ -169,7 +169,10 @@ import_fields:
     dimensions: 2
     units: "m2/m2"
     optional: false
-  - standard_name: "inst_vegetation_area_frac"
+  # FV3 exposes green vegetation fraction as ``vfrac``.  Keep the host
+  # exchange name here and translate it to the mechanism-independent CATChem
+  # met-state key below; the NUOPC cap uses this YAML mapping at runtime.
+  - standard_name: "vfrac"
     catchem_var: "GVF"
     dimensions: 2
     units: "frac"
