@@ -90,8 +90,8 @@ namespace catchem {
             if (!(pressure > 0.0 && temperature > 0.0))
                 return 0.0;
             const fp bounded_qv = math::max(static_cast<fp>(0.0), math::min(static_cast<fp>(0.9999), qv));
-            const fp mixing = (constants::AIR_MW / constants::H2O_MW) * bounded_qv /
-                               (static_cast<fp>(1.0) - bounded_qv);
+            const fp mixing =
+                (constants::AIR_MW / constants::H2O_MW) * bounded_qv / (static_cast<fp>(1.0) - bounded_qv);
             const fp water_mole_fraction = mixing / (static_cast<fp>(1.0) + mixing);
             return pressure * (static_cast<fp>(1.0) - water_mole_fraction) / (constants::RD * temperature);
         }
@@ -112,23 +112,20 @@ namespace catchem {
             const fp rh = relative_humidity(temperature, qv, pressure_mid);
             if (!(air_mass > 0.0) || !(rh < rh_threshold) || !(liquid + ice > 0.0))
                 return 0.0;
-            const fp coefficient = temperature > liquid_temperature
-                                       ? liquid_coefficient
-                                       : temperature > ice_temperature
-                                             ? ((temperature - ice_temperature) /
-                                                (liquid_temperature - ice_temperature)) * liquid_coefficient +
-                                                   ((liquid_temperature - temperature) /
-                                                    (liquid_temperature - ice_temperature)) * ice_coefficient
-                                             : ice_coefficient;
+            const fp coefficient =
+                temperature > liquid_temperature ? liquid_coefficient
+                : temperature > ice_temperature
+                    ? ((temperature - ice_temperature) / (liquid_temperature - ice_temperature)) * liquid_coefficient +
+                          ((liquid_temperature - temperature) / (liquid_temperature - ice_temperature)) *
+                              ice_coefficient
+                    : ice_coefficient;
             const fp rh_term = math::max(static_cast<fp>(0.0), static_cast<fp>(1.0) - rh / rh_threshold);
-            const fp liquid_loss = liquid > 0.0
-                                       ? math::min(coefficient * rh_term * math::sqrt(liquid), liquid / air_mass)
-                                       : 0.0;
+            const fp liquid_loss =
+                liquid > 0.0 ? math::min(coefficient * rh_term * math::sqrt(liquid), liquid / air_mass) : 0.0;
             const fp ice_loss = temperature > ice_temperature
                                     ? math::min(coefficient * rh_term * math::sqrt(ice), ice / air_mass)
                                     : 0.0;
-            return math::max(static_cast<fp>(0.0),
-                             math::min(liquid_loss + ice_loss, (liquid + ice) / air_mass));
+            return math::max(static_cast<fp>(0.0), math::min(liquid_loss + ice_loss, (liquid + ice) / air_mass));
         }
 
         KOKKOS_INLINE_FUNCTION

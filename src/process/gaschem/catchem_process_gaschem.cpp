@@ -89,7 +89,8 @@ namespace catchem {
 
         if (!state->meteorology().T || !state->meteorology().PMID || !state->meteorology().AIRDEN_DRY ||
             !state->chemistry().conc) {
-            throw std::runtime_error("GasChem requires current T, PMID, AIRDEN_DRY, and chemistry concentration fields");
+            throw std::runtime_error(
+                "GasChem requires current T, PMID, AIRDEN_DRY, and chemistry concentration fields");
         }
 
         auto temp = state->meteorology().T->host_view;
@@ -147,7 +148,8 @@ namespace catchem {
                         size_t i_micm_spec = it->second;
                         double ppmv_val = conc(icol, ilev, ispec);
                         if (!std::isfinite(ppmv_val) || ppmv_val < 0.0)
-                            throw std::domain_error("GasChem received a negative or non-finite concentration for " + name);
+                            throw std::domain_error("GasChem received a negative or non-finite concentration for " +
+                                                    name);
 
                         double conc_molar = ppmv_val * 1.0e-6 * air_density_mol;
 
@@ -222,7 +224,8 @@ namespace catchem {
 
                         double ppmv_val = (conc_molar / air_density_mol) * 1.0e6;
                         if (!std::isfinite(ppmv_val) || ppmv_val < 0.0)
-                            throw std::domain_error("GasChem solver returned a negative or non-finite concentration for " + name);
+                            throw std::domain_error(
+                                "GasChem solver returned a negative or non-finite concentration for " + name);
                         conc(icol, ilev, ispec) = ppmv_val;
                     }
                 }

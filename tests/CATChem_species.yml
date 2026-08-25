@@ -72,6 +72,9 @@
   __description: Dimethyl sulfide
   molecular weight [kg mol-1]: 62.13e-3
   __radius: 8.7e-2
+  __density: 1400.0
+  __lower_radius: 0.01
+  __upper_radius: 0.2
   __is_dust: false
   __is_aerosol: true
   __is_drydep: false

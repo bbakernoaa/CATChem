@@ -573,20 +573,25 @@ namespace catchem {
         // by dry-air gas constant and temperature.  AIRDEN_DRY is the
         // humidity-corrected quantity and is derived separately above.
         void derive_airden() {
-            if (met.AIRDEN && met.AIRDEN->is_current(import_generation)) return;
-            if (!met.PMID || !met.T || !met.PMID->is_current(import_generation) || !met.T->is_current(import_generation))
+            if (met.AIRDEN && met.AIRDEN->is_current(import_generation))
+                return;
+            if (!met.PMID || !met.T || !met.PMID->is_current(import_generation) ||
+                !met.T->is_current(import_generation))
                 throw std::runtime_error("Cannot derive AIRDEN: requires current PMID and T");
             auto airden = find_field<3>("AIRDEN");
             if (!airden) {
-                auto buffer=std::make_shared<std::vector<double>>(static_cast<std::size_t>(n_cols)*n_levels,0.0);
+                auto buffer = std::make_shared<std::vector<double>>(static_cast<std::size_t>(n_cols) * n_levels, 0.0);
                 owned_buffers.push_back(buffer);
-                bind_met_field_3d("AIRDEN",buffer->data());
+                bind_met_field_3d("AIRDEN", buffer->data());
                 airden = find_field<3>("AIRDEN");
             }
-            met.PMID->sync_to_host(); met.T->sync_to_host();
-            const double* p=met.PMID->host_data(); const double* t=met.T->host_data();
+            met.PMID->sync_to_host();
+            met.T->sync_to_host();
+            const double* p = met.PMID->host_data();
+            const double* t = met.T->host_data();
             double* output = airden->host_write();
-            for(int i=0;i<n_cols*n_levels;++i) output[i]=p[i]/(constants::RD*t[i]);
+            for (int i = 0; i < n_cols * n_levels; ++i)
+                output[i] = p[i] / (constants::RD * t[i]);
             airden->mark_host_modified();
             airden->set_generation(import_generation);
         }
@@ -617,7 +622,8 @@ namespace catchem {
         }
 
         void derive_obk() {
-            if (const auto obk = find_field<2>("OBK"); obk && obk->is_current(import_generation)) return;
+            if (const auto obk = find_field<2>("OBK"); obk && obk->is_current(import_generation))
+                return;
             if (!met.USTAR || !met.TS || !met.HFLUX || !met.PMID || !met.T ||
                 !met.USTAR->is_current(import_generation) || !met.TS->is_current(import_generation) ||
                 !met.HFLUX->is_current(import_generation) || !met.PMID->is_current(import_generation) ||
@@ -630,47 +636,79 @@ namespace catchem {
                 bind_met_field_2d("OBK", buffer->data());
                 obk = find_field<2>("OBK");
             }
-            met.USTAR->sync_to_host(); met.TS->sync_to_host(); met.HFLUX->sync_to_host();
-            met.PMID->sync_to_host(); met.T->sync_to_host();
-            const double* ustar = met.USTAR->host_data(); const double* ts = met.TS->host_data();
-            const double* hflux = met.HFLUX->host_data(); const double* p = met.PMID->host_data();
-            const double* t = met.T->host_data(); double* output = obk->host_write();
+            met.USTAR->sync_to_host();
+            met.TS->sync_to_host();
+            met.HFLUX->sync_to_host();
+            met.PMID->sync_to_host();
+            met.T->sync_to_host();
+            const double* ustar = met.USTAR->host_data();
+            const double* ts = met.TS->host_data();
+            const double* hflux = met.HFLUX->host_data();
+            const double* p = met.PMID->host_data();
+            const double* t = met.T->host_data();
+            double* output = obk->host_write();
             for (int c = 0; c < n_cols; ++c)
-                output[c] = met_utilities::monin_obukhov_length(ustar[c], ts[c], hflux[c], p[c] / (constants::RD * t[c]));
+                output[c] =
+                    met_utilities::monin_obukhov_length(ustar[c], ts[c], hflux[c], p[c] / (constants::RD * t[c]));
             obk->mark_host_modified();
             obk->set_generation(import_generation);
         }
 
         void derive_relative_humidity() {
-            if (const auto rh = find_field<3>("RH"); rh && rh->is_current(import_generation)) return;
+            if (const auto rh = find_field<3>("RH"); rh && rh->is_current(import_generation))
+                return;
             if (!met.T || !met.QV || !met.PMID)
                 throw std::runtime_error("Cannot derive RH: requires T, QV, and PMID");
             auto buffer = std::make_shared<std::vector<double>>(static_cast<std::size_t>(n_cols) * n_levels, 0.0);
-            owned_buffers.push_back(buffer); bind_met_field_3d("RH", buffer->data());
-            met.T->sync_to_host(); met.QV->sync_to_host(); met.PMID->sync_to_host();
-            const double* t=met.T->host_data(); const double* qv=met.QV->host_data(); const double* p=met.PMID->host_data();
-            for (int i=0; i<n_cols*n_levels; ++i) buffer->at(i)=met_utilities::relative_humidity(t[i],qv[i],p[i]);
-            met.RH->mark_host_modified(); met.RH->set_generation(import_generation);
+            owned_buffers.push_back(buffer);
+            bind_met_field_3d("RH", buffer->data());
+            met.T->sync_to_host();
+            met.QV->sync_to_host();
+            met.PMID->sync_to_host();
+            const double* t = met.T->host_data();
+            const double* qv = met.QV->host_data();
+            const double* p = met.PMID->host_data();
+            for (int i = 0; i < n_cols * n_levels; ++i)
+                buffer->at(i) = met_utilities::relative_humidity(t[i], qv[i], p[i]);
+            met.RH->mark_host_modified();
+            met.RH->set_generation(import_generation);
         }
 
         void derive_surface_cloud_fraction() {
-            if (const auto out=find_field<2>("CLDFRC"); out && out->is_current(import_generation)) return;
-            auto cldf=find_field<3>("CLDF"); if (!cldf) throw std::runtime_error("Cannot derive CLDFRC: requires CLDF");
-            auto buffer=std::make_shared<std::vector<double>>(n_cols,0.0); owned_buffers.push_back(buffer);
-            bind_met_field_2d("CLDFRC",buffer->data()); cldf->sync_to_host(); const double* src=cldf->host_data();
-            for(int c=0;c<n_cols;++c) buffer->at(c)=src[c];
+            if (const auto out = find_field<2>("CLDFRC"); out && out->is_current(import_generation))
+                return;
+            auto cldf = find_field<3>("CLDF");
+            if (!cldf)
+                throw std::runtime_error("Cannot derive CLDFRC: requires CLDF");
+            auto buffer = std::make_shared<std::vector<double>>(n_cols, 0.0);
+            owned_buffers.push_back(buffer);
+            bind_met_field_2d("CLDFRC", buffer->data());
+            cldf->sync_to_host();
+            const double* src = cldf->host_data();
+            for (int c = 0; c < n_cols; ++c)
+                buffer->at(c) = src[c];
             auto derived = find_field<2>("CLDFRC");
-            derived->mark_host_modified(); derived->set_generation(import_generation);
+            derived->mark_host_modified();
+            derived->set_generation(import_generation);
         }
 
         void derive_suncosmid() {
-            if (const auto out=find_field<2>("SUNCOSMID"); out && out->is_current(import_generation)) return;
-            if(!met.LAT||!met.LON) throw std::runtime_error("Cannot derive SUNCOSMID: requires LAT and LON");
-            auto buffer=std::make_shared<std::vector<double>>(n_cols,0.0); owned_buffers.push_back(buffer);
-            bind_met_field_2d("SUNCOSMID",buffer->data()); met.LAT->sync_to_host(); met.LON->sync_to_host(); const double* lat=met.LAT->host_data(); const double* lon=met.LON->host_data();
-            for(int c=0;c<n_cols;++c) buffer->at(c)=time.get_cos_sza(lat[c],lon[c],true);
+            if (const auto out = find_field<2>("SUNCOSMID"); out && out->is_current(import_generation))
+                return;
+            if (!met.LAT || !met.LON)
+                throw std::runtime_error("Cannot derive SUNCOSMID: requires LAT and LON");
+            auto buffer = std::make_shared<std::vector<double>>(n_cols, 0.0);
+            owned_buffers.push_back(buffer);
+            bind_met_field_2d("SUNCOSMID", buffer->data());
+            met.LAT->sync_to_host();
+            met.LON->sync_to_host();
+            const double* lat = met.LAT->host_data();
+            const double* lon = met.LON->host_data();
+            for (int c = 0; c < n_cols; ++c)
+                buffer->at(c) = time.get_cos_sza(lat[c], lon[c], true);
             auto derived = find_field<2>("SUNCOSMID");
-            derived->mark_host_modified(); derived->set_generation(import_generation);
+            derived->mark_host_modified();
+            derived->set_generation(import_generation);
         }
 
         // Derive large-scale/anvil precipitation re-evaporation [kg/kg/s].

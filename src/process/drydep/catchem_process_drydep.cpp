@@ -23,20 +23,35 @@ namespace catchem {
 
     ProcessContract DryDepProcess::get_contract() const {
         return {get_name(),
-                {host_field_3d("T", "K"), host_field_3d("QV", "kg/kg"), host_field_3d("PMID", "Pa"),
-                 host_field_interface("PEDGE", "Pa"), host_field_3d("BXHEIGHT", "m"),
-                 host_field_3d("AIRDEN_DRY", "kg/m3"), host_field_3d("RH", "1"), host_field_3d("CLDF", "1"),
+                {host_field_3d("T", "K"),
+                 host_field_3d("QV", "kg/kg"),
+                 host_field_3d("PMID", "Pa"),
+                 host_field_interface("PEDGE", "Pa"),
+                 host_field_3d("BXHEIGHT", "m"),
+                 host_field_3d("AIRDEN_DRY", "kg/m3"),
+                 host_field_3d("RH", "1"),
+                 host_field_3d("CLDF", "1"),
                  host_field_2d("PS", "Pa"),
                  host_field_2d("TS", "K"),
                  host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
                                PersistencePolicy::Persistent),
                  host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
                                PersistencePolicy::Persistent),
-                 host_field_2d("USTAR", "m/s"), host_field_2d("HFLUX", "W/m2"), host_field_2d("OBK", "m"),
-                 host_field_2d("PBLH", "m"), host_field_2d("DLUSE", "1"), host_field_2d("LAI", "m2/m2"),
-                 host_field_2d("FRSNO", "1"), host_field_2d("SWGDN", "W/m2"), host_field_2d("Z0", "m"),
-                 host_field_2d("FRLAKE", "1"), host_field_2d("GWETTOP", "1"), host_field_2d("LWI", "1"),
-                 host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s"), host_concentration()},
+                 host_field_2d("USTAR", "m/s"),
+                 host_field_2d("HFLUX", "W/m2"),
+                 host_field_2d("OBK", "m"),
+                 host_field_2d("PBLH", "m"),
+                 host_field_2d("DLUSE", "1"),
+                 host_field_2d("LAI", "m2/m2"),
+                 host_field_2d("FRSNO", "1"),
+                 host_field_2d("SWGDN", "W/m2"),
+                 host_field_2d("Z0", "m"),
+                 host_field_2d("FRLAKE", "1"),
+                 host_field_2d("GWETTOP", "1"),
+                 host_field_2d("LWI", "1"),
+                 host_field_2d("U10M", "m/s"),
+                 host_field_2d("V10M", "m/s"),
+                 host_concentration()},
                 {}};
     }
 
@@ -125,11 +140,16 @@ namespace catchem {
         const double* lwi_ptr = state->read_field<2>("LWI");
         const double* u10m_ptr = state->read_field<2>("U10M");
         const double* v10m_ptr = state->read_field<2>("V10M");
-        require_field_pointer("DryDep", "CLDF", cldf_ptr); require_field_pointer("DryDep", "DLUSE", dluse_ptr);
-        require_field_pointer("DryDep", "LAI", lai_ptr); require_field_pointer("DryDep", "FRSNO", frsno_ptr);
-        require_field_pointer("DryDep", "SWGDN", swgdn_ptr); require_field_pointer("DryDep", "Z0", z0_ptr);
-        require_field_pointer("DryDep", "FRLAKE", frlake_ptr); require_field_pointer("DryDep", "GWETTOP", gwettop_ptr);
-        require_field_pointer("DryDep", "LWI", lwi_ptr); require_field_pointer("DryDep", "U10M", u10m_ptr);
+        require_field_pointer("DryDep", "CLDF", cldf_ptr);
+        require_field_pointer("DryDep", "DLUSE", dluse_ptr);
+        require_field_pointer("DryDep", "LAI", lai_ptr);
+        require_field_pointer("DryDep", "FRSNO", frsno_ptr);
+        require_field_pointer("DryDep", "SWGDN", swgdn_ptr);
+        require_field_pointer("DryDep", "Z0", z0_ptr);
+        require_field_pointer("DryDep", "FRLAKE", frlake_ptr);
+        require_field_pointer("DryDep", "GWETTOP", gwettop_ptr);
+        require_field_pointer("DryDep", "LWI", lwi_ptr);
+        require_field_pointer("DryDep", "U10M", u10m_ptr);
         require_field_pointer("DryDep", "V10M", v10m_ptr);
         const double* cldfrc = state->read_field<2>("CLDFRC");
         const double* suncosmid = state->read_field<2>("SUNCOSMID");
@@ -151,11 +171,17 @@ namespace catchem {
         std::vector<char> is_ice(state->column_count()), is_land(state->column_count()), is_snow(state->column_count());
         std::vector<double> salinity(state->column_count(), 0.0);
         std::vector<int> lwi(state->column_count());
-        for (int c=0; c<state->column_count(); ++c) { const int lu=static_cast<int>(dluse_ptr[c]); const int i=(lu == 0 ? 16 : std::clamp(lu,1,20)-1);
-          iland_storage[c+20*i]=i+1; frlanduse_storage[c+20*i]=1.0;
-          frlai_storage[c+20*i]=(i>=14 && i<=16)?0.0:lai_ptr[c]; lwi[c]=static_cast<int>(lwi_ptr[c]);
-          is_land[c]=lwi[c]==1; is_ice[c]=lwi[c]==2; is_snow[c]=frsno_ptr[c]>=0.5;
-          }
+        for (int c = 0; c < state->column_count(); ++c) {
+            const int lu = static_cast<int>(dluse_ptr[c]);
+            const int i = (lu == 0 ? 16 : std::clamp(lu, 1, 20) - 1);
+            iland_storage[c + 20 * i] = i + 1;
+            frlanduse_storage[c + 20 * i] = 1.0;
+            frlai_storage[c + 20 * i] = (i >= 14 && i <= 16) ? 0.0 : lai_ptr[c];
+            lwi[c] = static_cast<int>(lwi_ptr[c]);
+            is_land[c] = lwi[c] == 1;
+            is_ice[c] = lwi[c] == 2;
+            is_snow[c] = frsno_ptr[c] >= 0.5;
+        }
 
         // 3. Extract chemical arrays & C++ allocated diagnostics
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
@@ -185,15 +211,16 @@ namespace catchem {
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
             auto& meta = state->chemistry().species_list[i];
             if (!(meta.mw_g > 0.0))
-                throw std::runtime_error("DryDep species '" + meta.short_name + "' requires an explicit molecular weight");
+                throw std::runtime_error("DryDep species '" + meta.short_name +
+                                         "' requires an explicit molecular weight");
             mw_g[i] = meta.mw_g;
             dd_f0[i] = meta.dd_f0;
             dd_hstar[i] = meta.dd_hstar;
             dd_DvzAerSnow[i] = meta.dd_DvzAerSnow;
             dd_DvzMinVal_snow[i] = meta.dd_DvzMinVal_snow;
             dd_DvzMinVal_land[i] = meta.dd_DvzMinVal_land;
-            if (meta.is_aerosol && (!(meta.density > 0.0) || !(meta.radius > 0.0) ||
-                                    !(meta.lower_radius > 0.0) || !(meta.upper_radius > meta.lower_radius)))
+            if (meta.is_aerosol && (!(meta.density > 0.0) || !(meta.radius > 0.0) || !(meta.lower_radius > 0.0) ||
+                                    !(meta.upper_radius > meta.lower_radius)))
                 throw std::runtime_error("DryDep aerosol '" + meta.short_name +
                                          "' requires explicit density and radius bounds");
             density[i] = meta.density;
@@ -208,11 +235,16 @@ namespace catchem {
         // 5. Invoke flat science bridge (casting char* vectors to bool* pointers)
         run_drydep_science_bridge(
             state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
-            gas_scheme.c_str(), aero_scheme.c_str(), diagnostics_enabled ? 1 : 0, const_cast<double*>(bxheight_ptr), const_cast<double*>(airden_ptr), const_cast<double*>(t_ptr),
-            const_cast<double*>(pedge_ptr), const_cast<double*>(rh_ptr), const_cast<double*>(cldfrc), frlai.data_handle(), frlanduse.data_handle(), iland.data_handle(),
-            (bool*)is_ice.data(), (bool*)is_land.data(), (bool*)is_snow.data(), const_cast<double*>(lat_ptr), const_cast<double*>(lon_ptr), const_cast<double*>(obk_ptr), const_cast<double*>(ps_ptr),
-            salinity.data(), const_cast<double*>(suncosmid), const_cast<double*>(swgdn_ptr), const_cast<double*>(ts_ptr), const_cast<double*>(ts_ptr), const_cast<double*>(ustar_ptr), const_cast<double*>(z0_ptr), const_cast<double*>(frlake_ptr),
-            const_cast<double*>(gwettop_ptr), const_cast<double*>(hflux_ptr), lwi.data(), const_cast<double*>(pblh_ptr), const_cast<double*>(u10m_ptr), const_cast<double*>(v10m_ptr), const_cast<double*>(z0_ptr), mw_g.data(),
+            gas_scheme.c_str(), aero_scheme.c_str(), diagnostics_enabled ? 1 : 0, const_cast<double*>(bxheight_ptr),
+            const_cast<double*>(airden_ptr), const_cast<double*>(t_ptr), const_cast<double*>(pedge_ptr),
+            const_cast<double*>(rh_ptr), const_cast<double*>(cldfrc), frlai.data_handle(), frlanduse.data_handle(),
+            iland.data_handle(), (bool*)is_ice.data(), (bool*)is_land.data(), (bool*)is_snow.data(),
+            const_cast<double*>(lat_ptr), const_cast<double*>(lon_ptr), const_cast<double*>(obk_ptr),
+            const_cast<double*>(ps_ptr), salinity.data(), const_cast<double*>(suncosmid),
+            const_cast<double*>(swgdn_ptr), const_cast<double*>(ts_ptr), const_cast<double*>(ts_ptr),
+            const_cast<double*>(ustar_ptr), const_cast<double*>(z0_ptr), const_cast<double*>(frlake_ptr),
+            const_cast<double*>(gwettop_ptr), const_cast<double*>(hflux_ptr), lwi.data(), const_cast<double*>(pblh_ptr),
+            const_cast<double*>(u10m_ptr), const_cast<double*>(v10m_ptr), const_cast<double*>(z0_ptr), mw_g.data(),
             dd_f0.data(), dd_hstar.data(), dd_DvzAerSnow.data(), dd_DvzMinVal_snow.data(), dd_DvzMinVal_land.data(),
             density.data(), radius.data(), (bool*)is_seasalt.data(), (bool*)is_dust.data(), lower_radius.data(),
             upper_radius.data(), (bool*)is_gas.data(), conc_ptr, mock_tendency.data(), diag_con, diag_vel,

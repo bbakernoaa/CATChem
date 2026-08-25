@@ -256,7 +256,8 @@ namespace catchem {
         require_field_pointer("Photolysis", "BXHEIGHT",
                               state->meteorology().BXHEIGHT ? state->meteorology().BXHEIGHT->host_write() : nullptr);
         require_field_pointer("Photolysis", "AIRDEN_DRY",
-                              state->meteorology().AIRDEN_DRY ? state->meteorology().AIRDEN_DRY->host_write() : nullptr);
+                              state->meteorology().AIRDEN_DRY ? state->meteorology().AIRDEN_DRY->host_write()
+                                                              : nullptr);
         require_field_pointer("Photolysis", "T",
                               state->meteorology().T ? state->meteorology().T->host_write() : nullptr);
         require_field_pointer("Photolysis", "CHEM_CONC",

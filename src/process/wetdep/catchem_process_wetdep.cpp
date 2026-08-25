@@ -20,11 +20,9 @@ namespace catchem {
         return {get_name(),
                 {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
                  host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
-                 host_field_3d("PFILSAN", "kg/m2/s"),
+                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_field_3d("PFILSAN", "kg/m2/s"),
                  host_field_3d("PFLLSAN", "kg/m2/s"), host_field_3d("QV", "kg/kg"),
-                 host_field_3d("REEVAPLS", "kg/kg/s"),
-                 host_concentration()},
+                 host_field_3d("REEVAPLS", "kg/kg/s"), host_concentration()},
                 {}};
     }
 
@@ -119,8 +117,7 @@ namespace catchem {
                 throw std::runtime_error("WetDep aerosol '" + meta.short_name +
                                          "' requires explicit radius and molecular weight");
             if (meta.is_wetdep && !meta.is_aerosol && !(meta.mw_g > 0.0))
-                throw std::runtime_error("WetDep gas '" + meta.short_name +
-                                         "' requires an explicit molecular weight");
+                throw std::runtime_error("WetDep gas '" + meta.short_name + "' requires an explicit molecular weight");
             radius[i] = meta.radius;
             mw_g[i] = meta.mw_g;
 

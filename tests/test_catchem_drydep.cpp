@@ -60,6 +60,7 @@ int main(int argc, char* argv[]) {
         std::vector<double> bxheight(n_cols * n_levels, 100.0);
         std::vector<double> pedge(n_cols * (n_levels + 1), 101300.0);
         std::vector<double> rh(n_cols * n_levels, 50.0);
+        std::vector<double> qv(n_cols * n_levels, 0.01), pmid(n_cols * n_levels, 90000.0), cldf(n_cols * n_levels, 0.2);
         std::vector<double> delp(n_cols * n_levels, 1000.0);
         std::vector<double> chem_conc(n_cols * n_levels * n_species, 1.0e-8);
 
@@ -72,8 +73,27 @@ int main(int argc, char* argv[]) {
         state->bind_met_field_2d("Z0H", z0h.data());
         state->bind_met_field_2d("HFLUX", hflux.data());
         state->bind_met_field_2d("OBK", obk.data());
+        std::vector<double> dluse(n_cols, 1.0), lai(n_cols, 1.0), frsno(n_cols, 0.0), swgdn(n_cols, 100.0),
+            frlake(n_cols, 0.0), gwettop(n_cols, 0.2), lwi(n_cols, 1.0), u10m(n_cols, 3.0), v10m(n_cols, 1.0),
+            z0(n_cols, 0.01), cldfrc(n_cols, 0.2), suncosmid(n_cols, 0.5);
+        state->bind_met_field_2d("DLUSE", dluse.data());
+        state->bind_met_field_2d("LAI", lai.data());
+        state->bind_met_field_2d("FRSNO", frsno.data());
+        state->bind_met_field_2d("SWGDN", swgdn.data());
+        state->bind_met_field_2d("FRLAKE", frlake.data());
+        state->bind_met_field_2d("GWETTOP", gwettop.data());
+        state->bind_met_field_2d("LWI", lwi.data());
+        state->bind_met_field_2d("U10M", u10m.data());
+        state->bind_met_field_2d("V10M", v10m.data());
+        state->bind_met_field_2d("Z0", z0.data());
+        state->bind_met_field_2d("CLDFRC", cldfrc.data());
+        state->bind_met_field_2d("SUNCOSMID", suncosmid.data());
         state->bind_met_field_3d("T", temperature.data());
         state->bind_met_field_3d("AIRDEN", airden.data());
+        state->bind_met_field_3d("AIRDEN_DRY", airden.data());
+        state->bind_met_field_3d("QV", qv.data());
+        state->bind_met_field_3d("PMID", pmid.data());
+        state->bind_met_field_3d("CLDF", cldf.data());
         state->bind_met_field_3d("BXHEIGHT", bxheight.data());
         state->bind_met_field_3d("PEDGE", pedge.data());
         state->bind_met_field_3d("RH", rh.data());

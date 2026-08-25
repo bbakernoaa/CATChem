@@ -17,12 +17,18 @@ void run_seasalt_science_bridge(int n_cols, int n_levels, int n_species, double 
 namespace catchem {
 
     ProcessContract SeaSaltProcess::get_contract() const {
-        std::vector<FieldAccessContract> fields{
-            host_field_interface("PEDGE", "Pa"), host_field_3d("DELP", "Pa"), host_field_2d("FROCEAN", "1"),
-            host_field_2d("FRSEAICE", "1"), host_field_2d("TS", "K"),
-            host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read, PersistencePolicy::Persistent),
-            host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read, PersistencePolicy::Persistent),
-            host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s"), host_concentration()};
+        std::vector<FieldAccessContract> fields{host_field_interface("PEDGE", "Pa"),
+                                                host_field_3d("DELP", "Pa"),
+                                                host_field_2d("FROCEAN", "1"),
+                                                host_field_2d("FRSEAICE", "1"),
+                                                host_field_2d("TS", "K"),
+                                                host_field_2d("LAT", "degrees", FieldRequirement::Required,
+                                                              AccessIntent::Read, PersistencePolicy::Persistent),
+                                                host_field_2d("LON", "degrees", FieldRequirement::Required,
+                                                              AccessIntent::Read, PersistencePolicy::Persistent),
+                                                host_field_2d("U10M", "m/s"),
+                                                host_field_2d("V10M", "m/s"),
+                                                host_concentration()};
         if (active_scheme == "geos12")
             fields.push_back(host_field_2d("USTAR", "m/s"));
         return {get_name(), std::move(fields), {}};
@@ -30,7 +36,9 @@ namespace catchem {
 
     SeaSaltProcess::SeaSaltProcess() : active_scheme("geos12"), diagnostics_enabled(true) {}
 
-    void SeaSaltProcess::prepare_inputs(std::shared_ptr<StateManager> state) { state->derive_delp(); }
+    void SeaSaltProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
+        state->derive_delp();
+    }
 
     void SeaSaltProcess::init(std::shared_ptr<StateManager> state) {
         const auto config = state->config_manager();

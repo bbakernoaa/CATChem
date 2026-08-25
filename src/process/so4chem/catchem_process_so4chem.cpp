@@ -20,16 +20,16 @@ namespace catchem {
 
     ProcessContract SO4chemProcess::get_contract() const {
         return {get_name(),
-                {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
-                 host_field_interface("PEDGE", "Pa"), host_field_interface("Z", "m"), host_field_3d("DELP", "Pa"),
-                 host_field_3d("AIRDEN_DRY", "kg/m3"), host_field_3d("CLDF", "1"),
-                 host_field_2d("HFLUX", "W/m2"),
+                {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
+                 host_field_interface("Z", "m"), host_field_3d("DELP", "Pa"), host_field_3d("AIRDEN_DRY", "kg/m3"),
+                 host_field_3d("CLDF", "1"), host_field_2d("HFLUX", "W/m2"),
                  host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
                                PersistencePolicy::Persistent),
                  host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
                                PersistencePolicy::Persistent),
                  host_field_2d("PBLH", "m"), host_field_2d("USTAR", "m/s"), host_field_2d("U10M", "m/s"),
-                 host_field_2d("V10M", "m/s"), host_field_2d("LWI", "1"), host_field_2d("Z0", "m"), host_concentration()},
+                 host_field_2d("V10M", "m/s"), host_field_2d("LWI", "1"), host_field_2d("Z0", "m"),
+                 host_concentration()},
                 {}};
     }
 
