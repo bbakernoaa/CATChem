@@ -175,6 +175,14 @@ contains
       advertised_imports = 0
       advertised_exports = 0
 
+      ! P1 runs while NUOPC constructs coupling lists.  Keep these markers
+      ! unconditional and low-volume: a driver-side stall otherwise produces
+      ! no CATChem evidence distinguishing an unentered cap from a stalled
+      ! state/configuration/advertisement call.
+      call ESMF_LogWrite('CATChem: Enter InitializeP1', ESMF_LOGMSG_INFO, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+
       call ESMF_GridCompGet(model, localPet=localPet, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
@@ -184,8 +192,16 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
 
+      call ESMF_LogWrite('CATChem: InitializeP1 states acquired', ESMF_LOGMSG_INFO, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+
       ! Load field configuration
       call load_field_config(field_mapping_file, rc, errmsg)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+
+      call ESMF_LogWrite('CATChem: InitializeP1 field mapping loaded', ESMF_LOGMSG_INFO, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
 
@@ -216,6 +232,11 @@ contains
                line=__LINE__, file=__FILE__)) return
             cycle
          end if
+         write(contract_msg, '(A,A)') 'CATChem: InitializeP1 advertising import ', &
+            trim(field_config%import_fields(i)%standard_name)
+         call ESMF_LogWrite(trim(contract_msg), ESMF_LOGMSG_INFO, rc=rc)
+         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__)) return
          if (.not. NUOPC_FieldDictionaryHasEntry(trim(field_config%import_fields(i)%standard_name), rc=rc)) then
             block
                character(len=64) :: units_to_use
@@ -240,6 +261,11 @@ contains
 
       ! Advertise export fields using MPI-safe accessor functions
       do i = 1, size(field_config%export_fields)
+         write(contract_msg, '(A,A)') 'CATChem: InitializeP1 advertising export ', &
+            trim(field_config%export_fields(i)%standard_name)
+         call ESMF_LogWrite(trim(contract_msg), ESMF_LOGMSG_INFO, rc=rc)
+         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__)) return
          if (.not. NUOPC_FieldDictionaryHasEntry(trim(field_config%export_fields(i)%standard_name), rc=rc)) then
             block
                character(len=64) :: units_to_use
