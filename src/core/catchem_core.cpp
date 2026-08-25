@@ -265,7 +265,12 @@ namespace catchem {
                                   {{"step", std::to_string(last_outcome_.timestep)},
                                    {"index", std::to_string(index)},
                                    {"process", processes[index]->get_name()}});
+                    Logger::debug(state_mgr.get(), "Core process input preparation",
+                                  {{"step", std::to_string(last_outcome_.timestep)},
+                                   {"index", std::to_string(index)},
+                                   {"process", processes[index]->get_name()}});
                 }
+                processes[index]->prepare_inputs(state_mgr);
                 execution_plan_.prepare(index, *state_mgr);
                 if (verbose) {
                     Logger::debug(state_mgr.get(), "Core process run",

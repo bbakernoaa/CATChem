@@ -21,11 +21,16 @@ namespace catchem {
                 {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
                  host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
                  host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_field_3d("PFILSAN", "Pa"),
-                 host_field_3d("PFLLSAN", "Pa"), host_field_3d("REEVAPLS", "Pa"), host_concentration()},
+                 host_field_3d("PFLLSAN", "Pa"), host_field_3d("QV", "kg/kg"), host_field_3d("REEVAPLS", "kg/kg/s"),
+                 host_concentration()},
                 {}};
     }
 
     WetDepProcess::WetDepProcess() : active_scheme("jacob"), diagnostics_enabled(true) {}
+
+    void WetDepProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
+        state->derive_reevapls();
+    }
 
     void WetDepProcess::init(std::shared_ptr<StateManager> state) {
         if (state->diagnostic_manager()) {
@@ -73,30 +78,16 @@ namespace catchem {
         double* t_ptr = state->write_field<3>("T");
 
         double* pfilsan_ptr = state->write_field<3>("PFILSAN");
-        std::vector<double> pfilsan_fallback;
-        if (pfilsan_ptr == nullptr) {
-            pfilsan_fallback.assign(static_cast<size_t>(state->column_count()) * state->level_count(), 0.0);
-            pfilsan_ptr = pfilsan_fallback.data();
-        }
-
         double* pfllsan_ptr = state->write_field<3>("PFLLSAN");
-        std::vector<double> pfllsan_fallback;
-        if (pfllsan_ptr == nullptr) {
-            pfllsan_fallback.assign(static_cast<size_t>(state->column_count()) * state->level_count(), 0.0);
-            pfllsan_ptr = pfllsan_fallback.data();
-        }
-
         double* reevapls_ptr = state->write_field<3>("REEVAPLS");
-        std::vector<double> reevapls_fallback;
-        if (reevapls_ptr == nullptr) {
-            reevapls_fallback.assign(static_cast<size_t>(state->column_count()) * state->level_count(), 0.0);
-            reevapls_ptr = reevapls_fallback.data();
-        }
 
         require_field_pointer("WetDep", "AIRDEN_DRY", airden_dry_ptr);
         require_field_pointer("WetDep", "AIRDEN", mairden_ptr);
         require_field_pointer("WetDep", "PEDGE", pedge_ptr);
         require_field_pointer("WetDep", "T", t_ptr);
+        require_field_pointer("WetDep", "PFILSAN", pfilsan_ptr);
+        require_field_pointer("WetDep", "PFLLSAN", pfllsan_ptr);
+        require_field_pointer("WetDep", "REEVAPLS", reevapls_ptr);
 
         // 2. Extract chemical arrays & C++ allocated diagnostics
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;

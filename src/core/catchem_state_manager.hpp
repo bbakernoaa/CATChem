@@ -229,8 +229,10 @@ namespace catchem {
                 return "degrees";
             if (key == "AREA_M2")
                 return "m2";
-            if (key == "DELP" || key == "PFILSAN" || key == "PFLLSAN" || key == "REEVAPLS")
+            if (key == "DELP" || key == "PFILSAN" || key == "PFLLSAN")
                 return "Pa";
+            if (key == "REEVAPLS")
+                return "kg/kg/s";
             if (key == "FROCEAN" || key == "FRSEAICE" || key == "CLAYFRAC" || key == "FRLAKE" || key == "FRSNO" ||
                 key == "GVF" || key == "LAI" || key == "LWI" || key == "SNDFRC" || key == "GWETTOP" || key == "CLDF")
                 return "1";
@@ -572,6 +574,65 @@ namespace catchem {
 #endif
             met.AIRDEN_DRY->mark_device_modified();
             met.AIRDEN_DRY->set_generation(import_generation);
+        }
+
+        // Derive large-scale/anvil precipitation re-evaporation [kg/kg/s].
+        // This is a process-owned physical diagnostic, not a missing-input
+        // fallback.  Its source fields are validated before any mutation.
+        void derive_reevapls() {
+            auto pfilsan = find_field<3>("PFILSAN");
+            auto pfllsan = find_field<3>("PFLLSAN");
+            if (!met.T || !met.QV || !met.PMID || !met.PEDGE || !pfilsan || !pfllsan ||
+                !met.T->is_current(import_generation) || !met.QV->is_current(import_generation) ||
+                !met.PMID->is_current(import_generation) || !met.PEDGE->is_current(import_generation) ||
+                !pfilsan->is_current(import_generation) || !pfllsan->is_current(import_generation))
+                throw std::runtime_error(
+                    "WetDep cannot derive REEVAPLS: requires current T, QV, PMID, PEDGE, PFILSAN, and PFLLSAN");
+
+            auto reevapls = find_field<3>("REEVAPLS");
+            if (!reevapls) {
+                auto buffer = std::make_shared<std::vector<double>>(static_cast<std::size_t>(n_cols) * n_levels, 0.0);
+                owned_buffers.push_back(buffer);
+                bind_met_field_3d("REEVAPLS", buffer->data());
+                reevapls = find_field<3>("REEVAPLS");
+            }
+            met.T->sync_to_host();
+            met.QV->sync_to_host();
+            met.PMID->sync_to_host();
+            met.PEDGE->sync_to_host();
+            pfilsan->sync_to_host();
+            pfllsan->sync_to_host();
+            double* output = reevapls->host_write();
+            const double* temperature = met.T->host_data();
+            const double* humidity = met.QV->host_data();
+            const double* pmid = met.PMID->host_data();
+            const double* pedge = met.PEDGE->host_data();
+            const double* ice_flux = pfilsan->host_data();
+            const double* liquid_flux = pfllsan->host_data();
+            constexpr double rh_threshold = 0.9, liquid_coefficient = 2.0e-5, ice_coefficient = 0.5e-5;
+            constexpr double liquid_temperature = 273.15, ice_temperature = 258.15;
+            for (int level = 0; level < n_levels; ++level)
+                for (int column = 0; column < n_cols; ++column) {
+                    const std::size_t index = static_cast<std::size_t>(column + level * n_cols);
+                    const double liquid = std::max(0.0, liquid_flux[index]);
+                    const double ice = std::max(0.0, ice_flux[index]);
+                    const double mass = std::abs(pedge[index] - pedge[index + n_cols]) / constants::G0;
+                    const double rh =
+                        met_utilities::relative_humidity(temperature[index], humidity[index], pmid[index]);
+                    if (!(mass > 0.0) || !(rh < rh_threshold) || liquid + ice <= 0.0) {
+                        output[index] = 0.0;
+                        continue;
+                    }
+                    const double rh_term = std::max(0.0, 1.0 - rh / rh_threshold);
+                    const double liquid_loss =
+                        std::min(liquid_coefficient * rh_term * std::sqrt(liquid), liquid / mass);
+                    const double ice_loss = temperature[index] > ice_temperature
+                                                ? std::min(ice_coefficient * rh_term * std::sqrt(ice), ice / mass)
+                                                : 0.0;
+                    output[index] = std::clamp(liquid_loss + ice_loss, 0.0, (liquid + ice) / mass);
+                }
+            reevapls->mark_host_modified();
+            reevapls->set_generation(import_generation);
         }
 
         void sync_to_device() {

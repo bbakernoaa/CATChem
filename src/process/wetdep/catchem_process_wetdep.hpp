@@ -15,6 +15,7 @@ namespace catchem {
         WetDepProcess();
         std::string get_name() const override { return "wetdep"; }
         ProcessContract get_contract() const override;
+        void prepare_inputs(std::shared_ptr<StateManager> state) override;
         void init(std::shared_ptr<StateManager> state) override;
         void run(std::shared_ptr<StateManager> state) override;
         void finalize() override {}

@@ -127,6 +127,9 @@ namespace catchem {
         virtual ~ProcessInterface() = default;
         virtual std::string get_name() const = 0;
         virtual ProcessContract get_contract() const { return {get_name(), {}, {}}; }
+        // Populate process-owned derived inputs before the execution plan
+        // validates the process contract.  Host imports must already be bound.
+        virtual void prepare_inputs(std::shared_ptr<StateManager> state) { (void)state; }
         virtual void init(std::shared_ptr<StateManager> state) = 0;
         virtual void run(std::shared_ptr<StateManager> state) = 0;
         virtual void finalize() = 0;
