@@ -361,6 +361,11 @@ if(CATCHEM_BUILD_NUOPC)
   find_package(MPI COMPONENTS Fortran REQUIRED)
   add_subdirectory(drivers/nuopc)
 
+  # Fortran consumers must see generated .mod files while compiling, not only
+  # when linking cc_nuopc.  UFSDriver uses cc_nuopc directly, so keep the
+  # module directory on the target's public build interface.
+  set(CATCHEM_NUOPC_MODULE_DIR "${CMAKE_BINARY_DIR}/include")
+
   # Copy module files from include/ to mod/ for UFS integration during build
   # add_custom_target(copy_modules_to_mod ALL
   #   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/../mod
@@ -434,7 +439,8 @@ if(CATCHEM_BUILD_NUOPC)
   # Include directories for compilation
   target_include_directories(
     cc_nuopc
-    PRIVATE ${CMAKE_BINARY_DIR}/include
+    PUBLIC
+      $<BUILD_INTERFACE:${CATCHEM_NUOPC_MODULE_DIR}>
     #$<TARGET_PROPERTY:CATChem,INTERFACE_INCLUDE_DIRECTORIES>
     #$<TARGET_PROPERTY:esmf,INTERFACE_INCLUDE_DIRECTORIES>
     #$<TARGET_PROPERTY:NetCDF::NetCDF_Fortran,INTERFACE_INCLUDE_DIRECTORIES>
@@ -447,8 +453,18 @@ if(CATCHEM_BUILD_NUOPC)
       # relative to the CMake working directory resolves outside a container
       # build and makes downstream NUOPC applications unable to compile
       # against cc_nuopc in a clean build.
-      Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+      Fortran_MODULE_DIRECTORY ${CATCHEM_NUOPC_MODULE_DIR}
       EXPORT_NAME cc_nuopc
+  )
+
+  # UFS configurations historically add <build>/mod to their Fortran module
+  # search path.  Keep that layout usable while the public target interface
+  # above remains the canonical dependency-safe path.
+  add_custom_command(
+    TARGET cc_nuopc POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/mod
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CATCHEM_NUOPC_MODULE_DIR} ${CMAKE_BINARY_DIR}/mod
+    COMMENT "Publishing CATChem NUOPC Fortran modules to mod/ for UFS compatibility"
   )
 
   target_compile_options(cc_nuopc PRIVATE ${_catchem_compiler_options})
