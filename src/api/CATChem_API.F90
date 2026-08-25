@@ -511,6 +511,7 @@ contains
       integer, intent(out) :: rc
 
       character(kind=c_char) :: c_filename(512)
+      integer(c_int) :: c_status
 
       call to_c_string(config_file, c_filename)
 
@@ -522,17 +523,18 @@ contains
       call catchem_register_so4chem_cpp()
       call catchem_register_wetdep_cpp()
 
-      ! Configuration comes from YAML; grid dimensions are dictated by host
-      ! Keep the established UFS/NUOPC ABI at this boundary.  The checked C
-      ! API is useful for diagnostic clients, but the model object's lifetime
-      ! predates it and must continue to use its original pointer-returning
-      ! entry points.  In particular, no Fortran-managed output descriptor is
-      ! passed across the C++ boundary while ESMF owns the surrounding state.
-      this%cpp_core_ptr = catchem_core_create_from_config_with_grid( &
-         c_filename, int(nx*ny, c_int), int(nz, c_int))
+      ! Retain the C++ configuration error if construction fails.  This is a
+      ! plain C pointer output, so no ESMF descriptor crosses the ABI.
+      c_status = catchem_core_create_from_config_with_grid_checked( &
+         c_filename, int(nx*ny, c_int), int(nz, c_int), this%cpp_core_ptr)
+      if (c_status /= 0_c_int) then
+         call capture_boundary_error(this)
+         rc = CC_FAILURE
+         return
+      end if
       if (.not. c_associated(this%cpp_core_ptr)) then
          rc = CC_FAILURE
-         this%last_error = 'core_create_from_config_with_grid returned a null handle'
+         this%last_error = 'core_create_from_config_with_grid returned a null handle without a boundary error'
          return
       end if
 
