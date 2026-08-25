@@ -86,19 +86,8 @@
   __radius: 8.7e-2
 - name: msa
   __description: methanesulphonic acid
-  __is_aerosol: true   #gocart treat it as a gas, but we treat it as aerosol
-  __is_drydep: true
-  __is_wetdep: true
-  __radius: 0.0 #placeholder
-  __density: 0.0 #placeholder
-  __dd_f0: 0.0
-  __dd_hstar: 0.0
-  __dd_DvzAerSnow: 0.03
-  __dd_DvzMinVal_snow: 0.01
-  __dd_DvzMinVal_land: 0.01
+  __is_gas: true
   molecular weight [kg mol-1]: 96.10e-3
-  __wd_rainouteff: [1.0, 0.0, 1.0]
-  __mie_name: SU
 - name: bc1
   __description: BC1
   __is_aerosol: true
