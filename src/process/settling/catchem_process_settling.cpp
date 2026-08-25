@@ -3,6 +3,7 @@
 #include "catchem_process_registry.hpp"
 #include "catchem_settling_physics.hpp"
 #include <iostream>
+#include <stdexcept>
 
 namespace catchem {
 
@@ -22,6 +23,13 @@ namespace catchem {
     SettlingProcess::SettlingProcess() : active_scheme("c++_kokkos"), fortran_callback(nullptr) {}
 
     void SettlingProcess::init(std::shared_ptr<StateManager> state) {
+        const auto config = state->config_manager();
+        if (!config)
+            throw std::invalid_argument("Settling requires a runtime YAML configuration");
+        const auto configured = config->data.processes.find("settling");
+        if (configured == config->data.processes.end() || configured->second.scheme != "gocart")
+            throw std::invalid_argument("Settling requires processes.settling.scheme: gocart");
+        active_scheme = configured->second.scheme;
         int num_aerosols = state->chemistry().aerosol_indices.size();
         if (num_aerosols > 0) {
 #ifdef CATCHEM_ENABLE_KOKKOS
@@ -46,8 +54,11 @@ namespace catchem {
                 host_aero_indices[i] = ispec;
                 double r_val = state->chemistry().species_list[ispec].radius;
                 double d_val = state->chemistry().species_list[ispec].density;
-                host_radius_dry[i] = (r_val > 0.0 ? r_val : 1.0) * 1e-6; // Convert microns to meters
-                host_rhop_dry[i] = d_val > 0.0 ? d_val : 2500.0;
+                if (!(r_val > 0.0 && d_val > 0.0))
+                    throw std::runtime_error("Settling aerosol '" + state->chemistry().species_list[ispec].short_name +
+                                             "' requires explicit radius and density");
+                host_radius_dry[i] = r_val * 1e-6; // Species properties are configured in microns.
+                host_rhop_dry[i] = d_val;
             }
 
 #ifdef CATCHEM_ENABLE_KOKKOS
@@ -78,18 +89,13 @@ namespace catchem {
         if (!state->meteorology().BXHEIGHT && state->meteorology().PEDGE && state->meteorology().T) {
             state->derive_bxheight();
         }
-        if (!state->meteorology().AIRDEN && state->meteorology().AIRDEN_DRY) {
-            state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
-        }
-        if (!state->meteorology().AIRDEN && !state->meteorology().AIRDEN_DRY && state->meteorology().PMID &&
-            state->meteorology().T) {
+        if (!state->meteorology().AIRDEN_DRY && state->meteorology().PMID && state->meteorology().T) {
             state->derive_airden_dry();
-            state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
         }
 
         require_field_pointer("Settling", "T", state->meteorology().T ? state->meteorology().T->host_data() : nullptr);
-        require_field_pointer("Settling", "AIRDEN",
-                              state->meteorology().AIRDEN ? state->meteorology().AIRDEN->host_data() : nullptr);
+        require_field_pointer("Settling", "AIRDEN_DRY",
+                              state->meteorology().AIRDEN_DRY ? state->meteorology().AIRDEN_DRY->host_data() : nullptr);
         require_field_pointer("Settling", "PEDGE",
                               state->meteorology().PEDGE ? state->meteorology().PEDGE->host_data() : nullptr);
         require_field_pointer("Settling", "BXHEIGHT",
@@ -100,7 +106,7 @@ namespace catchem {
         settling::SettlingFunctor functor;
         functor.conc = state->chemistry().conc->view();
         functor.t = state->meteorology().T->view();
-        functor.airden = state->meteorology().AIRDEN->view();
+        functor.airden = state->meteorology().AIRDEN_DRY->view();
         functor.pedge = state->meteorology().PEDGE->view();
         functor.dz = state->meteorology().BXHEIGHT->view();
 

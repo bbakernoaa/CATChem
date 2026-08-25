@@ -245,15 +245,8 @@ namespace catchem {
         if (!state->meteorology().BXHEIGHT && state->meteorology().PEDGE && state->meteorology().T) {
             state->derive_bxheight();
         }
-        if (!state->meteorology().AIRDEN && state->meteorology().AIRDEN_DRY) {
-            state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
-        }
-        if (!state->meteorology().AIRDEN && !state->meteorology().AIRDEN_DRY && state->meteorology().PMID &&
-            state->meteorology().T) {
+        if (!state->meteorology().AIRDEN_DRY && state->meteorology().PMID && state->meteorology().T) {
             state->derive_airden_dry();
-            if (!state->meteorology().AIRDEN && state->meteorology().AIRDEN_DRY) {
-                state->meteorology().AIRDEN = state->meteorology().AIRDEN_DRY;
-            }
         }
 
         require_field_pointer("Photolysis", "LAT",
@@ -262,8 +255,8 @@ namespace catchem {
                               state->meteorology().LON ? state->meteorology().LON->host_write() : nullptr);
         require_field_pointer("Photolysis", "BXHEIGHT",
                               state->meteorology().BXHEIGHT ? state->meteorology().BXHEIGHT->host_write() : nullptr);
-        require_field_pointer("Photolysis", "AIRDEN",
-                              state->meteorology().AIRDEN ? state->meteorology().AIRDEN->host_write() : nullptr);
+        require_field_pointer("Photolysis", "AIRDEN_DRY",
+                              state->meteorology().AIRDEN_DRY ? state->meteorology().AIRDEN_DRY->host_write() : nullptr);
         require_field_pointer("Photolysis", "T",
                               state->meteorology().T ? state->meteorology().T->host_write() : nullptr);
         require_field_pointer("Photolysis", "CHEM_CONC",
@@ -290,7 +283,7 @@ namespace catchem {
 
             Logger::debug(state.get(), "Populating profile midpoint vectors for column", {{"col", col_str}});
             for (int i_lvl = 0; i_lvl < state->level_count(); ++i_lvl) {
-                double airden_kg_m3 = state->meteorology().AIRDEN->host_view(i_col, i_lvl, 0);
+                double airden_kg_m3 = state->meteorology().AIRDEN_DRY->host_view(i_col, i_lvl, 0);
                 air_profile[i_lvl] = airden_kg_m3 * 2.079153e19;
                 o2_profile[i_lvl] = air_profile[i_lvl] * 0.2095;
                 temp_profile[i_lvl] = state->meteorology().T->host_view(i_col, i_lvl, 0);

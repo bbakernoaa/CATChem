@@ -23,26 +23,46 @@ namespace catchem {
 
     ProcessContract DryDepProcess::get_contract() const {
         return {get_name(),
-                {host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
+                {host_field_3d("T", "K"), host_field_3d("QV", "kg/kg"), host_field_3d("PMID", "Pa"),
                  host_field_interface("PEDGE", "Pa"), host_field_3d("BXHEIGHT", "m"),
-                 host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
-                 host_field_3d("RH", "1", FieldRequirement::Optional), host_field_2d("PS", "Pa"),
+                 host_field_3d("AIRDEN_DRY", "kg/m3"), host_field_3d("RH", "1"), host_field_3d("CLDF", "1"),
+                 host_field_2d("PS", "Pa"),
                  host_field_2d("TS", "K"),
-                 host_field_2d("LAT", "degrees", FieldRequirement::Optional, AccessIntent::Read,
+                 host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
                                PersistencePolicy::Persistent),
-                 host_field_2d("LON", "degrees", FieldRequirement::Optional, AccessIntent::Read,
+                 host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
                                PersistencePolicy::Persistent),
-                 host_field_2d("USTAR", "m/s", FieldRequirement::Optional),
-                 host_field_2d("HFLUX", "W/m2", FieldRequirement::Optional),
-                 host_field_2d("OBK", "m", FieldRequirement::Optional),
-                 host_field_2d("PBLH", "m", FieldRequirement::Optional), host_concentration()},
+                 host_field_2d("USTAR", "m/s"), host_field_2d("HFLUX", "W/m2"), host_field_2d("OBK", "m"),
+                 host_field_2d("PBLH", "m"), host_field_2d("DLUSE", "1"), host_field_2d("LAI", "m2/m2"),
+                 host_field_2d("FRSNO", "1"), host_field_2d("SWGDN", "W/m2"), host_field_2d("Z0", "m"),
+                 host_field_2d("FRLAKE", "1"), host_field_2d("GWETTOP", "1"), host_field_2d("LWI", "1"),
+                 host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s"), host_concentration()},
                 {}};
     }
 
     DryDepProcess::DryDepProcess() : gas_scheme("wesely"), aero_scheme("gocart"), diagnostics_enabled(true) {}
 
+    void DryDepProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
+        state->derive_bxheight();
+        state->derive_airden_dry();
+        state->derive_relative_humidity();
+        state->derive_obk();
+        state->derive_surface_cloud_fraction();
+        state->derive_suncosmid();
+    }
+
     void DryDepProcess::init(std::shared_ptr<StateManager> state) {
+        const auto config = state->config_manager();
+        if (!config)
+            throw std::invalid_argument("DryDep requires a runtime YAML configuration");
+        const auto configured = config->data.processes.find("drydep");
+        if (configured == config->data.processes.end())
+            throw std::invalid_argument("DryDep requires a processes.drydep block in the runtime YAML");
+        gas_scheme = configured->second.get_string("gas_scheme");
+        aero_scheme = configured->second.get_string("aero_scheme");
+        diagnostics_enabled = configured->second.diagnostics;
+        if (gas_scheme != "wesely" || (aero_scheme != "gocart" && aero_scheme != "zhang"))
+            throw std::invalid_argument("DryDep runtime YAML selected an unsupported gas/aerosol scheme combination");
         // 1. Setup diagnostic species ID dynamically based on the is_drydep metadata switch
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
             if (state->chemistry().species_list[i].is_drydep) {
@@ -50,6 +70,8 @@ namespace catchem {
             }
         }
 
+        if (!diagnostics_enabled)
+            return;
         // 2. Register C++ Diagnostic fields
         std::vector<int> dims_2d = {state->column_count(), state->species_count()};
         state->diagnostic_manager()->register_field("drydep_con_per_species", "Deposition Concentration", "ug/kg",
@@ -60,75 +82,23 @@ namespace catchem {
 
     void DryDepProcess::run(std::shared_ptr<StateManager> state) {
 
-        // 1. Fetch 3D Met Views with fallbacks and derivations
-        if (!state->meteorology().BXHEIGHT && state->meteorology().PEDGE && state->meteorology().T) {
-            state->derive_bxheight();
-        }
-        double* bxheight_ptr = state->write_field<3>("BXHEIGHT");
-
-        double* airden_ptr = state->write_field<3>("AIRDEN");
-        if (!airden_ptr)
-            airden_ptr = state->write_field<3>("AIRDEN_DRY");
-        if (!airden_ptr && state->meteorology().PMID && state->meteorology().T) {
-            state->derive_airden_dry();
-            airden_ptr = state->write_field<3>("AIRDEN_DRY");
-        }
-
-        double* t_ptr = state->write_field<3>("T");
-        double* pedge_ptr = state->write_field<3>("PEDGE");
-
-        double* rh_ptr = state->write_field<3>("RH");
-        std::vector<double> fallback_rh;
-        if (!rh_ptr) {
-            fallback_rh.assign(static_cast<size_t>(state->column_count()) * state->level_count(), 0.5);
-            rh_ptr = fallback_rh.data();
-        }
+        // All derived fields are established in prepare_inputs.  Reads must
+        // not mark host-owned NUOPC imports modified.
+        const double* bxheight_ptr = state->read_field<3>("BXHEIGHT");
+        const double* airden_ptr = state->read_field<3>("AIRDEN_DRY");
+        const double* t_ptr = state->read_field<3>("T");
+        const double* pedge_ptr = state->read_field<3>("PEDGE");
+        const double* rh_ptr = state->read_field<3>("RH");
 
         // 2. Retrieve surface met and grid positions
-        double* ps_ptr = state->write_field<2>("PS");
-        double* ts_ptr = state->write_field<2>("TS");
-
-        double* lat_ptr = state->write_field<2>("LAT");
-        std::vector<double> fallback_lat;
-        if (!lat_ptr) {
-            fallback_lat.assign(state->column_count(), 0.0);
-            lat_ptr = fallback_lat.data();
-        }
-
-        double* lon_ptr = state->write_field<2>("LON");
-        std::vector<double> fallback_lon;
-        if (!lon_ptr) {
-            fallback_lon.assign(state->column_count(), 0.0);
-            lon_ptr = fallback_lon.data();
-        }
-
-        double* ustar_ptr = state->write_field<2>("USTAR");
-        std::vector<double> fallback_ustar;
-        if (!ustar_ptr) {
-            fallback_ustar.assign(state->column_count(), 0.2);
-            ustar_ptr = fallback_ustar.data();
-        }
-
-        double* hflux_ptr = state->write_field<2>("HFLUX");
-        std::vector<double> fallback_hflux;
-        if (!hflux_ptr) {
-            fallback_hflux.assign(state->column_count(), 10.0);
-            hflux_ptr = fallback_hflux.data();
-        }
-
-        double* obk_ptr = state->write_field<2>("OBK");
-        std::vector<double> fallback_obk;
-        if (!obk_ptr) {
-            fallback_obk.assign(state->column_count(), 100.0);
-            obk_ptr = fallback_obk.data();
-        }
-
-        double* pblh_ptr = state->write_field<2>("PBLH");
-        std::vector<double> fallback_pblh;
-        if (!pblh_ptr) {
-            fallback_pblh.assign(state->column_count(), 1000.0);
-            pblh_ptr = fallback_pblh.data();
-        }
+        const double* ps_ptr = state->read_field<2>("PS");
+        const double* ts_ptr = state->read_field<2>("TS");
+        const double* lat_ptr = state->read_field<2>("LAT");
+        const double* lon_ptr = state->read_field<2>("LON");
+        const double* ustar_ptr = state->read_field<2>("USTAR");
+        const double* hflux_ptr = state->read_field<2>("HFLUX");
+        const double* obk_ptr = state->read_field<2>("OBK");
+        const double* pblh_ptr = state->read_field<2>("PBLH");
 
         require_field_pointer("DryDep", "BXHEIGHT", bxheight_ptr);
         require_field_pointer("DryDep", "AIRDEN", airden_ptr);
@@ -136,14 +106,40 @@ namespace catchem {
         require_field_pointer("DryDep", "PEDGE", pedge_ptr);
         require_field_pointer("DryDep", "PS", ps_ptr);
         require_field_pointer("DryDep", "TS", ts_ptr);
+        require_field_pointer("DryDep", "RH", rh_ptr);
+        require_field_pointer("DryDep", "LAT", lat_ptr);
+        require_field_pointer("DryDep", "LON", lon_ptr);
+        require_field_pointer("DryDep", "USTAR", ustar_ptr);
+        require_field_pointer("DryDep", "HFLUX", hflux_ptr);
+        require_field_pointer("DryDep", "OBK", obk_ptr);
+        require_field_pointer("DryDep", "PBLH", pblh_ptr);
 
-        // Mock/Fallbacks for remaining metadata arrays - Using char for bool to support standard .data()
-        std::vector<double> cldfrc(state->column_count(), 0.1);
+        const double* cldf_ptr = state->read_field<3>("CLDF");
+        const double* dluse_ptr = state->read_field<2>("DLUSE");
+        const double* lai_ptr = state->read_field<2>("LAI");
+        const double* frsno_ptr = state->read_field<2>("FRSNO");
+        const double* swgdn_ptr = state->read_field<2>("SWGDN");
+        const double* z0_ptr = state->read_field<2>("Z0");
+        const double* frlake_ptr = state->read_field<2>("FRLAKE");
+        const double* gwettop_ptr = state->read_field<2>("GWETTOP");
+        const double* lwi_ptr = state->read_field<2>("LWI");
+        const double* u10m_ptr = state->read_field<2>("U10M");
+        const double* v10m_ptr = state->read_field<2>("V10M");
+        require_field_pointer("DryDep", "CLDF", cldf_ptr); require_field_pointer("DryDep", "DLUSE", dluse_ptr);
+        require_field_pointer("DryDep", "LAI", lai_ptr); require_field_pointer("DryDep", "FRSNO", frsno_ptr);
+        require_field_pointer("DryDep", "SWGDN", swgdn_ptr); require_field_pointer("DryDep", "Z0", z0_ptr);
+        require_field_pointer("DryDep", "FRLAKE", frlake_ptr); require_field_pointer("DryDep", "GWETTOP", gwettop_ptr);
+        require_field_pointer("DryDep", "LWI", lwi_ptr); require_field_pointer("DryDep", "U10M", u10m_ptr);
+        require_field_pointer("DryDep", "V10M", v10m_ptr);
+        const double* cldfrc = state->read_field<2>("CLDFRC");
+        const double* suncosmid = state->read_field<2>("SUNCOSMID");
+        require_field_pointer("DryDep", "CLDFRC", cldfrc);
+        require_field_pointer("DryDep", "SUNCOSMID", suncosmid);
 
         // Multi-dimensional standard C++20 views using standard layout_left to match Fortran column-major
-        std::vector<double> frlai_storage(state->column_count() * 1 * 20, 1.5);
-        std::vector<double> frlanduse_storage(state->column_count() * 1 * 20, 0.05);
-        std::vector<int> iland_storage(state->column_count() * 1 * 20, 1);
+        std::vector<double> frlai_storage(state->column_count() * 20, 0.0);
+        std::vector<double> frlanduse_storage(state->column_count() * 20, 0.0);
+        std::vector<int> iland_storage(state->column_count() * 20, 0);
 
         Kokkos::mdspan<double, Kokkos::extents<int, Kokkos::dynamic_extent, 1, 20>, Kokkos::layout_left> frlai(
             frlai_storage.data(), state->column_count());
@@ -152,20 +148,14 @@ namespace catchem {
         Kokkos::mdspan<int, Kokkos::extents<int, Kokkos::dynamic_extent, 1, 20>, Kokkos::layout_left> iland(
             iland_storage.data(), state->column_count());
 
-        std::vector<char> is_ice(state->column_count(), 0);
-        std::vector<char> is_land(state->column_count(), 1);
-        std::vector<char> is_snow(state->column_count(), 0);
-        std::vector<double> salinity(state->column_count(), 35.0);
-        std::vector<double> suncosmid(state->column_count(), 0.8);
-        std::vector<double> swgdn(state->column_count(), 400.0);
-        std::vector<double> tskin(state->column_count(), 288.15);
-        std::vector<double> z0(state->column_count(), 0.1);
-        std::vector<double> frlake(state->column_count(), 0.0);
-        std::vector<double> gwettop(state->column_count(), 0.5);
-        std::vector<int> lwi(state->column_count(), 1);
-        std::vector<double> u10m(state->column_count(), 5.0);
-        std::vector<double> v10m(state->column_count(), 2.0);
-        std::vector<double> z0h(state->column_count(), 0.01);
+        std::vector<char> is_ice(state->column_count()), is_land(state->column_count()), is_snow(state->column_count());
+        std::vector<double> salinity(state->column_count(), 0.0);
+        std::vector<int> lwi(state->column_count());
+        for (int c=0; c<state->column_count(); ++c) { const int lu=static_cast<int>(dluse_ptr[c]); const int i=(lu == 0 ? 16 : std::clamp(lu,1,20)-1);
+          iland_storage[c+20*i]=i+1; frlanduse_storage[c+20*i]=1.0;
+          frlai_storage[c+20*i]=(i>=14 && i<=16)?0.0:lai_ptr[c]; lwi[c]=static_cast<int>(lwi_ptr[c]);
+          is_land[c]=lwi[c]==1; is_ice[c]=lwi[c]==2; is_snow[c]=frsno_ptr[c]>=0.5;
+          }
 
         // 3. Extract chemical arrays & C++ allocated diagnostics
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
@@ -178,14 +168,14 @@ namespace catchem {
         double* diag_vel = (double*)state->diagnostic_manager()->get_host_pointer("drydep_velocity_per_species");
 
         // 4. Retrieve species configuration properties from ChemState
-        std::vector<double> mw_g(state->species_count(), 29.0);
+        std::vector<double> mw_g(state->species_count(), 0.0);
         std::vector<double> dd_f0(state->species_count(), 0.0);
         std::vector<double> dd_hstar(state->species_count(), 0.0);
         std::vector<double> dd_DvzAerSnow(state->species_count(), 0.0);
         std::vector<double> dd_DvzMinVal_snow(state->species_count(), 0.0);
         std::vector<double> dd_DvzMinVal_land(state->species_count(), 0.0);
-        std::vector<double> density(state->species_count(), 1000.0);
-        std::vector<double> radius(state->species_count(), 1e-6);
+        std::vector<double> density(state->species_count(), 0.0);
+        std::vector<double> radius(state->species_count(), 0.0);
         std::vector<char> is_seasalt(state->species_count(), 0);
         std::vector<char> is_dust(state->species_count(), 0);
         std::vector<double> lower_radius(state->species_count(), 0.0);
@@ -194,38 +184,35 @@ namespace catchem {
 
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
             auto& meta = state->chemistry().species_list[i];
-            if (meta.mw_g > 0.0)
-                mw_g[i] = meta.mw_g;
+            if (!(meta.mw_g > 0.0))
+                throw std::runtime_error("DryDep species '" + meta.short_name + "' requires an explicit molecular weight");
+            mw_g[i] = meta.mw_g;
             dd_f0[i] = meta.dd_f0;
             dd_hstar[i] = meta.dd_hstar;
             dd_DvzAerSnow[i] = meta.dd_DvzAerSnow;
             dd_DvzMinVal_snow[i] = meta.dd_DvzMinVal_snow;
             dd_DvzMinVal_land[i] = meta.dd_DvzMinVal_land;
-            if (meta.density > 0.0)
-                density[i] = meta.density;
-            if (meta.radius > 0.0)
-                radius[i] = meta.radius;
+            if (meta.is_aerosol && (!(meta.density > 0.0) || !(meta.radius > 0.0) ||
+                                    !(meta.lower_radius > 0.0) || !(meta.upper_radius > meta.lower_radius)))
+                throw std::runtime_error("DryDep aerosol '" + meta.short_name +
+                                         "' requires explicit density and radius bounds");
+            density[i] = meta.density;
+            radius[i] = meta.radius;
             is_seasalt[i] = meta.is_seasalt ? 1 : 0;
             is_dust[i] = meta.is_dust ? 1 : 0;
-            if (meta.lower_radius > 0.0)
-                lower_radius[i] = meta.lower_radius;
-            if (meta.upper_radius > 0.0)
-                upper_radius[i] = meta.upper_radius;
-            if (lower_radius[i] <= 0.0)
-                lower_radius[i] = radius[i] * 0.1;
-            if (upper_radius[i] <= lower_radius[i])
-                upper_radius[i] = radius[i] * 2.0;
+            lower_radius[i] = meta.lower_radius;
+            upper_radius[i] = meta.upper_radius;
             is_gas[i] = meta.is_gas ? 1 : 0;
         }
 
         // 5. Invoke flat science bridge (casting char* vectors to bool* pointers)
         run_drydep_science_bridge(
             state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
-            gas_scheme.c_str(), aero_scheme.c_str(), diagnostics_enabled ? 1 : 0, bxheight_ptr, airden_ptr, t_ptr,
-            pedge_ptr, rh_ptr, cldfrc.data(), frlai.data_handle(), frlanduse.data_handle(), iland.data_handle(),
-            (bool*)is_ice.data(), (bool*)is_land.data(), (bool*)is_snow.data(), lat_ptr, lon_ptr, obk_ptr, ps_ptr,
-            salinity.data(), suncosmid.data(), swgdn.data(), ts_ptr, tskin.data(), ustar_ptr, z0.data(), frlake.data(),
-            gwettop.data(), hflux_ptr, lwi.data(), pblh_ptr, u10m.data(), v10m.data(), z0h.data(), mw_g.data(),
+            gas_scheme.c_str(), aero_scheme.c_str(), diagnostics_enabled ? 1 : 0, const_cast<double*>(bxheight_ptr), const_cast<double*>(airden_ptr), const_cast<double*>(t_ptr),
+            const_cast<double*>(pedge_ptr), const_cast<double*>(rh_ptr), const_cast<double*>(cldfrc), frlai.data_handle(), frlanduse.data_handle(), iland.data_handle(),
+            (bool*)is_ice.data(), (bool*)is_land.data(), (bool*)is_snow.data(), const_cast<double*>(lat_ptr), const_cast<double*>(lon_ptr), const_cast<double*>(obk_ptr), const_cast<double*>(ps_ptr),
+            salinity.data(), const_cast<double*>(suncosmid), const_cast<double*>(swgdn_ptr), const_cast<double*>(ts_ptr), const_cast<double*>(ts_ptr), const_cast<double*>(ustar_ptr), const_cast<double*>(z0_ptr), const_cast<double*>(frlake_ptr),
+            const_cast<double*>(gwettop_ptr), const_cast<double*>(hflux_ptr), lwi.data(), const_cast<double*>(pblh_ptr), const_cast<double*>(u10m_ptr), const_cast<double*>(v10m_ptr), const_cast<double*>(z0_ptr), mw_g.data(),
             dd_f0.data(), dd_hstar.data(), dd_DvzAerSnow.data(), dd_DvzMinVal_snow.data(), dd_DvzMinVal_land.data(),
             density.data(), radius.data(), (bool*)is_seasalt.data(), (bool*)is_dust.data(), lower_radius.data(),
             upper_radius.data(), (bool*)is_gas.data(), conc_ptr, mock_tendency.data(), diag_con, diag_vel,

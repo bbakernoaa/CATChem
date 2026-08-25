@@ -162,7 +162,9 @@ contains
        case (4)
          nullify(f4); call ESMF_FieldGet(field, farrayPtr=f4, rc=rc)
          if (rc /= ESMF_SUCCESS) return
-         f4 = 1.0_ESMF_KIND_R8
+         ! The first configured host tracer is specific humidity.  It is a
+         ! physical mixing ratio, not a generic unit-valued test field.
+         f4 = 1.0E-2_ESMF_KIND_R8
       end select
    end subroutine populate_mock_field
 

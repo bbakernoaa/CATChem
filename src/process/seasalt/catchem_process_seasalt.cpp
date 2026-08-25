@@ -17,22 +17,34 @@ void run_seasalt_science_bridge(int n_cols, int n_levels, int n_species, double 
 namespace catchem {
 
     ProcessContract SeaSaltProcess::get_contract() const {
-        return {get_name(),
-                {host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
-                 host_field_3d("DELP", "Pa", FieldRequirement::Optional), host_field_2d("FROCEAN", "1"),
-                 host_field_2d("FRSEAICE", "1"), host_field_2d("TS", "K"),
-                 host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                               PersistencePolicy::Persistent),
-                 host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                               PersistencePolicy::Persistent),
-                 host_field_2d("USTAR", "m/s"), host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s"),
-                 host_concentration()},
-                {}};
+        std::vector<FieldAccessContract> fields{
+            host_field_interface("PEDGE", "Pa"), host_field_3d("DELP", "Pa"), host_field_2d("FROCEAN", "1"),
+            host_field_2d("FRSEAICE", "1"), host_field_2d("TS", "K"),
+            host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read, PersistencePolicy::Persistent),
+            host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read, PersistencePolicy::Persistent),
+            host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s"), host_concentration()};
+        if (active_scheme == "geos12")
+            fields.push_back(host_field_2d("USTAR", "m/s"));
+        return {get_name(), std::move(fields), {}};
     }
 
     SeaSaltProcess::SeaSaltProcess() : active_scheme("geos12"), diagnostics_enabled(true) {}
 
+    void SeaSaltProcess::prepare_inputs(std::shared_ptr<StateManager> state) { state->derive_delp(); }
+
     void SeaSaltProcess::init(std::shared_ptr<StateManager> state) {
+        const auto config = state->config_manager();
+        if (!config)
+            throw std::invalid_argument("SeaSalt requires a runtime YAML configuration");
+        const auto configured = config->data.processes.find("seasalt");
+        if (configured == config->data.processes.end() || configured->second.scheme.empty())
+            throw std::invalid_argument("SeaSalt requires processes.seasalt.scheme in the runtime YAML");
+        active_scheme = configured->second.scheme;
+        diagnostics_enabled = configured->second.diagnostics;
+        if (active_scheme != "gong97" && active_scheme != "gong03" && active_scheme != "geos12")
+            throw std::invalid_argument("SeaSalt runtime YAML selected unsupported scheme: " + active_scheme);
+        if (!diagnostics_enabled)
+            return;
         if (state->diagnostic_manager()) {
             std::vector<int> dims_1d = {state->column_count(), 1};
             state->diagnostic_manager()->register_field("seasalt_mass_emission_total", "Total Mass Emission", "kg/m2/s",
@@ -66,28 +78,14 @@ namespace catchem {
         double* v10m_ptr = state->write_field<2>("V10M");
 
         double* delp_ptr = state->write_field<3>("DELP");
-        std::vector<double> derived_delp;
-        if (delp_ptr == nullptr && state->meteorology().PEDGE) {
-            auto pedge = state->meteorology().PEDGE->host_write();
-            if (pedge != nullptr) {
-                derived_delp.assign(static_cast<size_t>(state->column_count()) * state->level_count(), 0.0);
-                for (int lev = 0; lev < state->level_count(); ++lev) {
-                    for (int col = 0; col < state->column_count(); ++col) {
-                        const int lower_idx = col + lev * state->column_count();
-                        const int upper_idx = col + (lev + 1) * state->column_count();
-                        derived_delp[lower_idx] = pedge[lower_idx] - pedge[upper_idx];
-                    }
-                }
-                delp_ptr = derived_delp.data();
-            }
-        }
 
         require_field_pointer("SeaSalt", "FROCEAN", frocean_ptr);
         require_field_pointer("SeaSalt", "FRSEAICE", frseaice_ptr);
         require_field_pointer("SeaSalt", "LAT", lat_ptr);
         require_field_pointer("SeaSalt", "LON", lon_ptr);
         require_field_pointer("SeaSalt", "SST", sst_ptr);
-        require_field_pointer("SeaSalt", "USTAR", ustar_ptr);
+        if (active_scheme == "geos12")
+            require_field_pointer("SeaSalt", "USTAR", ustar_ptr);
         require_field_pointer("SeaSalt", "U10M", u10m_ptr);
         require_field_pointer("SeaSalt", "V10M", v10m_ptr);
         require_field_pointer("SeaSalt", "DELP", delp_ptr);
@@ -104,18 +102,17 @@ namespace catchem {
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
             auto& meta = state->chemistry().species_list[i];
             if (meta.is_seasalt) {
+                if (!(meta.density > 0.0 && meta.radius > 0.0 && meta.lower_radius > 0.0 &&
+                      meta.upper_radius > meta.lower_radius && meta.mw_g > 0.0))
+                    throw std::runtime_error("SeaSalt species '" + meta.short_name +
+                                             "' requires explicit density, radius bounds, and molecular weight");
                 ss_global_indices.push_back(i);
-                double d_val = meta.density > 0.0 ? meta.density : 2200.0;
-                double r_val = meta.radius > 0.0 ? meta.radius : 1.0e-6;
-                double lr_val = meta.lower_radius > 0.0 ? meta.lower_radius : r_val * 0.1;
-                double ur_val = meta.upper_radius > lr_val ? meta.upper_radius : r_val * 2.0;
-
-                density.push_back(d_val);
-                radius.push_back(r_val);
-                lower_radius.push_back(lr_val);
-                upper_radius.push_back(ur_val);
+                density.push_back(meta.density);
+                radius.push_back(meta.radius);
+                lower_radius.push_back(meta.lower_radius);
+                upper_radius.push_back(meta.upper_radius);
                 is_gas.push_back(meta.is_gas ? 1 : 0);
-                mw_g.push_back(meta.mw_g > 0.0 ? meta.mw_g : 58.44);
+                mw_g.push_back(meta.mw_g);
             }
         }
 
@@ -146,11 +143,11 @@ namespace catchem {
 
         // 3. Extract diagnostics
         double* diag_mass_total_ptr =
-            state->diagnostic_manager()
+            diagnostics_enabled && state->diagnostic_manager()
                 ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_mass_emission_total")
                 : nullptr;
         double* diag_num_total_ptr =
-            state->diagnostic_manager()
+            diagnostics_enabled && state->diagnostic_manager()
                 ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_number_emission_total")
                 : nullptr;
 

@@ -69,6 +69,68 @@ namespace catchem {
             return math::max(static_cast<fp>(0.0), math::min(static_cast<fp>(1.0), rh));
         }
 
+        // Pointwise derived-meteorology kernels. StateManager owns field
+        // lifetime and invokes these only after validating host inputs.
+        KOKKOS_INLINE_FUNCTION
+        fp hydrostatic_layer_thickness(fp pressure_bottom, fp pressure_top, fp temperature, fp qv) {
+            if (!(pressure_bottom > pressure_top && pressure_top > 0.0 && temperature > 0.0))
+                return 0.0;
+            const fp bounded_qv = math::max(static_cast<fp>(0.0), math::min(static_cast<fp>(0.9999), qv));
+            return (constants::RD / constants::G0) * virtual_temperature(temperature, bounded_qv) *
+                   math::log(pressure_bottom / pressure_top);
+        }
+
+        KOKKOS_INLINE_FUNCTION
+        fp pressure_thickness(fp pressure_bottom, fp pressure_top) {
+            return pressure_bottom > pressure_top ? pressure_bottom - pressure_top : 0.0;
+        }
+
+        KOKKOS_INLINE_FUNCTION
+        fp dry_air_density(fp pressure, fp temperature, fp qv) {
+            if (!(pressure > 0.0 && temperature > 0.0))
+                return 0.0;
+            const fp bounded_qv = math::max(static_cast<fp>(0.0), math::min(static_cast<fp>(0.9999), qv));
+            const fp mixing = (constants::AIR_MW / constants::H2O_MW) * bounded_qv /
+                               (static_cast<fp>(1.0) - bounded_qv);
+            const fp water_mole_fraction = mixing / (static_cast<fp>(1.0) + mixing);
+            return pressure * (static_cast<fp>(1.0) - water_mole_fraction) / (constants::RD * temperature);
+        }
+
+        // Legacy metstate_mod large-scale/anvil precipitation re-evaporation
+        // tendency [kg kg-1 s-1]. This is a diagnostic, never a fallback.
+        KOKKOS_INLINE_FUNCTION
+        fp large_scale_reevaporation(fp temperature, fp qv, fp pressure_mid, fp pressure_bottom, fp pressure_top,
+                                     fp ice_flux, fp liquid_flux) {
+            constexpr fp rh_threshold = 0.9;
+            constexpr fp liquid_coefficient = 2.0e-5;
+            constexpr fp ice_coefficient = 0.5e-5;
+            constexpr fp liquid_temperature = 273.15;
+            constexpr fp ice_temperature = 258.15;
+            const fp liquid = math::max(static_cast<fp>(0.0), liquid_flux);
+            const fp ice = math::max(static_cast<fp>(0.0), ice_flux);
+            const fp air_mass = (pressure_bottom - pressure_top) / constants::G0;
+            const fp rh = relative_humidity(temperature, qv, pressure_mid);
+            if (!(air_mass > 0.0) || !(rh < rh_threshold) || !(liquid + ice > 0.0))
+                return 0.0;
+            const fp coefficient = temperature > liquid_temperature
+                                       ? liquid_coefficient
+                                       : temperature > ice_temperature
+                                             ? ((temperature - ice_temperature) /
+                                                (liquid_temperature - ice_temperature)) * liquid_coefficient +
+                                                   ((liquid_temperature - temperature) /
+                                                    (liquid_temperature - ice_temperature)) * ice_coefficient
+                                             : ice_coefficient;
+            const fp rh_term = math::max(static_cast<fp>(0.0), static_cast<fp>(1.0) - rh / rh_threshold);
+            const fp liquid_loss = liquid > 0.0
+                                       ? math::min(coefficient * rh_term * math::sqrt(liquid), liquid / air_mass)
+                                       : 0.0;
+            const fp ice_loss = temperature > ice_temperature
+                                    ? math::min(coefficient * rh_term * math::sqrt(ice), ice / air_mass)
+                                    : 0.0;
+            return math::max(static_cast<fp>(0.0),
+                             math::min(liquid_loss + ice_loss, (liquid + ice) / air_mass));
+        }
+
         KOKKOS_INLINE_FUNCTION
         fp mixing_ratio(fp q) {
             return q / (1.0 - q);

@@ -172,6 +172,7 @@ processes:
       scale_factor: 1.0
   dust:
     activate: true
+    scheme: fengsha
     scheme_opt: 1
     dust_drag_opt: 1
     dust_moist_opt: 1
@@ -216,3 +217,7 @@ processes:
     scheme: 'gocart'
     gocart:
       update_so2: true #whether to update SO2 concentration based on chemical production/loss
+  carbchem:
+    activate: true
+    diagnostics: true
+    scheme: gocart

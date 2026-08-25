@@ -83,20 +83,13 @@ namespace catchem {
 
         // 1. Sync device to host
 
-        if (!state->meteorology().AIRDEN_DRY && state->meteorology().AIRDEN) {
-            state->meteorology().AIRDEN_DRY = state->meteorology().AIRDEN;
-        }
         if (!state->meteorology().AIRDEN_DRY && state->meteorology().PMID && state->meteorology().T) {
             state->derive_airden_dry();
-            if (!state->meteorology().AIRDEN_DRY && state->meteorology().AIRDEN) {
-                state->meteorology().AIRDEN_DRY = state->meteorology().AIRDEN;
-            }
         }
 
         if (!state->meteorology().T || !state->meteorology().PMID || !state->meteorology().AIRDEN_DRY ||
             !state->chemistry().conc) {
-            std::cerr << "GasChemProcess: Missing required views (T, PMID, AIRDEN_DRY, or conc)!\n";
-            return;
+            throw std::runtime_error("GasChem requires current T, PMID, AIRDEN_DRY, and chemistry concentration fields");
         }
 
         auto temp = state->meteorology().T->host_view;
@@ -132,13 +125,9 @@ namespace catchem {
                 double p_val = pmid(icol, ilev, 0);
                 double density_dry_kg = airden_dry(icol, ilev, 0);
 
-                // Standard boundary assertions
-                if (t_val <= 0.0)
-                    t_val = 298.15;
-                if (p_val <= 0.0)
-                    p_val = 101325.0;
-                if (density_dry_kg <= 0.0)
-                    density_dry_kg = 1.2;
+                if (!std::isfinite(t_val) || t_val <= 0.0 || !std::isfinite(p_val) || p_val <= 0.0 ||
+                    !std::isfinite(density_dry_kg) || density_dry_kg <= 0.0)
+                    throw std::domain_error("GasChem received non-physical T, PMID, or AIRDEN_DRY");
 
                 // Convert dry air density: kg/m3 to mol/m3
                 double air_density_mol = density_dry_kg / air_mw_kg;
@@ -157,8 +146,8 @@ namespace catchem {
                     if (it != variable_map.end()) {
                         size_t i_micm_spec = it->second;
                         double ppmv_val = conc(icol, ilev, ispec);
-                        if (ppmv_val < 0.0)
-                            ppmv_val = 1.0e-20; // Safe bounding to prevent NaN
+                        if (!std::isfinite(ppmv_val) || ppmv_val < 0.0)
+                            throw std::domain_error("GasChem received a negative or non-finite concentration for " + name);
 
                         double conc_molar = ppmv_val * 1.0e-6 * air_density_mol;
 
@@ -232,8 +221,8 @@ namespace catchem {
                         double conc_molar = micm_concs[idx];
 
                         double ppmv_val = (conc_molar / air_density_mol) * 1.0e6;
-                        if (ppmv_val < 0.0)
-                            ppmv_val = 1.0e-20;
+                        if (!std::isfinite(ppmv_val) || ppmv_val < 0.0)
+                            throw std::domain_error("GasChem solver returned a negative or non-finite concentration for " + name);
                         conc(icol, ilev, ispec) = ppmv_val;
                     }
                 }

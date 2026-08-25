@@ -14,8 +14,8 @@ contains
    subroutine run_dust_science_bridge( &
       n_cols, n_levels, n_species, n_soil, dt, &
       active_scheme, diagnostics, &
-      airden, bxheight, delp, clayfrac, frlake, frsno, gvf, lai, lwi, rdrag, sandfrac, &
-      soilm, ssm, tskin, u10m, v10m, ustar, ustar_threshold, z0, &
+      airden, delp, clayfrac, frlake, frsno, gvf, lai, lwi, rdrag, sandfrac, &
+      soilm, gwettop, ssm, tskin, u10m, v10m, ustar, ustar_threshold, z0, &
       species_density, species_radius, species_lower_radius, species_upper_radius, &
       conc, tendency, &
       diag_emission_total, diag_emission_bin, diag_horizontal_flux, diag_moisture_correction, diag_effective_threshold, diag_utar_threshold, &
@@ -30,7 +30,6 @@ contains
 
       ! 2D/3D Pointers from C++ Kokkos state
       type(c_ptr), value :: airden
-      type(c_ptr), value :: bxheight
       type(c_ptr), value :: delp
       type(c_ptr), value :: clayfrac
       type(c_ptr), value :: frlake
@@ -41,6 +40,7 @@ contains
       type(c_ptr), value :: rdrag
       type(c_ptr), value :: sandfrac
       type(c_ptr), value :: soilm
+      type(c_ptr), value :: gwettop
       type(c_ptr), value :: ssm
       type(c_ptr), value :: tskin
       type(c_ptr), value :: u10m
@@ -70,10 +70,10 @@ contains
       integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
 
       ! Local Fortran Pointers
-      real(c_double), pointer :: f_airden(:,:), f_bxheight(:,:), f_delp(:,:)
+      real(c_double), pointer :: f_airden(:,:), f_delp(:,:)
       real(c_double), pointer :: f_clayfrac(:), f_frlake(:), f_frsno(:), f_gvf(:), f_lai(:)
       integer(c_int), pointer :: f_lwi(:)
-      real(c_double), pointer :: f_rdrag(:), f_sandfrac(:), f_soilm(:,:), f_ssm(:), f_tskin(:)
+      real(c_double), pointer :: f_rdrag(:), f_sandfrac(:), f_soilm(:,:), f_gwettop(:), f_ssm(:), f_tskin(:)
       real(c_double), pointer :: f_u10m(:), f_v10m(:), f_ustar(:), f_ustar_threshold(:), f_z0(:)
       real(c_double), pointer :: f_conc(:,:,:), f_tendency(:,:,:)
 
@@ -85,7 +85,6 @@ contains
 
       ! Local Slices for computation
       real(fp) :: col_airden(n_levels)
-      real(fp) :: col_bxheight(n_levels)
       real(fp) :: col_soilm(n_soil)
       real(fp) :: col_conc(n_levels, n_species)
       real(fp) :: col_tendency(n_levels, n_species)
@@ -117,7 +116,6 @@ contains
 
       ! Pointer Associations
       call c_f_pointer(airden, f_airden, [n_cols, n_levels])
-      call c_f_pointer(bxheight, f_bxheight, [n_cols, n_levels])
       call c_f_pointer(delp, f_delp, [n_cols, n_levels])
       call c_f_pointer(clayfrac, f_clayfrac, [n_cols])
       call c_f_pointer(frlake, f_frlake, [n_cols])
@@ -128,6 +126,7 @@ contains
       call c_f_pointer(rdrag, f_rdrag, [n_cols])
       call c_f_pointer(sandfrac, f_sandfrac, [n_cols])
       call c_f_pointer(soilm, f_soilm, [n_cols, n_soil])
+      call c_f_pointer(gwettop, f_gwettop, [n_cols])
       call c_f_pointer(ssm, f_ssm, [n_cols])
       call c_f_pointer(tskin, f_tskin, [n_cols])
       call c_f_pointer(u10m, f_u10m, [n_cols])
@@ -163,7 +162,6 @@ contains
       do icol = 1, n_cols
 
          col_airden(:) = real(f_airden(icol, :), fp)
-         col_bxheight(:) = real(f_bxheight(icol, :), fp)
          col_soilm(:)  = real(f_soilm(icol, :), fp)
          col_conc(:,:) = real(f_conc(icol, :, :), fp)
          col_tendency(:,:) = 0.0_fp
@@ -193,7 +191,7 @@ contains
          else if (local_scheme == "ginoux") then
             call compute_ginoux( &
                n_levels, n_species, ginoux_config, g0, &
-               col_airden, real(f_frlake(icol), fp), real(f_frsno(icol), fp), 0.0_fp, &
+               col_airden, real(f_frlake(icol), fp), real(f_frsno(icol), fp), real(f_gwettop(icol), fp), &
                int(f_lwi(icol)), real(f_ssm(icol), fp), real(f_tskin(icol), fp), &
                real(f_u10m(icol), fp), real(f_v10m(icol), fp), &
                f_species_density, f_species_radius, &

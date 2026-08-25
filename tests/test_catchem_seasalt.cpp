@@ -32,6 +32,9 @@ int main(int argc, char* argv[]) {
 
         auto core = std::make_shared<catchem::Core>(n_cols, n_levels, n_species);
         auto state = core->get_state_manager();
+        auto runtime_config = std::make_shared<catchem::ConfigManager>();
+        runtime_config->load_from_file("CATChem_new_config.yml");
+        state->attach_config_manager(runtime_config);
 
         std::string species_path = "CATChem_species.yml";
         std::vector<std::string> candidates = {species_path, "tests/" + species_path, "../tests/" + species_path,
@@ -81,6 +84,9 @@ int main(int argc, char* argv[]) {
 
         auto missing_field_core = std::make_shared<catchem::Core>(n_cols, n_levels, n_species);
         auto missing_field_state = missing_field_core->get_state_manager();
+        auto missing_runtime_config = std::make_shared<catchem::ConfigManager>();
+        missing_runtime_config->load_from_file("CATChem_new_config.yml");
+        missing_field_state->attach_config_manager(missing_runtime_config);
         missing_field_state->load_species_config(species_path);
 
         std::vector<double> missing_sst(n_cols, 290.0);

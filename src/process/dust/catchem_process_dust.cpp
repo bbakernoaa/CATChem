@@ -11,10 +11,10 @@
 
 extern "C" {
 void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil, double dt, const char* active_scheme,
-                             int diagnostics, const double* airden, const double* bxheight, const double* delp,
+                             int diagnostics, const double* airden, const double* delp,
                              const double* clayfrac, const double* frlake, const double* frsno, const double* gvf,
                              const double* lai, int* lwi, const double* rdrag, const double* sandfrac,
-                             const double* soilm, const double* ssm, const double* tskin, const double* u10m,
+                             const double* soilm, const double* gwettop, const double* ssm, const double* tskin, const double* u10m,
                              const double* v10m, const double* ustar, const double* ustar_threshold, const double* z0,
                              const double* species_density, const double* species_radius,
                              const double* species_lower_radius, const double* species_upper_radius,
@@ -27,40 +27,54 @@ void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil
 namespace catchem {
 
     ProcessContract DustProcess::get_contract() const {
-        return {get_name(),
-                {host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
-                 host_field_3d("DELP", "Pa", FieldRequirement::Optional),
-                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
-                 host_field_3d("BXHEIGHT", "m", FieldRequirement::Optional),
-                 host_field_soil_layer("SOILM", "m3/m3"),
-                 host_field_2d("CLAYFRAC", "1"),
-                 host_field_2d("FRLAKE", "1"),
-                 host_field_2d("FRSNO", "1"),
-                 host_field_2d("GVF", "1"),
-                 host_field_2d("LAI", "1"),
-                 host_field_2d("LWI", "1"),
-                 host_field_2d("CMM", "1"),
-                 host_field_2d("SNDFRC", "1"),
-                 host_field_2d("GWETTOP", "1"),
-                 host_field_2d("TS", "K"),
-                 host_field_2d("U10M", "m/s"),
-                 host_field_2d("V10M", "m/s"),
-                 host_field_2d("USTAR", "m/s"),
-                 host_field_2d("USTAR_THRESHOLD", "m/s"),
-                 host_field_2d("Z0", "m"),
-                 host_concentration()},
-                {}};
+        std::vector<FieldAccessContract> fields{host_field_interface("PEDGE", "Pa"),
+                                                 host_field_3d("DELP", "Pa"),
+                                                 host_field_3d("AIRDEN_DRY", "kg/m3"), host_concentration()};
+        if (active_scheme == "fengsha") {
+            fields.insert(fields.end(), {host_field_soil_layer("SOILM", "m3/m3"), host_field_2d("CLAYFRAC", "1"),
+                                         host_field_2d("FRLAKE", "1"), host_field_2d("FRSNO", "1"),
+                                         host_field_2d("GVF", "frac"), host_field_2d("LAI", "m2/m2"),
+                                         host_field_2d("LWI", "1"), host_field_2d("RDRAG", "1"),
+                                         host_field_2d("SNDFRC", "1"), host_field_2d("SSM", "1"),
+                                         host_field_2d("TS", "K"), host_field_2d("USTAR", "m/s"),
+                                         host_field_2d("USTAR_THRESHOLD", "m/s"), host_field_2d("Z0", "m")});
+        } else if (active_scheme == "ginoux") {
+            fields.insert(fields.end(), {host_field_2d("FRLAKE", "1"), host_field_2d("FRSNO", "1"),
+                                         host_field_2d("GWETTOP", "1"), host_field_2d("LWI", "1"),
+                                         host_field_2d("SSM", "1"), host_field_2d("TS", "K"),
+                                         host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s")});
+        }
+        return {get_name(), std::move(fields), {}};
     }
 
     DustProcess::DustProcess() : active_scheme("fengsha"), diagnostics_enabled(true) {}
 
+    void DustProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
+        state->derive_delp();
+        if (!state->read_field<3>("AIRDEN_DRY"))
+            state->derive_airden_dry();
+    }
+
     void DustProcess::init(std::shared_ptr<StateManager> state) {
+        const auto config = state->config_manager();
+        if (!config)
+            throw std::invalid_argument("Dust requires a runtime YAML configuration");
+        const auto configured = config->data.processes.find("dust");
+        if (configured == config->data.processes.end() || configured->second.scheme.empty())
+            throw std::invalid_argument("Dust requires processes.dust.scheme in the runtime YAML");
+        active_scheme = configured->second.scheme;
+        diagnostics_enabled = configured->second.diagnostics;
+        if (active_scheme != "fengsha" && active_scheme != "ginoux")
+            throw std::invalid_argument("Dust runtime YAML selected unsupported scheme: " + active_scheme);
         // 1. Setup diagnostic species ID dynamically based on is_dust metadata switch
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
             if (state->chemistry().species_list[i].is_dust) {
                 diagnostic_species_id.push_back(i + 1); // 1-based for Fortran bridge
             }
         }
+
+        if (!diagnostics_enabled)
+            return;
 
         // 2. Register C++ Diagnostic fields (registering 1D fields as 2D with second dimension of 1)
         std::vector<int> dims_1d_as_2d = {state->column_count(), 1};
@@ -84,41 +98,24 @@ namespace catchem {
 
         // 1. Retrieve Meteorological state pointers
         const double* airden_ptr = state->read_field<3>("AIRDEN_DRY");
-        const double* bxheight_ptr = state->read_field<3>("BXHEIGHT");
         const double* delp_ptr = state->read_field<3>("DELP");
-        std::vector<double> derived_delp;
-        if (delp_ptr == nullptr && state->meteorology().PEDGE) {
-            auto pedge = state->meteorology().PEDGE->host_read();
-            if (pedge != nullptr) {
-                derived_delp.assign(static_cast<size_t>(state->column_count()) * state->level_count(), 0.0);
-                for (int lev = 0; lev < state->level_count(); ++lev) {
-                    for (int col = 0; col < state->column_count(); ++col) {
-                        const int lower_idx = col + lev * state->column_count();
-                        const int upper_idx = col + (lev + 1) * state->column_count();
-                        derived_delp[lower_idx] = std::abs(pedge[lower_idx] - pedge[upper_idx]);
-                    }
-                }
-                delp_ptr = derived_delp.data();
-            }
-        }
         const double* clayfrac_ptr = state->read_field<2>("CLAYFRAC");
         const double* frlake_ptr = state->read_field<2>("FRLAKE");
         const double* frsno_ptr = state->read_field<2>("FRSNO");
         const double* gvf_ptr = state->read_field<2>("GVF");
         const double* lai_ptr = state->read_field<2>("LAI");
         const double* lwi_double_ptr = state->read_field<2>("LWI");
-        std::vector<int> lwi(state->column_count(), 1);
-        if (lwi_double_ptr) {
-            for (int col = 0; col < state->column_count(); ++col) {
-                lwi[col] = static_cast<int>(lwi_double_ptr[col]);
-            }
-        }
-        const double* rdrag_ptr = state->read_field<2>("CMM");
+        std::vector<int> lwi(state->column_count());
+        require_field_pointer("Dust", "LWI", lwi_double_ptr);
+        for (int col = 0; col < state->column_count(); ++col)
+            lwi[col] = static_cast<int>(lwi_double_ptr[col]);
+        const double* rdrag_ptr = state->read_field<2>("RDRAG");
         const double* sandfrac_ptr = state->read_field<2>("SNDFRC");
         const double* soilm_ptr = state->read_field<3>("SOILM");
         const auto soilm_field = state->find_field<3>("SOILM");
         const int n_soil = soilm_field ? static_cast<int>(soilm_field->extent(1)) : 0;
-        const double* ssm_ptr = state->read_field<2>("GWETTOP");
+        const double* gwettop_ptr = state->read_field<2>("GWETTOP");
+        const double* ssm_ptr = state->read_field<2>("SSM");
         const double* tskin_ptr = state->read_field<2>("TS");
         const double* u10m_ptr = state->read_field<2>("U10M");
         const double* v10m_ptr = state->read_field<2>("V10M");
@@ -127,48 +124,39 @@ namespace catchem {
         const double* z0_ptr = state->read_field<2>("Z0");
 
         require_field_pointer("Dust", "AIRDEN_DRY", airden_ptr);
-        require_field_pointer("Dust", "BXHEIGHT", bxheight_ptr);
-        require_field_pointer("Dust", "DELP (or PEDGE)", delp_ptr);
-        require_field_pointer("Dust", "CLAYFRAC", clayfrac_ptr);
-        require_field_pointer("Dust", "FRLAKE", frlake_ptr);
-        require_field_pointer("Dust", "FRSNO", frsno_ptr);
-        require_field_pointer("Dust", "GVF", gvf_ptr);
-        require_field_pointer("Dust", "LAI", lai_ptr);
-        require_field_pointer("Dust", "CMM", rdrag_ptr);
-        require_field_pointer("Dust", "SNDFRC", sandfrac_ptr);
-        require_field_pointer("Dust", "SOILM", soilm_ptr);
-        if (n_soil <= 0)
-            throw std::runtime_error("Dust: SOILM has no soil-layer extent");
-        require_field_pointer("Dust", "GWETTOP", ssm_ptr);
-        require_field_pointer("Dust", "TS", tskin_ptr);
-        require_field_pointer("Dust", "U10M", u10m_ptr);
-        require_field_pointer("Dust", "V10M", v10m_ptr);
-        require_field_pointer("Dust", "USTAR", ustar_ptr);
-        require_field_pointer("Dust", "USTAR_THRESHOLD", ustar_th_ptr);
-        require_field_pointer("Dust", "Z0", z0_ptr);
+        require_field_pointer("Dust", "DELP", delp_ptr);
+        if (active_scheme == "fengsha") {
+            require_field_pointer("Dust", "CLAYFRAC", clayfrac_ptr); require_field_pointer("Dust", "FRLAKE", frlake_ptr);
+            require_field_pointer("Dust", "FRSNO", frsno_ptr); require_field_pointer("Dust", "GVF", gvf_ptr);
+            require_field_pointer("Dust", "LAI", lai_ptr); require_field_pointer("Dust", "RDRAG", rdrag_ptr);
+            require_field_pointer("Dust", "SNDFRC", sandfrac_ptr); require_field_pointer("Dust", "SOILM", soilm_ptr);
+            if (n_soil <= 0) throw std::runtime_error("Dust: SOILM has no soil-layer extent");
+            require_field_pointer("Dust", "SSM", ssm_ptr); require_field_pointer("Dust", "TS", tskin_ptr);
+            require_field_pointer("Dust", "USTAR", ustar_ptr); require_field_pointer("Dust", "USTAR_THRESHOLD", ustar_th_ptr);
+            require_field_pointer("Dust", "Z0", z0_ptr);
+        } else {
+            require_field_pointer("Dust", "FRLAKE", frlake_ptr); require_field_pointer("Dust", "FRSNO", frsno_ptr);
+            require_field_pointer("Dust", "GWETTOP", gwettop_ptr); require_field_pointer("Dust", "SSM", ssm_ptr);
+            require_field_pointer("Dust", "TS", tskin_ptr); require_field_pointer("Dust", "U10M", u10m_ptr);
+            require_field_pointer("Dust", "V10M", v10m_ptr);
+        }
 
         const auto config = state->config_manager();
         if (config && config->data.simulation.verbose_enabled) {
-            constexpr double gravity = 9.80665;
-            double min_ratio = std::numeric_limits<double>::infinity();
-            double max_ratio = 0.0;
+            double min_delp = std::numeric_limits<double>::infinity();
+            double max_delp = 0.0;
             for (int level = 0; level < state->level_count(); ++level) {
                 for (int column = 0; column < state->column_count(); ++column) {
                     const std::size_t index = static_cast<std::size_t>(column) +
                                               static_cast<std::size_t>(level) * state->column_count();
-                    const double geometric_mass = airden_ptr[index] * bxheight_ptr[index];
-                    const double pressure_mass = delp_ptr[index] / gravity;
-                    if (std::isfinite(geometric_mass) && std::isfinite(pressure_mass) && geometric_mass > 0.0 &&
-                        pressure_mass > 0.0) {
-                        const double ratio = pressure_mass / geometric_mass;
-                        min_ratio = std::min(min_ratio, ratio);
-                        max_ratio = std::max(max_ratio, ratio);
+                    if (std::isfinite(delp_ptr[index]) && delp_ptr[index] > 0.0) {
+                        min_delp = std::min(min_delp, delp_ptr[index]);
+                        max_delp = std::max(max_delp, delp_ptr[index]);
                     }
                 }
             }
             Logger::debug(state.get(), "Dust layer-mass conversion inputs",
-                          {{"delp_over_g_to_rho_dz_min", std::to_string(min_ratio)},
-                           {"delp_over_g_to_rho_dz_max", std::to_string(max_ratio)},
+                          {{"delp_pa_min", std::to_string(min_delp)}, {"delp_pa_max", std::to_string(max_delp)},
                            {"conversion", "flux*g/DELP*1e9 kg/kg-to-ug/kg"}});
         }
 
@@ -203,16 +191,16 @@ namespace catchem {
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
             const auto& meta = state->chemistry().species_list[i];
             if (meta.is_dust) {
-                const double radius_value = meta.radius > 0.0 ? meta.radius : 1e-6;
-                const double lower_radius_value = meta.lower_radius > 0.0 ? meta.lower_radius : radius_value * 0.1;
-                const double upper_radius_value =
-                    meta.upper_radius > lower_radius_value ? meta.upper_radius : radius_value * 2.0;
+            if (!(meta.density > 0.0 && meta.radius > 0.0 && meta.lower_radius > 0.0 &&
+                  meta.upper_radius > meta.lower_radius))
+                throw std::runtime_error("Dust species '" + meta.short_name +
+                                         "' requires explicit positive density, radius, lower_radius, and upper_radius");
 
                 dust_global_indices.push_back(static_cast<int>(i));
-                density.push_back(meta.density > 0.0 ? meta.density : 2500.0);
-                radius.push_back(radius_value);
-                lower_radius.push_back(lower_radius_value);
-                upper_radius.push_back(upper_radius_value);
+                density.push_back(meta.density);
+                radius.push_back(meta.radius);
+                lower_radius.push_back(meta.lower_radius);
+                upper_radius.push_back(meta.upper_radius);
             }
         }
 
@@ -249,8 +237,8 @@ namespace catchem {
         // 5. Invoke flat science bridge
         run_dust_science_bridge(
             state->column_count(), state->level_count(), n_dust, n_soil, state->clock().timestep, active_scheme.c_str(),
-            diagnostics_enabled ? 1 : 0, airden_ptr, bxheight_ptr, delp_ptr, clayfrac_ptr, frlake_ptr, frsno_ptr,
-            gvf_ptr, lai_ptr, lwi.data(), rdrag_ptr, sandfrac_ptr, soilm_ptr, ssm_ptr, tskin_ptr, u10m_ptr, v10m_ptr,
+            diagnostics_enabled ? 1 : 0, airden_ptr, delp_ptr, clayfrac_ptr, frlake_ptr, frsno_ptr,
+            gvf_ptr, lai_ptr, lwi.data(), rdrag_ptr, sandfrac_ptr, soilm_ptr, gwettop_ptr, ssm_ptr, tskin_ptr, u10m_ptr, v10m_ptr,
             ustar_ptr, ustar_th_ptr, z0_ptr, density.data(), radius.data(), lower_radius.data(), upper_radius.data(),
             sliced_conc.data(), mock_tendency.data(), diag_emission_total, local_diag_emission_bin.data(),
             diag_horizontal_flux, diag_moisture_correction, diag_effective_threshold, local_diag_utar_threshold.data(),

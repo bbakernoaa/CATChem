@@ -221,6 +221,8 @@ module catchem_nuopc_interface
       real(c_double), allocatable :: z0_m(:,:)
       real(c_double), allocatable :: dust_clayfrac(:,:)
       real(c_double), allocatable :: dust_sandfrac(:,:)
+      real(c_double), allocatable :: dust_ssm(:,:)
+      real(c_double), allocatable :: dust_rdrag(:,:)
       real(c_double), allocatable :: dust_ustar_threshold(:,:)
       logical :: initialized = .false.
       logical :: verbose_logging = .false. !< Runtime YAML switch: simulation/verbose/activate
@@ -785,6 +787,16 @@ contains
          'SNDFRC', cc_wrap%dust_sandfrac, 1.0_c_double, rc)
       if (rc /= CC_SUCCESS) return
 
+      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_SSM', 'sep', 'SSM'], &
+         [character(len=32) :: 'SSM', 'SEDIMENT'], &
+         'SSM', cc_wrap%dust_ssm, 1.0_c_double, rc)
+      if (rc /= CC_SUCCESS) return
+
+      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_RDRAG', 'PC', 'RDRAG'], &
+         [character(len=32) :: 'RDRAG', 'DRAG'], &
+         'RDRAG', cc_wrap%dust_rdrag, 1.0_c_double, rc)
+      if (rc /= CC_SUCCESS) return
+
       call bind_static_field(cc_wrap, [character(len=32) :: 'MET_USTAR_THRESHOLD', 'uthres', 'UTHR'], &
          [character(len=32) :: 'UTHR', 'THRESH'], &
          'USTAR_THRESHOLD', cc_wrap%dust_ustar_threshold, 1.0_c_double, rc)
@@ -1003,6 +1015,8 @@ contains
       if (allocated(cc_wrap%z0_m)) deallocate(cc_wrap%z0_m)
       if (allocated(cc_wrap%dust_clayfrac)) deallocate(cc_wrap%dust_clayfrac)
       if (allocated(cc_wrap%dust_sandfrac)) deallocate(cc_wrap%dust_sandfrac)
+      if (allocated(cc_wrap%dust_ssm)) deallocate(cc_wrap%dust_ssm)
+      if (allocated(cc_wrap%dust_rdrag)) deallocate(cc_wrap%dust_rdrag)
       if (allocated(cc_wrap%dust_ustar_threshold)) deallocate(cc_wrap%dust_ustar_threshold)
       if (allocated(cc_wrap%met_buf_2d)) deallocate(cc_wrap%met_buf_2d)
       if (allocated(cc_wrap%met_buf_3d)) deallocate(cc_wrap%met_buf_3d)
@@ -1497,9 +1511,13 @@ contains
                end do
             end if
             if (found_index <= 0) then
-               call ESMF_LogWrite("Configured host tracer is absent from import field: " // &
-                  trim(field_map%host_tracer_name), ESMF_LOGMSG_ERROR, rc=rc)
-               rc = ESMF_FAILURE
+               ! The relationship is declarative, but a host can legitimately
+               ! omit an optional prognostic (as the transform test does).
+               ! Do not manufacture a meteorological profile: processes that
+               ! truly require this field will fail their own contract.
+               call ESMF_LogWrite("Configured host tracer is unavailable; leaving met field unbound: " // &
+                  trim(field_map%host_tracer_name), ESMF_LOGMSG_INFO, rc=rc)
+               rc = ESMF_SUCCESS
                return
             end if
             if (.not. allocated(cc_wrap%met_buf_3d(fidx)%data)) then

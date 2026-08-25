@@ -217,7 +217,7 @@ namespace catchem {
                 return "K";
             if (key == "QV")
                 return "kg/kg";
-            if (key == "RH")
+            if (key == "RH" || key == "CLDFRC" || key == "SUNCOSMID")
                 return "1";
             if (key == "PMID" || key == "PEDGE" || key == "PS")
                 return "Pa";
@@ -229,12 +229,15 @@ namespace catchem {
                 return "degrees";
             if (key == "AREA_M2")
                 return "m2";
-            if (key == "DELP" || key == "PFILSAN" || key == "PFLLSAN")
+            if (key == "DELP")
                 return "Pa";
+            if (key == "PFILSAN" || key == "PFLLSAN")
+                return "kg/m2/s";
             if (key == "REEVAPLS")
                 return "kg/kg/s";
             if (key == "FROCEAN" || key == "FRSEAICE" || key == "CLAYFRAC" || key == "FRLAKE" || key == "FRSNO" ||
-                key == "GVF" || key == "LAI" || key == "LWI" || key == "SNDFRC" || key == "GWETTOP" || key == "CLDF")
+                key == "GVF" || key == "LAI" || key == "LWI" || key == "SNDFRC" || key == "GWETTOP" || key == "CLDF" ||
+                key == "SSM" || key == "RDRAG")
                 return "1";
             if (key == "SST")
                 return "K";
@@ -437,9 +440,8 @@ namespace catchem {
                         double t_val = temp(icol, ilev, 0);
                         if (!(t_val > 0.0))
                             t_val = 1.0;
-                        double virtual_t = met_utilities::virtual_temperature(t_val, q_val);
                         bxheight(icol, ilev, 0) =
-                            (constants::RD / constants::G0) * virtual_t * std::log(p_lower / p_upper);
+                            met_utilities::hydrostatic_layer_thickness(p_lower, p_upper, t_val, q_val);
                     } else {
                         bxheight(icol, ilev, 0) = 0.0;
                     }
@@ -460,9 +462,8 @@ namespace catchem {
                         double t_val = temp(icol, ilev, 0);
                         if (!std::isfinite(t_val) || t_val <= 0.0)
                             t_val = 1.0;
-                        double virtual_t = met_utilities::virtual_temperature(t_val, q_val);
                         bxheight(icol, ilev, 0) =
-                            (constants::RD / constants::G0) * virtual_t * std::log(p_lower / p_upper);
+                            met_utilities::hydrostatic_layer_thickness(p_lower, p_upper, t_val, q_val);
                     } else {
                         bxheight(icol, ilev, 0) = 0.0;
                     }
@@ -537,17 +538,13 @@ namespace catchem {
                                    : 0.0;
                     if (!(q >= 0.0 && q < 1.0))
                         q = q == q ? (q < 0.0 ? 0.0 : 0.9999) : 0.0;
-                    double avgw = (constants::AIR_MW / constants::H2O_MW) * q / (1.0 - q);
-                    double xh2o = avgw / (1.0 + avgw);
-
                     double pressure = pmid(icol, ilev, 0);
                     if (!(pressure > 0.0))
                         pressure = 1.0;
-                    double p_dry = pressure * (1.0 - xh2o);
                     double t_val = temp(icol, ilev, 0);
                     if (!(t_val > 0.0))
                         t_val = 1.0;
-                    airden_dry(icol, ilev, 0) = p_dry / (constants::RD * t_val);
+                    airden_dry(icol, ilev, 0) = met_utilities::dry_air_density(pressure, t_val, q);
                 });
 #else
             for (int icol = 0; icol < nc; ++icol) {
@@ -558,22 +555,122 @@ namespace catchem {
                     if (!std::isfinite(q))
                         q = 0.0;
                     q = std::clamp(q, 0.0, 0.9999);
-                    double avgw = (constants::AIR_MW / constants::H2O_MW) * q / (1.0 - q);
-                    double xh2o = avgw / (1.0 + avgw);
-
                     double pressure = pmid(icol, ilev, 0);
                     if (!std::isfinite(pressure) || pressure <= 0.0)
                         pressure = 1.0;
-                    double p_dry = pressure * (1.0 - xh2o);
                     double t_val = temp(icol, ilev, 0);
                     if (!std::isfinite(t_val) || t_val <= 0.0)
                         t_val = 1.0;
-                    airden_dry(icol, ilev, 0) = p_dry / (constants::RD * t_val);
+                    airden_dry(icol, ilev, 0) = met_utilities::dry_air_density(pressure, t_val, q);
                 }
             }
 #endif
             met.AIRDEN_DRY->mark_device_modified();
             met.AIRDEN_DRY->set_generation(import_generation);
+        }
+
+        // Maintain the legacy metstate definition of AIRDEN: pressure divided
+        // by dry-air gas constant and temperature.  AIRDEN_DRY is the
+        // humidity-corrected quantity and is derived separately above.
+        void derive_airden() {
+            if (met.AIRDEN && met.AIRDEN->is_current(import_generation)) return;
+            if (!met.PMID || !met.T || !met.PMID->is_current(import_generation) || !met.T->is_current(import_generation))
+                throw std::runtime_error("Cannot derive AIRDEN: requires current PMID and T");
+            auto airden = find_field<3>("AIRDEN");
+            if (!airden) {
+                auto buffer=std::make_shared<std::vector<double>>(static_cast<std::size_t>(n_cols)*n_levels,0.0);
+                owned_buffers.push_back(buffer);
+                bind_met_field_3d("AIRDEN",buffer->data());
+                airden = find_field<3>("AIRDEN");
+            }
+            met.PMID->sync_to_host(); met.T->sync_to_host();
+            const double* p=met.PMID->host_data(); const double* t=met.T->host_data();
+            double* output = airden->host_write();
+            for(int i=0;i<n_cols*n_levels;++i) output[i]=p[i]/(constants::RD*t[i]);
+            airden->mark_host_modified();
+            airden->set_generation(import_generation);
+        }
+
+        // Derive DELP from the host pressure interfaces.  The sign is not
+        // hidden with abs(): a non-descending host vertical coordinate is an
+        // invalid layer and produces zero, making the contract error visible.
+        void derive_delp() {
+            if (!met.PEDGE || !met.PEDGE->is_current(import_generation))
+                throw std::runtime_error("Cannot derive DELP: PEDGE is not current");
+            auto delp = find_field<3>("DELP");
+            if (!delp) {
+                auto buffer = std::make_shared<std::vector<double>>(static_cast<std::size_t>(n_cols) * n_levels, 0.0);
+                owned_buffers.push_back(buffer);
+                bind_met_field_3d("DELP", buffer->data());
+                delp = find_field<3>("DELP");
+            }
+            met.PEDGE->sync_to_host();
+            const double* pedge = met.PEDGE->host_data();
+            double* output = delp->host_write();
+            for (int level = 0; level < n_levels; ++level)
+                for (int column = 0; column < n_cols; ++column) {
+                    const std::size_t index = static_cast<std::size_t>(column + level * n_cols);
+                    output[index] = met_utilities::pressure_thickness(pedge[index], pedge[index + n_cols]);
+                }
+            delp->mark_host_modified();
+            delp->set_generation(import_generation);
+        }
+
+        void derive_obk() {
+            if (const auto obk = find_field<2>("OBK"); obk && obk->is_current(import_generation)) return;
+            if (!met.USTAR || !met.TS || !met.HFLUX || !met.PMID || !met.T ||
+                !met.USTAR->is_current(import_generation) || !met.TS->is_current(import_generation) ||
+                !met.HFLUX->is_current(import_generation) || !met.PMID->is_current(import_generation) ||
+                !met.T->is_current(import_generation))
+                throw std::runtime_error("Cannot derive OBK: requires current USTAR, TS, HFLUX, PMID, and T");
+            auto obk = find_field<2>("OBK");
+            if (!obk) {
+                auto buffer = std::make_shared<std::vector<double>>(n_cols, 0.0);
+                owned_buffers.push_back(buffer);
+                bind_met_field_2d("OBK", buffer->data());
+                obk = find_field<2>("OBK");
+            }
+            met.USTAR->sync_to_host(); met.TS->sync_to_host(); met.HFLUX->sync_to_host();
+            met.PMID->sync_to_host(); met.T->sync_to_host();
+            const double* ustar = met.USTAR->host_data(); const double* ts = met.TS->host_data();
+            const double* hflux = met.HFLUX->host_data(); const double* p = met.PMID->host_data();
+            const double* t = met.T->host_data(); double* output = obk->host_write();
+            for (int c = 0; c < n_cols; ++c)
+                output[c] = met_utilities::monin_obukhov_length(ustar[c], ts[c], hflux[c], p[c] / (constants::RD * t[c]));
+            obk->mark_host_modified();
+            obk->set_generation(import_generation);
+        }
+
+        void derive_relative_humidity() {
+            if (const auto rh = find_field<3>("RH"); rh && rh->is_current(import_generation)) return;
+            if (!met.T || !met.QV || !met.PMID)
+                throw std::runtime_error("Cannot derive RH: requires T, QV, and PMID");
+            auto buffer = std::make_shared<std::vector<double>>(static_cast<std::size_t>(n_cols) * n_levels, 0.0);
+            owned_buffers.push_back(buffer); bind_met_field_3d("RH", buffer->data());
+            met.T->sync_to_host(); met.QV->sync_to_host(); met.PMID->sync_to_host();
+            const double* t=met.T->host_data(); const double* qv=met.QV->host_data(); const double* p=met.PMID->host_data();
+            for (int i=0; i<n_cols*n_levels; ++i) buffer->at(i)=met_utilities::relative_humidity(t[i],qv[i],p[i]);
+            met.RH->mark_host_modified(); met.RH->set_generation(import_generation);
+        }
+
+        void derive_surface_cloud_fraction() {
+            if (const auto out=find_field<2>("CLDFRC"); out && out->is_current(import_generation)) return;
+            auto cldf=find_field<3>("CLDF"); if (!cldf) throw std::runtime_error("Cannot derive CLDFRC: requires CLDF");
+            auto buffer=std::make_shared<std::vector<double>>(n_cols,0.0); owned_buffers.push_back(buffer);
+            bind_met_field_2d("CLDFRC",buffer->data()); cldf->sync_to_host(); const double* src=cldf->host_data();
+            for(int c=0;c<n_cols;++c) buffer->at(c)=src[c];
+            auto derived = find_field<2>("CLDFRC");
+            derived->mark_host_modified(); derived->set_generation(import_generation);
+        }
+
+        void derive_suncosmid() {
+            if (const auto out=find_field<2>("SUNCOSMID"); out && out->is_current(import_generation)) return;
+            if(!met.LAT||!met.LON) throw std::runtime_error("Cannot derive SUNCOSMID: requires LAT and LON");
+            auto buffer=std::make_shared<std::vector<double>>(n_cols,0.0); owned_buffers.push_back(buffer);
+            bind_met_field_2d("SUNCOSMID",buffer->data()); met.LAT->sync_to_host(); met.LON->sync_to_host(); const double* lat=met.LAT->host_data(); const double* lon=met.LON->host_data();
+            for(int c=0;c<n_cols;++c) buffer->at(c)=time.get_cos_sza(lat[c],lon[c],true);
+            auto derived = find_field<2>("SUNCOSMID");
+            derived->mark_host_modified(); derived->set_generation(import_generation);
         }
 
         // Derive large-scale/anvil precipitation re-evaporation [kg/kg/s].
@@ -609,27 +706,12 @@ namespace catchem {
             const double* pedge = met.PEDGE->host_data();
             const double* ice_flux = pfilsan->host_data();
             const double* liquid_flux = pfllsan->host_data();
-            constexpr double rh_threshold = 0.9, liquid_coefficient = 2.0e-5, ice_coefficient = 0.5e-5;
-            constexpr double liquid_temperature = 273.15, ice_temperature = 258.15;
             for (int level = 0; level < n_levels; ++level)
                 for (int column = 0; column < n_cols; ++column) {
                     const std::size_t index = static_cast<std::size_t>(column + level * n_cols);
-                    const double liquid = std::max(0.0, liquid_flux[index]);
-                    const double ice = std::max(0.0, ice_flux[index]);
-                    const double mass = std::abs(pedge[index] - pedge[index + n_cols]) / constants::G0;
-                    const double rh =
-                        met_utilities::relative_humidity(temperature[index], humidity[index], pmid[index]);
-                    if (!(mass > 0.0) || !(rh < rh_threshold) || liquid + ice <= 0.0) {
-                        output[index] = 0.0;
-                        continue;
-                    }
-                    const double rh_term = std::max(0.0, 1.0 - rh / rh_threshold);
-                    const double liquid_loss =
-                        std::min(liquid_coefficient * rh_term * std::sqrt(liquid), liquid / mass);
-                    const double ice_loss = temperature[index] > ice_temperature
-                                                ? std::min(ice_coefficient * rh_term * std::sqrt(ice), ice / mass)
-                                                : 0.0;
-                    output[index] = std::clamp(liquid_loss + ice_loss, 0.0, (liquid + ice) / mass);
+                    output[index] = met_utilities::large_scale_reevaporation(
+                        temperature[index], humidity[index], pmid[index], pedge[index], pedge[index + n_cols],
+                        ice_flux[index], liquid_flux[index]);
                 }
             reevapls->mark_host_modified();
             reevapls->set_generation(import_generation);

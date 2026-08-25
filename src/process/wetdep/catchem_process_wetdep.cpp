@@ -20,8 +20,10 @@ namespace catchem {
         return {get_name(),
                 {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
                  host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_field_3d("PFILSAN", "Pa"),
-                 host_field_3d("PFLLSAN", "Pa"), host_field_3d("QV", "kg/kg"), host_field_3d("REEVAPLS", "kg/kg/s"),
+                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
+                 host_field_3d("PFILSAN", "kg/m2/s"),
+                 host_field_3d("PFLLSAN", "kg/m2/s"), host_field_3d("QV", "kg/kg"),
+                 host_field_3d("REEVAPLS", "kg/kg/s"),
                  host_concentration()},
                 {}};
     }
@@ -30,6 +32,8 @@ namespace catchem {
 
     void WetDepProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_reevapls();
+        state->derive_airden_dry();
+        state->derive_airden();
     }
 
     void WetDepProcess::init(std::shared_ptr<StateManager> state) {
@@ -56,23 +60,7 @@ namespace catchem {
 
         // 1. Fetch raw pointers to Met Views
         double* airden_dry_ptr = state->write_field<3>("AIRDEN_DRY");
-        if (!airden_dry_ptr)
-            airden_dry_ptr = state->write_field<3>("AIRDEN");
         double* mairden_ptr = state->write_field<3>("AIRDEN");
-        if (!mairden_ptr)
-            mairden_ptr = state->write_field<3>("AIRDEN_DRY");
-
-        if ((!airden_dry_ptr || !mairden_ptr) && state->meteorology().PMID && state->meteorology().T) {
-            state->derive_airden_dry();
-            if (!airden_dry_ptr)
-                airden_dry_ptr = state->write_field<3>("AIRDEN_DRY");
-            if (!mairden_ptr)
-                mairden_ptr = state->write_field<3>("AIRDEN_DRY");
-        }
-        if (!airden_dry_ptr)
-            airden_dry_ptr = mairden_ptr;
-        if (!mairden_ptr)
-            mairden_ptr = airden_dry_ptr;
 
         double* pedge_ptr = state->write_field<3>("PEDGE");
         double* t_ptr = state->write_field<3>("T");
@@ -110,8 +98,8 @@ namespace catchem {
         std::vector<double> wd_convfacI2G(state->species_count(), 0.0);
         std::vector<double> wd_reevap_frac(state->species_count(), 0.0);
         std::vector<double> wd_rainouteff_storage(state->species_count() * 3, 0.0);
-        std::vector<double> radius(state->species_count(), 1e-6);
-        std::vector<double> mw_g(state->species_count(), 29.0);
+        std::vector<double> radius(state->species_count(), 0.0);
+        std::vector<double> mw_g(state->species_count(), 0.0);
 
         // Dynamic 2D view for rainouteff with species as dimension 0, and 3-element efficiency as dimension 1
         Kokkos::mdspan<double, Kokkos::extents<int, Kokkos::dynamic_extent, 3>, Kokkos::layout_left> wd_rainouteff(
@@ -126,11 +114,15 @@ namespace catchem {
             wd_retfactor[i] = meta.wd_retfactor;
             wd_LiqAndGas[i] = meta.wd_LiqAndGas ? 1 : 0;
             wd_convfacI2G[i] = meta.wd_convfacI2G;
-            wd_reevap_frac[i] = 1.0; // dummy default
-            if (meta.radius > 0.0)
-                radius[i] = meta.radius;
-            if (meta.mw_g > 0.0)
-                mw_g[i] = meta.mw_g;
+            wd_reevap_frac[i] = meta.wd_reevap_frac;
+            if (meta.is_aerosol && (!(meta.radius > 0.0) || !(meta.mw_g > 0.0)))
+                throw std::runtime_error("WetDep aerosol '" + meta.short_name +
+                                         "' requires explicit radius and molecular weight");
+            if (meta.is_wetdep && !meta.is_aerosol && !(meta.mw_g > 0.0))
+                throw std::runtime_error("WetDep gas '" + meta.short_name +
+                                         "' requires an explicit molecular weight");
+            radius[i] = meta.radius;
+            mw_g[i] = meta.mw_g;
 
             // Fill rainouteff safely up to 3 efficiency factors
             for (int k = 0; k < 3; ++k) {
