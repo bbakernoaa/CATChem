@@ -76,9 +76,9 @@ namespace catchem {
                 meta.is_drydep = sp.is_drydep;
                 meta.is_wetdep = sp.is_wetdep;
                 meta.is_photolysis = sp.is_photolysis;
-                meta.is_gocart_aero = sp.is_gocart_aero;
-                meta.is_dust = sp.is_dust;
-                meta.is_seasalt = sp.is_seasalt;
+                meta.is_gocart_aero = sp.is_gocart_aero && !meta.is_gas;
+                meta.is_dust = sp.is_dust && !meta.is_gas;
+                meta.is_seasalt = sp.is_seasalt && !meta.is_gas;
 
                 meta.mw_g = sp.mw_g > 0.0 ? sp.mw_g : sp.molecular_weight_kg_mol * 1000.0;
                 meta.density = sp.density;
