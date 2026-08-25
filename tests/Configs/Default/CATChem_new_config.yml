@@ -370,7 +370,7 @@ processes:
       apply_method: "replace" #mapped to met_state; so it is non-op here
       frequency: "static"
       diagnostics: true
-      diag_list: [clayfrac,sandfrac,uthres,sep,gvf]
+      diag_list: [clayfrac,sandfrac,uthres,sep]
     fengsha:
       activate: true
       scale_factor: 1.0

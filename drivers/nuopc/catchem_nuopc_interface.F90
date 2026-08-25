@@ -221,7 +221,6 @@ module catchem_nuopc_interface
       real(c_double), allocatable :: z0_m(:,:)
       real(c_double), allocatable :: dust_clayfrac(:,:)
       real(c_double), allocatable :: dust_sandfrac(:,:)
-      real(c_double), allocatable :: dust_gvf(:,:)
       real(c_double), allocatable :: dust_ssm(:,:)
       real(c_double), allocatable :: dust_rdrag(:,:)
       real(c_double), allocatable :: dust_ustar_threshold(:,:)
@@ -788,11 +787,6 @@ contains
          'SNDFRC', cc_wrap%dust_sandfrac, 1.0_c_double, rc)
       if (rc /= CC_SUCCESS) return
 
-      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_GVF', 'gvf', 'GVF'], &
-         [character(len=32) :: 'GVF', 'VEG'], &
-         'GVF', cc_wrap%dust_gvf, 1.0_c_double, rc)
-      if (rc /= CC_SUCCESS) return
-
       call bind_static_field(cc_wrap, [character(len=32) :: 'MET_SSM', 'sep', 'SSM'], &
          [character(len=32) :: 'SSM', 'SEDIMENT'], &
          'SSM', cc_wrap%dust_ssm, 1.0_c_double, rc)
@@ -1021,7 +1015,6 @@ contains
       if (allocated(cc_wrap%z0_m)) deallocate(cc_wrap%z0_m)
       if (allocated(cc_wrap%dust_clayfrac)) deallocate(cc_wrap%dust_clayfrac)
       if (allocated(cc_wrap%dust_sandfrac)) deallocate(cc_wrap%dust_sandfrac)
-      if (allocated(cc_wrap%dust_gvf)) deallocate(cc_wrap%dust_gvf)
       if (allocated(cc_wrap%dust_ssm)) deallocate(cc_wrap%dust_ssm)
       if (allocated(cc_wrap%dust_rdrag)) deallocate(cc_wrap%dust_rdrag)
       if (allocated(cc_wrap%dust_ustar_threshold)) deallocate(cc_wrap%dust_ustar_threshold)
