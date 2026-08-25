@@ -14,6 +14,7 @@ module dataatm_services
       model_label_Advertise => label_Advertise, &
       model_label_RealizeProvided => label_RealizeProvided, &
       model_label_Advance => label_Advance, &
+      model_label_CheckImport => label_CheckImport, &
       NUOPC_ModelGet
    use catchem_nuopc_interface, only: load_field_config, field_config
    implicit none
@@ -32,40 +33,61 @@ contains
       if (rc /= ESMF_SUCCESS) return
       call NUOPC_CompSpecialize(model, specLabel=model_label_Advance, &
          specRoutine=Advance, rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      ! The mock consumes output passively.  Its Advance specialization does
+      ! not use CATChem fields as an input to a forecast calculation, so the
+      ! generic template's pre-advance timestamp gate is not applicable.
+      call NUOPC_CompSpecialize(model, specLabel=model_label_CheckImport, &
+         specRoutine=CheckImport, rc=rc)
    end subroutine SetServices
 
    subroutine Advertise(model, rc)
       type(ESMF_GridComp) :: model
       integer, intent(out) :: rc
-      type(ESMF_State) :: exportState
+      type(ESMF_State) :: importState, exportState
       integer :: i
       character(len=256) :: errmsg
       rc = ESMF_SUCCESS
-      call NUOPC_ModelGet(model, exportState=exportState, rc=rc)
+      call NUOPC_ModelGet(model, importState=importState, exportState=exportState, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call load_field_config('CATChem_field_mapping.yml', rc, errmsg)
       if (rc /= ESMF_SUCCESS) return
       do i = 1, field_config%n_import_fields
-         if (field_config%import_fields(i)%optional) cycle
+         if (field_config%import_fields(i)%optional .and. &
+             .not. field_config%import_fields(i)%advertise) cycle
          call NUOPC_Advertise(exportState, &
             StandardName=trim(field_config%import_fields(i)%standard_name), &
             TransferOfferGeomObject='will provide', SharePolicyField='share', rc=rc)
          if (rc /= ESMF_SUCCESS) return
       end do
+      ! Consume CATChem's advertised diagnostics and tracer output as a
+      ! DataATM analogue.  This makes the CATChem export state real during
+      ! RunPhase rather than leaving its fields as uncreated offers.
+      do i = 1, field_config%n_export_fields
+         call NUOPC_Advertise(importState, &
+            StandardName=trim(field_config%export_fields(i)%standard_name), &
+            TransferOfferGeomObject='will provide', SharePolicyField='share', rc=rc)
+         if (rc /= ESMF_SUCCESS) return
+      end do
    end subroutine Advertise
+
+   subroutine CheckImport(model, rc)
+      type(ESMF_GridComp) :: model
+      integer, intent(out) :: rc
+      rc = ESMF_SUCCESS
+   end subroutine CheckImport
 
    subroutine Advance(model, rc)
       type(ESMF_GridComp) :: model
       integer, intent(out) :: rc
-      type(ESMF_State) :: exportState
+      type(ESMF_State) :: importState, exportState
       type(ESMF_Clock) :: clock
       type(ESMF_Time) :: curr_time, next_time
       type(ESMF_TimeInterval) :: time_step
       type(ESMF_Field), pointer :: fields(:)
       type(ESMF_Field) :: field
-      real(ESMF_KIND_R8), pointer :: f2(:,:), f3(:,:,:), f4(:,:,:,:)
       character(len=ESMF_MAXSTR) :: field_name
-      integer :: i, k, rank
+      integer :: i, rank
       rc = ESMF_SUCCESS
       call NUOPC_ModelGet(model, exportState=exportState, modelClock=clock, rc=rc)
       if (rc /= ESMF_SUCCESS) return
@@ -85,49 +107,69 @@ contains
          field = fields(i)
          call ESMF_FieldGet(field, name=field_name, rank=rank, rc=rc)
          if (rc /= ESMF_SUCCESS) return
-         select case (rank)
-         case (2)
-            nullify(f2); call ESMF_FieldGet(field, farrayPtr=f2, rc=rc)
-            if (rc /= ESMF_SUCCESS) return
-            f2 = 1.0_ESMF_KIND_R8
-         case (3)
-            nullify(f3); call ESMF_FieldGet(field, farrayPtr=f3, rc=rc)
-            if (rc /= ESMF_SUCCESS) return
-            select case (trim(field_name))
-            case ('inst_pres_interface')
-               do k = 1, size(f3, 3)
-                  f3(:, :, k) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
-               end do
-            case ('inst_pres_levels')
-               do k = 1, size(f3, 3)
-                  f3(:, :, k) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
-               end do
-            case ('inst_temp_levels')
-               f3 = 300.0_ESMF_KIND_R8
-            case default
-               f3 = 1.0_ESMF_KIND_R8
-            end select
-         case (4)
-            nullify(f4); call ESMF_FieldGet(field, farrayPtr=f4, rc=rc)
-            if (rc /= ESMF_SUCCESS) return
-            f4 = 1.0_ESMF_KIND_R8
-         end select
+         call populate_mock_field(field, rc)
+         if (rc /= ESMF_SUCCESS) return
          call NUOPC_SetTimestamp(field, curr_time, rc=rc)
          if (rc /= ESMF_SUCCESS) return
       end do
-      ! Preserve the driver's current coupling timestamp after populating
-      ! direct field references for all ESMF layouts.
-      ! Reapply after populating direct field references for all ESMF layouts.
+      ! Preserve the driver's current coupling timestamp after updating fields.
       call NUOPC_SetTimestamp(exportState, curr_time, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       deallocate(fields)
       nullify(fields)
    end subroutine Advance
 
+   subroutine populate_mock_field(field, rc)
+      type(ESMF_Field), intent(inout) :: field
+      integer, intent(out) :: rc
+      real(ESMF_KIND_R8), pointer :: f2(:,:), f3(:,:,:), f4(:,:,:,:)
+      character(len=ESMF_MAXSTR) :: field_name
+      integer :: k, rank
+
+      rc = ESMF_SUCCESS
+      call ESMF_FieldGet(field, name=field_name, rank=rank, rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      select case (rank)
+      case (2)
+         nullify(f2); call ESMF_FieldGet(field, farrayPtr=f2, rc=rc)
+         if (rc /= ESMF_SUCCESS) return
+         f2 = 1.0_ESMF_KIND_R8
+      case (3)
+         nullify(f3); call ESMF_FieldGet(field, farrayPtr=f3, rc=rc)
+         if (rc /= ESMF_SUCCESS) return
+         select case (trim(field_name))
+         case ('inst_pres_interface')
+            do k = 1, size(f3, 3)
+               f3(:, :, k) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
+            end do
+         case ('inst_pres_levels')
+            do k = 1, size(f3, 3)
+               f3(:, :, k) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
+            end do
+         case ('inst_geop_interface')
+            do k = 1, size(f3, 3)
+               f3(:, :, k) = 1000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
+            end do
+         case ('inst_geop_levels')
+            do k = 1, size(f3, 3)
+               f3(:, :, k) = 500.0_ESMF_KIND_R8 + 1000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
+            end do
+         case ('inst_temp_levels')
+            f3 = 300.0_ESMF_KIND_R8
+         case default
+            f3 = 1.0_ESMF_KIND_R8
+         end select
+      case (4)
+         nullify(f4); call ESMF_FieldGet(field, farrayPtr=f4, rc=rc)
+         if (rc /= ESMF_SUCCESS) return
+         f4 = 1.0_ESMF_KIND_R8
+      end select
+   end subroutine populate_mock_field
+
    subroutine Realize(model, rc)
       type(ESMF_GridComp) :: model
       integer, intent(out) :: rc
-      type(ESMF_State) :: exportState
+      type(ESMF_State) :: importState, exportState
       type(ESMF_Grid) :: grid
       type(ESMF_Field) :: field
       type(ESMF_Array) :: array
@@ -135,7 +177,7 @@ contains
       integer :: i, nzf, ntr
       character(len=ESMF_MAXSTR) :: tracer_names(3), tracer_units(3)
       rc = ESMF_SUCCESS
-      call NUOPC_ModelGet(model, exportState=exportState, rc=rc)
+      call NUOPC_ModelGet(model, importState=importState, exportState=exportState, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call ESMF_GridCompGet(model, grid=grid, rc=rc)
       if (rc /= ESMF_SUCCESS) return
@@ -143,7 +185,8 @@ contains
       tracer_names = [character(len=ESMF_MAXSTR) :: 'sphum', 'SO2', 'SO4']
       tracer_units = [character(len=ESMF_MAXSTR) :: 'kg kg-1', 'kg kg-1', 'kg kg-1']
       do i = 1, field_config%n_import_fields
-         if (field_config%import_fields(i)%optional) cycle
+         if (field_config%import_fields(i)%optional .and. &
+             .not. field_config%import_fields(i)%advertise) cycle
          select case (field_config%import_fields(i)%dimensions)
          case (2)
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
@@ -173,7 +216,41 @@ contains
             call ESMF_InfoSet(tracer_info, 'tracerUnits', tracer_units, rc=rc)
             if (rc /= ESMF_SUCCESS) return
          end if
+         ! NUOPC can call a consumer's first RunPhase before the producer's
+         ! Advance specialization.  Realized exports must therefore already
+         ! contain a valid initial profile.
+         call populate_mock_field(field, rc)
+         if (rc /= ESMF_SUCCESS) return
          call NUOPC_Realize(exportState, field, rc=rc)
+         if (rc /= ESMF_SUCCESS) return
+      end do
+      ! Realize the receiving half of CATChem's exports on the same grid.
+      ! This is what the UFS atmospheric component supplies for chemistry
+      ! outputs; without it a shared NUOPC export remains an uncreated offer.
+      do i = 1, field_config%n_export_fields
+         select case (field_config%export_fields(i)%dimensions)
+         case (2)
+            field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
+               name=trim(field_config%export_fields(i)%standard_name), rc=rc)
+         case (4)
+            field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
+               ungriddedLBound=(/1,1/), ungriddedUBound=(/5,ntr/), &
+               name=trim(field_config%export_fields(i)%standard_name), rc=rc)
+         case default
+            cycle
+         end select
+         if (rc /= ESMF_SUCCESS) return
+         if (field_config%export_fields(i)%dimensions == 4) then
+            call ESMF_FieldGet(field, array=array, rc=rc)
+            if (rc /= ESMF_SUCCESS) return
+            call ESMF_InfoGetFromHost(array, tracer_info, rc=rc)
+            if (rc /= ESMF_SUCCESS) return
+            call ESMF_InfoSet(tracer_info, 'tracerNames', tracer_names, rc=rc)
+            if (rc /= ESMF_SUCCESS) return
+            call ESMF_InfoSet(tracer_info, 'tracerUnits', tracer_units, rc=rc)
+            if (rc /= ESMF_SUCCESS) return
+         end if
+         call NUOPC_Realize(importState, field, rc=rc)
          if (rc /= ESMF_SUCCESS) return
       end do
    end subroutine Realize
@@ -183,16 +260,15 @@ module contract_driver_services
    use ESMF
    use NUOPC
    use NUOPC_Driver, only: driverSS => SetServices, &
-      label_SetModelServices, label_SetRunSequence, NUOPC_DriverAddComp
-   use NUOPC_Driver, only: NUOPC_DriverIngestRunSequence
+      label_SetModelServices, NUOPC_DriverAddComp
+   use NUOPC_Connector, only: connectorSS => SetServices
    use cc_nuopc, only: CATChem_SetServices => SetServices
    use dataatm_services, only: DataATM_SetServices => SetServices
    implicit none
    logical, save :: model_services_called = .false.
-   logical, save :: run_sequence_called = .false.
 contains
    logical function driver_services_seen()
-      driver_services_seen = model_services_called .and. run_sequence_called
+      driver_services_seen = model_services_called
    end function driver_services_seen
    subroutine SetServices(driver, rc)
       type(ESMF_GridComp) :: driver
@@ -203,8 +279,6 @@ contains
       call NUOPC_CompSpecialize(driver, specLabel=label_SetModelServices, &
          specRoutine=SetModelServices, rc=rc)
       if (rc /= ESMF_SUCCESS) return
-      call NUOPC_CompSpecialize(driver, specLabel=label_SetRunSequence, &
-         specRoutine=SetRunSequence, rc=rc)
    end subroutine SetServices
 
    subroutine SetModelServices(driver, rc)
@@ -212,7 +286,11 @@ contains
       integer, intent(out) :: rc
       type(ESMF_GridComp) :: catchem
       type(ESMF_GridComp) :: dataatm
+      type(ESMF_CplComp) :: connector
       type(ESMF_Grid) :: data_grid
+      type(ESMF_Time) :: start_time, stop_time
+      type(ESMF_TimeInterval) :: time_step
+      type(ESMF_Clock) :: clock
       rc = ESMF_SUCCESS
       model_services_called = .true.
       call NUOPC_DriverAddComp(driver, "CATChem", &
@@ -228,22 +306,28 @@ contains
       call ESMF_GridCompSet(dataatm, grid=data_grid, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call ESMF_GridCompSet(catchem, grid=data_grid, rc=rc)
-   end subroutine SetModelServices
+      if (rc /= ESMF_SUCCESS) return
 
-   subroutine SetRunSequence(driver, rc)
-      type(ESMF_GridComp) :: driver
-      integer, intent(out) :: rc
-      type(ESMF_HConfig) :: hconfig, sequence_config
-      rc = ESMF_SUCCESS
-      run_sequence_called = .true.
-      call ESMF_GridCompGet(driver, hconfig=hconfig, rc=rc)
+      call NUOPC_DriverAddComp(driver, srcCompLabel="DataATM", dstCompLabel="CATChem", &
+         compSetServicesRoutine=connectorSS, comp=connector, rc=rc)
       if (rc /= ESMF_SUCCESS) return
-      sequence_config = ESMF_HConfigCreateAt(hconfig, keyString="runSequence", rc=rc)
+      call NUOPC_DriverAddComp(driver, srcCompLabel="CATChem", dstCompLabel="DataATM", &
+         compSetServicesRoutine=connectorSS, comp=connector, rc=rc)
       if (rc /= ESMF_SUCCESS) return
-      call NUOPC_DriverIngestRunSequence(driver, sequence_config, &
-         autoAddConnectors=.true., rc=rc)
-      call ESMF_HConfigDestroy(sequence_config, rc=rc)
-   end subroutine SetRunSequence
+
+      call ESMF_TimeIntervalSet(time_step, s=600, rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      call ESMF_TimeSet(start_time, yy=2021, mm=3, dd=22, h=6, &
+         calkindflag=ESMF_CALKIND_GREGORIAN, rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      call ESMF_TimeSet(stop_time, yy=2021, mm=3, dd=22, h=6, m=20, &
+         calkindflag=ESMF_CALKIND_GREGORIAN, rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      clock = ESMF_ClockCreate(name="DataATM-CATChem lifecycle clock", &
+         startTime=start_time, stopTime=stop_time, timeStep=time_step, rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      call ESMF_GridCompSet(driver, clock=clock, rc=rc)
+   end subroutine SetModelServices
 end module contract_driver_services
 
 program nuopc_contract_harness
@@ -286,10 +370,6 @@ program nuopc_contract_harness
    type(ESMF_Grid) :: grid
    type(ESMF_State) :: importState, exportState
    type(ESMF_GridComp) :: driver_comp
-   type(ESMF_HConfig) :: driver_hconfig
-   type(ESMF_Time) :: startTime, stopTime
-   type(ESMF_TimeInterval) :: timeStep
-   type(ESMF_Clock) :: driver_clock
    type(ESMF_Field) :: field
    type(ESMF_Time) :: currTime
    real(ESMF_KIND_R8), pointer :: fptr2(:, :), fptr3(:, :, :), fptr4(:, :, :, :)
@@ -305,7 +385,6 @@ program nuopc_contract_harness
       'unfamiliar_alpha', 'unfamiliar_beta', 'unfamiliar_gamma']
 
    call ESMF_Initialize(defaultCalKind=ESMF_CALKIND_GREGORIAN, &
-      configFileName="nuopc_contract_run.yml", hconfig=driver_hconfig, &
       defaultlogfilename="test_nuopc_transform.log", rc=rc)
    call check(rc, "ESMF_Initialize")
 
@@ -316,22 +395,20 @@ program nuopc_contract_harness
    call check(rc, "GridCompCreate driver")
    call ESMF_GridCompSetServices(driver_comp, ContractDriver_SetServices, rc=rc)
    call check(rc, "GridCompSetServices driver")
-   call ESMF_GridCompSet(driver_comp, hconfig=driver_hconfig, rc=rc)
-   call check(rc, "GridCompSet driver configuration")
-   call ESMF_TimeSet(startTime, yy=2021, mm=3, dd=22, h=6, rc=rc)
-   call check(rc, "Driver start time")
-   call ESMF_TimeSet(stopTime, yy=2021, mm=3, dd=22, h=6, m=20, rc=rc)
-   call check(rc, "Driver stop time")
-   timeStep = stopTime - startTime
-   driver_clock = ESMF_ClockCreate(name="contract-driver-clock", &
-      startTime=startTime, stopTime=stopTime, timeStep=timeStep, rc=rc)
-   call check(rc, "Driver clock")
-   call ESMF_GridCompInitialize(driver_comp, clock=driver_clock, userRc=urc, rc=rc)
+   call ESMF_GridCompInitialize(driver_comp, userRc=urc, rc=rc)
    call check(rc, "GridCompInitialize managed driver")
    call check(urc, "Managed driver user return code")
-   call ESMF_GridCompRun(driver_comp, clock=driver_clock, userRc=urc, rc=rc)
+   call ESMF_GridCompRun(driver_comp, userRc=urc, rc=rc)
    call check(rc, "GridCompRun managed driver")
    call check(urc, "Managed driver run user return code")
+   call ESMF_GridCompFinalize(driver_comp, userRc=urc, rc=rc)
+   call check(rc, "GridCompFinalize managed driver")
+   call check(urc, "Managed driver finalize user return code")
+   if (.not. driver_services_seen()) error stop 'Managed driver services were not invoked'
+   print *, 'PASS: DataATM -> CATChem managed lifecycle completed'
+   call ESMF_Finalize(rc=rc)
+   call check(rc, "ESMF_Finalize managed lifecycle")
+   stop
    ! ESMF_GridCompInitialize registers the derived driver here; the NUOPC
    ! driver invokes SetModelServices/SetRunSequence during its own managed
    ! initialization phase.  The full managed-driver path is covered by the

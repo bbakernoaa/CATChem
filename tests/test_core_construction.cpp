@@ -35,5 +35,10 @@ int main() {
 
     catchem::Core options(catchem::CoreCreateOptions::configured_with_host_grid(config, 5, 4));
     assert_common_wiring(options, 5, 1, 4, 3);
+
+    const std::string disabled = CATCHEM_SOURCE_DIR "/tests/fixtures/configured_process_disabled.yml";
+    catchem::Core disabled_process(disabled);
+    assert_common_wiring(disabled_process, 2, 1, 3, 3);
+    assert(disabled_process.get_num_processes() == 0);
     return 0;
 }

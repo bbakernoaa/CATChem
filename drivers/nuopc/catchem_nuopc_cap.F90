@@ -508,7 +508,7 @@ contains
 
       type(ESMF_State) :: importState, exportState
       type(ESMF_Clock) :: clock
-      type(ESMF_Time) :: currTime
+      type(ESMF_Time) :: currTime, nextTime
       type(ESMF_TimeInterval) :: timeStep
       type(CATChem_InternalState) :: is
       character(len=*), parameter :: routine = 'ModelAdvance'
@@ -537,6 +537,8 @@ contains
       call ESMF_TimeIntervalGet(timeStep, s_r8=dt_seconds, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
+
+      nextTime = currTime + timeStep
 
       if (localPet == 0) then
          call ESMF_LogWrite("CATChem: Running CATChem for dt = " // &
@@ -601,7 +603,15 @@ contains
       write(*, '(A,I0)') '[CAP DEBUG] ModelAdvance: calling transform_catchem_to_nuopc localPet=', localPet
       call flush(6)
 #endif
-      call transform_catchem_to_nuopc(is%wrap, exportState, rc)
+      call transform_catchem_to_nuopc(is%wrap, exportState, rc, nextTime)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__)) return
+
+      ! The producer owns the validity time of its completed exports.  Stamp
+      ! the whole state after every transform so downstream NUOPC components
+      ! see the end-of-interval timestamp of the CATChem advance that
+      ! produced these fields.
+      call NUOPC_SetTimestamp(exportState, nextTime, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
 #ifdef CATCHEM_TRACE_NUOPC

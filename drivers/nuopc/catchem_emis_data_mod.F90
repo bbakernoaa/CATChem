@@ -16,6 +16,7 @@ MODULE catchem_nuopc_emis_data_mod
    ! Module uses
    !=========================================================================
    use catchem_bridge_error
+   use catchem_regrid_mod, only: RegridCache
    ! USE logging_mod, only: log_message, LOG_ERROR, LOG_WARNING, LOG_INFO, LOG_DEBUG
    use catchem_bridge_precision
    USE IEEE_ARITHMETIC
@@ -170,6 +171,9 @@ MODULE catchem_nuopc_emis_data_mod
       INTEGER                                   :: total_fields = 0    !< Total number of emission fields
       CHARACTER(LEN=128)                        :: data_source = ''    !< Data source information
       REAL(fp)                                  :: global_scale = 1.0_fp !< Global scaling factor for all emissions
+      ! Regridding resources belong to this component instance.  A module-level
+      ! cache lets one CATChem instance destroy route handles still used by another.
+      type(RegridCache)                         :: regrid_cache
    CONTAINS
       !> \brief Initialize emission data container
       !! \copydoc extemidata_init

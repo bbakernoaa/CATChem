@@ -74,7 +74,8 @@ contains
       ! Convert C string to Fortran
       local_scheme = ""
       icol = 1
-      do while (active_scheme(icol) /= c_null_char .and. icol < 64)
+      do while (icol < 64)
+         if (active_scheme(icol) == c_null_char) exit
          local_scheme(icol:icol) = active_scheme(icol)
          icol = icol + 1
       end do

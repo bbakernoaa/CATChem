@@ -219,6 +219,7 @@ module catchem_nuopc_interface
       type(ESMF_TimeInterval) :: output_interval
       type(ESMF_TimeInterval) :: timeStep
       logical :: output_timing_initialized = .false.
+      integer :: timestep_counter = 0  !< Per-component run counter; never shared across CATChem instances.
       character(len=256) :: output_directory = './output'
       character(len=64) :: output_prefix = 'catchem_diag'
       integer :: output_frequency = 3600  ! Default: 1 hour in seconds
@@ -538,7 +539,11 @@ contains
       ! Add all enabled processes from configuration
       call cc_wrap%catchem_model%add_process(rc)
       num_processes = cc_wrap%catchem_model%get_num_processes()
-      if (rc /= CC_SUCCESS .or. num_processes <= 0) then
+      ! A process-free configuration is a valid lifecycle/contract run.  It
+      ! permits an embedding application to initialize, exchange fields, and
+      ! finalize CATChem before runtime YAML activates any processes.  Only a
+      ! failed process-registration call is an initialization error.
+      if (rc /= CC_SUCCESS) then
          call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
             msg="CATChem initialization failed", &
             line=__LINE__, file=__FILE__, rcToReturn=rc)
@@ -632,8 +637,6 @@ contains
       character(len=*), intent(out) :: errmsg
       integer, intent(out) :: rc
 
-      integer, save :: timestep = 0
-
       rc = CC_SUCCESS
       errmsg = ''
 
@@ -659,15 +662,15 @@ contains
 #endif
 
       !Run CATChem processes
-      timestep = timestep + 1
+      cc_wrap%timestep_counter = cc_wrap%timestep_counter + 1
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionEnter("cc_wrap%catchem_model%run_timestep", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
 #endif
-      call cc_wrap%catchem_model%run_timestep(timestep, real(dt, fp), rc)
+      call cc_wrap%catchem_model%run_timestep(cc_wrap%timestep_counter, real(dt, fp), rc)
       if (rc /= CC_SUCCESS) then
-         write(errmsg, '(A,I0)') 'Error in run_timestep at timestep = ', timestep
+         write(errmsg, '(A,I0)') 'Error in run_timestep at timestep = ', cc_wrap%timestep_counter
          return
       end if
 #ifdef CATCHEM_TRACE_NUOPC
@@ -1042,6 +1045,12 @@ contains
 
       do n = 1, cc_wrap%field_config%n_import_fields
 
+         ! Keep an unadvertised optional input out of ESMF_StateGet.  Calling
+         ! StateGet for a field the YAML explicitly chose not to advertise
+         ! produces an ESMF error log even though absence is valid.
+         if (cc_wrap%field_config%import_fields(n)%optional .and. &
+             .not. cc_wrap%field_config%import_fields(n)%advertise) cycle
+
          ! Try to get field from import state (will fail if not present)
          call ESMF_StateGet(importState, trim(cc_wrap%field_config%import_fields(n)%standard_name), field, rc=rc)
 
@@ -1099,11 +1108,12 @@ contains
    !! \param    kme            Vertical dimension
    !! \param   rc             ESMF return code
    !!
-   subroutine transform_catchem_to_nuopc(cc_wrap, exportState, rc)
+   subroutine transform_catchem_to_nuopc(cc_wrap, exportState, rc, currTime)
 
       type(cc_wrap_type), intent(inout) :: cc_wrap
       type(ESMF_State), intent(inout) :: exportState
       integer, intent(out) :: rc
+      type(ESMF_Time), intent(in), optional :: currTime
 
       type(ESMF_Field) :: field
       integer :: n
@@ -1135,6 +1145,15 @@ contains
          call transform_catchem_to_field(cc_wrap, field, cc_wrap%field_config%export_fields(n), rc)
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return
+
+         if (present(currTime)) then
+            ! NUOPC validates each shared Field's timestamp, not just the
+            ! enclosing State.  Stamp the completed member at the current
+            ! coupling time so the consumer observes a valid export.
+            call NUOPC_SetTimestamp(field, currTime, rc=rc)
+            if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__)) return
+         end if
 
       end do
 

@@ -443,7 +443,11 @@ if(CATCHEM_BUILD_NUOPC)
   set_target_properties(
     cc_nuopc
     PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/../mod
+      # Keep generated module interfaces inside the build tree.  A path
+      # relative to the CMake working directory resolves outside a container
+      # build and makes downstream NUOPC applications unable to compile
+      # against cc_nuopc in a clean build.
+      Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
       EXPORT_NAME cc_nuopc
   )
 

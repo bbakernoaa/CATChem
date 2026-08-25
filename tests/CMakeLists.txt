@@ -478,7 +478,7 @@ if(CATCHEM_BUILD_NUOPC)
     test_nuopc_transform
     PRIVATE
       ${CMAKE_BINARY_DIR}/include
-      $<TARGET_PROPERTY:cc_nuopc,Fortran_MODULE_DIRECTORY>
+      $<TARGET_PROPERTY:NUOPC_CATChem_cap,Fortran_MODULE_DIRECTORY>
   )
   # Stage the production field mapping and the test model configs into the
   # test's working directory.
@@ -504,16 +504,27 @@ if(CATCHEM_BUILD_NUOPC)
   set_target_properties(nuopc_contract_harness PROPERTIES
     Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include LINKER_LANGUAGE Fortran)
   target_include_directories(nuopc_contract_harness PRIVATE ${CMAKE_BINARY_DIR}/include
-    $<TARGET_PROPERTY:cc_nuopc,Fortran_MODULE_DIRECTORY>)
+    $<TARGET_PROPERTY:NUOPC_CATChem_cap,Fortran_MODULE_DIRECTORY>)
+  # Give the lifecycle harness its own run directory.  The cap resolves its
+  # YAML paths relative to the embedding application's working directory, as
+  # it does under UFS; staging the process-free test YAML under the cap's
+  # conventional filename keeps this test hermetic without changing the
+  # production configuration used by test_nuopc_transform.
+  set(NUOPC_CONTRACT_RUN_DIR ${CMAKE_CURRENT_BINARY_DIR}/nuopc_contract_run)
+  file(MAKE_DIRECTORY ${NUOPC_CONTRACT_RUN_DIR})
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CATChem_nuopc_lifecycle_config.yml
+                 ${NUOPC_CONTRACT_RUN_DIR}/CATChem_new_config.yml COPYONLY)
   file(COPY ${PROJECT_SOURCE_DIR}/drivers/nuopc/CATChem_field_mapping.yml
-             ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_new_config.yml
              ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_species.yml
              ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_emission.yml
              ${CMAKE_CURRENT_SOURCE_DIR}/nuopc_contract_run.yml
-       DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+       DESTINATION ${NUOPC_CONTRACT_RUN_DIR})
   file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/host_conformance
-       DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+       DESTINATION ${NUOPC_CONTRACT_RUN_DIR})
   add_test(NAME nuopc_contract_valid COMMAND nuopc_contract_harness
-           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+           WORKING_DIRECTORY ${NUOPC_CONTRACT_RUN_DIR})
+  # A lifecycle regression must fail rather than leave CI or a developer's
+  # test run waiting indefinitely in a NUOPC phase.
+  set_tests_properties(nuopc_contract_valid PROPERTIES TIMEOUT 30)
   catchem_label_tests("integration;contract;boundary" nuopc_contract_valid)
 endif()

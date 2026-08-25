@@ -111,14 +111,16 @@ contains
 
       ! Convert C strings to Fortran strings
       icol = 1
-      do while (gas_scheme(icol) /= c_null_char .and. icol < 64)
+      do while (icol < 64)
+         if (gas_scheme(icol) == c_null_char) exit
          local_gas(icol:icol) = gas_scheme(icol)
          icol = icol + 1
       end do
       local_gas = trim(adjustl(local_gas))
 
       icol = 1
-      do while (aero_scheme(icol) /= c_null_char .and. icol < 64)
+      do while (icol < 64)
+         if (aero_scheme(icol) == c_null_char) exit
          local_aero(icol:icol) = aero_scheme(icol)
          icol = icol + 1
       end do

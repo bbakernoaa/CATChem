@@ -60,8 +60,6 @@ module catchem_nuopc_emis_mod
    integer, parameter :: EMIS_MAXFIELDS = 100
    real(fp), parameter :: EMIS_MISSING = -999.0_fp
 
-   !> Module-level regrid cache (weights computed once, reused)
-   type(RegridCache), save :: emis_regrid_cache
    real(fp), parameter :: EMIS_ACCEPT = 1.e+15_fp ! Same as MAPL library "undefval"
 
    interface
@@ -556,7 +554,7 @@ contains
                ext_emis_data%categories(i)%irec = ext_emis_data%categories(i)%irec + 1
             end if
 
-            call catchem_emis_read(ext_emis_data%categories(i), IO, grid, &
+            call catchem_emis_read(ext_emis_data%categories(i), ext_emis_data%regrid_cache, IO, grid, &
                nlev, current_time, localrc)
             if (localrc /= CC_SUCCESS) then
                write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed to read data for category: ', &
@@ -603,10 +601,11 @@ contains
    !! \param[inout] ext_emis_data External emission data container
    !! \param[in] category_name Name of emission category to read
    !! \param[out] rc Return code
-   subroutine catchem_emis_read(category, IO, grid, nlev, curr_time, rc)
+   subroutine catchem_emis_read(category, regrid_cache, IO, grid, nlev, curr_time, rc)
       implicit none
 
       type(ExtEmisCategoryType), intent(inout) :: category
+      type(RegridCache), intent(inout) :: regrid_cache
       type(ESMF_GridComp), intent(inout) :: IO
       type(ESMF_Grid), intent(in) :: grid
       integer, intent(in) :: nlev
@@ -697,7 +696,7 @@ contains
             rc = CC_FAILURE
             return
          end if
-         call catchem_emis_read_regrid(category, grid, nlev, filename, curr_time, rc)
+         call catchem_emis_read_regrid(category, regrid_cache, grid, nlev, filename, curr_time, rc)
          return
       end if
 
@@ -789,11 +788,12 @@ contains
    !!
    !! Reads global lat-lon emission data and regrids it onto the model
    !! grid using ESMF bilinear regridding.  Route handles are cached in
-   !! the module-level emis_regrid_cache so weights are computed only once.
-   subroutine catchem_emis_read_regrid(category, grid, nlev, filename, curr_time, rc)
+   !! the component-owned regrid cache so weights are computed once per instance.
+   subroutine catchem_emis_read_regrid(category, regrid_cache, grid, nlev, filename, curr_time, rc)
       implicit none
 
       type(ExtEmisCategoryType), intent(inout) :: category
+      type(RegridCache),         intent(inout) :: regrid_cache
       type(ESMF_Grid),          intent(in)    :: grid
       integer,                  intent(in)    :: nlev
       character(len=*),         intent(in)    :: filename
@@ -904,7 +904,7 @@ contains
          if (category%is_2d) then
             ! --- 2D field ---
             call catchem_regrid_field( &
-               cache     = emis_regrid_cache, &
+               cache     = regrid_cache, &
                filename  = trim(filename), &
                varname   = trim(category%fields(ifield)%field_name), &
                dstField  = esmf_field, &
@@ -939,7 +939,7 @@ contains
                ! Regrid the next time slice (from same file or next-period file)
                if (multi_file_interp) then
                   call catchem_regrid_field( &
-                     cache     = emis_regrid_cache, &
+                     cache     = regrid_cache, &
                      filename  = trim(filename_next), &
                      varname   = trim(category%fields(ifield)%field_name), &
                      dstField  = esmf_field, &
@@ -951,7 +951,7 @@ contains
                      rc        = localrc)
                else
                   call catchem_regrid_field( &
-                     cache     = emis_regrid_cache, &
+                     cache     = regrid_cache, &
                      filename  = trim(filename), &
                      varname   = trim(category%fields(ifield)%field_name), &
                      dstField  = esmf_field, &
@@ -987,7 +987,7 @@ contains
             ! --- 3D field: regrid each vertical level as a 2D slab ---
             do klev = 1, nlev
                call catchem_regrid_field( &
-                  cache     = emis_regrid_cache, &
+                  cache     = regrid_cache, &
                   filename  = trim(filename), &
                   varname   = trim(category%fields(ifield)%field_name), &
                   dstField  = esmf_field, &
@@ -1021,7 +1021,7 @@ contains
 
                   if (multi_file_interp) then
                      call catchem_regrid_field( &
-                        cache     = emis_regrid_cache, &
+                        cache     = regrid_cache, &
                         filename  = trim(filename_next), &
                         varname   = trim(category%fields(ifield)%field_name), &
                         dstField  = esmf_field, &
@@ -1034,7 +1034,7 @@ contains
                         rc        = localrc)
                   else
                      call catchem_regrid_field( &
-                        cache     = emis_regrid_cache, &
+                        cache     = regrid_cache, &
                         filename  = trim(filename), &
                         varname   = trim(category%fields(ifield)%field_name), &
                         dstField  = esmf_field, &
@@ -2576,7 +2576,7 @@ contains
       end if
 
       ! Clean up regrid route-handle cache
-      call catchem_regrid_cleanup(emis_regrid_cache, rc=localrc)
+      call catchem_regrid_cleanup(ext_emis_data%regrid_cache, rc=localrc)
 
       call ESMF_LogWrite(trim(pName)//': Emission data finalized', &
          ESMF_LOGMSG_INFO, rc=localrc)
