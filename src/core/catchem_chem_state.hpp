@@ -65,7 +65,12 @@ namespace catchem {
                 meta.roles = sp.roles;
 
                 meta.is_gas = sp.is_gas;
-                meta.is_aerosol = sp.is_aerosol;
+                // A species explicitly declared gas is never passed to
+                // particle-only processes, even if a legacy species file
+                // also carries a stale aerosol flag.  This preserves the
+                // configured gas classification without inventing particle
+                // radius or density properties.
+                meta.is_aerosol = sp.is_aerosol && !meta.is_gas;
                 meta.is_tracer = sp.is_tracer;
                 meta.is_advected = sp.is_advected;
                 meta.is_drydep = sp.is_drydep;
