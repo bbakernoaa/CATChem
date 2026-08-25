@@ -125,6 +125,14 @@ module catchem_nuopc_interface
          import :: c_ptr, c_int
          type(c_ptr), value :: state_ptr
       end function
+
+      integer(c_int) function catchem_config_get_yaml_bool(core_ptr, yaml_path, default_val) &
+         bind(C, name="catchem_config_get_yaml_bool")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: yaml_path(*)
+         integer(c_int), value :: default_val
+      end function catchem_config_get_yaml_bool
    end interface
 
    private
@@ -212,6 +220,7 @@ module catchem_nuopc_interface
       real(c_double), allocatable :: dust_sandfrac(:,:)
       real(c_double), allocatable :: dust_ustar_threshold(:,:)
       logical :: initialized = .false.
+      logical :: verbose_logging = .false. !< Runtime YAML switch: simulation/verbose/activate
       ! Diagnostic output variables (moved from module level for MPI safety)
       type(ESMF_Time) :: last_output_time
       type(ESMF_Time) :: startTime
@@ -249,6 +258,20 @@ contains
          value(i:i) = c_value(i)
       end do
    end subroutine catchem_c_string_to_fortran
+
+   !> Emit a low-volume, per-PET run-phase marker when enabled in runtime YAML.
+   !! The final marker in an ESMF PET log identifies the phase that stalled.
+   subroutine catchem_log_run_phase(cc_wrap, step, phase)
+      type(cc_wrap_type), intent(in) :: cc_wrap
+      integer, intent(in) :: step
+      character(len=*), intent(in) :: phase
+      character(len=256) :: message
+      integer :: localrc
+
+      if (.not. cc_wrap%verbose_logging) return
+      write(message, '(A,I0,A,A)') 'CATChem run step=', step, ' phase=', trim(phase)
+      call ESMF_LogWrite(trim(message), ESMF_LOGMSG_INFO, rc=localrc)
+   end subroutine catchem_log_run_phase
 
    subroutine catchem_nuopc_get_physical_validation_report(cc_wrap, issue_count, detail, rc)
       type(cc_wrap_type), intent(inout) :: cc_wrap
@@ -346,6 +369,9 @@ contains
             line=__LINE__, file=__FILE__, rcToReturn=rc)
          return  ! bail out
       end if
+
+      cc_wrap%verbose_logging = catchem_config_get_yaml_bool( &
+         cc_wrap%catchem_model%cpp_core_ptr, 'simulation/verbose/activate' // c_null_char, 0_c_int) /= 0
 
       !assign lat and lon directly to C++ StateManager persistently in cc_wrap
       allocate(cc_wrap%lat(nx, ny))
@@ -549,6 +575,7 @@ contains
             line=__LINE__, file=__FILE__, rcToReturn=rc)
          return  ! bail out
       end if
+      call catchem_log_run_phase(cc_wrap, 0, 'initialize: processes registered')
 
       ! Mark this process as initialized
       cc_wrap%initialized = .true.
@@ -640,6 +667,9 @@ contains
       rc = CC_SUCCESS
       errmsg = ''
 
+      cc_wrap%timestep_counter = cc_wrap%timestep_counter + 1
+      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter emissions update')
+
       ! Update extemission data first
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionEnter("catchem_emis_update", rc=rc)
@@ -649,6 +679,7 @@ contains
       call catchem_emis_update(cc_wrap%ext_emis, cc_wrap%catchem_model%cpp_core_ptr, current_time, cc_wrap%catchem_model%nz, cc_wrap%iocomp, cc_wrap%grid, real(dt, fp), rc)
 
       if (rc == CC_SUCCESS) then
+         call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter static-met bind')
          call bind_static_met_from_aqmio(cc_wrap, rc)
       end if
       if (rc /= CC_SUCCESS) then
@@ -662,7 +693,7 @@ contains
 #endif
 
       !Run CATChem processes
-      cc_wrap%timestep_counter = cc_wrap%timestep_counter + 1
+      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter core process dispatch')
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionEnter("cc_wrap%catchem_model%run_timestep", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -683,6 +714,7 @@ contains
       ! DiagnosticManager so they are available both for NetCDF output and for
       ! NUOPC export, and must be computed after run_timestep (so concentrations
       ! are current) and before the export transform.
+      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter PM diagnostics')
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionEnter("update_pm_diagnostics", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -700,6 +732,7 @@ contains
 #endif
 
       ! Write NetCDF output diagnostics if needed
+      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter diagnostics output')
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionEnter("catchem_diagnostics_write", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -715,6 +748,8 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
 #endif
+
+      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'complete')
 
    end subroutine catchem_nuopc_run
 
