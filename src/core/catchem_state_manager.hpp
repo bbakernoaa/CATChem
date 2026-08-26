@@ -221,7 +221,7 @@ namespace catchem {
                 return "1";
             if (key == "PMID" || key == "PEDGE" || key == "PS")
                 return "Pa";
-            if (key == "Z" || key == "ZMID" || key == "BXHEIGHT" || key == "PBLH")
+            if (key == "Z" || key == "ZMID" || key == "BXHEIGHT" || key == "PBLH" || key == "ORO")
                 return "m";
             if (key == "AIRDEN" || key == "AIRDEN_DRY")
                 return "kg/m3";
@@ -231,29 +231,41 @@ namespace catchem {
                 return "m2";
             if (key == "DELP")
                 return "Pa";
+            if (key == "U" || key == "V")
+                return "m/s";
+            if (key == "T2M" || key == "SOILT")
+                return "K";
+            if (key == "QV2M")
+                return "kg/kg";
+            if (key == "PRECLSC" || key == "PRECCON")
+                return "m";
+            if (key == "WCA")
+                return "m3";
             if (key == "PFILSAN" || key == "PFLLSAN")
                 return "kg/m2/s";
             if (key == "REEVAPLS")
                 return "kg/kg/s";
             if (key == "GVF")
                 return "frac";
+            if (key == "FROCEAN" || key == "FRSEAICE" || key == "FRSNO")
+                return "frac";
             if (key == "LAI")
                 return "m2/m2";
-            if (key == "FROCEAN" || key == "FRSEAICE" || key == "CLAYFRAC" || key == "FRLAKE" || key == "FRSNO" ||
-                key == "LWI" || key == "DLUSE" || key == "SNDFRC" || key == "GWETTOP" ||
+            if (key == "CLAYFRAC" || key == "FRLAKE" || key == "LWI" || key == "DLUSE" || key == "DSOILTYPE" ||
+                key == "SNDFRC" || key == "GWETTOP" ||
                 key == "CLDF" || key == "SSM" || key == "RDRAG")
                 return "1";
             if (key == "SST")
                 return "K";
             if (key == "U10M" || key == "V10M" || key == "USTAR" || key == "USTAR_THRESHOLD")
                 return "m/s";
-            if (key == "CMM")
-                return "1";
+            if (key == "CMM" || key == "RCA")
+                return "s/m";
             if (key == "SOILM")
                 return "m3/m3";
             if (key == "Z0" || key == "OBK")
                 return "m";
-            if (key == "HFLUX")
+            if (key == "HFLUX" || key == "EFLUX" || key == "HFLUX_UP" || key == "SWGDN")
                 return "W/m2";
             return "";
         }

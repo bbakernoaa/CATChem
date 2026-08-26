@@ -19,8 +19,8 @@ namespace catchem {
     ProcessContract SeaSaltProcess::get_contract() const {
         std::vector<FieldAccessContract> fields{host_field_interface("PEDGE", "Pa"),
                                                 host_field_3d("DELP", "Pa"),
-                                                host_field_2d("FROCEAN", "1"),
-                                                host_field_2d("FRSEAICE", "1"),
+                                                host_field_2d("FROCEAN", "frac"),
+                                                host_field_2d("FRSEAICE", "frac"),
                                                 host_field_2d("TS", "K"),
                                                 host_field_2d("LAT", "degrees", FieldRequirement::Required,
                                                               AccessIntent::Read, PersistencePolicy::Persistent),

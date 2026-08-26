@@ -32,7 +32,7 @@ namespace catchem {
         if (active_scheme == "fengsha") {
             fields.insert(fields.end(),
                           {host_field_soil_layer("SOILM", "m3/m3"), host_field_2d("CLAYFRAC", "1"),
-                           host_field_2d("FRLAKE", "1"), host_field_2d("FRSNO", "1"), host_field_2d("GVF", "frac"),
+                           host_field_2d("FRLAKE", "1"), host_field_2d("FRSNO", "frac"), host_field_2d("GVF", "frac"),
                            host_field_2d("LAI", "m2/m2", FieldRequirement::Optional), host_field_2d("LWI", "1"),
                            host_field_2d("RDRAG", "1"),
                            host_field_2d("SNDFRC", "1"), host_field_2d("SSM", "1"), host_field_2d("TS", "K"),
@@ -40,7 +40,7 @@ namespace catchem {
                            host_field_2d("Z0", "m")});
         } else if (active_scheme == "ginoux") {
             fields.insert(fields.end(),
-                          {host_field_2d("FRLAKE", "1"), host_field_2d("FRSNO", "1"), host_field_2d("GWETTOP", "1"),
+                          {host_field_2d("FRLAKE", "1"), host_field_2d("FRSNO", "frac"), host_field_2d("GWETTOP", "1"),
                            host_field_2d("LWI", "1"), host_field_2d("SSM", "1"), host_field_2d("TS", "K"),
                            host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s")});
         }

@@ -43,7 +43,7 @@ namespace catchem {
                  host_field_2d("PBLH", "m"),
                  host_field_2d("DLUSE", "1"),
                  host_field_2d("LAI", "m2/m2"),
-                 host_field_2d("FRSNO", "1"),
+                 host_field_2d("FRSNO", "frac"),
                  host_field_2d("SWGDN", "W/m2"),
                  host_field_2d("Z0", "m"),
                  host_field_2d("FRLAKE", "1"),
