@@ -224,6 +224,7 @@ module catchem_nuopc_interface
       real(c_double), allocatable :: dust_ssm(:,:)
       real(c_double), allocatable :: dust_rdrag(:,:)
       real(c_double), allocatable :: dust_ustar_threshold(:,:)
+      real(c_double), allocatable :: dust_lai(:,:)
       logical :: initialized = .false.
       logical :: verbose_logging = .false. !< Runtime YAML switch: simulation/verbose/activate
       ! Diagnostic output variables (moved from module level for MPI safety)
@@ -797,6 +798,11 @@ contains
          'RDRAG', cc_wrap%dust_rdrag, 1.0_c_double, rc)
       if (rc /= CC_SUCCESS) return
 
+      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_LAI', 'LAI', 'leaf_area_index'], &
+         [character(len=32) :: 'LAI', 'LEAF_AREA'], &
+         'LAI', cc_wrap%dust_lai, 1.0_c_double, rc)
+      if (rc /= CC_SUCCESS) return
+
       call bind_static_field(cc_wrap, [character(len=32) :: 'MET_USTAR_THRESHOLD', 'uthres', 'UTHR'], &
          [character(len=32) :: 'UTHR', 'THRESH'], &
          'USTAR_THRESHOLD', cc_wrap%dust_ustar_threshold, 1.0_c_double, rc)
@@ -1018,6 +1024,7 @@ contains
       if (allocated(cc_wrap%dust_ssm)) deallocate(cc_wrap%dust_ssm)
       if (allocated(cc_wrap%dust_rdrag)) deallocate(cc_wrap%dust_rdrag)
       if (allocated(cc_wrap%dust_ustar_threshold)) deallocate(cc_wrap%dust_ustar_threshold)
+      if (allocated(cc_wrap%dust_lai)) deallocate(cc_wrap%dust_lai)
       if (allocated(cc_wrap%met_buf_2d)) deallocate(cc_wrap%met_buf_2d)
       if (allocated(cc_wrap%met_buf_3d)) deallocate(cc_wrap%met_buf_3d)
       if (allocated(cc_wrap%chem_buf_4d)) deallocate(cc_wrap%chem_buf_4d)
