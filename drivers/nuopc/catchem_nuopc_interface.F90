@@ -1145,8 +1145,11 @@ contains
             ! stages; they must never be replaced with fallback values.
             required_from_import = .false.
             do n = 1, cc_wrap%field_config%n_import_fields
-               if (trim(cc_wrap%field_config%import_fields(n)%catchem_var) == &
-                  trim(cc_wrap%catchem_model%required_fields(i))) then
+               if (.not. cc_wrap%field_config%import_fields(n)%optional .and. &
+                  (trim(cc_wrap%field_config%import_fields(n)%catchem_var) == &
+                  trim(cc_wrap%catchem_model%required_fields(i)) .or. &
+                  trim(cc_wrap%field_config%import_fields(n)%host_tracer_var) == &
+                  trim(cc_wrap%catchem_model%required_fields(i)))) then
                   required_from_import = .true.
                   exit
                end if
@@ -1541,6 +1544,10 @@ contains
             call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%host_tracer_var), &
                cc_wrap%met_buf_3d(fidx)%data, 0, rc)
             if (rc /= CC_SUCCESS) return
+            if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(is_met_set)) then
+               met_index = cc_wrap%catchem_model%get_required_met_index(trim(field_map%host_tracer_var))
+               if (met_index > 0 .and. met_index <= size(is_met_set)) is_met_set(met_index) = .true.
+            end if
          end if
 
        case default
