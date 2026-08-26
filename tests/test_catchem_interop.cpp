@@ -209,7 +209,8 @@ int main(int argc, char* argv[]) {
             int n_levels = 5;
             int n_species = 2;
 
-            void* core_ptr = catchem_core_create(n_cols, n_levels, n_species);
+            void* core_ptr = catchem_core_create_from_config("CATChem_config.yml");
+            assert(core_ptr != nullptr);
 
             // Add the dynamically registered settling process by name via dynamic registry
             catchem_core_add_process_by_name(core_ptr, "settling");
@@ -347,6 +348,17 @@ int main(int argc, char* argv[]) {
             assert(is_gas_so4 == 0);
             assert(is_aero_so4 == 1);
 
+            // The NUOPC tracer-unit boundary depends on checked metadata:
+            // gases require a positive molecular weight while aerosols do not
+            // use molecular weight for their kg/kg <-> ug/kg conversion.
+            double checked_mw = 0.0;
+            int checked_is_gas = 0;
+            assert(catchem_state_get_species_mw_checked(state, idx_so2, &checked_mw) == 0);
+            assert(checked_mw > 0.0);
+            assert(catchem_state_is_species_gas_checked(state, idx_so2, &checked_is_gas) == 0);
+            assert(checked_is_gas == 1);
+            assert(catchem_state_get_species_mw_checked(state, 0, &checked_mw) != 0);
+
             // 5. Validate category lists (gas / aerosol)
             int gas_count = catchem_state_get_gas_species_count(state);
             assert(gas_count > 0);
@@ -373,7 +385,8 @@ int main(int argc, char* argv[]) {
             int n_levels = 5;
             int n_species = 22;
 
-            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
+            assert(core != nullptr);
             void* state = catchem_core_get_state_manager(core);
             auto* state_obj = static_cast<catchem::StateManager*>(state);
 
@@ -505,19 +518,9 @@ int main(int argc, char* argv[]) {
             // Register drydep C++ process dynamically
             catchem_register_drydep_cpp();
 
-            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
+            assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
-
-            // Load species configuration first (otherwise species_list is empty)
-            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
-                                              "../../tests/CATChem_species.yml"};
-            for (const auto& path : paths) {
-                try {
-                    state->load_species_config(path);
-                    break;
-                } catch (...) {
-                }
-            }
 
             // Set up mock temperature and concentrations (so4 at index 4)
             std::vector<double> mock_t(n_cols * n_levels, 288.15);
@@ -527,6 +530,17 @@ int main(int argc, char* argv[]) {
             std::vector<double> mock_bxheight(n_cols * n_levels, 100.0);
             std::vector<double> mock_airden(n_cols * n_levels, 1.2);
             std::vector<double> mock_rh(n_cols * n_levels, 0.5);
+            std::vector<double> mock_cldf(n_cols * n_levels, 0.0);
+            std::vector<double> mock_airden_dry(n_cols * n_levels, 1.2);
+
+            for (int i = 0; i < n_cols; ++i) {
+                mock_pedge[i + 0 * n_cols] = 101300.0;
+                mock_pedge[i + 1 * n_cols] = 90000.0;
+                mock_pedge[i + 2 * n_cols] = 80000.0;
+                mock_pedge[i + 3 * n_cols] = 70000.0;
+                mock_pedge[i + 4 * n_cols] = 60000.0;
+                mock_pedge[i + 5 * n_cols] = 50000.0;
+            }
 
             std::vector<double> mock_ps(n_cols, 101300.0);
             std::vector<double> mock_ts(n_cols, 288.15);
@@ -546,7 +560,9 @@ int main(int argc, char* argv[]) {
             catchem_state_bind_met_3d(state, "PEDGE", mock_pedge.data());
             catchem_state_bind_met_3d(state, "BXHEIGHT", mock_bxheight.data());
             catchem_state_bind_met_3d(state, "AIRDEN", mock_airden.data());
+            catchem_state_bind_met_3d(state, "AIRDEN_DRY", mock_airden_dry.data());
             catchem_state_bind_met_3d(state, "RH", mock_rh.data());
+            catchem_state_bind_met_3d(state, "CLDF", mock_cldf.data());
 
             // Bind 2D Met fields
             catchem_state_bind_met_2d(state, "PS", mock_ps.data());
@@ -557,6 +573,18 @@ int main(int argc, char* argv[]) {
             catchem_state_bind_met_2d(state, "OBK", mock_obk.data());
             catchem_state_bind_met_2d(state, "LAT", mock_lat.data());
             catchem_state_bind_met_2d(state, "LON", mock_lon.data());
+
+            std::vector<double> mock_surface(n_cols, 0.0);
+            catchem_state_bind_met_2d(state, "DLUSE", mock_surface.data());
+            catchem_state_bind_met_2d(state, "LAI", mock_surface.data());
+            catchem_state_bind_met_2d(state, "FRSNO", mock_surface.data());
+            catchem_state_bind_met_2d(state, "SWGDN", mock_surface.data());
+            catchem_state_bind_met_2d(state, "Z0", mock_surface.data());
+            catchem_state_bind_met_2d(state, "FRLAKE", mock_surface.data());
+            catchem_state_bind_met_2d(state, "GWETTOP", mock_surface.data());
+            catchem_state_bind_met_2d(state, "LWI", mock_surface.data());
+            catchem_state_bind_met_2d(state, "U10M", mock_surface.data());
+            catchem_state_bind_met_2d(state, "V10M", mock_surface.data());
 
             catchem_state_bind_unified_chemistry(state, mock_chem_state.data());
             catchem_state_sync_to_device(state);
@@ -591,7 +619,8 @@ int main(int argc, char* argv[]) {
 
             catchem_register_seasalt_cpp();
 
-            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
+            assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
 
             // Load species
@@ -652,7 +681,8 @@ int main(int argc, char* argv[]) {
 
             catchem_register_wetdep_cpp();
 
-            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
+            assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
 
             // Load species
@@ -708,7 +738,8 @@ int main(int argc, char* argv[]) {
 
             catchem_register_so4chem_cpp();
 
-            void* core = catchem_core_create(n_cols, n_levels, n_species);
+            void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
+            assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
 
             // Load species

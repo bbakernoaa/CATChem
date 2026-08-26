@@ -162,9 +162,14 @@ contains
        case (4)
          nullify(f4); call ESMF_FieldGet(field, farrayPtr=f4, rc=rc)
          if (rc /= ESMF_SUCCESS) return
-         ! The first configured host tracer is specific humidity.  It is a
-         ! physical mixing ratio, not a generic unit-valued test field.
-         f4 = 1.0E-2_ESMF_KIND_R8
+         ! Keep host-owned and pseudo-tracer slots distinct from transported
+         ! chemistry values so both exchange directions can be checked.
+         f4 = 0.0_ESMF_KIND_R8
+         f4(:,:,:,1) = 1.0E-2_ESMF_KIND_R8
+         f4(:,:,:,2) = 1.0E-6_ESMF_KIND_R8
+         f4(:,:,:,3) = 2.0E-6_ESMF_KIND_R8
+         f4(:,:,:,4) = 7.0E-6_ESMF_KIND_R8
+         f4(:,:,:,5) = 8.0E-6_ESMF_KIND_R8
       end select
    end subroutine populate_mock_field
 
@@ -177,15 +182,15 @@ contains
       type(ESMF_Array) :: array
       type(ESMF_Info) :: tracer_info
       integer :: i, nzf, ntr
-      character(len=ESMF_MAXSTR) :: tracer_names(3), tracer_units(3)
+      character(len=ESMF_MAXSTR) :: tracer_names(5), tracer_units(5)
       rc = ESMF_SUCCESS
       call NUOPC_ModelGet(model, importState=importState, exportState=exportState, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call ESMF_GridCompGet(model, grid=grid, rc=rc)
       if (rc /= ESMF_SUCCESS) return
-      ntr = 3
-      tracer_names = [character(len=ESMF_MAXSTR) :: 'sphum', 'SO2', 'SO4']
-      tracer_units = [character(len=ESMF_MAXSTR) :: 'kg kg-1', 'kg kg-1', 'kg kg-1']
+      ntr = 5
+      tracer_names = [character(len=ESMF_MAXSTR) :: 'sphum', 'chemical_gas', 'chemical_aerosol', 'PM25', 'PM10']
+      tracer_units = [character(len=ESMF_MAXSTR) :: '1', 'KG/KG', 'kg kg^-1', 'not-a-chemical-unit', 'not-a-chemical-unit']
       do i = 1, field_config%n_import_fields
          if (field_config%import_fields(i)%optional .and. &
             .not. field_config%import_fields(i)%advertise) cycle
@@ -341,6 +346,7 @@ program nuopc_contract_harness
       transform_catchem_to_nuopc, field_config, cc_wrap_type, update_pm_diagnostics
    use catchem_bridge_error, only: CC_SUCCESS
    use catchem_bridge_precision, only: fp
+   use catchem_bridge_constants, only: AIRMW
    use CATChem_API, only: CATChem_Model
 
    implicit none
@@ -364,25 +370,51 @@ program nuopc_contract_harness
          integer(c_int), value :: index, length
          character(c_char), intent(out) :: name(*)
       end function
+      integer(c_int) function catchem_state_is_species_gas_checked(state, index, value) &
+         bind(C, name="catchem_state_is_species_gas_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state
+         integer(c_int), value :: index
+         integer(c_int), intent(out) :: value
+      end function
+      integer(c_int) function catchem_state_is_species_aerosol_checked(state, index, value) &
+         bind(C, name="catchem_state_is_species_aerosol_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state
+         integer(c_int), value :: index
+         integer(c_int), intent(out) :: value
+      end function
+      integer(c_int) function catchem_state_get_species_mw_checked(state, index, mw) &
+         bind(C, name="catchem_state_get_species_mw_checked")
+         import :: c_ptr, c_int, c_double
+         type(c_ptr), value :: state
+         integer(c_int), value :: index
+         real(c_double), intent(out) :: mw
+      end function
    end interface
 
-   integer, parameter :: nx = 4, ny = 2, nz = 5, ntr = 3
+   integer, parameter :: nx = 4, ny = 2, nz = 5, ntr = 5
    type(cc_wrap_type) :: cc_wrap
    type(CATChem_Model) :: parity_model
    type(ESMF_Grid) :: grid
    type(ESMF_State) :: importState, exportState
    type(ESMF_GridComp) :: driver_comp
    type(ESMF_Field) :: field
+   type(ESMF_Array) :: array
+   type(ESMF_Info) :: tracer_info
    type(ESMF_Time) :: currTime
    real(ESMF_KIND_R8), pointer :: fptr2(:, :), fptr3(:, :, :), fptr4(:, :, :, :)
    real(c_double), pointer :: z0_ptr(:,:) => null()
    type(c_ptr) :: raw_z0_ptr
    character(len=256) :: errmsg
-   integer :: rc, urc, i, nzf, parity_issues
+   integer :: rc, urc, i, nzf, parity_issues, gas_slot, aerosol_slot
+   integer(c_int) :: gas_idx, aerosol_idx, gas_flag, aerosol_flag, species_count
+   real(c_double) :: gas_mw
    integer(c_int) :: parity_count, parity_status
    character(kind=c_char) :: parity_c_name(64)
    character(len=64) :: parity_name
    character(len=512) :: parity_report
+   character(len=ESMF_MAXSTR) :: exchange_tracer_names(ntr), exchange_tracer_units(ntr)
    character(len=64), parameter :: parity_expected(3) = [character(len=64) :: &
       'unfamiliar_alpha', 'unfamiliar_beta', 'unfamiliar_gamma']
 
@@ -408,15 +440,8 @@ program nuopc_contract_harness
    call check(urc, "Managed driver finalize user return code")
    if (.not. driver_services_seen()) error stop 'Managed driver services were not invoked'
    print *, 'PASS: DataATM -> CATChem managed lifecycle completed'
-   call ESMF_Finalize(rc=rc)
-   call check(rc, "ESMF_Finalize managed lifecycle")
-   stop
-   ! ESMF_GridCompInitialize registers the derived driver here; the NUOPC
-   ! driver invokes SetModelServices/SetRunSequence during its own managed
-   ! initialization phase.  The full managed-driver path is covered by the
-   ! lifecycle case tracked in the feature tasks.
-   ! ESMF initialization is intentionally deferred until the synthetic
-   ! exchange states and clock are available; NUOPC owns the phase ordering.
+   ! Keep ESMF initialized while the remainder of this executable drives the
+   ! production transforms directly with synthetic exchange states.
 
    ! 1. Load the real production field mapping
    call load_field_config('CATChem_field_mapping.yml', rc, errmsg)
@@ -432,6 +457,51 @@ program nuopc_contract_harness
       error stop 1
    end if
    cc_wrap%field_config = field_config
+
+   ! Select representative transported species from the active state rather
+   ! than baking a particular mechanism (such as GOCART) into this harness.
+   parity_status = catchem_state_get_species_count_checked(cc_wrap%catchem_model%state_mgr_ptr, species_count)
+   if (parity_status /= 0_c_int) error stop 'Active species count lookup failed'
+   gas_slot = 0; aerosol_slot = 0
+   do i = 1, species_count
+      gas_flag = 0_c_int; aerosol_flag = 0_c_int
+      if (catchem_state_is_species_gas_checked(cc_wrap%catchem_model%state_mgr_ptr, int(i,c_int), gas_flag) /= 0_c_int) cycle
+      if (catchem_state_is_species_aerosol_checked(cc_wrap%catchem_model%state_mgr_ptr, int(i,c_int), aerosol_flag) /= 0_c_int) cycle
+      if (gas_flag /= 0_c_int .and. gas_slot == 0) then
+         gas_idx = int(i,c_int); gas_slot = 2
+      else if (aerosol_flag /= 0_c_int .and. aerosol_slot == 0) then
+         aerosol_idx = int(i,c_int); aerosol_slot = 3
+      end if
+      if (gas_slot > 0 .and. aerosol_slot > 0) exit
+   end do
+   if (gas_slot == 0 .or. aerosol_slot == 0) error stop 'Active mechanism lacks gas/aerosol representatives'
+   parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%state_mgr_ptr, gas_idx, parity_c_name, 64_c_int)
+   call parity_from_c(parity_c_name, parity_name)
+   exchange_tracer_names(2) = trim(parity_name)
+   parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%state_mgr_ptr, aerosol_idx, parity_c_name, 64_c_int)
+   call parity_from_c(parity_c_name, parity_name)
+   exchange_tracer_names(3) = trim(parity_name)
+   exchange_tracer_names(1) = 'sphum'; exchange_tracer_names(4) = 'PM25'; exchange_tracer_names(5) = 'PM10'
+   exchange_tracer_units = 'kg kg-1'; exchange_tracer_units(1) = '1'
+   exchange_tracer_units(2) = 'KG/KG'; exchange_tracer_units(3) = 'kg kg^-1'
+
+   ! The direct transform fixture does not pass through the ESMF cap's
+   ! catchem_nuopc_init wrapper, so install the same validated descriptor
+   ! shape here. Species identity and gas molecular weight remain discovered
+   ! from the active state; no mechanism-specific names or ordering are used.
+   allocate(cc_wrap%tracer_map%names(ntr), cc_wrap%tracer_map%units(ntr))
+   allocate(cc_wrap%tracer_map%nuopc_to_cc(ntr), cc_wrap%tracer_map%entry_kind(ntr))
+   allocate(cc_wrap%tracer_map%host_to_catchem(ntr), cc_wrap%tracer_map%catchem_to_host(ntr))
+   cc_wrap%tracer_map%names = exchange_tracer_names
+   cc_wrap%tracer_map%units = exchange_tracer_units
+   cc_wrap%tracer_map%nuopc_to_cc = [0, int(gas_idx), int(aerosol_idx), 0, 0]
+   cc_wrap%tracer_map%entry_kind = [0, 1, 1, 2, 2]
+   if (catchem_state_get_species_mw_checked(cc_wrap%catchem_model%state_mgr_ptr, gas_idx, gas_mw) /= 0_c_int) &
+      error stop 'Representative gas molecular weight lookup failed'
+   cc_wrap%tracer_map%host_to_catchem = 1.0_c_double
+   cc_wrap%tracer_map%host_to_catchem(2) = real(AIRMW, c_double) / gas_mw * 1.0E6_c_double
+   cc_wrap%tracer_map%host_to_catchem(3) = 1.0E9_c_double
+   cc_wrap%tracer_map%catchem_to_host = 1.0_c_double / cc_wrap%tracer_map%host_to_catchem
 
    ! Shared host-conformance fixture: mechanism order, failure category, and report shape.
    call parity_model%initialize('host_conformance/CATChem_config.yml', 2, 1, 3, rc=rc)
@@ -525,13 +595,32 @@ program nuopc_contract_harness
          call check(rc, "FieldCreate 4d")
          call ESMF_FieldGet(field, farrayPtr=fptr4, rc=rc)
          call check(rc, "FieldGet 4d")
+         call ESMF_FieldGet(field, array=array, rc=rc)
+         call check(rc, "FieldGet 4d array")
+         call ESMF_InfoGetFromHost(array, tracer_info, rc=rc)
+         call check(rc, "Tracer metadata lookup")
+         call ESMF_InfoSet(tracer_info, 'tracerNames', exchange_tracer_names, rc=rc)
+         call check(rc, "Tracer names metadata")
+         call ESMF_InfoSet(tracer_info, 'tracerUnits', exchange_tracer_units, rc=rc)
+         call check(rc, "Tracer units metadata")
          block
             integer :: ix, iy, iz, itr
             do itr = 1, ntr
                do iz = 1, nz
                   do iy = 1, ny
                      do ix = 1, nx
-                        fptr4(ix, iy, iz, itr) = real(ix + 10 * iy + 100 * iz + 1000 * itr, ESMF_KIND_R8)
+                        select case (itr)
+                         case (1)
+                           fptr4(ix, iy, iz, itr) = 1.0E-2_ESMF_KIND_R8
+                         case (2)
+                           fptr4(ix, iy, iz, itr) = 1.0E-6_ESMF_KIND_R8
+                         case (3)
+                           fptr4(ix, iy, iz, itr) = 2.0E-6_ESMF_KIND_R8
+                         case (4)
+                           fptr4(ix, iy, iz, itr) = 7.0E-6_ESMF_KIND_R8
+                         case (5)
+                           fptr4(ix, iy, iz, itr) = 8.0E-6_ESMF_KIND_R8
+                        end select
                      end do
                   end do
                end do
@@ -555,6 +644,28 @@ program nuopc_contract_harness
       error stop 1
    end if
    print *, 'PASS: transform_nuopc_to_catchem over the full required mapping'
+
+   ! The rank-4 boundary is host kg/kg.  Confirm the gas and aerosol slots
+   ! reached the native CATChem units while QV remained a host-owned field.
+   if (abs(cc_wrap%chem_buf_4d(1,1,1,gas_idx) - 1.0E-6_c_double * &
+      cc_wrap%tracer_map%host_to_catchem(2)) > 1.0E-12_c_double) error stop 'Gas import conversion failed'
+   if (abs(cc_wrap%chem_buf_4d(1,1,1,aerosol_idx) - 2.0E-6_c_double * &
+      cc_wrap%tracer_map%host_to_catchem(3)) > 1.0E-12_c_double) error stop 'Aerosol import conversion failed'
+   if (abs(cc_wrap%tracer_map%host_to_catchem(2) * cc_wrap%tracer_map%catchem_to_host(2) - 1.0_c_double) > 1.0E-12_c_double .or. &
+      abs(cc_wrap%tracer_map%host_to_catchem(3) * cc_wrap%tracer_map%catchem_to_host(3) - 1.0_c_double) > 1.0E-12_c_double) &
+      error stop 'Tracer conversion factors are not reciprocal'
+   block
+      logical :: sphum_preserved
+      sphum_preserved = .false.
+      do i = 1, cc_wrap%field_config%n_import_fields
+         if (trim(cc_wrap%field_config%import_fields(i)%host_tracer_var) /= 'QV') cycle
+         if (allocated(cc_wrap%met_buf_3d(i)%data)) then
+            sphum_preserved = abs(cc_wrap%met_buf_3d(i)%data(1,1,1) - 1.0E-2_c_double) <= 1.0E-12_c_double
+         end if
+      end do
+      if (.not. sphum_preserved) error stop 'Host-owned sphum was not preserved'
+   end block
+   print *, 'PASS: representative gas/aerosol conversion and sphum ownership'
 
    ! 5. Z0 must have landed in the C++ met state
    raw_z0_ptr = catchem_state_get_pointer_2d(cc_wrap%catchem_model%state_mgr_ptr, "Z0" // c_null_char)
@@ -623,6 +734,20 @@ program nuopc_contract_harness
       print *, 'FAIL: transform_catchem_to_nuopc rc=', rc
       error stop 1
    end if
+   do i = 1, cc_wrap%field_config%n_export_fields
+      if (cc_wrap%field_config%export_fields(i)%dimensions /= 4) cycle
+      call ESMF_StateGet(exportState, trim(cc_wrap%field_config%export_fields(i)%standard_name), field, rc=rc)
+      call check(rc, 'Export StateGet tracer field')
+      call ESMF_FieldGet(field, farrayPtr=fptr4, rc=rc)
+      call check(rc, 'Export FieldGet tracer pointer')
+      if (abs(fptr4(1,1,1,1) - 1.0E-2_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8) &
+         error stop 'Host-owned sphum changed during export'
+      if (abs(fptr4(1,1,1,2) - 1.0E-6_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8 .or. &
+         abs(fptr4(1,1,1,3) - 2.0E-6_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8) &
+         error stop 'Chemical export conversion failed'
+      if (fptr4(1,1,1,4) < 0.0_ESMF_KIND_R8 .or. fptr4(1,1,1,5) < 0.0_ESMF_KIND_R8) &
+         error stop 'PM diagnostic overlay is invalid'
+   end do
    print *, 'PASS: transform_catchem_to_nuopc over export state'
 
    call ESMF_Finalize(rc=rc)

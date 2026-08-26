@@ -31,7 +31,8 @@ module catchem_nuopc_interface
    use MPI
    use CATChem_API, only: CATChem_Model
    use catchem_bridge_precision, only: fp
-   use catchem_bridge_constants, only: g0, Rd, Re
+   use catchem_bridge_constants, only: g0, Rd, Re, AIRMW
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use catchem_bridge_error, only : CC_SUCCESS, CC_FAILURE
    use catchem_bridge_error, only: ErrorManagerType
    use catchem_nuopc_emis_data_mod, only: ExtEmisDataType, ExtEmisFieldType  ! External emissions data types
@@ -43,6 +44,7 @@ module catchem_nuopc_interface
    implicit none
 
    integer, parameter :: DIAG_REAL_SCALAR = 0, DIAG_REAL_1D = 1, DIAG_REAL_2D = 2, DIAG_REAL_3D = 3
+   integer, parameter :: TRACER_HOST_OWNED = 0, TRACER_CHEMICAL = 1, TRACER_DIAGNOSTIC = 2
 
    interface
       integer(c_int) function catchem_state_get_pointer_3d_checked(state_ptr, name, ptr_out) &
@@ -90,6 +92,14 @@ module catchem_nuopc_interface
          type(c_ptr), value :: state_ptr
          integer(c_int), value :: index
          integer(c_int), intent(out) :: value_out
+      end function
+
+      integer(c_int) function catchem_state_get_species_mw_checked(state_ptr, index, molecular_weight_out) &
+         bind(C, name="catchem_state_get_species_mw_checked")
+         import :: c_ptr, c_int, c_double
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+         real(c_double), intent(out) :: molecular_weight_out
       end function
 
       integer(c_int) function catchem_state_is_species_aerosol_checked(state_ptr, index, value_out) &
@@ -193,6 +203,8 @@ module catchem_nuopc_interface
       integer, allocatable :: entry_kind(:)   !< 1=CATChem species, 2=diagnostic pseudo-tracer, 0=host-owned
       character(len=128), allocatable :: names(:) !< NUOPC tracer name
       character(len=128), allocatable :: units(:) !< NUOPC tracer unit
+      real(c_double), allocatable :: host_to_catchem(:) !< kg kg-1 to CATChem native unit
+      real(c_double), allocatable :: catchem_to_host(:) !< CATChem native unit to kg kg-1
    end type tracer_index_map
    !! \}
 
@@ -251,6 +263,25 @@ module catchem_nuopc_interface
 
 
 contains
+
+   pure function lowercase(value) result(lower)
+      character(len=*), intent(in) :: value
+      character(len=len(value)) :: lower
+      integer :: p, code
+      lower = value
+      do p = 1, len(value)
+         code = iachar(lower(p:p))
+         if (code >= iachar('A') .and. code <= iachar('Z')) lower(p:p) = achar(code + 32)
+      end do
+   end function lowercase
+
+   pure logical function is_mass_mixing_ratio_unit(unit)
+      character(len=*), intent(in) :: unit
+      character(len=128) :: normalized
+      normalized = trim(adjustl(lowercase(unit)))
+      is_mass_mixing_ratio_unit = normalized == 'kg kg-1' .or. normalized == 'kg/kg' .or. &
+         normalized == 'kg kg^-1' .or. normalized == 'kg kg**-1'
+   end function is_mass_mixing_ratio_unit
 
    subroutine catchem_c_string_to_fortran(c_value, value)
       character(kind=c_char), intent(in) :: c_value(*)
@@ -338,7 +369,8 @@ contains
 
       ! Local variables
       integer :: nx, ny, num_processes, stat, i, j
-      integer(c_int) :: catchem_status, species_index
+      integer(c_int) :: catchem_status, species_index, is_gas, is_aerosol
+      real(c_double) :: molecular_weight, conversion_factor
       integer(ESMF_KIND_I8) :: tstep_seconds
       character(len=128), allocatable :: tracer_names(:) !< NUOPC tracer name
       character(len=128), allocatable :: tracer_units(:) !< NUOPC tracer unit
@@ -467,6 +499,11 @@ contains
             msg="Unable to allocate internal workspace", &
             line=__LINE__,  file=__FILE__)) return  ! bail out
          tracer_units = 'n/a'
+      else if (size(tracer_units) /= size(tracer_names)) then
+         call ESMF_LogSetError(ESMF_RC_ARG_BAD, &
+            msg='CATChem tracerUnits length does not match tracerNames length', &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)
+         return
       end if
 
       !copy to cc_wrap
@@ -487,6 +524,14 @@ contains
       allocate(cc_wrap%tracer_map%entry_kind(size(tracer_names)), stat=stat)
       if (ESMF_LogFoundAllocError(statusToCheck=stat, msg="Unable to allocate tracer classifications", &
          line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      allocate(cc_wrap%tracer_map%host_to_catchem(size(tracer_names)), stat=stat)
+      if (ESMF_LogFoundAllocError(statusToCheck=stat, msg="Unable to allocate tracer import factors", &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      allocate(cc_wrap%tracer_map%catchem_to_host(size(tracer_names)), stat=stat)
+      if (ESMF_LogFoundAllocError(statusToCheck=stat, msg="Unable to allocate tracer export factors", &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      cc_wrap%tracer_map%host_to_catchem = 1.0_c_double
+      cc_wrap%tracer_map%catchem_to_host = 1.0_c_double
 
       ! assign mapping index directly from C++ StateManager
       do i = 1, size(cc_wrap%tracer_map%names)
@@ -498,7 +543,59 @@ contains
             cc_wrap%tracer_map%nuopc_to_cc(i) = 0
          end if
          if (cc_wrap%tracer_map%nuopc_to_cc(i) > 0) then
-            cc_wrap%tracer_map%entry_kind(i) = 1
+            cc_wrap%tracer_map%entry_kind(i) = TRACER_CHEMICAL
+            if (.not. is_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i))) then
+               call ESMF_LogWrite('Unsupported units for CATChem tracer ' // trim(cc_wrap%tracer_map%names(i)) // &
+                  ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1', ESMF_LOGMSG_ERROR, rc=rc)
+               rc = ESMF_FAILURE
+               return
+            end if
+            is_gas = 0_c_int
+            is_aerosol = 0_c_int
+            catchem_status = catchem_state_is_species_gas_checked(cc_wrap%catchem_model%state_mgr_ptr, &
+               species_index, is_gas)
+            if (catchem_status == 0_c_int) catchem_status = catchem_state_is_species_aerosol_checked( &
+               cc_wrap%catchem_model%state_mgr_ptr, species_index, is_aerosol)
+            if (catchem_status /= 0_c_int) then
+               call ESMF_LogWrite('Unable to classify CATChem tracer: ' // trim(cc_wrap%tracer_map%names(i)), &
+                  ESMF_LOGMSG_ERROR, rc=rc)
+               rc = ESMF_FAILURE
+               return
+            end if
+            if ((is_gas == 0_c_int .and. is_aerosol == 0_c_int) .or. &
+               (is_gas /= 0_c_int .and. is_aerosol /= 0_c_int)) then
+               call ESMF_LogWrite('CATChem tracer must be exactly one of gas or aerosol: ' // &
+                  trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=rc)
+               rc = ESMF_FAILURE
+               return
+            end if
+            if (is_gas /= 0_c_int) then
+               molecular_weight = 0.0_c_double
+               catchem_status = catchem_state_get_species_mw_checked(cc_wrap%catchem_model%state_mgr_ptr, &
+                  species_index, molecular_weight)
+               if (catchem_status /= 0_c_int .or. .not. ieee_is_finite(molecular_weight) .or. molecular_weight <= 0.0_c_double) then
+                  call ESMF_LogWrite('Invalid molecular weight for CATChem gas tracer: ' // &
+                     trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=rc)
+                  rc = ESMF_FAILURE
+                  return
+               end if
+               ! UFS/GOCART owns inst_tracer_mass_frac in kg kg-1; CATChem's
+               ! established science bridges consume gases in ppmv.  Retain
+               ! the molecular-weight conversion used by those bridges rather
+               ! than GOCART's generic kg/kg-to-ppm display conversion.
+               conversion_factor = real(AIRMW, c_double) / molecular_weight * 1.0e6_c_double
+            else
+               ! CATChem aerosol bridges use ug kg-1 internally.
+               conversion_factor = 1.0e9_c_double
+            end if
+            if (.not. ieee_is_finite(conversion_factor) .or. conversion_factor <= 0.0_c_double) then
+               call ESMF_LogWrite('Invalid conversion factor for CATChem tracer: ' // &
+                  trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=rc)
+               rc = ESMF_FAILURE
+               return
+            end if
+            cc_wrap%tracer_map%host_to_catchem(i) = conversion_factor
+            cc_wrap%tracer_map%catchem_to_host(i) = 1.0_c_double / conversion_factor
             do j = 1, i - 1
                if (cc_wrap%tracer_map%nuopc_to_cc(j) == cc_wrap%tracer_map%nuopc_to_cc(i)) then
                   call ESMF_LogWrite("Duplicate tracer mapping for species: " // &
@@ -511,14 +608,14 @@ contains
             trim(cc_wrap%tracer_map%names(i)) == 'pm10' .or. &
             trim(cc_wrap%tracer_map%names(i)) == 'PM25' .or. &
             trim(cc_wrap%tracer_map%names(i)) == 'PM10') then
-            cc_wrap%tracer_map%entry_kind(i) = 2
+            cc_wrap%tracer_map%entry_kind(i) = TRACER_DIAGNOSTIC
          else
             ! NUOPC tracer metadata can include host prognostics that are not
             ! part of the active chemistry mechanism (for example sphum).
             ! Keep those slots in the host array, but leave them untouched by
             ! CATChem.  Chemical membership remains entirely mechanism- and
             ! configuration-driven; no host tracer names are hardcoded here.
-            cc_wrap%tracer_map%entry_kind(i) = 0
+            cc_wrap%tracer_map%entry_kind(i) = TRACER_HOST_OWNED
             call ESMF_LogWrite("Ignoring host-owned tracer not present in active mechanism: " // &
                trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_INFO, rc=rc)
          end if
@@ -1008,6 +1105,8 @@ contains
       if (allocated(cc_wrap%tracer_map%entry_kind)) deallocate(cc_wrap%tracer_map%entry_kind)
       if (allocated(cc_wrap%tracer_map%names)) deallocate(cc_wrap%tracer_map%names)
       if (allocated(cc_wrap%tracer_map%units)) deallocate(cc_wrap%tracer_map%units)
+      if (allocated(cc_wrap%tracer_map%host_to_catchem)) deallocate(cc_wrap%tracer_map%host_to_catchem)
+      if (allocated(cc_wrap%tracer_map%catchem_to_host)) deallocate(cc_wrap%tracer_map%catchem_to_host)
 
       if (allocated(cc_wrap%lat)) deallocate(cc_wrap%lat)
       if (allocated(cc_wrap%lon)) deallocate(cc_wrap%lon)
@@ -1497,16 +1596,17 @@ contains
 
          if (allocated(cc_wrap%tracer_map%nuopc_to_cc)) then
             do v = 1, min(size(fptr4d, 4), size(cc_wrap%tracer_map%nuopc_to_cc))
-               if (cc_wrap%tracer_map%entry_kind(v) /= 1) cycle
+               if (cc_wrap%tracer_map%entry_kind(v) /= TRACER_CHEMICAL) cycle
                found_index = cc_wrap%tracer_map%nuopc_to_cc(v)
                if (found_index > 0 .and. found_index <= v_cc) then
-                  cc_wrap%chem_buf_4d(:,:,:, found_index) = real(fptr4d(:,:,:, v), c_double)
+                  cc_wrap%chem_buf_4d(:,:,:, found_index) = real(fptr4d(:,:,:, v), c_double) * &
+                     cc_wrap%tracer_map%host_to_catchem(v)
                end if
             end do
          else
-            do v = 1, min(size(fptr4d, 4), v_cc)
-               cc_wrap%chem_buf_4d(:,:,:, v) = real(fptr4d(:,:,:, v), c_double)
-            end do
+            call ESMF_LogWrite('Missing validated tracer mapping for rank-4 chemistry import', ESMF_LOGMSG_ERROR, rc=rc)
+            rc = ESMF_FAILURE
+            return
          end if
 
          ! Direct pointer mapping to C++ core StateManager via persistent contiguous buffer
@@ -1712,7 +1812,7 @@ contains
          ! ChemState in-place, so export must read the C++ state rather than replaying the original staging buffer.
          if (allocated(cc_wrap%tracer_map%nuopc_to_cc)) then
             do v = 1, min(nv, size(cc_wrap%tracer_map%nuopc_to_cc))
-               if (cc_wrap%tracer_map%entry_kind(v) /= 1) cycle
+               if (cc_wrap%tracer_map%entry_kind(v) /= TRACER_CHEMICAL) cycle
                found_index = cc_wrap%tracer_map%nuopc_to_cc(v)
                if (found_index <= 0) cycle
                if (catchem_state_get_species_conc_pointer_checked(cc_wrap%catchem_model%state_mgr_ptr, &
@@ -1722,34 +1822,16 @@ contains
                   do j = 1, nj
                      do i = 1, ni
                         col = i + (j - 1) * ni
-                        fptr4d(i,j,k,v) = cc_species_conc(col,k)
+                        fptr4d(i,j,k,v) = cc_species_conc(col,k) * cc_wrap%tracer_map%catchem_to_host(v)
                      end do
                   end do
                end do
                nullify(cc_species_conc)
             end do
          else
-            catchem_status = catchem_state_get_species_count_checked( &
-               cc_wrap%catchem_model%state_mgr_ptr, species_count)
-            if (catchem_status /= 0_c_int) then
-               rc = ESMF_FAILURE
-               return
-            end if
-            v_cc = int(species_count)
-            do v = 1, min(nv, v_cc)
-               if (catchem_state_get_species_conc_pointer_checked(cc_wrap%catchem_model%state_mgr_ptr, int(v, c_int), &
-                  int(ni * nj, c_int), int(nk, c_int), raw_species_ptr) /= 0_c_int) cycle
-               call c_f_pointer(raw_species_ptr, cc_species_conc, [ni * nj, nk])
-               do k = 1, nk
-                  do j = 1, nj
-                     do i = 1, ni
-                        col = i + (j - 1) * ni
-                        fptr4d(i,j,k,v) = cc_species_conc(col,k)
-                     end do
-                  end do
-               end do
-               nullify(cc_species_conc)
-            end do
+            call ESMF_LogWrite('Missing validated tracer mapping for rank-4 chemistry export', ESMF_LOGMSG_ERROR, rc=rc)
+            rc = ESMF_FAILURE
+            return
          end if
 
          if (allocated(cc_wrap%tracer_map%names)) then

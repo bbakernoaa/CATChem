@@ -252,8 +252,7 @@ namespace catchem {
             if (key == "LAI")
                 return "m2/m2";
             if (key == "CLAYFRAC" || key == "FRLAKE" || key == "LWI" || key == "DLUSE" || key == "DSOILTYPE" ||
-                key == "SNDFRC" || key == "GWETTOP" ||
-                key == "CLDF" || key == "SSM" || key == "RDRAG")
+                key == "SNDFRC" || key == "GWETTOP" || key == "CLDF" || key == "SSM" || key == "RDRAG")
                 return "1";
             if (key == "SST")
                 return "K";

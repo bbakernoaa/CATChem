@@ -174,9 +174,11 @@ namespace catchem {
         for (int c = 0; c < state->column_count(); ++c) {
             const int lu = static_cast<int>(dluse_ptr[c]);
             const int i = (lu == 0 ? 16 : std::clamp(lu, 1, 20) - 1);
-            iland_storage[c + 20 * i] = i + 1;
-            frlanduse_storage[c + 20 * i] = 1.0;
-            frlai_storage[c + 20 * i] = (i >= 14 && i <= 16) ? 0.0 : lai_ptr[c];
+            const std::size_t slot = static_cast<std::size_t>(c) +
+                                     static_cast<std::size_t>(state->column_count()) * static_cast<std::size_t>(i);
+            iland_storage[slot] = i + 1;
+            frlanduse_storage[slot] = 1.0;
+            frlai_storage[slot] = (i >= 14 && i <= 16) ? 0.0 : lai_ptr[c];
             lwi[c] = static_cast<int>(lwi_ptr[c]);
             is_land[c] = lwi[c] == 1;
             is_ice[c] = lwi[c] == 2;

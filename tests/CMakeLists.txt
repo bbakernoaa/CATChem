@@ -469,6 +469,10 @@ file(
     ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_emission.yml
   DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
 )
+file(
+  COPY ${CMAKE_CURRENT_SOURCE_DIR}/Configs/Default
+  DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Configs
+)
 add_test(
   NAME test_catchem_properties
   COMMAND test_catchem_properties
@@ -512,6 +516,15 @@ endforeach()
 
 # Static Fortran Core Import Check
 find_program(PYTHON_EXECUTABLE NAMES python3 python)
+if(PYTHON_EXECUTABLE)
+  add_test(
+    NAME test_compare_nuopc_tracer_extrema
+    COMMAND
+      ${PYTHON_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test_compare_nuopc_tracer_extrema.py
+  )
+  catchem_label_tests("regression;boundary" test_compare_nuopc_tracer_extrema)
+endif()
 if(PYTHON_EXECUTABLE)
   add_test(
     NAME test_check_fortran_core_imports
