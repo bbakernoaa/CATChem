@@ -2,6 +2,7 @@
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include <iostream>
+#include <unordered_set>
 
 namespace {
 
@@ -166,6 +167,22 @@ namespace catchem {
 
     std::size_t Core::get_num_processes() const {
         return processes.size();
+    }
+
+    std::vector<std::string> Core::get_required_host_fields() const {
+        std::vector<std::string> fields;
+        std::unordered_set<std::string> seen;
+        for (std::size_t index = 0; index < execution_plan_.size(); ++index) {
+            for (const auto& access : execution_plan_.contract(index).fields) {
+                if (!access.reads() || access.requirement != FieldRequirement::Required ||
+                    canonicalize_field_identity(access.canonical_name) == "CONCENTRATION")
+                    continue;
+                const auto name = StateManager::canonical_field_name(access.canonical_name);
+                if (seen.insert(name).second)
+                    fields.push_back(name);
+            }
+        }
+        return fields;
     }
 
     void Core::add_configured_processes() {

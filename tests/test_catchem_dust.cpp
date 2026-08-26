@@ -74,6 +74,9 @@ int main(int argc, char* argv[]) {
         state->bind_met_field_2d("lake_fraction", lake_fraction.data());
         state->bind_met_field_2d("snow_fraction", snow_fraction.data());
         state->bind_met_field_2d("vegetation_fraction", vegetation_fraction.data());
+        const auto gvf_field = state->find_field<2>("GVF");
+        assert(gvf_field != nullptr);
+        assert(gvf_field->contract.units == "frac");
         state->bind_met_field_2d("leaf_area_index", leaf_area_index.data());
         state->bind_met_field_2d("RDRAG", rdrag.data());
         state->bind_met_field_2d("sand_fraction", sand_fraction.data());

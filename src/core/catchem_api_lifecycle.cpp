@@ -236,4 +236,36 @@ int catchem_core_get_num_processes_checked(void* core_ptr, int* count_out) {
     *count_out = static_cast<int>(static_cast<catchem::Core*>(core_ptr)->get_num_processes());
     return CATCHEM_SUCCESS;
 }
+
+int catchem_core_get_required_host_field_count_checked(void* core_ptr, int* count_out) {
+    if (!count_out)
+        return fail(catchem::BoundaryStatus::NullArgument, "core_get_required_host_field_count", "count_out",
+                    "output pointer is null");
+    *count_out = 0;
+    catchem::AdmissionLease admission;
+    const int status =
+        admit_handle(core_ptr, catchem::HandleType::Core, "core_get_required_host_field_count", admission);
+    if (status != CATCHEM_SUCCESS)
+        return status;
+    *count_out = static_cast<int>(static_cast<catchem::Core*>(core_ptr)->get_required_host_fields().size());
+    return CATCHEM_SUCCESS;
+}
+
+int catchem_core_get_required_host_field_name_checked(void* core_ptr, int index, char* name_out, int name_out_len) {
+    if (!name_out || name_out_len <= 0)
+        return fail(catchem::BoundaryStatus::NullArgument, "core_get_required_host_field_name", "name_out",
+                    "a non-empty output buffer is required");
+    name_out[0] = '\0';
+    catchem::AdmissionLease admission;
+    const int status =
+        admit_handle(core_ptr, catchem::HandleType::Core, "core_get_required_host_field_name", admission);
+    if (status != CATCHEM_SUCCESS)
+        return status;
+    const auto fields = static_cast<catchem::Core*>(core_ptr)->get_required_host_fields();
+    if (index < 0 || static_cast<std::size_t>(index) >= fields.size())
+        return fail(catchem::BoundaryStatus::InvalidIndex, "core_get_required_host_field_name", "index",
+                    "required host field index is out of range");
+    copy_string_to_buffer(fields[static_cast<std::size_t>(index)], name_out, name_out_len);
+    return CATCHEM_SUCCESS;
+}
 }

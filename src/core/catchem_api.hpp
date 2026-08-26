@@ -149,6 +149,8 @@ void catchem_core_add_process_by_name(void* core_ptr, const char* name);
 /** @brief Returns the number of active physics processes scheduled on the Core. */
 int catchem_core_get_num_processes(void* core_ptr);
 int catchem_core_get_num_processes_checked(void* core_ptr, int* count_out);
+int catchem_core_get_required_host_field_count_checked(void* core_ptr, int* count_out);
+int catchem_core_get_required_host_field_name_checked(void* core_ptr, int index, char* name_out, int name_out_len);
 
 // Grid and Configuration API
 void catchem_get_grid_dimensions(void* core_ptr, int* nx, int* ny, int* nz);

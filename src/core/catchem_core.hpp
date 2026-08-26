@@ -109,6 +109,16 @@ namespace catchem {
 
         /** @brief Get the number of scheduled physics processes. */
         std::size_t get_num_processes() const;
+
+        /**
+         * @brief Return the unique required host-input field names declared by
+         *        the active process contracts.
+         *
+         * Derived state and driver-owned static inputs are intentionally not
+         * distinguished here; integrations use their own field contracts to
+         * decide which of these requirements are supplied by their imports.
+         */
+        std::vector<std::string> get_required_host_fields() const;
         const TimestepOutcome& get_timestep_outcome() const noexcept { return last_outcome_; }
 
         /**

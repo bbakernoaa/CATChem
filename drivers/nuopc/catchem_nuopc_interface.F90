@@ -1052,6 +1052,7 @@ contains
       integer(ESMF_KIND_I8) :: timestep_seconds
       integer :: year, month, day, hour, minute, second
       integer :: i, n, n_met
+      logical :: required_from_import
       integer(c_int) :: catchem_status
 
       rc = ESMF_SUCCESS
@@ -1138,6 +1139,19 @@ contains
       !check if all require met fields are set
       if (allocated(cc_wrap%catchem_model%required_fields) .and. allocated(set_required_met)) then
          do i = 1, n_met
+            ! Only validate requirements owned by the NUOPC import contract
+            ! here.  Derived fields and static AQMIO inputs are validated by
+            ! the core execution plan after their respective preparation
+            ! stages; they must never be replaced with fallback values.
+            required_from_import = .false.
+            do n = 1, cc_wrap%field_config%n_import_fields
+               if (trim(cc_wrap%field_config%import_fields(n)%catchem_var) == &
+                  trim(cc_wrap%catchem_model%required_fields(i))) then
+                  required_from_import = .true.
+                  exit
+               end if
+            end do
+            if (.not. required_from_import) cycle
             if (.not. set_required_met(i)) then
                !write(*,*) 'Wait. A required field is not set: ' // trim(cc_wrap%catchem_model%required_fields(i))
                call ESMF_LogWrite("Required met field not set yet: "// &

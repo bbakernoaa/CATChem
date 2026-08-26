@@ -11,6 +11,14 @@ int main() {
     void* state = nullptr;
     assert(catchem_core_get_state_manager_checked(core, &state) == CATCHEM_SUCCESS);
     assert(state != nullptr);
+    int required_count = -1;
+    assert(catchem_core_get_required_host_field_count_checked(core, &required_count) == CATCHEM_SUCCESS);
+    assert(required_count == 0);
+    char required_name[8] = {'x'};
+    assert(catchem_core_get_required_host_field_name_checked(core, 0, required_name, sizeof(required_name)) ==
+           CATCHEM_INVALID_INDEX);
+    assert(required_name[0] == '\0');
+    assert(catchem_core_get_required_host_field_count_checked(state, &required_count) == CATCHEM_WRONG_HANDLE_TYPE);
     assert(catchem_state_set_physical_validation_policy_checked(state, 0) == CATCHEM_SUCCESS);
     assert(catchem_state_set_physical_validation_policy_checked(state, 99) == CATCHEM_INVALID_STATE);
     int physical_issues = -1;

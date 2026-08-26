@@ -107,6 +107,21 @@ module CATChem_API
          integer(c_int), intent(out) :: count_out
       end function
 
+      integer(c_int) function catchem_core_get_required_host_field_count_checked(core_ptr, count_out) &
+         bind(C, name="catchem_core_get_required_host_field_count_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), intent(out) :: count_out
+      end function
+
+      integer(c_int) function catchem_core_get_required_host_field_name_checked(core_ptr, index, name_out, name_out_len) &
+         bind(C, name="catchem_core_get_required_host_field_name_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: index, name_out_len
+         character(kind=c_char), intent(out) :: name_out(*)
+      end function
+
       integer(c_int) function catchem_core_run_timestep(core_ptr, dt) bind(C, name="catchem_core_run_timestep")
          import :: c_ptr, c_double, c_int
          type(c_ptr), value :: core_ptr
@@ -441,6 +456,7 @@ module CATChem_API
       procedure :: finalize => model_finalize
       procedure :: add_process => model_add_process
       procedure :: get_num_processes => model_get_num_processes
+      procedure :: load_required_fields => model_load_required_fields
       procedure :: run_timestep => model_run_timestep
       procedure :: get_diagnostic_names => model_get_diagnostic_names
       procedure :: get_diagnostic => model_get_diagnostic
@@ -552,6 +568,14 @@ contains
       this%ny = ny
       this%nz = nz
 
+      call this%load_required_fields(rc)
+      if (rc /= CC_SUCCESS) then
+         call catchem_core_destroy(this%cpp_core_ptr)
+         this%cpp_core_ptr = c_null_ptr
+         this%state_mgr_ptr = c_null_ptr
+         return
+      end if
+
       this%initialized = .true.
       rc = CC_SUCCESS
    end subroutine model_initialize
@@ -591,6 +615,44 @@ contains
       integer :: num_processes
       num_processes = int(catchem_core_get_num_processes(this%cpp_core_ptr))
    end function model_get_num_processes
+
+   ! Load active process-contract requirements for host-owned fields.
+   subroutine model_load_required_fields(this, rc)
+      class(CATChem_Model), intent(inout) :: this
+      integer, intent(out) :: rc
+
+      character(kind=c_char) :: c_name(64)
+      integer(c_int) :: c_count, c_status
+      integer :: i, j
+
+      if (allocated(this%required_fields)) deallocate(this%required_fields)
+      c_count = 0_c_int
+      c_status = catchem_core_get_required_host_field_count_checked(this%cpp_core_ptr, c_count)
+      if (c_status /= 0_c_int) then
+         call capture_boundary_error(this)
+         rc = CC_FAILURE
+         return
+      end if
+
+      allocate(this%required_fields(int(c_count)))
+      this%required_fields = ''
+      do i = 1, int(c_count)
+         c_name = c_null_char
+         c_status = catchem_core_get_required_host_field_name_checked(this%cpp_core_ptr, int(i - 1, c_int), &
+            c_name, int(size(c_name), c_int))
+         if (c_status /= 0_c_int) then
+            call capture_boundary_error(this)
+            deallocate(this%required_fields)
+            rc = CC_FAILURE
+            return
+         end if
+         do j = 1, size(c_name)
+            if (c_name(j) == c_null_char) exit
+            this%required_fields(i)(j:j) = c_name(j)
+         end do
+      end do
+      rc = CC_SUCCESS
+   end subroutine model_load_required_fields
 
    ! Execute standard timestep
    subroutine model_run_timestep(this, timestep, dt, rc)
@@ -738,9 +800,16 @@ contains
    function model_get_required_met_index(this, var_name) result(found_index)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: var_name
-      integer :: found_index
+      integer :: found_index, i
 
-      found_index = 1
+      found_index = 0
+      if (.not. allocated(this%required_fields)) return
+      do i = 1, size(this%required_fields)
+         if (trim(var_name) == trim(this%required_fields(i))) then
+            found_index = i
+            return
+         end if
+      end do
    end function model_get_required_met_index
 
    ! Grid dimension query
