@@ -237,8 +237,10 @@ namespace catchem {
                 return "kg/kg/s";
             if (key == "GVF")
                 return "frac";
+            if (key == "LAI")
+                return "m2/m2";
             if (key == "FROCEAN" || key == "FRSEAICE" || key == "CLAYFRAC" || key == "FRLAKE" || key == "FRSNO" ||
-                key == "LAI" || key == "LWI" || key == "DLUSE" || key == "SNDFRC" || key == "GWETTOP" ||
+                key == "LWI" || key == "DLUSE" || key == "SNDFRC" || key == "GWETTOP" ||
                 key == "CLDF" || key == "SSM" || key == "RDRAG")
                 return "1";
             if (key == "SST")
