@@ -283,6 +283,13 @@ contains
          normalized == 'kg kg^-1' .or. normalized == 'kg kg**-1'
    end function is_mass_mixing_ratio_unit
 
+   pure logical function is_ppm_unit(unit)
+      character(len=*), intent(in) :: unit
+      character(len=128) :: normalized
+      normalized = trim(adjustl(lowercase(unit)))
+      is_ppm_unit = normalized == 'ppm'
+   end function is_ppm_unit
+
    subroutine catchem_c_string_to_fortran(c_value, value)
       character(kind=c_char), intent(in) :: c_value(*)
       character(len=*), intent(out) :: value
@@ -543,13 +550,7 @@ contains
             cc_wrap%tracer_map%nuopc_to_cc(i) = 0
          end if
          if (cc_wrap%tracer_map%nuopc_to_cc(i) > 0) then
-            cc_wrap%tracer_map%entry_kind(i) = TRACER_CHEMICAL
-            if (.not. is_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i))) then
-               call ESMF_LogWrite('Unsupported units for CATChem tracer ' // trim(cc_wrap%tracer_map%names(i)) // &
-                  ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1', ESMF_LOGMSG_ERROR, rc=rc)
-               rc = ESMF_FAILURE
-               return
-            end if
+         cc_wrap%tracer_map%entry_kind(i) = TRACER_CHEMICAL
             is_gas = 0_c_int
             is_aerosol = 0_c_int
             catchem_status = catchem_state_is_species_gas_checked(cc_wrap%catchem_model%state_mgr_ptr, &
@@ -570,6 +571,13 @@ contains
                return
             end if
             if (is_gas /= 0_c_int) then
+               if (.not. is_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i)) .and. &
+                  .not. is_ppm_unit(cc_wrap%tracer_map%units(i))) then
+                  call ESMF_LogWrite('Unsupported units for CATChem gas tracer ' // trim(cc_wrap%tracer_map%names(i)) // &
+                     ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1 or ppm', ESMF_LOGMSG_ERROR, rc=rc)
+                  rc = ESMF_FAILURE
+                  return
+               end if
                molecular_weight = 0.0_c_double
                catchem_status = catchem_state_get_species_mw_checked(cc_wrap%catchem_model%state_mgr_ptr, &
                   species_index, molecular_weight)
@@ -579,12 +587,20 @@ contains
                   rc = ESMF_FAILURE
                   return
                end if
-               ! UFS/GOCART owns inst_tracer_mass_frac in kg kg-1; CATChem's
-               ! established science bridges consume gases in ppmv.  Retain
-               ! the molecular-weight conversion used by those bridges rather
-               ! than GOCART's generic kg/kg-to-ppm display conversion.
-               conversion_factor = real(AIRMW, c_double) / molecular_weight * 1.0e6_c_double
+               if (is_ppm_unit(cc_wrap%tracer_map%units(i))) then
+                  ! The gas science bridges already use ppmv natively.
+                  conversion_factor = 1.0_c_double
+               else
+                  ! Mass mixing ratio to the gas bridge's ppmv native unit.
+                  conversion_factor = real(AIRMW, c_double) / molecular_weight * 1.0e6_c_double
+               end if
             else
+               if (.not. is_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i))) then
+                  call ESMF_LogWrite('Unsupported units for CATChem aerosol tracer ' // trim(cc_wrap%tracer_map%names(i)) // &
+                     ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1', ESMF_LOGMSG_ERROR, rc=rc)
+                  rc = ESMF_FAILURE
+                  return
+               end if
                ! CATChem aerosol bridges use ug kg-1 internally.
                conversion_factor = 1.0e9_c_double
             end if
