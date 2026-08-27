@@ -290,6 +290,14 @@ contains
       is_ppm_unit = normalized == 'ppm'
    end function is_ppm_unit
 
+   pure logical function is_micro_mass_mixing_ratio_unit(unit)
+      character(len=*), intent(in) :: unit
+      character(len=128) :: normalized
+      normalized = trim(adjustl(lowercase(unit)))
+      is_micro_mass_mixing_ratio_unit = normalized == 'ug kg-1' .or. normalized == 'ug/kg' .or. &
+         normalized == 'ug kg^-1' .or. normalized == 'ug kg**-1'
+   end function is_micro_mass_mixing_ratio_unit
+
    subroutine catchem_c_string_to_fortran(c_value, value)
       character(kind=c_char), intent(in) :: c_value(*)
       character(len=*), intent(out) :: value
@@ -550,7 +558,7 @@ contains
             cc_wrap%tracer_map%nuopc_to_cc(i) = 0
          end if
          if (cc_wrap%tracer_map%nuopc_to_cc(i) > 0) then
-         cc_wrap%tracer_map%entry_kind(i) = TRACER_CHEMICAL
+            cc_wrap%tracer_map%entry_kind(i) = TRACER_CHEMICAL
             is_gas = 0_c_int
             is_aerosol = 0_c_int
             catchem_status = catchem_state_is_species_gas_checked(cc_wrap%catchem_model%state_mgr_ptr, &
@@ -595,14 +603,20 @@ contains
                   conversion_factor = real(AIRMW, c_double) / molecular_weight * 1.0e6_c_double
                end if
             else
-               if (.not. is_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i))) then
+               if (.not. is_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i)) .and. &
+                  .not. is_micro_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i))) then
                   call ESMF_LogWrite('Unsupported units for CATChem aerosol tracer ' // trim(cc_wrap%tracer_map%names(i)) // &
-                     ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1', ESMF_LOGMSG_ERROR, rc=rc)
+                     ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1 or ug kg-1', ESMF_LOGMSG_ERROR, rc=rc)
                   rc = ESMF_FAILURE
                   return
                end if
-               ! CATChem aerosol bridges use ug kg-1 internally.
-               conversion_factor = 1.0e9_c_double
+               if (is_micro_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i))) then
+                  ! CATChem aerosol bridges already use ug kg-1 natively.
+                  conversion_factor = 1.0_c_double
+               else
+                  ! Convert host kg/kg to CATChem's ug/kg native unit.
+                  conversion_factor = 1.0e9_c_double
+               end if
             end if
             if (.not. ieee_is_finite(conversion_factor) .or. conversion_factor <= 0.0_c_double) then
                call ESMF_LogWrite('Invalid conversion factor for CATChem tracer: ' // &

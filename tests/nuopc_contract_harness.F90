@@ -190,7 +190,7 @@ contains
       if (rc /= ESMF_SUCCESS) return
       ntr = 5
       tracer_names = [character(len=ESMF_MAXSTR) :: 'sphum', 'chemical_gas', 'chemical_aerosol', 'PM25', 'PM10']
-      tracer_units = [character(len=ESMF_MAXSTR) :: '1', 'KG/KG', 'kg kg^-1', 'not-a-chemical-unit', 'not-a-chemical-unit']
+      tracer_units = [character(len=ESMF_MAXSTR) :: '1', 'ppm', 'kg kg^-1', 'not-a-chemical-unit', 'not-a-chemical-unit']
       do i = 1, field_config%n_import_fields
          if (field_config%import_fields(i)%optional .and. &
             .not. field_config%import_fields(i)%advertise) cycle
@@ -483,7 +483,8 @@ program nuopc_contract_harness
    exchange_tracer_names(3) = trim(parity_name)
    exchange_tracer_names(1) = 'sphum'; exchange_tracer_names(4) = 'PM25'; exchange_tracer_names(5) = 'PM10'
    exchange_tracer_units = 'kg kg-1'; exchange_tracer_units(1) = '1'
-   exchange_tracer_units(2) = 'KG/KG'; exchange_tracer_units(3) = 'kg kg^-1'
+   ! UFS advertises gas tracers in ppmv and aerosol tracers in ug/kg.
+   exchange_tracer_units(2) = 'ppm'; exchange_tracer_units(3) = 'ug/kg'
 
    ! The direct transform fixture does not pass through the ESMF cap's
    ! catchem_nuopc_init wrapper, so install the same validated descriptor
@@ -499,8 +500,12 @@ program nuopc_contract_harness
    if (catchem_state_get_species_mw_checked(cc_wrap%catchem_model%state_mgr_ptr, gas_idx, gas_mw) /= 0_c_int) &
       error stop 'Representative gas molecular weight lookup failed'
    cc_wrap%tracer_map%host_to_catchem = 1.0_c_double
-   cc_wrap%tracer_map%host_to_catchem(2) = real(AIRMW, c_double) / gas_mw * 1.0E6_c_double
-   cc_wrap%tracer_map%host_to_catchem(3) = 1.0E9_c_double
+   if (trim(exchange_tracer_units(2)) == 'ppm') then
+      cc_wrap%tracer_map%host_to_catchem(2) = 1.0_c_double
+   else
+      cc_wrap%tracer_map%host_to_catchem(2) = real(AIRMW, c_double) / gas_mw * 1.0E6_c_double
+   end if
+   cc_wrap%tracer_map%host_to_catchem(3) = 1.0_c_double
    cc_wrap%tracer_map%catchem_to_host = 1.0_c_double / cc_wrap%tracer_map%host_to_catchem
 
    ! Shared host-conformance fixture: mechanism order, failure category, and report shape.
@@ -645,8 +650,8 @@ program nuopc_contract_harness
    end if
    print *, 'PASS: transform_nuopc_to_catchem over the full required mapping'
 
-   ! The rank-4 boundary is host kg/kg.  Confirm the gas and aerosol slots
-   ! reached the native CATChem units while QV remained a host-owned field.
+   ! Confirm gas and aerosol slots reach their native CATChem units while
+   ! the host-owned rank-4 boundary remains otherwise untouched.
    if (abs(cc_wrap%chem_buf_4d(1,1,1,gas_idx) - 1.0E-6_c_double * &
       cc_wrap%tracer_map%host_to_catchem(2)) > 1.0E-12_c_double) error stop 'Gas import conversion failed'
    if (abs(cc_wrap%chem_buf_4d(1,1,1,aerosol_idx) - 2.0E-6_c_double * &
