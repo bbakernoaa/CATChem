@@ -595,12 +595,13 @@ contains
                   rc = ESMF_FAILURE
                   return
                end if
-               ! tracerUnits describes the host/GOCART tracer convention, but
-               ! inst_tracer_mass_frac is transported by FV3 as kg kg-1.  The
-               ! CATChem sulfur/gas bridges consume ppmv, so always convert the
-               ! mass-fraction storage value at this boundary.  Do not use the
-               ! descriptive tracerUnits value to select an identity transform.
-               conversion_factor = real(AIRMW, c_double) / molecular_weight * 1.0e6_c_double
+               if (is_ppm_unit(cc_wrap%tracer_map%units(i))) then
+                  ! UFS/GOCART supplies these gas tracers in ppmv.
+                  conversion_factor = 1.0_c_double
+               else
+                  ! Convert a host kg/kg mass mixing ratio to CATChem ppmv.
+                  conversion_factor = real(AIRMW, c_double) / molecular_weight * 1.0e6_c_double
+               end if
             else
                if (.not. is_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i)) .and. &
                   .not. is_micro_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i))) then
@@ -609,10 +610,13 @@ contains
                   rc = ESMF_FAILURE
                   return
                end if
-               ! As with gases, FV3's inst_tracer_mass_frac storage is kg kg-1
-               ! even when the GOCART metadata names the tracer ug kg-1.
-               ! CATChem aerosol bridges consume ug kg-1 natively.
-               conversion_factor = 1.0e9_c_double
+               if (is_micro_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i))) then
+                  ! UFS/GOCART supplies these aerosol tracers in ug/kg.
+                  conversion_factor = 1.0_c_double
+               else
+                  ! Convert a host kg/kg mass mixing ratio to CATChem ug/kg.
+                  conversion_factor = 1.0e9_c_double
+               end if
             end if
             if (.not. ieee_is_finite(conversion_factor) .or. conversion_factor <= 0.0_c_double) then
                call ESMF_LogWrite('Invalid conversion factor for CATChem tracer: ' // &
