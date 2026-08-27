@@ -2,6 +2,7 @@
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
 #include "catchem_process_registry.hpp"
+#include <array>
 #include <iostream>
 
 extern "C" {
@@ -48,6 +49,32 @@ namespace catchem {
         if (configured == config->data.processes.end() || configured->second.scheme != "gocart")
             throw std::invalid_argument("SO4Chem requires processes.so4chem.scheme: gocart");
         diagnostics_enabled = configured->second.diagnostics;
+
+        // Preserve the unit contract of ProcessSO4chemInterface_Mod and
+        // SO4chemScheme_GOCART_Mod: gases are carried in ppmv, while SO4 and
+        // MSA are aerosol mass in ug/kg.  The science scheme has fixed
+        // conversions for these four species, so accepting a different phase
+        // classification would silently corrupt source strengths and lifetimes.
+        struct SpeciesUnitContract {
+            const char* name;
+            bool is_gas;
+        };
+        constexpr std::array<SpeciesUnitContract, 4> unit_contract = {
+            {{"dms", true}, {"so2", true}, {"so4", false}, {"msa", false}}};
+        const auto& chemistry = state->chemistry();
+        if (!chemistry.mechanism)
+            throw std::invalid_argument("SO4Chem requires a loaded species mechanism");
+        for (const auto& expected : unit_contract) {
+            if (!chemistry.mechanism->contains(expected.name))
+                throw std::invalid_argument(std::string("SO4Chem requires species '") + expected.name + "'");
+            const auto index = chemistry.mechanism->index_of(expected.name);
+            const auto& metadata = chemistry.species_list[index];
+            if (metadata.is_gas != expected.is_gas || metadata.is_aerosol == expected.is_gas) {
+                throw std::invalid_argument(std::string("SO4Chem requires '") + expected.name + "' to be a " +
+                                            (expected.is_gas ? "gas (ppmv)" : "aerosol (ug/kg)"));
+            }
+        }
+
         // 1. Allocate persistent states
         firsttime.assign(state->column_count(), 1);
         nymd_last.assign(state->column_count(), 0);

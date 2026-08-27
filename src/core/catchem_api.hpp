@@ -171,6 +171,8 @@ int catchem_config_is_emission_category_active(void* core_ptr, const char* categ
 int catchem_config_get_emission_field_count(void* core_ptr, const char* category_name);
 void catchem_config_get_emission_field_name_at(void* core_ptr, const char* category_name, int field_idx, char* name_out,
                                                int max_len);
+void catchem_config_get_emission_field_units(void* core_ptr, const char* category_name, const char* field_name,
+                                             char* units_out, int max_len);
 int catchem_config_get_emission_species_map_count(void* core_ptr, const char* category_name, const char* field_name);
 void catchem_config_get_emission_species_map_at(void* core_ptr, const char* category_name, const char* field_name,
                                                 int map_idx, char* target_species_out, int max_len, double* scale_out,

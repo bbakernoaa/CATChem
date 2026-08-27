@@ -399,6 +399,25 @@ void catchem_config_get_emission_field_name_at(void* core_ptr, const char* categ
     }
 }
 
+void catchem_config_get_emission_field_units(void* core_ptr, const char* category_name, const char* field_name,
+                                             char* units_out, int max_len) {
+    if (core_ptr == nullptr || category_name == nullptr || field_name == nullptr) {
+        copy_string_to_buffer("", units_out, max_len);
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& mappings = core->get_config_manager()->data.emission_mappings;
+    auto it = mappings.find(std::string(category_name));
+    if (it != mappings.end()) {
+        auto fit = it->second.fields.find(std::string(field_name));
+        if (fit != it->second.fields.end()) {
+            copy_string_to_buffer(fit->second.units, units_out, max_len);
+            return;
+        }
+    }
+    copy_string_to_buffer("", units_out, max_len);
+}
+
 int catchem_config_get_emission_species_map_count(void* core_ptr, const char* category_name, const char* field_name) {
     if (core_ptr == nullptr || category_name == nullptr || field_name == nullptr)
         return 0;

@@ -86,8 +86,27 @@
   __radius: 8.7e-2
 - name: msa
   __description: methanesulphonic acid
-  __is_gas: true
+  # The GOCART SO4 chemistry interface carries MSA with aerosol mass units
+  # (ug/kg), alongside SO4.  It must remain an aerosol through the CATChem
+  # import/export and deposition paths.
+  __is_aerosol: true
+  __is_drydep: true
+  __is_wetdep: true
   molecular weight [kg mol-1]: 96.10e-3
+  # Use the sulfate accumulation-mode physical properties.  Zero-valued
+  # legacy placeholders are unsafe once MSA reaches aerosol dry/wet-deposition
+  # and settling calculations.
+  __radius: 0.35
+  __density: 1700.0
+  __dd_f0: 0.0
+  __dd_hstar: 0.0
+  __dd_DvzAerSnow: 0.03
+  __dd_DvzMinVal_snow: 0.01
+  __dd_DvzMinVal_land: 0.01
+  __lower_radius: 0.1
+  __upper_radius: 1.0
+  __wd_rainouteff: [1.0, 0.0, 1.0]
+  __mie_name: SU
 - name: bc1
   __description: BC1
   __is_aerosol: true

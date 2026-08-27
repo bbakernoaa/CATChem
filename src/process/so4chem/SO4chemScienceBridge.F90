@@ -60,7 +60,7 @@ contains
       ! Loop variables
       integer :: icol, i, j, ispec
       character(len=32) :: dummy_sp_names(n_species)
-      logical :: f_firsttime, is_aero
+      logical :: f_firsttime
 
       ! Local arrays in native solver precision (fp) to avoid double-float mismatches
       real(fp) :: f_airden(n_levels)
@@ -78,8 +78,7 @@ contains
       ! Sliced concentration and tendencies in solver precision
       real(fp) :: f_conc(n_levels, n_species)
       real(fp) :: col_tendencies(n_levels, n_species)
-      real(fp) :: col_conc_new(n_levels)
-
+      real(fp) :: col_updated(n_levels, n_species)
       ! Local arrays to resolve Fortran BIND(C) allocatable constraints & rank matches
       real(fp), allocatable :: local_xh2o2_init(:)
       real(fp) :: col_prod_rate(n_levels, n_species)
@@ -186,22 +185,26 @@ contains
             col_prod_rate, col_pso4_g, col_pso4_aq, col_dms_flux, &
             diagnostic_species_id=diagnostic_species_id)
 
-         ! GOCART sulfur computes tendencies based on the input units,
-         ! and outputs col_tendencies in the SAME units (ug/kg for aero, ppm for gases).
-         ! Therefore, we do not need to apply inverse unit conversions here.
+         ! The legacy ProcessSO4chemInterface wrote the scheme's updated
+         ! concentrations directly back to the virtual column.  Retain that
+         ! replacement semantics here; CATChem's temporary tendency is only
+         ! retained for the process API.
+         col_updated = real(conc(icol, :, :), fp)
          do ispec = 1, n_species
             if (any(abs(col_tendencies(:, ispec)) > 1.0e-32_fp)) then
-               ! col_tendencies contains the NEW concentrations.
-               ! Calculate the rate of change:
+               ! col_tendencies contains the NEW concentration in the same
+               ! native unit as conc (ppm for gases, ug/kg for aerosols).
+               col_updated(:, ispec) = col_tendencies(:, ispec)
                col_tendencies(:, ispec) = (col_tendencies(:, ispec) - real(conc(icol, :, ispec), fp)) / dt
             else
                col_tendencies(:, ispec) = 0.0_fp
             end if
          end do
 
-         ! Write tendencies and updated concentrations back in-place (casting to c_double)
+         ! Preserve the legacy direct replacement while retaining the C++
+         ! tendency API for consumers that need rates.
          tendency(icol, :, :) = real(col_tendencies, c_double)
-         conc(icol, :, :) = conc(icol, :, :) + real(dt * col_tendencies, c_double)
+         conc(icol, :, :) = real(col_updated, c_double)
 
          ! Copy persistent changes and diagnostics back to C++ buffers (casting to c_double)
          firsttime(icol)     = f_firsttime

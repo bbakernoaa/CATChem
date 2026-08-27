@@ -290,6 +290,16 @@ void CatchemPropertiesTest_SpeciesMetadataAPI() {
     assert(catchem_state_is_species_drydep(&state, so2_idx) == 1);
     assert(catchem_state_is_species_wetdep(&state, so2_idx) == 1);
 
+    int msa_idx = catchem_state_get_species_index(&state, "msa");
+    assert(msa_idx > 0);
+    // The original SO4chem Fortran scheme carries MSA as aerosol mass (ug/kg).
+    assert(catchem_state_is_species_gas(&state, msa_idx) == 0);
+    assert(catchem_state_is_species_aerosol(&state, msa_idx) == 1);
+    assert(catchem_state_is_species_drydep(&state, msa_idx) == 1);
+    assert(catchem_state_is_species_wetdep(&state, msa_idx) == 1);
+    assert(catchem_state_get_species_radius(&state, msa_idx) == 0.35);
+    assert(catchem_state_get_species_density(&state, msa_idx) == 1700.0);
+
     int dust1_idx = catchem_state_get_species_index(&state, "dust1");
     assert(dust1_idx > 0);
     assert(catchem_state_is_species_dust(&state, dust1_idx) == 1);

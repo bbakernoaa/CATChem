@@ -78,8 +78,9 @@ contains
    !! @param[in]  z0h    Z0H field [appropriate units]
    !! @param[in]  species_mw_g    Species mw_g property
    !! @param[in]  species_short_name    Species short_name property
-   !! @param[in]  species_conc   Species concentrations [ppm or ug/kg] (num_layers, num_species)
-   !! @param[inout] species_tendencies  Species tendency terms [mol/mol/s] (num_layers, num_species)
+   !! @param[in]  species_conc   Species concentrations: DMS/SO2 in ppmv,
+   !!                            SO4/MSA in ug/kg (num_layers, num_species)
+   !! @param[out] species_tendencies  Updated concentrations in the same units
    !! Persistent state variables (per-column):
    !! @param[inout] firsttime    flag for first time step
    !! @param[inout] nymd_last    last day of H2O2 update
@@ -380,11 +381,9 @@ contains
       fMassDMS = species_mw_g(nDMS)
       fMassSO2 = species_mw_g(nSO2)
       fMassSO4 = species_mw_g(nSO4)
-      !dms(1,1,:) = species_conc(num_layers:1:-1, nDMS) * 1.0e-9_fp  !ug/kg ==> kg/kg
       dms(1,1,:) = species_conc(num_layers:1:-1, nDMS) * 1.0e-6_fp * fMassDMS / AIRMW  !ppm ==> kg/kg
       so2(1,1,:) = species_conc(num_layers:1:-1, nSO2) * 1.0e-6_fp * fMassSO2 / AIRMW  ! ppm ==> kg/kg
       so4(1,1,:) = species_conc(num_layers:1:-1, nSO4) * 1.0e-9_fp  !ug/kg ==> kg/kg
-      !msa(1,1,:) = species_conc(num_layers:1:-1, nMSA) * 1.0e-6_fp * fMassMSA / AIRMW  ! ppm ==> kg/kg
       msa(1,1,:) = species_conc(num_layers:1:-1, nMSA) * 1.0e-9_fp  ! ug/kg ==> kg/kg
 
       !run DMS emission scheme
