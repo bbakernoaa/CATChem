@@ -111,6 +111,16 @@ module catchem_nuopc_emis_mod
          integer(c_int), value :: max_len
       end subroutine
 
+      subroutine catchem_config_get_emission_field_units(core_ptr, category_name, field_name, units_out, max_len) &
+         bind(C, name="catchem_config_get_emission_field_units")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: category_name(*)
+         character(kind=c_char), intent(in) :: field_name(*)
+         character(kind=c_char), intent(out) :: units_out(*)
+         integer(c_int), value :: max_len
+      end subroutine
+
       integer(c_int) function catchem_config_get_emission_species_map_count(core_ptr, category_name, field_name) &
          bind(C, name="catchem_config_get_emission_species_map_count")
          import :: c_ptr, c_char, c_int
@@ -2832,7 +2842,7 @@ contains
 
       ! Local variables
       integer :: localrc, ispec, i_diag, n_fields, n_species_fields
-      character(len=EMIS_MAXSTR) :: msg, field_name, species_list_path
+      character(len=EMIS_MAXSTR) :: msg, field_name, field_units, species_list_path
       type(ExtEmisCategoryType) :: new_category
       type(ExtEmisFieldType) :: new_field
       character(len=64), allocatable :: diag_species_list(:)
@@ -2852,7 +2862,14 @@ contains
       do ispec = 0, n_fields - 1
          call catchem_config_get_emission_field_name_at(core_ptr, trim(category_name) // c_null_char, ispec, field_name, 64_c_int)
          call clean_c_string(field_name)
-         call new_field%init(field_name, nx, ny, nlev, 1, 'kg/m2/s', localrc)
+         ! Field units are part of the emission mapping contract.  Most sources
+         ! are mass fluxes, but some inputs (e.g., an ocean concentration) are
+         ! state fields and must not inherit the mass-flux default.
+         call catchem_config_get_emission_field_units(core_ptr, trim(category_name) // c_null_char, &
+            trim(field_name) // c_null_char, field_units, int(EMIS_MAXSTR, c_int))
+         call clean_c_string(field_units)
+         if (len_trim(field_units) == 0) field_units = 'kg/m2/s'
+         call new_field%init(field_name, nx, ny, nlev, 1, trim(field_units), localrc)
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
 #ifdef CATCHEM_TRACE_NUOPC
@@ -2893,7 +2910,11 @@ contains
          if (len_trim(field_name) == 0) cycle
          if (new_category%find_field(trim(field_name)) > 0) cycle
 
-         call new_field%init(field_name, nx, ny, nlev, 1, 'kg/m2/s', localrc)
+         call catchem_config_get_emission_field_units(core_ptr, trim(category_name) // c_null_char, &
+            trim(field_name) // c_null_char, field_units, int(EMIS_MAXSTR, c_int))
+         call clean_c_string(field_units)
+         if (len_trim(field_units) == 0) field_units = 'kg/m2/s'
+         call new_field%init(field_name, nx, ny, nlev, 1, trim(field_units), localrc)
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
 #ifdef CATCHEM_TRACE_NUOPC
