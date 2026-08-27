@@ -499,13 +499,12 @@ program nuopc_contract_harness
    cc_wrap%tracer_map%entry_kind = [0, 1, 1, 2, 2]
    if (catchem_state_get_species_mw_checked(cc_wrap%catchem_model%state_mgr_ptr, gas_idx, gas_mw) /= 0_c_int) &
       error stop 'Representative gas molecular weight lookup failed'
+   ! tracerUnits is descriptive GOCART metadata.  The FV3 mass-fraction
+   ! storage boundary remains kg kg-1, so representative values must be
+   ! converted to CATChem's native ppm/ug kg-1 units regardless of labels.
    cc_wrap%tracer_map%host_to_catchem = 1.0_c_double
-   if (trim(exchange_tracer_units(2)) == 'ppm') then
-      cc_wrap%tracer_map%host_to_catchem(2) = 1.0_c_double
-   else
-      cc_wrap%tracer_map%host_to_catchem(2) = real(AIRMW, c_double) / gas_mw * 1.0E6_c_double
-   end if
-   cc_wrap%tracer_map%host_to_catchem(3) = 1.0_c_double
+   cc_wrap%tracer_map%host_to_catchem(2) = real(AIRMW, c_double) / gas_mw * 1.0E6_c_double
+   cc_wrap%tracer_map%host_to_catchem(3) = 1.0E9_c_double
    cc_wrap%tracer_map%catchem_to_host = 1.0_c_double / cc_wrap%tracer_map%host_to_catchem
 
    ! Shared host-conformance fixture: mechanism order, failure category, and report shape.
