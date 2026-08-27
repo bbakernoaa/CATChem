@@ -1,7 +1,10 @@
 #include "catchem_core.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
+#include <algorithm>
+#include <cctype>
 #include <iostream>
+#include <limits>
 #include <unordered_set>
 
 namespace {
@@ -24,6 +27,39 @@ namespace {
             config.load_emission_mapping_file(
                 resolve_against_config(config_file, config.data.simulation.emission_filename));
         config.validate_or_throw();
+    }
+
+    // Diagnostic-only: reports min/max of a fixed species watch-list after each
+    // process, so a runaway species can be bisected to the introducing process
+    // without re-running the whole coupled model multiple times.
+    void log_watch_species_bounds(catchem::StateManager& state, const std::string& process_name, std::size_t step) {
+        static const std::vector<std::string> watch = {"so2", "so4", "dms", "msa", "bc1", "bc2", "oc1", "oc2"};
+        if (!state.chemistry().conc)
+            return;
+        const auto view = state.chemistry().conc->mdspan();
+        const int nc = state.column_count();
+        const int nl = state.level_count();
+        for (std::size_t ispec = 0; ispec < state.chemistry().species_list.size(); ++ispec) {
+            std::string lower = state.chemistry().species_list[ispec].short_name;
+            std::transform(lower.begin(), lower.end(), lower.begin(),
+                            [](unsigned char c) { return std::tolower(c); });
+            if (std::find(watch.begin(), watch.end(), lower) == watch.end())
+                continue;
+            double lo = std::numeric_limits<double>::infinity();
+            double hi = -std::numeric_limits<double>::infinity();
+            for (int icol = 0; icol < nc; ++icol)
+                for (int ilev = 0; ilev < nl; ++ilev) {
+                    const double v = view(icol, ilev, static_cast<int>(ispec));
+                    lo = std::min(lo, v);
+                    hi = std::max(hi, v);
+                }
+            catchem::Logger::debug(&state, "watch-species bounds after process",
+                                    {{"step", std::to_string(step)},
+                                     {"process", process_name},
+                                     {"species", state.chemistry().species_list[ispec].short_name},
+                                     {"min", std::to_string(lo)},
+                                     {"max", std::to_string(hi)}});
+        }
     }
 
 } // namespace
@@ -297,6 +333,7 @@ namespace catchem {
                 }
                 processes[index]->run(state_mgr);
                 if (verbose) {
+                    log_watch_species_bounds(*state_mgr, processes[index]->get_name(), last_outcome_.timestep);
                     Logger::debug(state_mgr.get(), "Core process bookkeeping",
                                   {{"step", std::to_string(last_outcome_.timestep)},
                                    {"index", std::to_string(index)},
