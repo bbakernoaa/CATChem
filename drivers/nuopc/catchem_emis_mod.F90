@@ -760,10 +760,12 @@ contains
 
          category%fields(ifield)%is_loaded = .true.   !set to true; otherwise diagnostics will not be saved.
 #ifdef CATCHEM_TRACE_NUOPC
-         write(*,'(A,A,A,A,A,L1,A,L1)') '[CATCHEM DEBUG] AQMIO read category=', trim(category_name), &
+         write(*,'(A,A,A,A,A,L1,A,L1,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] AQMIO read category=', trim(category_name), &
             ' field=', trim(category%fields(ifield)%field_name), &
             ' emission_data=', allocated(category%fields(ifield)%emission_data), &
-            ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1)
+            ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1), &
+            ' min=', minval(category%fields(ifield)%emission_data), &
+            ' max=', maxval(category%fields(ifield)%emission_data)
          call flush(6)
 #endif
 
@@ -1671,6 +1673,12 @@ contains
          emission_flux(:,:,:) = category%fields(ifield)%emission_data(:,:,:,1)
          emission_flux = emission_flux * category%global_scale * global_scale
 
+#ifdef CATCHEM_TRACE_NUOPC
+         write(*,'(A,A,A,A,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] emission apply category=', trim(category_name), &
+            ' field=', trim(field_name), ' flux_min=', minval(emission_flux), ' flux_max=', maxval(emission_flux)
+         call flush(6)
+#endif
+
          if (category%diurnal_bb .and. c_associated(c_lon) .and. c_associated(c_lat)) then
             call apply_biomass_diurnal(emission_flux(:,:,1), real(f_lon, fp), real(f_lat, fp), current_time, nx, ny, localrc)
          end if
@@ -1686,6 +1694,12 @@ contains
          end if
 
          n_mapped_species = catchem_config_get_emission_species_map_count(core_ptr, trim(category_name) // c_null_char, trim(field_name) // c_null_char)
+
+#ifdef CATCHEM_TRACE_NUOPC
+         write(*,'(A,A,A,A,A,I0)') '[CATCHEM DEBUG] emission map category=', trim(category_name), &
+            ' field=', trim(field_name), ' mapped_species=', n_mapped_species
+         call flush(6)
+#endif
 
          do ispec = 1, n_mapped_species
             call catchem_config_get_emission_species_map_at(core_ptr, trim(category_name) // c_null_char, trim(field_name) // c_null_char, ispec - 1, &
@@ -1716,6 +1730,13 @@ contains
             else
                converter = 1.0e9_c_double
             end if
+
+#ifdef CATCHEM_TRACE_NUOPC
+            write(*,'(A,A,A,A,A,I0,A,L1,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] emission target=', trim(mapped_species_name), &
+               ' category=', trim(category_name), ' field=', trim(field_name), ' index=', species_index, &
+               ' gas=', is_gas, ' scale=', scale_factor, ' converter=', converter
+            call flush(6)
+#endif
 
             ! Apply BB emission factor if needed (only OC/BC aerosols)
             if (category%use_oc_fbb .and. .not. is_gas .and. &
