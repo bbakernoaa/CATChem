@@ -1555,6 +1555,8 @@ contains
 
       real(fp), allocatable :: emission_flux(:,:,:)
       real(c_double) :: converter, dqa
+      real(c_double) :: dqa_min, dqa_max
+      integer :: n_applied
       logical :: is_gas
 
       type(c_ptr) :: state_ptr, c_conc, c_airden, c_pedge, c_pblh, c_lon, c_lat
@@ -1673,6 +1675,15 @@ contains
          emission_flux(:,:,:) = category%fields(ifield)%emission_data(:,:,:,1)
          emission_flux = emission_flux * category%global_scale * global_scale
 
+         ! Always-on (no special build flag needed) per-field flux range, so a
+         ! production run's PET log can show whether a field's data was ever read.
+         if (category%diagnostic) then
+            write(msg, '(A,A,A,A,A,ES12.4,A,ES12.4)') trim(pName)//': category=', trim(category_name), &
+               ' field=', trim(field_name), ' units='//trim(category%fields(ifield)%units)//' flux_min=', &
+               minval(emission_flux), ' flux_max=', maxval(emission_flux)
+            call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=localrc)
+         end if
+
 #ifdef CATCHEM_TRACE_NUOPC
          write(*,'(A,A,A,A,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] emission apply category=', trim(category_name), &
             ' field=', trim(field_name), ' flux_min=', minval(emission_flux), ' flux_max=', maxval(emission_flux)
@@ -1694,6 +1705,14 @@ contains
          end if
 
          n_mapped_species = catchem_config_get_emission_species_map_count(core_ptr, trim(category_name) // c_null_char, trim(field_name) // c_null_char)
+
+         ! Always-on: a field with n_mapped_species=0 never reaches any species,
+         ! regardless of flux/units - the most common reason a species stays frozen.
+         if (category%diagnostic) then
+            write(msg, '(A,A,A,I0)') trim(pName)//': category='//trim(category_name)// &
+               ' field='//trim(field_name)//' mapped_species=', n_mapped_species
+            call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=localrc)
+         end if
 
 #ifdef CATCHEM_TRACE_NUOPC
          write(*,'(A,A,A,A,A,I0)') '[CATCHEM DEBUG] emission map category=', trim(category_name), &
@@ -1731,6 +1750,15 @@ contains
                converter = 1.0e9_c_double
             end if
 
+            ! Always-on: shows whether this field's mapped species (e.g. bc1/bc2/oc1/oc2)
+            ! was resolved at all, and what scale/converter is being used.
+            if (category%diagnostic) then
+               write(msg, '(A,A,A,A,A,A,A,I0,A,L1,A,ES12.4,A,ES12.4)') trim(pName)//': target=', &
+                  trim(mapped_species_name), ' category=', trim(category_name), ' field=', trim(field_name), &
+                  ' index=', species_index, ' gas=', is_gas, ' scale=', scale_factor, ' converter=', converter
+               call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=localrc)
+            end if
+
 #ifdef CATCHEM_TRACE_NUOPC
             write(*,'(A,A,A,A,A,I0,A,L1,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] emission target=', trim(mapped_species_name), &
                ' category=', trim(category_name), ' field=', trim(field_name), ' index=', species_index, &
@@ -1750,6 +1778,10 @@ contains
                   end do
                end if
             end if
+
+            dqa_min = huge(1.0_c_double)
+            dqa_max = -huge(1.0_c_double)
+            n_applied = 0
 
             do k = 1, nz
                do j = 1, ny
@@ -1777,10 +1809,22 @@ contains
                         else
                            f_conc(i,j,k) = f_conc(i,j,k) + dqa
                         end if
+                        n_applied = n_applied + 1
+                        dqa_min = min(dqa_min, dqa)
+                        dqa_max = max(dqa_max, dqa)
                      end if
                   end do
                end do
             end do
+
+            ! Always-on: proves whether any cell actually received a non-zero
+            ! tendency for this mapped species, and how large the increment was.
+            if (category%diagnostic) then
+               write(msg, '(A,A,A,I0,A,ES12.4,A,ES12.4)') trim(pName)//': applied target='// &
+                  trim(mapped_species_name)//' n_cells=', n_applied, ' dqa_min=', &
+                  merge(0.0_c_double, dqa_min, n_applied == 0), ' dqa_max=', merge(0.0_c_double, dqa_max, n_applied == 0)
+               call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=localrc)
+            end if
 
          end do
       end do

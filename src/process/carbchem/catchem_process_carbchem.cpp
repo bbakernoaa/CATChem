@@ -93,11 +93,12 @@ namespace catchem {
         std::vector<double> mock_tendency(state->column_count() * state->level_count() * state->species_count(), 0.0);
 
         // 4. Retrieve species properties from ChemState
-        std::vector<double> t_chem_loss(state->species_count(), 0.0);
+        // Preserve negative values: GOCART's carbonChemLoss uses tChemLoss<0 as
+        // its own "loss disabled" sentinel and early-returns on it; clamping to
+        // 0 here instead makes it compute exp(-cdt/0), annihilating the species.
+        std::vector<double> t_chem_loss(state->species_count(), -1.0);
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
-            if (state->chemistry().species_list[i].t_chem_loss > 0.0) {
-                t_chem_loss[i] = state->chemistry().species_list[i].t_chem_loss;
-            }
+            t_chem_loss[i] = state->chemistry().species_list[i].t_chem_loss;
         }
 
         // 5. Invoke flat science bridge
