@@ -40,6 +40,7 @@ module catchem_nuopc_emis_mod
    use catchem_bridge_precision, only: fp
    use catchem_bridge_error, only: CC_SUCCESS, CC_FAILURE
    use catchem_nuopc_emis_data_mod, only: ExtEmisDataType, ExtEmisCategoryType, ExtEmisFieldType
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
 
    implicit none
    private
@@ -61,6 +62,10 @@ module catchem_nuopc_emis_mod
    real(fp), parameter :: EMIS_MISSING = -999.0_fp
 
    real(fp), parameter :: EMIS_ACCEPT = 1.e+15_fp ! Same as MAPL library "undefval"
+   ! Observed ocean surface DMS rarely exceeds ~100 nmol/L; this rejects
+   ! unmasked land/fill-value contamination smeared into coastal cells by
+   ! conservative regridding, which otherwise feeds DMSemission unguarded.
+   real(fp), parameter :: DMS_OCEAN_NMOLL_MAX = 1.e+3_fp
 
    interface
       integer(c_int) function catchem_config_has_emission_mapping(core_ptr) bind(C, name="catchem_config_has_emission_mapping")
@@ -1789,6 +1794,9 @@ contains
                      if (emission_flux(i,j,k) > 0.0_fp) then
                         select case (trim(category%fields(ifield)%units))
                          case('nmol/l', 'nmol/L', 'NMOL/L')
+                           ! Reject unmasked fill-value/land contamination before it reaches DMSemission.
+                           if (.not. ieee_is_finite(emission_flux(i,j,k)) .or. &
+                              emission_flux(i,j,k) > DMS_OCEAN_NMOLL_MAX) cycle
                            dqa = emission_flux(i,j,k) * scale_factor
                          case ('1/cm3', '1/cm^3', '#/cm3', 'molec/cm3')
                            dqa = emission_flux(i,j,k) * scale_factor / AVO * AIRMW / f_airden(i,j,k) * 1.e3_c_double
