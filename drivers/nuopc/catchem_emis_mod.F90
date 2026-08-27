@@ -1784,6 +1784,16 @@ contains
                end if
             end if
 
+            ! Preserve the legacy CATChem replacement contract.  The legacy
+            ! adapter constructed a zeroed full-domain tendency and assigned
+            ! it wholesale for a "replace" category.  Clearing first is
+            ! therefore required even when a source cell is zero, missing, or
+            ! rejected (for example an invalid ocean-DMS climatology value).
+            ! Without this, non-advected inputs such as dms_in retain stale
+            ! values in the persistent unified chemistry buffer and continue
+            ! to drive subsequent process timesteps.
+            if (trim(category%apply_method) == 'replace') f_conc = 0.0_c_double
+
             dqa_min = huge(1.0_c_double)
             dqa_max = -huge(1.0_c_double)
             n_applied = 0
