@@ -419,6 +419,13 @@ if(CATCHEM_BUILD_NUOPC)
     drivers/nuopc/catchem_nuopc_interface.F90
   )
 
+  # UFS integration consumes this duplicate, self-contained NUOPC archive;
+  # propagate the trace option directly to it rather than relying on the
+  # directory-wide definition above.
+  if(CATCHEM_TRACE_NUOPC)
+    target_compile_definitions(cc_nuopc PRIVATE CATCHEM_TRACE_NUOPC)
+  endif()
+
   # Link only to external dependencies (not internal CATChem targets)
   target_link_libraries(
     cc_nuopc
