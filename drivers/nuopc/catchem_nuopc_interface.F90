@@ -604,15 +604,29 @@ contains
                end if
             else
                if (.not. is_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i)) .and. &
-                  .not. is_micro_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i))) then
+                  .not. is_micro_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i)) .and. &
+                  .not. is_ppm_unit(cc_wrap%tracer_map%units(i))) then
                   call ESMF_LogWrite('Unsupported units for CATChem aerosol tracer ' // trim(cc_wrap%tracer_map%names(i)) // &
-                     ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1 or ug kg-1', ESMF_LOGMSG_ERROR, rc=rc)
+                     ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1, ug kg-1, or ppm', ESMF_LOGMSG_ERROR, rc=rc)
                   rc = ESMF_FAILURE
                   return
                end if
                if (is_micro_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i))) then
                   ! UFS/GOCART supplies these aerosol tracers in ug/kg.
                   conversion_factor = 1.0_c_double
+               else if (is_ppm_unit(cc_wrap%tracer_map%units(i))) then
+                  ! Convert a gas-style ppmv host tracer to CATChem aerosol
+                  ! mass: ppmv * 1e-6 * MW_species/AIRMW * 1e9 = ug/kg.
+                  molecular_weight = 0.0_c_double
+                  catchem_status = catchem_state_get_species_mw_checked(cc_wrap%catchem_model%state_mgr_ptr, &
+                     species_index, molecular_weight)
+                  if (catchem_status /= 0_c_int .or. .not. ieee_is_finite(molecular_weight) .or. molecular_weight <= 0.0_c_double) then
+                     call ESMF_LogWrite('Invalid molecular weight for CATChem aerosol tracer: ' // &
+                        trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=rc)
+                     rc = ESMF_FAILURE
+                     return
+                  end if
+                  conversion_factor = molecular_weight / real(AIRMW, c_double) * 1.0e3_c_double
                else
                   ! Convert a host kg/kg mass mixing ratio to CATChem ug/kg.
                   conversion_factor = 1.0e9_c_double

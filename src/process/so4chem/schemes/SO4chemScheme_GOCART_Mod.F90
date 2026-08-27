@@ -247,6 +247,13 @@ contains
       thisLoc = ' -> at compute_gocart (in SO4chemScheme_GOCART_Mod.F90)'
       !RC = CC_SUCCESS
       RC = 0 !try not to rely on CC_SUCCESS
+      ! This is a replacement-state interface.  Preserve every species the
+      ! sulfate scheme does not own, then overwrite the eight sulfur/oxidant
+      ! species below.  The legacy interface passed only this process's
+      ! species and initialized its output to zero; the C++ bridge passes the
+      ! full chemistry state, so copying here prevents unrelated tracers from
+      ! being cleared while still allowing a managed species to reach zero.
+      species_tendencies = species_conc
       !drydepf = 0.0_fp
 
       rad2deg = 180.0_fp/PI

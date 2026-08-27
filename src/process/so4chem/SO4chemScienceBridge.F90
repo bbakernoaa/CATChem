@@ -189,16 +189,12 @@ contains
          ! concentrations directly back to the virtual column.  Retain that
          ! replacement semantics here; CATChem's temporary tendency is only
          ! retained for the process API.
-         col_updated = real(conc(icol, :, :), fp)
+         col_updated = col_tendencies
          do ispec = 1, n_species
-            if (any(abs(col_tendencies(:, ispec)) > 1.0e-32_fp)) then
-               ! col_tendencies contains the NEW concentration in the same
-               ! native unit as conc (ppm for gases, ug/kg for aerosols).
-               col_updated(:, ispec) = col_tendencies(:, ispec)
-               col_tendencies(:, ispec) = (col_tendencies(:, ispec) - real(conc(icol, :, ispec), fp)) / dt
-            else
-               col_tendencies(:, ispec) = 0.0_fp
-            end if
+            ! col_tendencies contains the complete NEW state in the same
+            ! native unit as conc (ppm for gases, ug/kg for aerosols).
+            ! Do not use a nonzero sentinel: zero is a valid depleted state.
+            col_tendencies(:, ispec) = (col_updated(:, ispec) - real(conc(icol, :, ispec), fp)) / dt
          end do
 
          ! Preserve the legacy direct replacement while retaining the C++
