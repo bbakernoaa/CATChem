@@ -512,6 +512,11 @@ namespace catchem {
         validation_report.issues.clear();
         try {
             root_node = YAML::LoadFile(filename);
+            // Echo the effective configuration to stdout so the run log (e.g.
+            // from the NUOPC cap) records exactly what the core parsed.
+            std::cout << "--- CATChem configuration: " << filename << " ---" << std::endl;
+            std::cout << root_node << std::endl;
+            std::cout << "--- End CATChem configuration ---" << std::endl;
             const YAML::Node& config = root_node;
             data.active_processes.clear();
             data.processes.clear();
