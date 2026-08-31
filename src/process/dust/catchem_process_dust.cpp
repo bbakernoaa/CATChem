@@ -97,6 +97,29 @@ namespace catchem {
             ginoux_ch_du = std::move(ch_du);
         }
 
+        // Surface the effective scheme options so the run log confirms what
+        // was parsed from the runtime YAML and will be passed to the bridge.
+        {
+            std::string ch_du_joined;
+            for (size_t i = 0; i < ginoux_ch_du.size(); ++i) {
+                if (i)
+                    ch_du_joined += ",";
+                ch_du_joined += std::to_string(ginoux_ch_du[i]);
+            }
+            Logger::info(state.get(), "Dust scheme options",
+                         {{"scheme", active_scheme},
+                          {"fengsha/alpha", std::to_string(fengsha_alpha)},
+                          {"fengsha/gamma", std::to_string(fengsha_gamma)},
+                          {"fengsha/drylimit_factor", std::to_string(fengsha_drylimit_factor)},
+                          {"fengsha/moist_correction_factor", std::to_string(fengsha_moist_correction_factor)},
+                          {"fengsha/kvhmax", std::to_string(fengsha_kvhmax)},
+                          {"fengsha/drag_option", std::to_string(fengsha_drag_option)},
+                          {"fengsha/horizflux_option", std::to_string(fengsha_horizflux_option)},
+                          {"fengsha/moist_option", std::to_string(fengsha_moist_option)},
+                          {"fengsha/distribution_option", std::to_string(fengsha_distribution_option)},
+                          {"ginoux/Ch_DU", ch_du_joined}});
+        }
+
         // 3. Setup diagnostic species ID dynamically based on is_dust metadata switch
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
             if (state->chemistry().species_list[i].is_dust) {

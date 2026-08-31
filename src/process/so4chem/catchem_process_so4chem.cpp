@@ -1,6 +1,7 @@
 #include "catchem_process_so4chem.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
+#include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include <array>
 #include <iostream>
@@ -55,6 +56,11 @@ namespace catchem {
         // back to the compiled default declared in SO4chemCommon_Mod.F90, so a
         // configuration that omits the option keeps current behavior.
         gocart_update_so2 = configured->second.get_bool("gocart/update_so2", gocart_update_so2);
+
+        // Surface the effective scheme options so the run log confirms what
+        // was parsed from the runtime YAML and will be passed to the bridge.
+        Logger::info(state.get(), "SO4Chem scheme options",
+                     {{"scheme", active_scheme}, {"gocart/update_so2", gocart_update_so2 ? "true" : "false"}});
 
         // Preserve the unit contract of ProcessSO4chemInterface_Mod and
         // SO4chemScheme_GOCART_Mod: gases are carried in ppmv, while SO4 and

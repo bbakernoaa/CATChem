@@ -1,6 +1,7 @@
 #include "catchem_process_carbchem.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
+#include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <iostream>
@@ -47,6 +48,13 @@ namespace catchem {
                                                          gocart_time_days);
         if (!(gocart_time_days > 0.0))
             throw std::invalid_argument("CarbChem gocart time_days_hydrophobic_to_hydrophilic must be positive");
+
+        // Surface the effective scheme options so the run log confirms what
+        // was parsed from the runtime YAML and will be passed to the bridge.
+        Logger::info(state.get(), "CarbChem scheme options",
+                     {{"scheme", active_scheme},
+                      {"gocart/time_days_hydrophobic_to_hydrophilic", std::to_string(gocart_time_days)}});
+
         // 1. Setup diagnostic species ID dynamically (using a dummy is_carbchem flag if we had one, but we map all
         // indices here for simplicity since CarbChem filters internally)
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {

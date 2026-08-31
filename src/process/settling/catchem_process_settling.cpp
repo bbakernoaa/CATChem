@@ -1,5 +1,6 @@
 #include "catchem_process_settling.hpp"
 #include "catchem_error.hpp"
+#include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include "catchem_settling_physics.hpp"
 #include <iostream>
@@ -41,6 +42,19 @@ namespace catchem {
             throw std::invalid_argument("Settling gocart scale_factor must be positive");
         if (gocart_swelling_method != 1 && gocart_swelling_method != 2)
             throw std::invalid_argument("Settling gocart swelling_method must be 1 (Fitzgerald) or 2 (Gerber)");
+
+        // Surface the effective scheme options so the run log confirms what
+        // was parsed from the runtime YAML and reaches the settling kernel.
+        // simple_scheme/swelling_method are accepted for configuration parity
+        // but inert in the dry-radius C++ kernel; log that explicitly.
+        Logger::info(state.get(), "Settling scheme options",
+                     {{"scheme", active_scheme},
+                      {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
+                      {"gocart/correction_maring", gocart_correction_maring ? "true" : "false"},
+                      {"gocart/simple_scheme",
+                       std::string(gocart_simple_scheme ? "true" : "false") + " (inert: C++ kernel)"},
+                      {"gocart/swelling_method", std::to_string(gocart_swelling_method) + " (inert: C++ kernel)"}});
+
         int num_aerosols = state->chemistry().aerosol_indices.size();
         if (num_aerosols > 0) {
 #ifdef CATCHEM_ENABLE_KOKKOS

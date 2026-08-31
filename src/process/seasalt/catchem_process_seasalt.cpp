@@ -1,6 +1,7 @@
 #include "catchem_process_seasalt.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
+#include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include <iostream>
 
@@ -63,6 +64,17 @@ namespace catchem {
         gong03_weibull_flag = settings.get_bool("gong03/weibull_flag", gong03_weibull_flag);
         geos12_scale_factor = settings.get_double("geos12/scale_factor", geos12_scale_factor);
         geos12_weibull_flag = settings.get_bool("geos12/weibull_flag", geos12_weibull_flag);
+
+        // Surface the effective scheme options so the run log confirms what
+        // was parsed from the runtime YAML and will be passed to the bridge.
+        Logger::info(state.get(), "SeaSalt scheme options",
+                     {{"scheme", active_scheme},
+                      {"gong97/scale_factor", std::to_string(gong97_scale_factor)},
+                      {"gong97/weibull_flag", gong97_weibull_flag ? "true" : "false"},
+                      {"gong03/scale_factor", std::to_string(gong03_scale_factor)},
+                      {"gong03/weibull_flag", gong03_weibull_flag ? "true" : "false"},
+                      {"geos12/scale_factor", std::to_string(geos12_scale_factor)},
+                      {"geos12/weibull_flag", geos12_weibull_flag ? "true" : "false"}});
 
         if (!diagnostics_enabled)
             return;
