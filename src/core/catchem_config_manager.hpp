@@ -95,6 +95,17 @@ namespace catchem {
         double get_double(std::string_view key, double default_val = 0.0) const;
         int get_int(std::string_view key, int default_val = 0) const;
         std::string get_string(std::string_view key, std::string_view default_val = "") const;
+        std::vector<double> get_vector(std::string_view key) const;
+
+        /// @brief List every nested option path as "<scheme>.<key>".
+        ///
+        /// Framework keys (activate, diagnostics, scheme, gas_scheme,
+        /// aero_scheme, diag_species) are excluded because the process layer
+        /// consumes them directly.  Process registration supplies a
+        /// validator that checks these paths against the scheme's accepted
+        /// options so a typo or removed parameter fails at initialization
+        /// instead of silently keeping its compiled default.
+        std::vector<std::string> option_paths() const;
     };
 
     /// @brief Species metadata loaded from a CATChem species YAML file.

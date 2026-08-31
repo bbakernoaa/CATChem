@@ -24,6 +24,16 @@ namespace catchem {
             double cdt;
             int n_levels;
 
+            // GOCART settling options staged from the runtime configuration
+            // (processes/settling/gocart/*) by SettlingProcess::init.
+            // scale_factor multiplies the gravitational fall speed; the
+            // Maring et al. (2003) correction subtracts a constant upward
+            // velocity, mirroring SettlingPhysics_Mod.F90.
+            double scale_factor = 1.0;
+            bool correction_maring = false;
+
+            static constexpr double V_UPWARD_MARING = 0.33e-2; // m/s
+
             KOKKOS_INLINE_FUNCTION
             void operator()(const int icol, const int iaero) const {
                 int ispec = aerosol_indices(iaero);
@@ -75,6 +85,18 @@ namespace catchem {
                                       x * (-9.870593e-4 + x * (-5.78878e-4 + x * (8.55176e-5 + -3.27815e-6 * x)))));
                         re = std::exp(y) * bpm;
                         vsettle = 0.5 * rmu * re / (rhoa * r);
+                    }
+
+                    // YAML tuning: uniform scaling of the fall speed.
+                    vsettle *= scale_factor;
+
+                    // Maring et al. (2003) upward correction, matching the
+                    // Fortran reference: vsettle = max(1e-9, vsettle - 0.33e-2).
+                    // Written with an explicit comparison because std::max is
+                    // not callable inside Kokkos device kernels.
+                    if (correction_maring) {
+                        double v_corrected = vsettle - V_UPWARD_MARING;
+                        vsettle = (v_corrected > 1.0e-9) ? v_corrected : 1.0e-9;
                     }
 
                     double dz_val = dz(icol, k, 0);

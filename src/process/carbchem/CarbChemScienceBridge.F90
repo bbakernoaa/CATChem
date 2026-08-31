@@ -13,6 +13,7 @@ contains
    subroutine run_carbchem_science_bridge( &
       n_cols, n_levels, n_species, dt, &
       active_scheme, diagnostics, &
+      gocart_time_days_hydrophobic_to_hydrophilic, &
       year, month, day, hour, minute, second, &
       airden, delp, pmid, &
       species_t_chem_loss, species_names_char, &
@@ -26,6 +27,12 @@ contains
       real(c_double), value :: dt
       character(kind=c_char), intent(in) :: active_scheme(*)
       integer(c_int), value :: diagnostics
+
+      ! Scheme tuning options staged by CarbChemProcess::init from the runtime
+      ! YAML.  The C++ layer owns parsing and validation; the bridge only
+      ! applies them onto the GOCART configuration type.
+      real(c_double), value :: gocart_time_days_hydrophobic_to_hydrophilic
+
       integer(c_int), value :: year, month, day, hour, minute, second
 
       ! C++ Raw Pointers
@@ -82,6 +89,10 @@ contains
          local_scheme(i:i) = active_scheme(i)
       end do
       local_scheme = trim(local_scheme)
+
+      ! Apply the YAML tuning option staged by the C++ process layer so the
+      ! scheme no longer runs on compiled defaults alone.
+      gocart_config%time_days_hydrophobic_to_hydrophilic = real(gocart_time_days_hydrophobic_to_hydrophilic, fp)
 
       ! Map Pointers
       call c_f_pointer(airden, f_airden, [n_cols, n_levels])

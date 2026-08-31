@@ -12,6 +12,9 @@ contains
    subroutine run_seasalt_science_bridge( &
       n_cols, n_levels, n_species, dt, &
       active_scheme, diagnostics, &
+      gong97_scale_factor, gong97_weibull_flag, &
+      gong03_scale_factor, gong03_weibull_flag, &
+      geos12_scale_factor, geos12_weibull_flag, &
    ! Met Pointers
       c_frocean, c_frseaice, c_lat, c_lon, c_sst, c_u10m, c_v10m, c_ustar, c_delp, &
    ! Species Metadata
@@ -27,6 +30,12 @@ contains
       real(c_double), value :: dt
       character(kind=c_char), intent(in) :: active_scheme(*)
       integer(c_int), value :: diagnostics
+
+      ! Scheme tuning options staged by SeaSaltProcess::init from the runtime
+      ! YAML.  All three schemes are carried so the bridge dispatches on the
+      ! active scheme without needing the C++ layer to know the defaults.
+      real(c_double), value :: gong97_scale_factor, gong03_scale_factor, geos12_scale_factor
+      integer(c_int), value :: gong97_weibull_flag, gong03_weibull_flag, geos12_weibull_flag
 
       type(c_ptr), value :: c_frocean, c_frseaice, c_lat, c_lon, c_sst, c_u10m, c_v10m, c_ustar, c_delp
       type(c_ptr), value :: c_conc, c_tendency
@@ -80,6 +89,16 @@ contains
          icol = icol + 1
       end do
       local_scheme = trim(adjustl(local_scheme))
+
+      ! Apply the YAML tuning options staged by the C++ process layer onto
+      ! the scheme configuration types so the active scheme no longer runs
+      ! on compiled defaults.
+      gong97_config%scale_factor = real(gong97_scale_factor, fp)
+      gong97_config%weibull_flag = (gong97_weibull_flag /= 0)
+      gong03_config%scale_factor = real(gong03_scale_factor, fp)
+      gong03_config%weibull_flag = (gong03_weibull_flag /= 0)
+      geos12_config%scale_factor = real(geos12_scale_factor, fp)
+      geos12_config%weibull_flag = (geos12_weibull_flag /= 0)
 
       ! Associate pointers
       call c_f_pointer(c_frocean,  frocean,  [n_cols])

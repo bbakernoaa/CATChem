@@ -597,7 +597,13 @@ contains
       if (rc == CC_SUCCESS) this%last_error = ''
    end subroutine model_finalize
 
-   ! Register process list
+   ! Validate process registration state.
+   !! NOTE: This routine does not add processes.  All science processes are
+   !! registered with the C++ ProcessRegistry during model_initialize and are
+   !! instantiated from the runtime YAML (processes/<name>/activate) while the
+   !! Core is constructed.  This entry point is retained for API compatibility
+   !! and only verifies that the underlying Core handle is present; process
+   !! selection is configuration-driven, not call-driven.
    subroutine model_add_process(this, rc)
       class(CATChem_Model), intent(inout) :: this
       integer, intent(out) :: rc
@@ -606,6 +612,7 @@ contains
          rc = CC_SUCCESS
       else
          rc = CC_FAILURE
+         this%last_error = 'model_add_process called before model_initialize: no Core handle'
       end if
    end subroutine model_add_process
 

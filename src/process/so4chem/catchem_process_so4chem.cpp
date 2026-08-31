@@ -6,8 +6,9 @@
 #include <iostream>
 
 extern "C" {
-void run_so4chem_science_bridge(int n_cols, int n_levels, int n_species, double dt, int diagnostics, int year,
-                                int month, int day, int hour, int minute, int second, double* airden, double* cldf,
+void run_so4chem_science_bridge(int n_cols, int n_levels, int n_species, double dt, int diagnostics,
+                                int gocart_update_so2, int year, int month, int day, int hour, int minute, int second,
+                                double* airden, double* cldf,
                                 double* delp, double* pmid, double* t_air, double* z_edges, double* hflux, double* lat,
                                 double* lon, int* lwi, double* pblh, double* u10m, double* ustar, double* v10m,
                                 double* z0h, double* species_mw_g, const char* species_names, double* conc,
@@ -49,6 +50,11 @@ namespace catchem {
         if (configured == config->data.processes.end() || configured->second.scheme != "gocart")
             throw std::invalid_argument("SO4Chem requires processes.so4chem.scheme: gocart");
         diagnostics_enabled = configured->second.diagnostics;
+
+        // Read scheme tuning options from the runtime YAML.  Each lookup falls
+        // back to the compiled default declared in SO4chemCommon_Mod.F90, so a
+        // configuration that omits the option keeps current behavior.
+        gocart_update_so2 = configured->second.get_bool("gocart/update_so2", gocart_update_so2);
 
         // Preserve the unit contract of ProcessSO4chemInterface_Mod and
         // SO4chemScheme_GOCART_Mod: gases are carried in ppmv, while SO4 and
@@ -187,7 +193,8 @@ namespace catchem {
         // 5. Invoke flat science bridge
         run_so4chem_science_bridge(
             state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
-            diagnostics_enabled ? 1 : 0, state->clock().year, state->clock().month, state->clock().day,
+            diagnostics_enabled ? 1 : 0, gocart_update_so2 ? 1 : 0, state->clock().year, state->clock().month,
+            state->clock().day,
             state->clock().hour, state->clock().minute, state->clock().second, airden_ptr, cldf_ptr, delp_ptr, pmid_ptr,
             t_ptr, z_ptr, hflux_ptr, lat_ptr, lon_ptr, lwi.data(), pblh_ptr, u10m_ptr, ustar_ptr, v10m_ptr, z0h,
             mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(),
@@ -230,6 +237,7 @@ namespace catchem {
 extern "C" {
 void catchem_register_so4chem_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
-        "so4chem", []() { return std::make_shared<catchem::SO4chemProcess>(); });
+        "so4chem", []() { return std::make_shared<catchem::SO4chemProcess>(); }, {},
+        catchem::make_settings_validator("so4chem", {"gocart/update_so2"}));
 }
 }

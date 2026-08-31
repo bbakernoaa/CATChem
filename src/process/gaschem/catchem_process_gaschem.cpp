@@ -241,7 +241,9 @@ namespace catchem {
 
 } // namespace catchem
 
+extern "C" {
 void catchem_register_gaschem_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         std::string(catchem::ProcessNames::GasChem), []() { return std::make_shared<catchem::GasChemProcess>(); });
+}
 }

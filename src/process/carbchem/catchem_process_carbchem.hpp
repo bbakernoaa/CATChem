@@ -24,6 +24,10 @@ namespace catchem {
         std::string active_scheme;
         bool diagnostics_enabled;
         std::vector<int> diagnostic_species_id;
+
+        // GOCART scheme options staged from the runtime configuration
+        // (processes/carbchem/gocart/*) and forwarded to the science bridge.
+        double gocart_time_days = 2.5;
     };
 
 } // namespace catchem

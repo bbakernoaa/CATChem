@@ -3,9 +3,12 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace catchem {
 
@@ -75,5 +78,41 @@ namespace catchem {
             creators.clear();
         }
     };
+
+    /**
+     * @brief Build a settings validator that rejects unknown scheme options.
+     *
+     * Each process registers this alongside its creator so that every nested
+     * `processes/<name>/<scheme>/<key>` entry in the runtime YAML must appear
+     * in `accepted_paths`.  A misspelled or removed option therefore fails at
+     * initialization with the accepted schema listed, instead of silently
+     * leaving the scheme on its compiled default.  Paths use the same
+     * slash-separated form as ProcessConfig::get_* (for example
+     * "fengsha/alpha").
+     */
+    inline ProcessSettingsValidator make_settings_validator(std::string process_name,
+                                                            std::vector<std::string> accepted_paths) {
+        std::set<std::string> accepted(accepted_paths.begin(), accepted_paths.end());
+        return [process_name = std::move(process_name), accepted = std::move(accepted)](const ProcessConfig& settings) {
+            std::vector<std::string> unknown;
+            for (const auto& path : settings.option_paths()) {
+                if (!accepted.count(path))
+                    unknown.push_back(path);
+            }
+            if (unknown.empty())
+                return;
+            std::ostringstream message;
+            message << "Unknown option(s) for process '" << process_name << "':";
+            for (const auto& key : unknown)
+                message << " " << key << ",";
+            message.seekp(-1, std::ios_base::end); // drop trailing comma
+            message << ". Accepted options:";
+            for (const auto& key : accepted)
+                message << " " << key << ",";
+            message.seekp(-1, std::ios_base::end);
+            message << '.';
+            throw std::invalid_argument(message.str());
+        };
+    }
 
 } // namespace catchem

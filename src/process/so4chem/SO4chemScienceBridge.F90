@@ -10,6 +10,7 @@ contains
    subroutine run_so4chem_science_bridge( &
       n_cols, n_levels, n_species, dt, &
       diagnostics, &
+      gocart_update_so2, &
    ! Date & Time
       year, month, day, hour, minute, second, &
    ! 3D Met Pointers
@@ -29,6 +30,11 @@ contains
       integer(c_int), value :: n_cols, n_levels, n_species
       real(c_double), value :: dt
       integer(c_int), value :: diagnostics
+
+      ! Scheme tuning options staged by SO4chemProcess::init from the runtime
+      ! YAML.  The C++ layer owns parsing and validation; the bridge only
+      ! applies them onto the GOCART configuration type.
+      integer(c_int), value :: gocart_update_so2
 
       integer(c_int), value :: year, month, day, hour, minute, second
 
@@ -87,6 +93,10 @@ contains
       real(fp) :: col_dms_flux
 
       type(SO4chemSchemeGOCARTConfig) :: gocart_config
+
+      ! Apply the YAML tuning options staged by the C++ process layer so the
+      ! scheme no longer runs on compiled defaults alone.
+      gocart_config%update_so2 = (gocart_update_so2 /= 0)
 
       ! Associate pointers
       call c_f_pointer(c_airden,   airden,   [n_cols, n_levels])

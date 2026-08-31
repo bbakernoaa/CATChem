@@ -11,6 +11,14 @@ namespace catchem {
         bool diagnostics_enabled;
         std::vector<int> diagnostic_species_id;
 
+        // Jacob scheme tuning options read from processes.wetdep.jacob.*
+        // during init() and forwarded to the science bridge on every run().
+        // Defaults mirror WetDepSchemeJACOBConfig in WetDepCommon_Mod.F90.
+        double jacob_scale_factor = 1.0;
+        double jacob_radius_threshold = 1.0;
+        bool jacob_so4_gocart_resusp = true;
+        double jacob_so4_washout_eff = 1.0;
+
     public:
         WetDepProcess();
         std::string get_name() const override { return "wetdep"; }

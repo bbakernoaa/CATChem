@@ -11,6 +11,10 @@ namespace catchem {
         bool diagnostics_enabled;
         std::vector<int> diagnostic_species_id;
 
+        // GOCART scheme options staged from the runtime configuration
+        // (processes/so4chem/gocart/*) and forwarded to the science bridge.
+        bool gocart_update_so2 = true;
+
         // Persistent column states
         std::vector<char> firsttime;
         std::vector<int> nymd_last;

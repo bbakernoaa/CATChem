@@ -11,6 +11,8 @@ contains
    subroutine run_drydep_science_bridge( &
       n_cols, n_levels, n_species, dt, &
       gas_scheme, aero_scheme, diagnostics, &
+      wesely_scale_factor, wesely_co2_effect, wesely_co2_level, wesely_co2_reference, &
+      gocart_scale_factor, gocart_resuspension, gocart_dust_resusp_only, zhang_scale_factor, &
    ! 3D Met Pointers
       c_bxheight, c_airden, c_t_air, c_z_edges, c_rh, &
    ! 2D/1D Met Pointers
@@ -32,6 +34,14 @@ contains
       character(kind=c_char), intent(in) :: gas_scheme(*)
       character(kind=c_char), intent(in) :: aero_scheme(*)
       integer(c_int), value :: diagnostics
+
+      ! Scheme tuning options staged by DryDepProcess::init from the runtime
+      ! YAML.  The C++ layer owns parsing and validation; the bridge only
+      ! applies them onto the scheme configuration types.
+      real(c_double), value :: wesely_scale_factor, wesely_co2_level, wesely_co2_reference
+      integer(c_int), value :: wesely_co2_effect
+      real(c_double), value :: gocart_scale_factor, zhang_scale_factor
+      integer(c_int), value :: gocart_resuspension, gocart_dust_resusp_only
 
       ! C pointers
       type(c_ptr), value :: c_bxheight, c_airden, c_t_air, c_z_edges, c_rh
@@ -125,6 +135,18 @@ contains
          icol = icol + 1
       end do
       local_aero = trim(adjustl(local_aero))
+
+      ! Apply the YAML tuning options staged by the C++ process layer onto
+      ! the scheme configuration types so the gas and aerosol schemes no
+      ! longer run on compiled defaults.
+      wesely_config%scale_factor = real(wesely_scale_factor, fp)
+      wesely_config%co2_effect = (wesely_co2_effect /= 0)
+      wesely_config%co2_level = real(wesely_co2_level, fp)
+      wesely_config%co2_reference = real(wesely_co2_reference, fp)
+      gocart_config%scale_factor = real(gocart_scale_factor, fp)
+      gocart_config%resuspension = (gocart_resuspension /= 0)
+      gocart_config%dust_resuspension_only = (gocart_dust_resusp_only /= 0)
+      zhang_config%scale_factor = real(zhang_scale_factor, fp)
 
       ! Associate pointers
       call c_f_pointer(c_bxheight, bxheight, [n_cols, n_levels])

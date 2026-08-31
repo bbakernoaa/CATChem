@@ -7,7 +7,8 @@
 
 extern "C" {
 void run_carbchem_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* active_scheme,
-                                 int diagnostics, int year, int month, int day, int hour, int minute, int second,
+                                 int diagnostics, double gocart_time_days_hydrophobic_to_hydrophilic,
+                                 int year, int month, int day, int hour, int minute, int second,
                                  double* airden, double* delp, double* pmid, double* species_t_chem_loss,
                                  const char* species_names_char, double* conc, double* tendency, double* diag_prod_mass,
                                  double* diag_loss_flux, double* diag_phobic_mass, double* diag_phobic_flux,
@@ -38,6 +39,14 @@ namespace catchem {
         if (configured == config->data.processes.end() || configured->second.scheme != "gocart")
             throw std::invalid_argument("CarbChem requires processes.carbchem.scheme: gocart");
         diagnostics_enabled = configured->second.diagnostics;
+
+        // Read scheme tuning options from the runtime YAML.  The lookup falls
+        // back to the compiled default declared in CarbChemCommon_Mod.F90, so
+        // a configuration that omits the option keeps current behavior.
+        gocart_time_days = configured->second.get_double("gocart/time_days_hydrophobic_to_hydrophilic",
+                                                         gocart_time_days);
+        if (!(gocart_time_days > 0.0))
+            throw std::invalid_argument("CarbChem gocart time_days_hydrophobic_to_hydrophilic must be positive");
         // 1. Setup diagnostic species ID dynamically (using a dummy is_carbchem flag if we had one, but we map all
         // indices here for simplicity since CarbChem filters internally)
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
@@ -104,6 +113,7 @@ namespace catchem {
         // 5. Invoke flat science bridge
         run_carbchem_science_bridge(state->column_count(), state->level_count(), state->species_count(),
                                     state->clock().timestep, active_scheme.c_str(), diagnostics_enabled ? 1 : 0,
+                                    gocart_time_days,
                                     state->clock().year, state->clock().month, state->clock().day, state->clock().hour,
                                     state->clock().minute, state->clock().second, airden_ptr, delp_ptr, pmid_ptr,
                                     t_chem_loss.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
@@ -121,6 +131,7 @@ namespace catchem {
 extern "C" {
 void catchem_register_carbchem_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
-        "carbchem", []() { return std::make_shared<catchem::CarbChemProcess>(); });
+        "carbchem", []() { return std::make_shared<catchem::CarbChemProcess>(); }, {},
+        catchem::make_settings_validator("carbchem", {"gocart/time_days_hydrophobic_to_hydrophilic"}));
 }
 }

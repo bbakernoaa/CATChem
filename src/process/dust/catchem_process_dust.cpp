@@ -11,7 +11,11 @@
 
 extern "C" {
 void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil, double dt, const char* active_scheme,
-                             int diagnostics, const double* airden, const double* delp, const double* clayfrac,
+                             int diagnostics, double fengsha_alpha, double fengsha_gamma,
+                             double fengsha_drylimit_factor, double fengsha_moisture_factor, double fengsha_kvhmax,
+                             int fengsha_drag_option, int fengsha_horizflux_option, int fengsha_moist_option,
+                             int fengsha_distribution_option, const double* ginoux_ch_du, int n_ginoux_ch_du,
+                             const double* airden, const double* delp, const double* clayfrac,
                              const double* frlake, const double* frsno, const double* gvf, const double* lai, int* lwi,
                              const double* rdrag, const double* sandfrac, const double* soilm, const double* gwettop,
                              const double* ssm, const double* tskin, const double* u10m, const double* v10m,
@@ -65,7 +69,35 @@ namespace catchem {
         diagnostics_enabled = configured->second.diagnostics;
         if (active_scheme != "fengsha" && active_scheme != "ginoux")
             throw std::invalid_argument("Dust runtime YAML selected unsupported scheme: " + active_scheme);
-        // 1. Setup diagnostic species ID dynamically based on is_dust metadata switch
+
+        // 2. Read scheme tuning options from the runtime YAML.  Each lookup
+        // falls back to the compiled default declared in DustCommon_Mod.F90,
+        // so a configuration that omits the option keeps current behavior.
+        // Core validates the option names against the registered schema, so a
+        // misspelled key fails at initialization rather than being dropped.
+        const auto& settings = configured->second;
+        fengsha_alpha = settings.get_double("fengsha/alpha", fengsha_alpha);
+        fengsha_gamma = settings.get_double("fengsha/gamma", fengsha_gamma);
+        fengsha_drylimit_factor = settings.get_double("fengsha/drylimit_factor", fengsha_drylimit_factor);
+        fengsha_moist_correction_factor =
+            settings.get_double("fengsha/moist_correction_factor", fengsha_moist_correction_factor);
+        fengsha_kvhmax = settings.get_double("fengsha/kvhmax", fengsha_kvhmax);
+        fengsha_drag_option = settings.get_int("fengsha/drag_option", fengsha_drag_option);
+        fengsha_horizflux_option = settings.get_int("fengsha/horizflux_option", fengsha_horizflux_option);
+        fengsha_moist_option = settings.get_int("fengsha/moist_option", fengsha_moist_option);
+        fengsha_distribution_option = settings.get_int("fengsha/distribution_option", fengsha_distribution_option);
+
+        // Ch_DU carries one multiplier per dust size bin; the scheme type
+        // declares exactly five bins, so a provided sequence must match.
+        auto ch_du = settings.get_vector("ginoux/Ch_DU");
+        if (!ch_du.empty()) {
+            if (ch_du.size() != ginoux_ch_du.size())
+                throw std::invalid_argument("Dust ginoux Ch_DU must declare " + std::to_string(ginoux_ch_du.size()) +
+                                            " values, one per dust size bin");
+            ginoux_ch_du = std::move(ch_du);
+        }
+
+        // 3. Setup diagnostic species ID dynamically based on is_dust metadata switch
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
             if (state->chemistry().species_list[i].is_dust) {
                 diagnostic_species_id.push_back(i + 1); // 1-based for Fortran bridge
@@ -75,7 +107,7 @@ namespace catchem {
         if (!diagnostics_enabled)
             return;
 
-        // 2. Register C++ Diagnostic fields (registering 1D fields as 2D with second dimension of 1)
+        // 4. Register C++ Diagnostic fields (registering 1D fields as 2D with second dimension of 1)
         std::vector<int> dims_1d_as_2d = {state->column_count(), 1};
         std::vector<int> dims_2d = {state->column_count(), state->species_count()};
 
@@ -248,7 +280,10 @@ namespace catchem {
         // 5. Invoke flat science bridge
         run_dust_science_bridge(
             state->column_count(), state->level_count(), n_dust, n_soil, state->clock().timestep, active_scheme.c_str(),
-            diagnostics_enabled ? 1 : 0, airden_ptr, delp_ptr, clayfrac_ptr, frlake_ptr, frsno_ptr, gvf_ptr, lai_ptr,
+            diagnostics_enabled ? 1 : 0, fengsha_alpha, fengsha_gamma, fengsha_drylimit_factor,
+            fengsha_moist_correction_factor, fengsha_kvhmax, fengsha_drag_option, fengsha_horizflux_option,
+            fengsha_moist_option, fengsha_distribution_option, ginoux_ch_du.data(), static_cast<int>(ginoux_ch_du.size()),
+            airden_ptr, delp_ptr, clayfrac_ptr, frlake_ptr, frsno_ptr, gvf_ptr, lai_ptr,
             lwi.data(), rdrag_ptr, sandfrac_ptr, soilm_ptr, gwettop_ptr, ssm_ptr, tskin_ptr, u10m_ptr, v10m_ptr,
             ustar_ptr, ustar_th_ptr, z0_ptr, density.data(), radius.data(), lower_radius.data(), upper_radius.data(),
             sliced_conc.data(), mock_tendency.data(), diag_emission_total, local_diag_emission_bin.data(),
@@ -288,6 +323,11 @@ namespace catchem {
 extern "C" {
 void catchem_register_dust_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
-        "dust", []() { return std::make_shared<catchem::DustProcess>(); });
+        "dust", []() { return std::make_shared<catchem::DustProcess>(); }, {},
+        catchem::make_settings_validator("dust", {"fengsha/alpha", "fengsha/gamma", "fengsha/drylimit_factor",
+                                                  "fengsha/moist_correction_factor", "fengsha/kvhmax",
+                                                  "fengsha/drag_option", "fengsha/horizflux_option",
+                                                  "fengsha/moist_option", "fengsha/distribution_option",
+                                                  "ginoux/Ch_DU"}));
 }
 }

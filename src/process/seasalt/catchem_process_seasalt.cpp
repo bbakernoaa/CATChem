@@ -6,7 +6,9 @@
 
 extern "C" {
 void run_seasalt_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* active_scheme,
-                                int diagnostics, double* frocean, double* frseaice, double* lat, double* lon,
+                                int diagnostics, double gong97_scale_factor, int gong97_weibull_flag,
+                                double gong03_scale_factor, int gong03_weibull_flag, double geos12_scale_factor,
+                                int geos12_weibull_flag, double* frocean, double* frseaice, double* lat, double* lon,
                                 double* sst, double* u10m, double* v10m, double* ustar, double* delp, double* density,
                                 double* radius, double* lower_radius, double* upper_radius, bool* is_gas, double* mw_g,
                                 double* conc, double* tendency, double* diag_mass_total, double* diag_num_total,
@@ -51,6 +53,17 @@ namespace catchem {
         diagnostics_enabled = configured->second.diagnostics;
         if (active_scheme != "gong97" && active_scheme != "gong03" && active_scheme != "geos12")
             throw std::invalid_argument("SeaSalt runtime YAML selected unsupported scheme: " + active_scheme);
+
+        // Read per-scheme tuning options before the diagnostics early-return:
+        // they must reach the bridge even when diagnostics are off.
+        const auto& settings = configured->second;
+        gong97_scale_factor = settings.get_double("gong97/scale_factor", gong97_scale_factor);
+        gong97_weibull_flag = settings.get_bool("gong97/weibull_flag", gong97_weibull_flag);
+        gong03_scale_factor = settings.get_double("gong03/scale_factor", gong03_scale_factor);
+        gong03_weibull_flag = settings.get_bool("gong03/weibull_flag", gong03_weibull_flag);
+        geos12_scale_factor = settings.get_double("geos12/scale_factor", geos12_scale_factor);
+        geos12_weibull_flag = settings.get_bool("geos12/weibull_flag", geos12_weibull_flag);
+
         if (!diagnostics_enabled)
             return;
         if (state->diagnostic_manager()) {
@@ -170,7 +183,9 @@ namespace catchem {
 
         // 5. Invoke flat science bridge
         run_seasalt_science_bridge(state->column_count(), state->level_count(), n_seasalt, state->clock().timestep,
-                                   active_scheme.c_str(), diagnostics_enabled ? 1 : 0, frocean_ptr, frseaice_ptr,
+                                   active_scheme.c_str(), diagnostics_enabled ? 1 : 0, gong97_scale_factor,
+                                   gong97_weibull_flag ? 1 : 0, gong03_scale_factor, gong03_weibull_flag ? 1 : 0,
+                                   geos12_scale_factor, geos12_weibull_flag ? 1 : 0, frocean_ptr, frseaice_ptr,
                                    lat_ptr, lon_ptr, sst_ptr, u10m_ptr, v10m_ptr, ustar_ptr, delp_ptr, density.data(),
                                    radius.data(), lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(),
                                    mw_g.data(), sliced_conc.data(), mock_tendency.data(), diag_mass_total_ptr,
@@ -216,6 +231,9 @@ namespace catchem {
 extern "C" {
 void catchem_register_seasalt_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
-        "seasalt", []() { return std::make_shared<catchem::SeaSaltProcess>(); });
+        "seasalt", []() { return std::make_shared<catchem::SeaSaltProcess>(); }, {},
+        catchem::make_settings_validator("seasalt", {"gong97/scale_factor", "gong97/weibull_flag",
+                                                     "gong03/scale_factor", "gong03/weibull_flag",
+                                                     "geos12/scale_factor", "geos12/weibull_flag"}));
 }
 }

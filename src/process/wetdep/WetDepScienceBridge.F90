@@ -10,6 +10,7 @@ contains
    subroutine run_wetdep_science_bridge( &
       n_cols, n_levels, n_species, dt, &
       diagnostics, &
+      jacob_scale_factor, jacob_radius_threshold, jacob_so4_gocart_resusp, jacob_so4_washout_eff, &
    ! 3D Met Pointers
       c_airden_dry, c_mairden, c_pedge, c_pfilsan, c_pfllsan, c_reevapls, c_t_air, &
    ! Metadata
@@ -24,6 +25,12 @@ contains
       integer(c_int), value :: n_cols, n_levels, n_species
       real(c_double), value :: dt
       integer(c_int), value :: diagnostics
+
+      ! Scheme tuning options staged by WetDepProcess::init from the runtime
+      ! YAML.  The C++ layer owns parsing and validation; the bridge only
+      ! applies them onto the Jacob configuration type.
+      real(c_double), value :: jacob_scale_factor, jacob_radius_threshold, jacob_so4_washout_eff
+      integer(c_int), value :: jacob_so4_gocart_resusp
 
       ! C pointers
       type(c_ptr), value :: c_airden_dry, c_mairden, c_pedge, c_pfilsan, c_pfllsan, c_reevapls, c_t_air
@@ -84,6 +91,14 @@ contains
       real(fp) :: col_diag_flux(n_levels, n_species)
 
       type(WetDepSchemeJACOBConfig) :: jacob_config
+
+      ! Apply the YAML tuning options staged by the C++ process layer onto
+      ! the Jacob configuration so wet deposition no longer runs on compiled
+      ! defaults.
+      jacob_config%scale_factor = real(jacob_scale_factor, fp)
+      jacob_config%radius_threshold = real(jacob_radius_threshold, fp)
+      jacob_config%so4_gocart_resusp = (jacob_so4_gocart_resusp /= 0)
+      jacob_config%so4_washout_eff = real(jacob_so4_washout_eff, fp)
 
       ! Map pointers
       nullify(airden_dry, mairden, pedge, pfilsan, pfllsan, reevapls, t_air)

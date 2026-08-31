@@ -30,6 +30,17 @@ namespace catchem {
         if (configured == config->data.processes.end() || configured->second.scheme != "gocart")
             throw std::invalid_argument("Settling requires processes.settling.scheme: gocart");
         active_scheme = configured->second.scheme;
+
+        // Read scheme tuning options from the runtime YAML.  Each lookup falls
+        // back to the compiled default declared in SettlingCommon_Mod.F90.
+        gocart_scale_factor = configured->second.get_double("gocart/scale_factor", gocart_scale_factor);
+        gocart_simple_scheme = configured->second.get_bool("gocart/simple_scheme", gocart_simple_scheme);
+        gocart_swelling_method = configured->second.get_int("gocart/swelling_method", gocart_swelling_method);
+        gocart_correction_maring = configured->second.get_bool("gocart/correction_maring", gocart_correction_maring);
+        if (!(gocart_scale_factor > 0.0))
+            throw std::invalid_argument("Settling gocart scale_factor must be positive");
+        if (gocart_swelling_method != 1 && gocart_swelling_method != 2)
+            throw std::invalid_argument("Settling gocart swelling_method must be 1 (Fitzgerald) or 2 (Gerber)");
         int num_aerosols = state->chemistry().aerosol_indices.size();
         if (num_aerosols > 0) {
 #ifdef CATCHEM_ENABLE_KOKKOS
@@ -125,6 +136,8 @@ namespace catchem {
 
         functor.cdt = state->clock().timestep;
         functor.n_levels = state->level_count();
+        functor.scale_factor = gocart_scale_factor;
+        functor.correction_maring = gocart_correction_maring;
 
 #ifdef CATCHEM_ENABLE_KOKKOS
         Kokkos::parallel_for("settling_compute_c++",
@@ -148,6 +161,9 @@ namespace catchem {
 extern "C" {
 void catchem_register_settling_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
-        "settling", []() { return std::make_shared<catchem::SettlingProcess>(); });
+        "settling", []() { return std::make_shared<catchem::SettlingProcess>(); }, {},
+        catchem::make_settings_validator("settling",
+                                         {"gocart/scale_factor", "gocart/simple_scheme", "gocart/swelling_method",
+                                          "gocart/correction_maring"}));
 }
 }

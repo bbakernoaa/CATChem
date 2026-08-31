@@ -445,6 +445,10 @@ add_process_unit_test(settling CATChem_process_settling)
 add_process_unit_test(so4chem CATChem_process_so4chem)
 add_process_unit_test(carbchem CATChem_process_carbchem)
 
+# Runtime YAML scheme options must reach the science layer and unknown keys
+# must fail validation (settling scale_factor round-trip).
+add_process_unit_test(option_propagation CATChem_process_settling)
+
 # Modern Randomized Property-Based Testing
 add_executable(test_catchem_properties test_catchem_properties.cpp)
 target_link_libraries(

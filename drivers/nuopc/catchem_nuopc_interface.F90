@@ -701,7 +701,9 @@ contains
          end if
       end if
 
-      ! Add all enabled processes from configuration
+      ! Verify process registration.  The processes activated by the runtime
+      ! YAML were already registered and created during model_initialize;
+      ! add_process is a compatibility no-op that checks the Core handle.
       call cc_wrap%catchem_model%add_process(rc)
       num_processes = cc_wrap%catchem_model%get_num_processes()
       ! A process-free configuration is a valid lifecycle/contract run.  It

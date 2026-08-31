@@ -11,6 +11,17 @@ namespace catchem {
         std::string active_scheme;
         std::function<void(void*)> fortran_callback;
 
+        // GOCART scheme options staged from the runtime configuration
+        // (processes/settling/gocart/*).  scale_factor and correction_maring
+        // act on the C++ settling kernel directly.  simple_scheme and
+        // swelling_method select wet-particle Mie/swelling treatments that
+        // the dry-radius C++ kernel does not implement; they are accepted
+        // for configuration parity but currently have no effect there.
+        double gocart_scale_factor = 1.0;
+        bool gocart_simple_scheme = false;
+        int gocart_swelling_method = 1;
+        bool gocart_correction_maring = false;
+
 #ifdef CATCHEM_ENABLE_KOKKOS
         // Device Views for aerosol properties
         Kokkos::View<int*, Kokkos::DefaultExecutionSpace::memory_space> dev_aero_indices;

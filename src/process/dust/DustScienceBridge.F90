@@ -14,6 +14,9 @@ contains
    subroutine run_dust_science_bridge( &
       n_cols, n_levels, n_species, n_soil, dt, &
       active_scheme, diagnostics, &
+      fengsha_alpha, fengsha_gamma, fengsha_drylimit_factor, fengsha_moisture_factor, fengsha_kvhmax, &
+      fengsha_drag_option, fengsha_horizflux_option, fengsha_moist_option, fengsha_distribution_option, &
+      ginoux_ch_du, n_ginoux_ch_du, &
       airden, delp, clayfrac, frlake, frsno, gvf, lai, lwi, rdrag, sandfrac, &
       soilm, gwettop, ssm, tskin, u10m, v10m, ustar, ustar_threshold, z0, &
       species_density, species_radius, species_lower_radius, species_upper_radius, &
@@ -27,6 +30,17 @@ contains
       real(c_double), value :: dt
       character(kind=c_char), intent(in) :: active_scheme(*)
       integer(c_int), value :: diagnostics
+
+      ! Scheme tuning options staged by DustProcess::init from the runtime
+      ! YAML.  The C++ layer owns parsing; the bridge only applies them onto
+      ! the scheme configuration types so Fengsha/Ginoux no longer run on
+      ! compiled defaults.  Ch_DU carries one multiplier per dust size bin.
+      real(c_double), value :: fengsha_alpha, fengsha_gamma, fengsha_drylimit_factor
+      real(c_double), value :: fengsha_moisture_factor, fengsha_kvhmax
+      integer(c_int), value :: fengsha_drag_option, fengsha_horizflux_option
+      integer(c_int), value :: fengsha_moist_option, fengsha_distribution_option
+      integer(c_int), value :: n_ginoux_ch_du
+      real(c_double), intent(in) :: ginoux_ch_du(n_ginoux_ch_du)
 
       ! 2D/3D Pointers from C++ Kokkos state
       type(c_ptr), value :: airden
@@ -113,6 +127,26 @@ contains
          local_scheme(i:i) = active_scheme(i)
       end do
       local_scheme = trim(local_scheme)
+
+      ! Apply the YAML tuning options staged by the C++ process layer onto
+      ! the scheme configuration types.  Ch_DU must match the dust size-bin
+      ! count declared by the scheme type.
+      fengsha_config%alpha = real(fengsha_alpha, fp)
+      fengsha_config%gamma = real(fengsha_gamma, fp)
+      fengsha_config%drylimit_factor = real(fengsha_drylimit_factor, fp)
+      fengsha_config%moist_correction_factor = real(fengsha_moisture_factor, fp)
+      fengsha_config%kvhmax = real(fengsha_kvhmax, fp)
+      fengsha_config%drag_option = int(fengsha_drag_option)
+      fengsha_config%horizflux_option = int(fengsha_horizflux_option)
+      fengsha_config%moist_option = int(fengsha_moist_option)
+      fengsha_config%distribution_option = int(fengsha_distribution_option)
+      if (n_ginoux_ch_du /= size(ginoux_config%Ch_DU)) then
+         write(*,'(A,I0,A,I0)') 'FATAL ERROR: DustScienceBridge ginoux Ch_DU length ', n_ginoux_ch_du, &
+            ' does not match the scheme bin count ', size(ginoux_config%Ch_DU)
+         call flush(6)
+         error stop "FATAL ERROR: DustScienceBridge ginoux Ch_DU length mismatch"
+      end if
+      ginoux_config%Ch_DU = real(ginoux_ch_du, fp)
 
       ! Pointer Associations
       call c_f_pointer(airden, f_airden, [n_cols, n_levels])

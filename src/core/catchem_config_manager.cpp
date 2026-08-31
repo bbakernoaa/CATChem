@@ -224,6 +224,48 @@ namespace catchem {
         return std::string(default_val);
     }
 
+    std::vector<double> ProcessConfig::get_vector(std::string_view key) const {
+        std::vector<double> values;
+        YAML::Node val = resolve_yaml_path(settings_node, key);
+        if (!val.IsDefined() || !val.IsSequence())
+            return values;
+        for (const auto& item : val) {
+            try {
+                values.push_back(item.as<double>());
+            } catch (...) {
+                throw std::invalid_argument("Process option '" + std::string(key) +
+                                            "' must be a sequence of numbers.");
+            }
+        }
+        return values;
+    }
+
+    std::vector<std::string> ProcessConfig::option_paths() const {
+        // Keys the process layer consumes directly; they are not scheme
+        // tuning options and must not appear in the validator schema.
+        static const std::set<std::string> framework_keys = {"activate",    "diagnostics",
+                                                             "scheme",      "gas_scheme",
+                                                             "aero_scheme", "diag_species"};
+        std::vector<std::string> paths;
+        if (!settings_node.IsDefined() || !settings_node.IsMap())
+            return paths;
+        for (const auto& entry : settings_node) {
+            const std::string block = entry.first.as<std::string>();
+            if (framework_keys.count(block))
+                continue;
+            // Only nested scheme blocks are option containers.  Legacy flat
+            // scalars (scheme_opt, dust_alpha, weibull, ...) are ignored by
+            // the validator: they belong to the retired Fortran config path
+            // and appear in several reference configurations.
+            if (!entry.second.IsMap())
+                continue;
+            for (const auto& option : entry.second) {
+                paths.push_back(block + "/" + option.first.as<std::string>());
+            }
+        }
+        return paths;
+    }
+
     bool ConfigManager::get_bool(std::string_view path, bool default_val) const {
         if (path.rfind("processes/", 0) == 0 || path.rfind("process/", 0) == 0) {
             std::size_t first_slash = path.find('/');

@@ -6,7 +6,10 @@
 
 extern "C" {
 void run_drydep_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* gas_scheme,
-                               const char* aero_scheme, int diagnostics, double* bxheight, double* airden,
+                               const char* aero_scheme, int diagnostics, double wesely_scale_factor,
+                               int wesely_co2_effect, double wesely_co2_level, double wesely_co2_reference,
+                               double gocart_scale_factor, int gocart_resuspension, int gocart_dust_resusp_only,
+                               double zhang_scale_factor, double* bxheight, double* airden,
                                double* t_air, double* pedge, double* rh, double* cldfrc, double* frlai,
                                double* frlanduse, int* iland, bool* is_ice, bool* is_land, bool* is_snow, double* lat,
                                double* lon, double* obk, double* ps, double* salinity, double* suncosmid, double* swgdn,
@@ -78,6 +81,20 @@ namespace catchem {
         diagnostics_enabled = configured->second.diagnostics;
         if (gas_scheme != "wesely" || (aero_scheme != "gocart" && aero_scheme != "zhang"))
             throw std::invalid_argument("DryDep runtime YAML selected an unsupported gas/aerosol scheme combination");
+
+        // Read per-scheme tuning options from the runtime YAML.  Defaults
+        // mirror DryDepCommon_Mod.F90; the registered validator rejects any
+        // option name the schemes do not declare.
+        const auto& settings = configured->second;
+        wesely_scale_factor = settings.get_double("wesely/scale_factor", wesely_scale_factor);
+        wesely_co2_effect = settings.get_bool("wesely/co2_effect", wesely_co2_effect);
+        wesely_co2_level = settings.get_double("wesely/co2_level", wesely_co2_level);
+        wesely_co2_reference = settings.get_double("wesely/co2_reference", wesely_co2_reference);
+        gocart_scale_factor = settings.get_double("gocart/scale_factor", gocart_scale_factor);
+        gocart_resuspension = settings.get_bool("gocart/resuspension", gocart_resuspension);
+        gocart_dust_resuspension_only = settings.get_bool("gocart/dust_resuspension_only", gocart_dust_resuspension_only);
+        zhang_scale_factor = settings.get_double("zhang/scale_factor", zhang_scale_factor);
+
         // 1. Setup diagnostic species ID dynamically based on the is_drydep metadata switch
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
             if (state->chemistry().species_list[i].is_drydep) {
@@ -237,7 +254,10 @@ namespace catchem {
         // 5. Invoke flat science bridge (casting char* vectors to bool* pointers)
         run_drydep_science_bridge(
             state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
-            gas_scheme.c_str(), aero_scheme.c_str(), diagnostics_enabled ? 1 : 0, const_cast<double*>(bxheight_ptr),
+            gas_scheme.c_str(), aero_scheme.c_str(), diagnostics_enabled ? 1 : 0, wesely_scale_factor,
+            wesely_co2_effect ? 1 : 0, wesely_co2_level, wesely_co2_reference, gocart_scale_factor,
+            gocart_resuspension ? 1 : 0, gocart_dust_resuspension_only ? 1 : 0, zhang_scale_factor,
+            const_cast<double*>(bxheight_ptr),
             const_cast<double*>(airden_ptr), const_cast<double*>(t_ptr), const_cast<double*>(pedge_ptr),
             const_cast<double*>(rh_ptr), const_cast<double*>(cldfrc), frlai.data_handle(), frlanduse.data_handle(),
             iland.data_handle(), (bool*)is_ice.data(), (bool*)is_land.data(), (bool*)is_snow.data(),
@@ -261,6 +281,10 @@ namespace catchem {
 extern "C" {
 void catchem_register_drydep_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
-        "drydep", []() { return std::make_shared<catchem::DryDepProcess>(); });
+        "drydep", []() { return std::make_shared<catchem::DryDepProcess>(); }, {},
+        catchem::make_settings_validator("drydep", {"wesely/scale_factor", "wesely/co2_effect", "wesely/co2_level",
+                                                    "wesely/co2_reference", "gocart/scale_factor",
+                                                    "gocart/resuspension", "gocart/dust_resuspension_only",
+                                                    "zhang/scale_factor"}));
 }
 }
