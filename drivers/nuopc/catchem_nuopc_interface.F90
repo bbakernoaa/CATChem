@@ -298,6 +298,23 @@ contains
          normalized == 'ug kg^-1' .or. normalized == 'ug kg**-1'
    end function is_micro_mass_mixing_ratio_unit
 
+   ! PM2.5 and PM10 are diagnostic mass concentrations, unlike the
+   ! transported aerosol tracers, which are mass mixing ratios.
+   pure logical function is_micro_mass_concentration_unit(unit)
+      character(len=*), intent(in) :: unit
+      character(len=128) :: normalized
+      normalized = trim(adjustl(lowercase(unit)))
+      is_micro_mass_concentration_unit = normalized == 'ug m-3' .or. normalized == 'ug/m3' .or. &
+         normalized == 'ug m^-3' .or. normalized == 'ug m**-3'
+   end function is_micro_mass_concentration_unit
+
+   pure logical function is_pm_diagnostic_name(name)
+      character(len=*), intent(in) :: name
+      character(len=128) :: normalized
+      normalized = trim(adjustl(lowercase(name)))
+      is_pm_diagnostic_name = normalized == 'pm25' .or. normalized == 'pm10'
+   end function is_pm_diagnostic_name
+
    subroutine catchem_c_string_to_fortran(c_value, value)
       character(kind=c_char), intent(in) :: c_value(*)
       character(len=*), intent(out) :: value
@@ -641,10 +658,13 @@ contains
                   return
                end if
             end do
-         else if (trim(cc_wrap%tracer_map%names(i)) == 'pm25' .or. &
-            trim(cc_wrap%tracer_map%names(i)) == 'pm10' .or. &
-            trim(cc_wrap%tracer_map%names(i)) == 'PM25' .or. &
-            trim(cc_wrap%tracer_map%names(i)) == 'PM10') then
+         else if (is_pm_diagnostic_name(cc_wrap%tracer_map%names(i))) then
+            if (.not. is_micro_mass_concentration_unit(cc_wrap%tracer_map%units(i))) then
+               call ESMF_LogWrite('Unsupported units for PM diagnostic ' // trim(cc_wrap%tracer_map%names(i)) // &
+                  ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected ug m-3', ESMF_LOGMSG_ERROR, rc=rc)
+               rc = ESMF_FAILURE
+               return
+            end if
             cc_wrap%tracer_map%entry_kind(i) = TRACER_DIAGNOSTIC
          else
             ! NUOPC tracer metadata can include host prognostics that are not
@@ -1875,9 +1895,9 @@ contains
 
          if (allocated(cc_wrap%tracer_map%names)) then
             do v = 1, min(nv, size(cc_wrap%tracer_map%names))
-               if (trim(cc_wrap%tracer_map%names(v)) == 'pm25' .or. &
-                  trim(cc_wrap%tracer_map%names(v)) == 'pm10') then
-                  found_index = cc_wrap%catchem_model%get_diag_index_from_field(trim(cc_wrap%tracer_map%names(v)))
+               if (is_pm_diagnostic_name(cc_wrap%tracer_map%names(v))) then
+                  found_index = cc_wrap%catchem_model%get_diag_index_from_field( &
+                     trim(lowercase(cc_wrap%tracer_map%names(v))))
                   if (found_index > 0) then
                      if (allocated(cc_diag_data)) deallocate(cc_diag_data)
                      call cc_wrap%catchem_model%get_diagnostic(diagnostic_names(found_index), cc_diag_data, rc)
