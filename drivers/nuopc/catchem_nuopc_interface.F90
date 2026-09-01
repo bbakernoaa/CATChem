@@ -1517,6 +1517,11 @@ contains
             expected_levels = cc_wrap%catchem_model%nz
           case ('interface')
             expected_levels = cc_wrap%catchem_model%nz + 1
+          case ('level_to_interface')
+            ! UFS provides the physical interfaces 1:nz.  CATChem retains
+            ! the legacy 0:nz storage convention, so the cap supplies the
+            ! zero-valued index-0 surface slot while importing nlev values.
+            expected_levels = cc_wrap%catchem_model%nz
           case ('soil_layer')
             expected_levels = size(fptr3d, 3)
           case default
@@ -1542,10 +1547,25 @@ contains
          call flush(6)
 #endif
 
-         if (.not. allocated(cc_wrap%met_buf_3d(fidx)%data)) then
-            allocate(cc_wrap%met_buf_3d(fidx)%data(size(fptr3d, 1), size(fptr3d, 2), size(fptr3d, 3)))
+         if (trim(field_map%vertical_axis) == 'level_to_interface') then
+            if (allocated(cc_wrap%met_buf_3d(fidx)%data)) then
+               if (size(cc_wrap%met_buf_3d(fidx)%data, 1) /= size(fptr3d, 1) .or. &
+                  size(cc_wrap%met_buf_3d(fidx)%data, 2) /= size(fptr3d, 2) .or. &
+                  size(cc_wrap%met_buf_3d(fidx)%data, 3) /= size(fptr3d, 3) + 1) then
+                  deallocate(cc_wrap%met_buf_3d(fidx)%data)
+               end if
+            end if
+            if (.not. allocated(cc_wrap%met_buf_3d(fidx)%data)) then
+               allocate(cc_wrap%met_buf_3d(fidx)%data(size(fptr3d, 1), size(fptr3d, 2), size(fptr3d, 3) + 1))
+            end if
+            cc_wrap%met_buf_3d(fidx)%data(:,:,1) = 0.0_c_double
+            cc_wrap%met_buf_3d(fidx)%data(:,:,2:) = real(fptr3d, c_double)
+         else
+            if (.not. allocated(cc_wrap%met_buf_3d(fidx)%data)) then
+               allocate(cc_wrap%met_buf_3d(fidx)%data(size(fptr3d, 1), size(fptr3d, 2), size(fptr3d, 3)))
+            end if
+            cc_wrap%met_buf_3d(fidx)%data = real(fptr3d, c_double)
          end if
-         cc_wrap%met_buf_3d(fidx)%data = real(fptr3d, c_double)
 
          ! Bind through the checked semantic contract.  The field mapping, not
          ! a variable-name special case, defines whether vertical extent is
@@ -1555,6 +1575,9 @@ contains
             call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%catchem_var), &
                cc_wrap%met_buf_3d(fidx)%data, 0, rc)
           case ('interface')
+            call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%catchem_var), &
+               cc_wrap%met_buf_3d(fidx)%data, 1, rc)
+          case ('level_to_interface')
             call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%catchem_var), &
                cc_wrap%met_buf_3d(fidx)%data, 1, rc)
           case ('soil_layer')

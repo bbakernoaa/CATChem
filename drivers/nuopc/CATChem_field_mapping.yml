@@ -200,13 +200,15 @@ import_fields:
   - standard_name: "inst_ice_nonconv_tendency_levels"
     catchem_var: "PFILSAN"
     dimensions: 3
-    vertical_axis: "interface"
+    # UFS supplies nlev values for interfaces 1:nlev.  CATChem's legacy
+    # metstate uses 0:nlev, represented here as Fortran indices 1:nlev+1.
+    vertical_axis: "level_to_interface"
     units: "kg/m2/s"
     optional: false
   - standard_name: "inst_liq_nonconv_tendency_levels"
     catchem_var: "PFLLSAN"
     dimensions: 3
-    vertical_axis: "interface"
+    vertical_axis: "level_to_interface"
     units: "kg/m2/s"
     optional: false
   - standard_name: "soil_type"
