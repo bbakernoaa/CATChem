@@ -768,7 +768,10 @@ namespace catchem {
                     const std::size_t index = static_cast<std::size_t>(column + level * n_cols);
                     output[index] = met_utilities::large_scale_reevaporation(
                         temperature[index], humidity[index], pmid[index], pedge[index], pedge[index + n_cols],
-                        ice_flux[index], liquid_flux[index]);
+                        // PFILSAN/PFLLSAN are interface fluxes.  The upper
+                        // interface is the precipitation entering this layer;
+                        // index 0 is the host's zero-valued surface interface.
+                        ice_flux[index + n_cols], liquid_flux[index + n_cols]);
                 }
             reevapls->mark_host_modified();
             reevapls->set_generation(import_generation);

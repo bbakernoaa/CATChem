@@ -200,11 +200,13 @@ import_fields:
   - standard_name: "inst_ice_nonconv_tendency_levels"
     catchem_var: "PFILSAN"
     dimensions: 3
+    vertical_axis: "interface"
     units: "kg/m2/s"
     optional: false
   - standard_name: "inst_liq_nonconv_tendency_levels"
     catchem_var: "PFLLSAN"
     dimensions: 3
+    vertical_axis: "interface"
     units: "kg/m2/s"
     optional: false
   - standard_name: "soil_type"

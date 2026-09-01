@@ -66,8 +66,10 @@ contains
       real(fp) :: f_airden_dry(n_levels)
       real(fp) :: f_mairden(n_levels)
       real(fp) :: f_pedge(n_levels+1)
-      real(fp) :: f_pfilsan(n_levels)
-      real(fp) :: f_pfllsan(n_levels)
+      ! Precipitation fluxes live on vertical interfaces (the host's 0:nlev
+      ! index range maps to this Fortran 1:nlev+1 range).
+      real(fp) :: f_pfilsan(n_levels+1)
+      real(fp) :: f_pfllsan(n_levels+1)
       real(fp) :: f_reevapls(n_levels)
       real(fp) :: f_t_air(n_levels)
 
@@ -128,8 +130,8 @@ contains
       if (c_associated(c_airden_dry)) call c_f_pointer(c_airden_dry, airden_dry, [n_cols, n_levels])
       if (c_associated(c_mairden))    call c_f_pointer(c_mairden,    mairden,    [n_cols, n_levels])
       if (c_associated(c_pedge))      call c_f_pointer(c_pedge,      pedge,      [n_cols, n_levels+1])
-      if (c_associated(c_pfilsan))    call c_f_pointer(c_pfilsan,    pfilsan,    [n_cols, n_levels])
-      if (c_associated(c_pfllsan))    call c_f_pointer(c_pfllsan,    pfllsan,    [n_cols, n_levels])
+      if (c_associated(c_pfilsan))    call c_f_pointer(c_pfilsan,    pfilsan,    [n_cols, n_levels+1])
+      if (c_associated(c_pfllsan))    call c_f_pointer(c_pfllsan,    pfllsan,    [n_cols, n_levels+1])
       if (c_associated(c_reevapls))   call c_f_pointer(c_reevapls,   reevapls,   [n_cols, n_levels])
       if (c_associated(c_t_air))      call c_f_pointer(c_t_air,      t_air,      [n_cols, n_levels])
 

@@ -126,8 +126,8 @@ contains
       real(fp), intent(in) :: airden_dry(num_layers)    ! 3D atmospheric field
       real(fp), intent(in) :: mairden(num_layers)    ! 3D atmospheric field
       real(fp), intent(in) :: pedge(num_layers+1)  ! Edge field - requires nz+1 dimensions
-      real(fp), intent(in) :: pfilsan(num_layers)    ! layer-centered ice nonconvective precipitation tendency
-      real(fp), intent(in) :: pfllsan(num_layers)    ! layer-centered liquid nonconvective precipitation tendency
+      real(fp), intent(in) :: pfilsan(num_layers+1)  ! interface ice nonconvective precipitation flux
+      real(fp), intent(in) :: pfllsan(num_layers+1)  ! interface liquid nonconvective precipitation flux
       real(fp), intent(in) :: reevapls(num_layers)    ! 3D atmospheric field
       real(fp), intent(in) :: t(num_layers)    ! 3D atmospheric field
       real(fp), intent(in) :: tstep  ! Time step [s] - from process interface
@@ -248,14 +248,16 @@ contains
          !   pdwn(k) = kg_to_cm3_liq * pfllsan(k) + kg_to_cm3_ice * pfilsan(k)
          !else
 
-         ! PFLLSAN/PFILSAN are FV3 layer-centered tendency fields (nlev), not interface fluxes.
-         dqls = pfllsan(k)
-         dqis = pfilsan(k)
+         ! PFLLSAN/PFILSAN are interface fluxes.  Their Fortran 1:nlev+1
+         ! bounds correspond to the host's 0:nlev interface range; use the
+         ! flux divergence across this layer rather than dropping an edge.
+         dqls = pfllsan(k) - pfllsan(km1)
+         dqis = pfilsan(k) - pfilsan(km1)
          ! -- GOCART-style precip-formation flux divergence [kg/m2/s] (>0 forming, <0 evaporating)
          !    used by the sulfate resuspension branch in washout_loss
          dprecip(k) = dqls + dqis
-         ! -- precipitation flux from upper level (convert from kg/m2/s to cm3/cm2/s)
-         pdwn(k) = kg_to_cm3_liq * pfllsan(k) + kg_to_cm3_ice * pfilsan(k)
+         ! -- precipitation flux entering from the upper interface
+         pdwn(k) = kg_to_cm3_liq * pfllsan(km1) + kg_to_cm3_ice * pfilsan(km1)
 
          !end if ! if (k == ktop)
 
@@ -263,10 +265,6 @@ contains
          dpog(k) = max(1.0e-12_fp, delp / g0)
          delz = dpog(k) / max(1.0e-6_fp, mairden(k)) ! thickness of layer [m]
          delz_cm(k) = delz * m_to_cm  ! thickness of layer [cm]
-
-         ! -- liquid/ice precipitation formation in grid cell (kg/m2/s)
-         !dqls = pfllsan(k) - pfllsan(km1)
-         !dqis = pfilsan(k) - pfilsan(km1)
 
          ! -- convert from kg/m2/s to kg (H2O) / m3(air) / s
          dqls_kgm3s = dqls / max(1.0e-6_fp, delz)
@@ -277,9 +275,6 @@ contains
          ! -- the precipitation (ice or liquid)
          qq(k) =  dqls_kgm3s / density_liq +  dqis_kgm3s / density_ice
          reevap(k) = reevapls(k) * (airden_dry(k) / 1000.0_fp) ! convert from kg/kg/s to cm3/cm3/s
-
-         ! -- precipitation flux from upper level (convert from kg/m2/s to cm3/cm2/s)
-         !pdwn(k) = kg_to_cm3_liq * pfllsan(km1) + kg_to_cm3_ice * pfilsan(km1)
 
          ! -- initialize concentrations array, converting from kg/kg to kg/m2
          !this seems for both gas and aerosol
