@@ -9,14 +9,13 @@
 extern "C" {
 void run_so4chem_science_bridge(int n_cols, int n_levels, int n_species, double dt, int diagnostics,
                                 int gocart_update_so2, int year, int month, int day, int hour, int minute, int second,
-                                double* airden, double* cldf,
-                                double* delp, double* pmid, double* t_air, double* z_edges, double* hflux, double* lat,
-                                double* lon, int* lwi, double* pblh, double* u10m, double* ustar, double* v10m,
-                                double* z0h, double* species_mw_g, const char* species_names, double* conc,
-                                double* tendency, bool* c_firsttime, int* c_nymd_last, int* c_nhms_last_recycle,
-                                double* c_xh2o2_init, double* c_pso4_so2, double* c_pso4_g_so2, double* c_pso4_aq_so2,
-                                double* c_pso2_dms, double* c_dms_flux, const int* diagnostic_species_id,
-                                int n_diag_species);
+                                double* airden, double* cldf, double* delp, double* pmid, double* t_air,
+                                double* z_edges, double* hflux, double* lat, double* lon, int* lwi, double* pblh,
+                                double* u10m, double* ustar, double* v10m, double* z0h, double* species_mw_g,
+                                const char* species_names, double* conc, double* tendency, bool* c_firsttime,
+                                int* c_nymd_last, int* c_nhms_last_recycle, double* c_xh2o2_init, double* c_pso4_so2,
+                                double* c_pso4_g_so2, double* c_pso4_aq_so2, double* c_pso2_dms, double* c_dms_flux,
+                                const int* diagnostic_species_id, int n_diag_species);
 }
 
 namespace catchem {
@@ -24,15 +23,15 @@ namespace catchem {
     ProcessContract SO4chemProcess::get_contract() const {
         return {get_name(),
                 {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
-                 host_field_interface("Z", "m"), host_field_3d("DELP", "Pa"), host_field_3d("AIRDEN_DRY", "kg/m3"),
+                 host_field_interface("Z", "m"), host_field_3d("DELP", "Pa"), host_field_3d("AIRDEN", "kg/m3"),
                  host_field_3d("CLDF", "1"), host_field_2d("HFLUX", "W/m2"),
                  host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
                                PersistencePolicy::Persistent),
                  host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
                                PersistencePolicy::Persistent),
                  host_field_2d("PBLH", "m"), host_field_2d("USTAR", "m/s"), host_field_2d("U10M", "m/s"),
-                 host_field_2d("V10M", "m/s"), host_field_2d("LWI", "1"), host_field_2d("Z0", "m"),
-                 host_concentration()},
+                 host_field_2d("V10M", "m/s"), host_field_2d("LWI", "1"),
+                 host_field_2d("Z0H", "m", FieldRequirement::Optional), host_concentration()},
                 {}};
     }
 
@@ -40,7 +39,7 @@ namespace catchem {
 
     void SO4chemProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_delp();
-        state->derive_airden_dry();
+        state->derive_airden();
     }
 
     void SO4chemProcess::init(std::shared_ptr<StateManager> state) {
@@ -133,7 +132,7 @@ namespace catchem {
     void SO4chemProcess::run(std::shared_ptr<StateManager> state) {
 
         // 1. Retrieve 3D Meteorological variables
-        double* airden_ptr = state->write_field<3>("AIRDEN_DRY");
+        double* airden_ptr = state->write_field<3>("AIRDEN");
 
         double* pmid_ptr = state->write_field<3>("PMID");
         double* t_ptr = state->write_field<3>("T");
@@ -177,8 +176,8 @@ namespace catchem {
         require_field_pointer("SO4chem", "U10M", u10m_ptr);
         require_field_pointer("SO4chem", "V10M", v10m_ptr);
 
-        double* z0h = state->write_field<2>("Z0");
-        require_field_pointer("SO4chem", "Z0", z0h);
+        double* z0h = state->write_field<2>("Z0H");
+        require_field_pointer("SO4chem", "Z0H", z0h);
 
         // 3. Chemical and Tendency Views
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
@@ -200,10 +199,9 @@ namespace catchem {
         run_so4chem_science_bridge(
             state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
             diagnostics_enabled ? 1 : 0, gocart_update_so2 ? 1 : 0, state->clock().year, state->clock().month,
-            state->clock().day,
-            state->clock().hour, state->clock().minute, state->clock().second, airden_ptr, cldf_ptr, delp_ptr, pmid_ptr,
-            t_ptr, z_ptr, hflux_ptr, lat_ptr, lon_ptr, lwi.data(), pblh_ptr, u10m_ptr, ustar_ptr, v10m_ptr, z0h,
-            mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(),
+            state->clock().day, state->clock().hour, state->clock().minute, state->clock().second, airden_ptr, cldf_ptr,
+            delp_ptr, pmid_ptr, t_ptr, z_ptr, hflux_ptr, lat_ptr, lon_ptr, lwi.data(), pblh_ptr, u10m_ptr, ustar_ptr,
+            v10m_ptr, z0h, mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(),
             (bool*)firsttime.data(), nymd_last.data(), nhms_last_recycle.data(), xh2o2_init.data(), pso4_so2.data(),
             pso4_g_so2.data(), pso4_aq_so2.data(), pso2_dms.data(), dms_flux.data(), diagnostic_species_id.data(),
             diagnostic_species_id.size());

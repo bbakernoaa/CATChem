@@ -615,6 +615,10 @@ namespace catchem {
         // hidden with abs(): a non-descending host vertical coordinate is an
         // invalid layer and produces zero, making the contract error visible.
         void derive_delp() {
+            // An imported DELP is authoritative.  Only derive it from PEDGE
+            // when the caller did not provide a current layer thickness.
+            if (const auto delp = find_field<3>("DELP"); delp && delp->is_current(import_generation))
+                return;
             if (!met.PEDGE || !met.PEDGE->is_current(import_generation))
                 throw std::runtime_error("Cannot derive DELP: PEDGE is not current");
             auto delp = find_field<3>("DELP");

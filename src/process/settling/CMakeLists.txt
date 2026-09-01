@@ -7,6 +7,7 @@
 set(
   SETTLING_PROCESS_SOURCES
   SettlingCommon_Mod.F90
+  SettlingScienceBridge.F90
   catchem_process_settling.cpp
 )
 

@@ -15,24 +15,23 @@ void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil
                              double fengsha_drylimit_factor, double fengsha_moisture_factor, double fengsha_kvhmax,
                              int fengsha_drag_option, int fengsha_horizflux_option, int fengsha_moist_option,
                              int fengsha_distribution_option, const double* ginoux_ch_du, int n_ginoux_ch_du,
-                             const double* airden, const double* delp, const double* clayfrac,
-                             const double* frlake, const double* frsno, const double* gvf, const double* lai, int* lwi,
-                             const double* rdrag, const double* sandfrac, const double* soilm, const double* gwettop,
-                             const double* ssm, const double* tskin, const double* u10m, const double* v10m,
-                             const double* ustar, const double* ustar_threshold, const double* z0,
-                             const double* species_density, const double* species_radius,
-                             const double* species_lower_radius, const double* species_upper_radius, double* conc,
-                             double* tendency, double* diag_emission_total, double* diag_emission_bin,
-                             double* diag_horizontal_flux, double* diag_moisture_correction,
-                             double* diag_effective_threshold, double* diag_utar_threshold,
-                             const int* diagnostic_species_id, int n_diag_species);
+                             const double* airden, const double* delp, const double* clayfrac, const double* frlake,
+                             const double* frsno, const double* gvf, const double* lai, int* lwi, const double* rdrag,
+                             const double* sandfrac, const double* soilm, const double* gwettop, const double* ssm,
+                             const double* tskin, const double* u10m, const double* v10m, const double* ustar,
+                             const double* ustar_threshold, const double* z0, const double* species_density,
+                             const double* species_radius, const double* species_lower_radius,
+                             const double* species_upper_radius, double* conc, double* tendency,
+                             double* diag_emission_total, double* diag_emission_bin, double* diag_horizontal_flux,
+                             double* diag_moisture_correction, double* diag_effective_threshold,
+                             double* diag_utar_threshold, const int* diagnostic_species_id, int n_diag_species);
 }
 
 namespace catchem {
 
     ProcessContract DustProcess::get_contract() const {
         std::vector<FieldAccessContract> fields{host_field_interface("PEDGE", "Pa"), host_field_3d("DELP", "Pa"),
-                                                host_field_3d("AIRDEN_DRY", "kg/m3"), host_concentration()};
+                                                host_field_3d("AIRDEN", "kg/m3"), host_concentration()};
         if (active_scheme == "fengsha") {
             fields.insert(fields.end(),
                           {host_field_soil_layer("SOILM", "m3/m3"), host_field_2d("CLAYFRAC", "1"),
@@ -54,8 +53,8 @@ namespace catchem {
 
     void DustProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_delp();
-        if (!state->read_field<3>("AIRDEN_DRY"))
-            state->derive_airden_dry();
+        if (!state->read_field<3>("AIRDEN"))
+            state->derive_airden();
     }
 
     void DustProcess::init(std::shared_ptr<StateManager> state) {
@@ -151,7 +150,7 @@ namespace catchem {
     void DustProcess::run(std::shared_ptr<StateManager> state) {
 
         // 1. Retrieve Meteorological state pointers
-        const double* airden_ptr = state->read_field<3>("AIRDEN_DRY");
+        const double* airden_ptr = state->read_field<3>("AIRDEN");
         const double* delp_ptr = state->read_field<3>("DELP");
         const double* clayfrac_ptr = state->read_field<2>("CLAYFRAC");
         const double* frlake_ptr = state->read_field<2>("FRLAKE");
@@ -177,7 +176,7 @@ namespace catchem {
         const double* ustar_th_ptr = state->read_field<2>("USTAR_THRESHOLD");
         const double* z0_ptr = state->read_field<2>("Z0");
 
-        require_field_pointer("Dust", "AIRDEN_DRY", airden_ptr);
+        require_field_pointer("Dust", "AIRDEN", airden_ptr);
         require_field_pointer("Dust", "DELP", delp_ptr);
         if (active_scheme == "fengsha") {
             require_field_pointer("Dust", "CLAYFRAC", clayfrac_ptr);
@@ -305,13 +304,13 @@ namespace catchem {
             state->column_count(), state->level_count(), n_dust, n_soil, state->clock().timestep, active_scheme.c_str(),
             diagnostics_enabled ? 1 : 0, fengsha_alpha, fengsha_gamma, fengsha_drylimit_factor,
             fengsha_moist_correction_factor, fengsha_kvhmax, fengsha_drag_option, fengsha_horizflux_option,
-            fengsha_moist_option, fengsha_distribution_option, ginoux_ch_du.data(), static_cast<int>(ginoux_ch_du.size()),
-            airden_ptr, delp_ptr, clayfrac_ptr, frlake_ptr, frsno_ptr, gvf_ptr, lai_ptr,
-            lwi.data(), rdrag_ptr, sandfrac_ptr, soilm_ptr, gwettop_ptr, ssm_ptr, tskin_ptr, u10m_ptr, v10m_ptr,
-            ustar_ptr, ustar_th_ptr, z0_ptr, density.data(), radius.data(), lower_radius.data(), upper_radius.data(),
-            sliced_conc.data(), mock_tendency.data(), diag_emission_total, local_diag_emission_bin.data(),
-            diag_horizontal_flux, diag_moisture_correction, diag_effective_threshold, local_diag_utar_threshold.data(),
-            local_diagnostic_species_id.data(), local_diagnostic_species_id.size());
+            fengsha_moist_option, fengsha_distribution_option, ginoux_ch_du.data(),
+            static_cast<int>(ginoux_ch_du.size()), airden_ptr, delp_ptr, clayfrac_ptr, frlake_ptr, frsno_ptr, gvf_ptr,
+            lai_ptr, lwi.data(), rdrag_ptr, sandfrac_ptr, soilm_ptr, gwettop_ptr, ssm_ptr, tskin_ptr, u10m_ptr,
+            v10m_ptr, ustar_ptr, ustar_th_ptr, z0_ptr, density.data(), radius.data(), lower_radius.data(),
+            upper_radius.data(), sliced_conc.data(), mock_tendency.data(), diag_emission_total,
+            local_diag_emission_bin.data(), diag_horizontal_flux, diag_moisture_correction, diag_effective_threshold,
+            local_diag_utar_threshold.data(), local_diagnostic_species_id.data(), local_diagnostic_species_id.size());
 
         for (int local_idx = 0; local_idx < n_dust; ++local_idx) {
             const int global_idx = dust_global_indices[local_idx];
@@ -347,10 +346,9 @@ extern "C" {
 void catchem_register_dust_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "dust", []() { return std::make_shared<catchem::DustProcess>(); }, {},
-        catchem::make_settings_validator("dust", {"fengsha/alpha", "fengsha/gamma", "fengsha/drylimit_factor",
-                                                  "fengsha/moist_correction_factor", "fengsha/kvhmax",
-                                                  "fengsha/drag_option", "fengsha/horizflux_option",
-                                                  "fengsha/moist_option", "fengsha/distribution_option",
-                                                  "ginoux/Ch_DU"}));
+        catchem::make_settings_validator(
+            "dust", {"fengsha/alpha", "fengsha/gamma", "fengsha/drylimit_factor", "fengsha/moist_correction_factor",
+                     "fengsha/kvhmax", "fengsha/drag_option", "fengsha/horizflux_option", "fengsha/moist_option",
+                     "fengsha/distribution_option", "ginoux/Ch_DU"}));
 }
 }

@@ -41,8 +41,7 @@ namespace {
         const int nl = state.level_count();
         for (std::size_t ispec = 0; ispec < state.chemistry().species_list.size(); ++ispec) {
             std::string lower = state.chemistry().species_list[ispec].short_name;
-            std::transform(lower.begin(), lower.end(), lower.begin(),
-                            [](unsigned char c) { return std::tolower(c); });
+            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return std::tolower(c); });
             if (std::find(watch.begin(), watch.end(), lower) == watch.end())
                 continue;
             double lo = std::numeric_limits<double>::infinity();
@@ -54,11 +53,11 @@ namespace {
                     hi = std::max(hi, v);
                 }
             catchem::Logger::debug(&state, "watch-species bounds after process",
-                                    {{"step", std::to_string(step)},
-                                     {"process", process_name},
-                                     {"species", state.chemistry().species_list[ispec].short_name},
-                                     {"min", std::to_string(lo)},
-                                     {"max", std::to_string(hi)}});
+                                   {{"step", std::to_string(step)},
+                                    {"process", process_name},
+                                    {"species", state.chemistry().species_list[ispec].short_name},
+                                    {"min", std::to_string(lo)},
+                                    {"max", std::to_string(hi)}});
         }
     }
 

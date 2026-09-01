@@ -233,8 +233,7 @@ namespace catchem {
             try {
                 values.push_back(item.as<double>());
             } catch (...) {
-                throw std::invalid_argument("Process option '" + std::string(key) +
-                                            "' must be a sequence of numbers.");
+                throw std::invalid_argument("Process option '" + std::string(key) + "' must be a sequence of numbers.");
             }
         }
         return values;
@@ -243,9 +242,8 @@ namespace catchem {
     std::vector<std::string> ProcessConfig::option_paths() const {
         // Keys the process layer consumes directly; they are not scheme
         // tuning options and must not appear in the validator schema.
-        static const std::set<std::string> framework_keys = {"activate",    "diagnostics",
-                                                             "scheme",      "gas_scheme",
-                                                             "aero_scheme", "diag_species"};
+        static const std::set<std::string> framework_keys = {"activate",   "diagnostics", "scheme",
+                                                             "gas_scheme", "aero_scheme", "diag_species"};
         std::vector<std::string> paths;
         if (!settings_node.IsDefined() || !settings_node.IsMap())
             return paths;

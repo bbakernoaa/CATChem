@@ -8,20 +8,20 @@
 
 extern "C" {
 void run_carbchem_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* active_scheme,
-                                 int diagnostics, double gocart_time_days_hydrophobic_to_hydrophilic,
-                                 int year, int month, int day, int hour, int minute, int second,
-                                 double* airden, double* delp, double* pmid, double* species_t_chem_loss,
-                                 const char* species_names_char, double* conc, double* tendency, double* diag_prod_mass,
-                                 double* diag_loss_flux, double* diag_phobic_mass, double* diag_phobic_flux,
-                                 const int* diagnostic_species_id, int n_diag_species);
+                                 int diagnostics, double gocart_time_days_hydrophobic_to_hydrophilic, int year,
+                                 int month, int day, int hour, int minute, int second, double* airden, double* delp,
+                                 double* pmid, double* species_t_chem_loss, const char* species_names_char,
+                                 double* conc, double* tendency, double* diag_prod_mass, double* diag_loss_flux,
+                                 double* diag_phobic_mass, double* diag_phobic_flux, const int* diagnostic_species_id,
+                                 int n_diag_species);
 }
 
 namespace catchem {
 
     ProcessContract CarbChemProcess::get_contract() const {
         return {get_name(),
-                {host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"), host_field_3d("T", "K"),
-                 host_field_3d("DELP", "Pa"), host_field_3d("AIRDEN_DRY", "kg/m3"), host_concentration()},
+                {host_field_3d("PMID", "Pa"), host_field_3d("DELP", "Pa"), host_field_3d("AIRDEN", "kg/m3"),
+                 host_concentration()},
                 {}};
     }
 
@@ -29,7 +29,7 @@ namespace catchem {
 
     void CarbChemProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_delp();
-        state->derive_airden_dry();
+        state->derive_airden();
     }
 
     void CarbChemProcess::init(std::shared_ptr<StateManager> state) {
@@ -44,8 +44,8 @@ namespace catchem {
         // Read scheme tuning options from the runtime YAML.  The lookup falls
         // back to the compiled default declared in CarbChemCommon_Mod.F90, so
         // a configuration that omits the option keeps current behavior.
-        gocart_time_days = configured->second.get_double("gocart/time_days_hydrophobic_to_hydrophilic",
-                                                         gocart_time_days);
+        gocart_time_days =
+            configured->second.get_double("gocart/time_days_hydrophobic_to_hydrophilic", gocart_time_days);
         if (!(gocart_time_days > 0.0))
             throw std::invalid_argument("CarbChem gocart time_days_hydrophobic_to_hydrophilic must be positive");
 
@@ -80,13 +80,13 @@ namespace catchem {
     void CarbChemProcess::run(std::shared_ptr<StateManager> state) {
 
         // 1. Retrieve 3D Meteorological state pointers
-        double* airden_ptr = state->write_field<3>("AIRDEN_DRY");
+        double* airden_ptr = state->write_field<3>("AIRDEN");
 
         double* delp_ptr = state->write_field<3>("DELP");
 
         double* pmid_ptr = state->write_field<3>("PMID");
 
-        require_field_pointer("CarbChem", "AIRDEN_DRY", airden_ptr);
+        require_field_pointer("CarbChem", "AIRDEN", airden_ptr);
         require_field_pointer("CarbChem", "DELP", delp_ptr);
         require_field_pointer("CarbChem", "PMID", pmid_ptr);
 
@@ -119,14 +119,13 @@ namespace catchem {
         }
 
         // 5. Invoke flat science bridge
-        run_carbchem_science_bridge(state->column_count(), state->level_count(), state->species_count(),
-                                    state->clock().timestep, active_scheme.c_str(), diagnostics_enabled ? 1 : 0,
-                                    gocart_time_days,
-                                    state->clock().year, state->clock().month, state->clock().day, state->clock().hour,
-                                    state->clock().minute, state->clock().second, airden_ptr, delp_ptr, pmid_ptr,
-                                    t_chem_loss.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
-                                    mock_tendency.data(), diag_prod_mass, diag_loss_flux, diag_phobic_mass,
-                                    diag_phobic_flux, diagnostic_species_id.data(), diagnostic_species_id.size());
+        run_carbchem_science_bridge(
+            state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
+            active_scheme.c_str(), diagnostics_enabled ? 1 : 0, gocart_time_days, state->clock().year,
+            state->clock().month, state->clock().day, state->clock().hour, state->clock().minute, state->clock().second,
+            airden_ptr, delp_ptr, pmid_ptr, t_chem_loss.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
+            mock_tendency.data(), diag_prod_mass, diag_loss_flux, diag_phobic_mass, diag_phobic_flux,
+            diagnostic_species_id.data(), diagnostic_species_id.size());
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();

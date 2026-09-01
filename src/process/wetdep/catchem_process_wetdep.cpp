@@ -8,13 +8,13 @@
 extern "C" {
 void run_wetdep_science_bridge(int n_cols, int n_levels, int n_species, double dt, int diagnostics,
                                double jacob_scale_factor, double jacob_radius_threshold, int jacob_so4_gocart_resusp,
-                               double jacob_so4_washout_eff, double* airden_dry,
-                               double* mairden, double* pedge, double* pfilsan, double* pfllsan, double* reevapls,
-                               double* t_air, bool* is_aerosol, double* henry_cr, double* henry_k0, double* henry_pKa,
-                               double* wd_retfactor, bool* wd_LiqAndGas, double* wd_convfacI2G, double* wd_rainouteff,
-                               double* wd_reevap_frac, double* radius, double* mw_g, const char* species_names,
-                               double* conc, double* tendency, double* diag_mass, double* diag_flux,
-                               const int* diagnostic_species_id, int n_diag_species);
+                               double jacob_so4_washout_eff, double* airden_dry, double* mairden, double* pedge,
+                               double* pfilsan, double* pfllsan, double* reevapls, double* t_air, bool* is_aerosol,
+                               double* henry_cr, double* henry_k0, double* henry_pKa, double* wd_retfactor,
+                               bool* wd_LiqAndGas, double* wd_convfacI2G, double* wd_rainouteff, double* wd_reevap_frac,
+                               double* radius, double* mw_g, const char* species_names, double* conc, double* tendency,
+                               double* diag_mass, double* diag_flux, const int* diagnostic_species_id,
+                               int n_diag_species);
 }
 
 namespace catchem {
@@ -22,10 +22,10 @@ namespace catchem {
     ProcessContract WetDepProcess::get_contract() const {
         return {get_name(),
                 {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
-                 host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_field_3d("PFILSAN", "kg/m2/s"),
-                 host_field_3d("PFLLSAN", "kg/m2/s"), host_field_3d("QV", "kg/kg"),
-                 host_field_3d("REEVAPLS", "kg/kg/s"), host_concentration()},
+                 host_field_3d("MAIRDEN", "kg/m3", FieldRequirement::Optional),
+                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
+                 host_field_interface("PFILSAN", "kg/m2/s"), host_field_interface("PFLLSAN", "kg/m2/s"),
+                 host_field_3d("QV", "kg/kg"), host_field_3d("REEVAPLS", "kg/kg/s"), host_concentration()},
                 {}};
     }
 
@@ -34,7 +34,6 @@ namespace catchem {
     void WetDepProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_reevapls();
         state->derive_airden_dry();
-        state->derive_airden();
     }
 
     void WetDepProcess::init(std::shared_ptr<StateManager> state) {
@@ -109,7 +108,7 @@ namespace catchem {
 
         // 1. Fetch raw pointers to Met Views
         double* airden_dry_ptr = state->write_field<3>("AIRDEN_DRY");
-        double* mairden_ptr = state->write_field<3>("AIRDEN");
+        double* mairden_ptr = state->write_field<3>("MAIRDEN");
 
         double* pedge_ptr = state->write_field<3>("PEDGE");
         double* t_ptr = state->write_field<3>("T");
@@ -119,7 +118,7 @@ namespace catchem {
         double* reevapls_ptr = state->write_field<3>("REEVAPLS");
 
         require_field_pointer("WetDep", "AIRDEN_DRY", airden_dry_ptr);
-        require_field_pointer("WetDep", "AIRDEN", mairden_ptr);
+        require_field_pointer("WetDep", "MAIRDEN", mairden_ptr);
         require_field_pointer("WetDep", "PEDGE", pedge_ptr);
         require_field_pointer("WetDep", "T", t_ptr);
         require_field_pointer("WetDep", "PFILSAN", pfilsan_ptr);
@@ -185,9 +184,8 @@ namespace catchem {
         // 4. Invoke flat science bridge
         run_wetdep_science_bridge(
             state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
-            diagnostics_enabled ? 1 : 0, jacob_scale_factor, jacob_radius_threshold,
-            jacob_so4_gocart_resusp ? 1 : 0, jacob_so4_washout_eff, airden_dry_ptr, mairden_ptr, pedge_ptr,
-            pfilsan_ptr, pfllsan_ptr, reevapls_ptr,
+            diagnostics_enabled ? 1 : 0, jacob_scale_factor, jacob_radius_threshold, jacob_so4_gocart_resusp ? 1 : 0,
+            jacob_so4_washout_eff, airden_dry_ptr, mairden_ptr, pedge_ptr, pfilsan_ptr, pfllsan_ptr, reevapls_ptr,
             t_ptr, (bool*)is_aerosol.data(), henry_cr.data(), henry_k0.data(), henry_pKa.data(), wd_retfactor.data(),
             (bool*)wd_LiqAndGas.data(), wd_convfacI2G.data(), wd_rainouteff.data_handle(), wd_reevap_frac.data(),
             radius.data(), mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(),
@@ -209,8 +207,7 @@ namespace catchem {
                 for (int col = 0; col < state->column_count(); ++col) {
                     for (int lvl = 0; lvl < state->level_count(); ++lvl) {
                         const int idx =
-                            col + lvl * state->column_count() +
-                            position * state->column_count() * state->level_count();
+                            col + lvl * state->column_count() + position * state->column_count() * state->level_count();
                         if (mass_ptr)
                             mass_ptr[col + lvl * state->column_count()] = diag_mass_bin[idx];
                         if (num_ptr)
@@ -230,8 +227,7 @@ extern "C" {
 void catchem_register_wetdep_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "wetdep", []() { return std::make_shared<catchem::WetDepProcess>(); }, {},
-        catchem::make_settings_validator(
-            "wetdep", {"jacob/scale_factor", "jacob/radius_threshold", "jacob/so4_gocart_resusp",
-                       "jacob/so4_washout_eff"}));
+        catchem::make_settings_validator("wetdep", {"jacob/scale_factor", "jacob/radius_threshold",
+                                                    "jacob/so4_gocart_resusp", "jacob/so4_washout_eff"}));
 }
 }

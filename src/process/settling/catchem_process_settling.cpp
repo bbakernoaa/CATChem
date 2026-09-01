@@ -2,19 +2,22 @@
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
-#include "catchem_settling_physics.hpp"
 #include <iostream>
 #include <stdexcept>
 
 namespace catchem {
 
+    extern "C" void run_settling_science_bridge(int n_columns, int n_levels, int n_species, double dt,
+                                                int swelling_method, int correction_maring, double* airden,
+                                                double* delp, double* rh, double* temperature, double* z_edge,
+                                                const int* aerosol_indices, const double* radius, const double* density,
+                                                double* concentration);
+
     ProcessContract SettlingProcess::get_contract() const {
         ProcessContract contract{get_name(),
-                                 {host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
-                                  host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
-                                  host_field_3d("BXHEIGHT", "m"),
-                                  host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                                  host_field_interface("PEDGE", "Pa"), host_concentration()},
+                                 {host_field_3d("T", "K"), host_field_3d("AIRDEN", "kg/m3"),
+                                  host_field_3d("DELP", "Pa"), host_field_3d("RH", "1"), host_field_interface("Z", "m"),
+                                  host_concentration()},
                                  {}};
         for (auto& field : contract.fields)
             field.execution_space = ExecutionSpaceIntent::Device;
@@ -45,15 +48,17 @@ namespace catchem {
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and reaches the settling kernel.
-        // simple_scheme/swelling_method are accepted for configuration parity
-        // but inert in the dry-radius C++ kernel; log that explicitly.
+        // The metadata path corresponds to legacy simple_scheme: false.
+        // Mie-table settling remains intentionally unsupported by C++.
+        if (gocart_simple_scheme)
+            throw std::invalid_argument(
+                "Settling simple_scheme requires Mie tables and is unsupported by the C++ core");
         Logger::info(state.get(), "Settling scheme options",
                      {{"scheme", active_scheme},
                       {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
                       {"gocart/correction_maring", gocart_correction_maring ? "true" : "false"},
-                      {"gocart/simple_scheme",
-                       std::string(gocart_simple_scheme ? "true" : "false") + " (inert: C++ kernel)"},
-                      {"gocart/swelling_method", std::to_string(gocart_swelling_method) + " (inert: C++ kernel)"}});
+                      {"gocart/simple_scheme", "false (species metadata)"},
+                      {"gocart/swelling_method", std::to_string(gocart_swelling_method)}});
 
         int num_aerosols = state->chemistry().aerosol_indices.size();
         if (num_aerosols > 0) {
@@ -111,59 +116,24 @@ namespace catchem {
         if (num_aerosols == 0)
             return;
 
-        if (!state->meteorology().BXHEIGHT && state->meteorology().PEDGE && state->meteorology().T) {
-            state->derive_bxheight();
-        }
-        if (!state->meteorology().AIRDEN_DRY && state->meteorology().PMID && state->meteorology().T) {
-            state->derive_airden_dry();
-        }
-
         require_field_pointer("Settling", "T", state->meteorology().T ? state->meteorology().T->host_data() : nullptr);
-        require_field_pointer("Settling", "AIRDEN_DRY",
-                              state->meteorology().AIRDEN_DRY ? state->meteorology().AIRDEN_DRY->host_data() : nullptr);
-        require_field_pointer("Settling", "PEDGE",
-                              state->meteorology().PEDGE ? state->meteorology().PEDGE->host_data() : nullptr);
-        require_field_pointer("Settling", "BXHEIGHT",
-                              state->meteorology().BXHEIGHT ? state->meteorology().BXHEIGHT->host_data() : nullptr);
+        require_field_pointer("Settling", "AIRDEN",
+                              state->meteorology().AIRDEN ? state->meteorology().AIRDEN->host_data() : nullptr);
+        double* delp = state->write_field<3>("DELP");
+        double* z_edge = state->write_field<3>("Z");
+        require_field_pointer("Settling", "DELP", delp);
+        require_field_pointer("Settling", "RH",
+                              state->meteorology().RH ? state->meteorology().RH->host_data() : nullptr);
+        require_field_pointer("Settling", "Z", z_edge);
         require_field_pointer("Settling", "CHEM_CONC",
                               state->chemistry().conc ? state->chemistry().conc->host_data() : nullptr);
 
-        settling::SettlingFunctor functor;
-        functor.conc = state->chemistry().conc->view();
-        functor.t = state->meteorology().T->view();
-        functor.airden = state->meteorology().AIRDEN_DRY->view();
-        functor.pedge = state->meteorology().PEDGE->view();
-        functor.dz = state->meteorology().BXHEIGHT->view();
-
-#ifdef CATCHEM_ENABLE_KOKKOS
-        functor.aerosol_indices = dev_aero_indices;
-        functor.aerosol_radius = dev_radius_dry;
-        functor.aerosol_density = dev_rhop_dry;
-#else
-        functor.aerosol_indices =
-            MdspanTypeHelper<int, 1>::type(host_aero_indices.data(), static_cast<int>(host_aero_indices.size()));
-        functor.aerosol_radius =
-            MdspanTypeHelper<double, 1>::type(host_radius_dry.data(), static_cast<int>(host_radius_dry.size()));
-        functor.aerosol_density =
-            MdspanTypeHelper<double, 1>::type(host_rhop_dry.data(), static_cast<int>(host_rhop_dry.size()));
-#endif
-
-        functor.cdt = state->clock().timestep;
-        functor.n_levels = state->level_count();
-        functor.scale_factor = gocart_scale_factor;
-        functor.correction_maring = gocart_correction_maring;
-
-#ifdef CATCHEM_ENABLE_KOKKOS
-        Kokkos::parallel_for("settling_compute_c++",
-                             Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>(
-                                 {0, 0}, {state->column_count(), num_aerosols}),
-                             functor);
-        Kokkos::fence();
-#else
-        for (int icol = 0; icol < state->column_count(); ++icol)
-            for (int iaero = 0; iaero < num_aerosols; ++iaero)
-                functor(icol, iaero);
-#endif
+        run_settling_science_bridge(
+            state->column_count(), state->level_count(), num_aerosols, state->clock().timestep, gocart_swelling_method,
+            gocart_correction_maring ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp,
+            state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge, host_aero_indices.data(),
+            host_radius_dry.data(), host_rhop_dry.data(), state->chemistry().conc->host_write());
+        state->chemistry().conc->mark_host_modified();
     }
 
     void SettlingProcess::finalize() {
@@ -176,8 +146,7 @@ extern "C" {
 void catchem_register_settling_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "settling", []() { return std::make_shared<catchem::SettlingProcess>(); }, {},
-        catchem::make_settings_validator("settling",
-                                         {"gocart/scale_factor", "gocart/simple_scheme", "gocart/swelling_method",
-                                          "gocart/correction_maring"}));
+        catchem::make_settings_validator("settling", {"gocart/scale_factor", "gocart/simple_scheme",
+                                                      "gocart/swelling_method", "gocart/correction_maring"}));
 }
 }

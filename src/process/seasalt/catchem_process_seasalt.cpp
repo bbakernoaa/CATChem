@@ -194,15 +194,14 @@ namespace catchem {
         }
 
         // 5. Invoke flat science bridge
-        run_seasalt_science_bridge(state->column_count(), state->level_count(), n_seasalt, state->clock().timestep,
-                                   active_scheme.c_str(), diagnostics_enabled ? 1 : 0, gong97_scale_factor,
-                                   gong97_weibull_flag ? 1 : 0, gong03_scale_factor, gong03_weibull_flag ? 1 : 0,
-                                   geos12_scale_factor, geos12_weibull_flag ? 1 : 0, frocean_ptr, frseaice_ptr,
-                                   lat_ptr, lon_ptr, sst_ptr, u10m_ptr, v10m_ptr, ustar_ptr, delp_ptr, density.data(),
-                                   radius.data(), lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(),
-                                   mw_g.data(), sliced_conc.data(), mock_tendency.data(), diag_mass_total_ptr,
-                                   diag_num_total_ptr, diag_mass_bin.data(), diag_num_bin.data(),
-                                   diagnostic_species_id.data(), diagnostic_species_id.size());
+        run_seasalt_science_bridge(
+            state->column_count(), state->level_count(), n_seasalt, state->clock().timestep, active_scheme.c_str(),
+            diagnostics_enabled ? 1 : 0, gong97_scale_factor, gong97_weibull_flag ? 1 : 0, gong03_scale_factor,
+            gong03_weibull_flag ? 1 : 0, geos12_scale_factor, geos12_weibull_flag ? 1 : 0, frocean_ptr, frseaice_ptr,
+            lat_ptr, lon_ptr, sst_ptr, u10m_ptr, v10m_ptr, ustar_ptr, delp_ptr, density.data(), radius.data(),
+            lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(), mw_g.data(), sliced_conc.data(),
+            mock_tendency.data(), diag_mass_total_ptr, diag_num_total_ptr, diag_mass_bin.data(), diag_num_bin.data(),
+            diagnostic_species_id.data(), diagnostic_species_id.size());
 
         // 6. Copy sliced concentrations back to main unified chemistry state
         for (int i = 0; i < n_seasalt; ++i) {
@@ -244,8 +243,8 @@ extern "C" {
 void catchem_register_seasalt_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "seasalt", []() { return std::make_shared<catchem::SeaSaltProcess>(); }, {},
-        catchem::make_settings_validator("seasalt", {"gong97/scale_factor", "gong97/weibull_flag",
-                                                     "gong03/scale_factor", "gong03/weibull_flag",
-                                                     "geos12/scale_factor", "geos12/weibull_flag"}));
+        catchem::make_settings_validator("seasalt",
+                                         {"gong97/scale_factor", "gong97/weibull_flag", "gong03/scale_factor",
+                                          "gong03/weibull_flag", "geos12/scale_factor", "geos12/weibull_flag"}));
 }
 }

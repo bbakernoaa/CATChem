@@ -38,7 +38,7 @@ diagnostics:
     prefix: "catchem_diag"
     frequency: 3600  #output frequency in seconds; e.g., 3600 for hourly output
     format: "netcdf" #only format supported now
-    compress_lev: 0 #compress NC file; 0 for no compression, 1-9 for increasing levels of compression (and run time)
+    compress_lev: 2 #compress NC file; 0 for no compression, 1-9 for increasing levels of compression (and run time)
     latlon_output: true #stitch cubed-sphere tiles into a single lat/lon file (only applies when tile count > 1)
     diag_list: [so2, so4, seas1, seas2, seas3, seas4, seas5, bc1, bc2, oc1, oc2, dust1, dust2, dust3, dust4, dust5]  #list of species to output; empty list for all species
   collection:
@@ -48,23 +48,8 @@ diagnostics:
 # Optics files for Mie
 #============================================================================
 mie:
-  #directory: "/gpfs/f6/bil-fire3/world-shared/Emissions/NASA/ExtData/monochromatic/"  #location on gaeac6
-  #directory: "/scratch4/NCEPDEV/naqfc/Barry.Baker/Emissions/Emissions/NASA/ExtData/monochromatic/"  #location on ursa
   directory: "./ExtData/monochromatic/"  #in running directory after copying from the above directories
-  #directory: "../../../../../../optics/"
   files:
-    # SS: opticsBands_SS.v3_3.RRTMG.nc
-    # DU: opticsBands_DU.v15_3.RRTMG.nc
-    # BC: opticsBands_BC.v1_3.RRTMG.nc
-    # OC: opticsBands_OC.v1_3.RRTMG.nc
-    # NI: opticsBands_NI.v2_5.RRTMG.nc
-    # SU: opticsBands_SU.v1_3.RRTMG.nc
-    # SS: optics_SS.v3_5.nc
-    # DU: optics_DU.v15_5.nc
-    # BC: optics_BC.v1_5.nc
-    # OC: optics_OC.v1_5.nc
-    # NI: optics_NI.v2_5.nc
-    # SU: optics_SU.v1_5.nc
     SS: optics_SS.v3_3.nc
     DU: optics_DU.v15_3.nc
     BC: optics_BC.v1_3.nc
@@ -85,12 +70,6 @@ run_phases:
       - drydep
       - so4chem
       - wetdep
-  # test2:
-  #   description: "Test phase 2"
-  #   processes:
-  #    - dust
-  #    - drydep
-  #    - wetdep
 
 #============================================================================
 # Settings for CATChem processes
