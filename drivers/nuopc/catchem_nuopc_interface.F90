@@ -25,7 +25,7 @@
 
 module catchem_nuopc_interface
 
-   use iso_c_binding, only: c_loc, c_null_char, c_char, c_double, c_ptr, c_int, c_associated, c_f_pointer, c_intptr_t
+   use iso_c_binding, only: c_loc, c_null_char, c_char, c_double, c_ptr, c_int, c_long_long, c_associated, c_f_pointer, c_intptr_t
    use ESMF
    use NUOPC
    use MPI
@@ -143,6 +143,18 @@ module catchem_nuopc_interface
          character(kind=c_char), intent(in) :: yaml_path(*)
          integer(c_int), value :: default_val
       end function catchem_config_get_yaml_bool
+
+      integer(c_int) function catchem_core_get_timestep_outcome(core_ptr, status, timestep, duration, &
+         import_generation, process_index, state_classification, process_name, process_name_len, cause, cause_len) &
+         bind(C, name="catchem_core_get_timestep_outcome")
+         import :: c_ptr, c_int, c_long_long, c_double, c_char
+         type(c_ptr), value :: core_ptr
+         integer(c_int), intent(out) :: status, process_index, state_classification
+         integer(c_long_long), intent(out) :: timestep, import_generation
+         real(c_double), intent(out) :: duration
+         character(kind=c_char), intent(out) :: process_name(*), cause(*)
+         integer(c_int), value :: process_name_len, cause_len
+      end function catchem_core_get_timestep_outcome
    end interface
 
    private
@@ -326,6 +338,27 @@ contains
          value(i:i) = c_value(i)
       end do
    end subroutine catchem_c_string_to_fortran
+
+   subroutine catchem_append_timestep_failure(core_ptr, errmsg)
+      type(c_ptr), intent(in) :: core_ptr
+      character(len=*), intent(inout) :: errmsg
+      character(kind=c_char) :: c_process(128), c_cause(512)
+      character(len=128) :: process_name
+      character(len=512) :: cause
+      integer(c_int) :: status, process_index, state_classification, outcome_rc
+      integer(c_long_long) :: timestep, import_generation
+      real(c_double) :: duration
+
+      if (.not. c_associated(core_ptr)) return
+      outcome_rc = catchem_core_get_timestep_outcome(core_ptr, status, timestep, duration, import_generation, &
+         process_index, state_classification, c_process, int(size(c_process), c_int), c_cause, int(size(c_cause), c_int))
+      if (outcome_rc /= 0_c_int) return
+      call catchem_c_string_to_fortran(c_process, process_name)
+      call catchem_c_string_to_fortran(c_cause, cause)
+      if (len_trim(process_name) > 0 .or. len_trim(cause) > 0) then
+         errmsg = trim(errmsg) // ': process=' // trim(process_name) // ' cause=' // trim(cause)
+      end if
+   end subroutine catchem_append_timestep_failure
 
    !> Emit a low-volume, per-PET run-phase marker when enabled in runtime YAML.
    !! The final marker in an ESMF PET log identifies the phase that stalled.
@@ -863,6 +896,7 @@ contains
       call cc_wrap%catchem_model%run_timestep(cc_wrap%timestep_counter, real(dt, fp), rc)
       if (rc /= CC_SUCCESS) then
          write(errmsg, '(A,I0)') 'Error in run_timestep at timestep = ', cc_wrap%timestep_counter
+         call catchem_append_timestep_failure(cc_wrap%catchem_model%cpp_core_ptr, errmsg)
          return
       end if
 #ifdef CATCHEM_TRACE_NUOPC
