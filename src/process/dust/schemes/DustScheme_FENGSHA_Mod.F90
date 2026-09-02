@@ -204,9 +204,11 @@ contains
          return
       end if
 
-      ! Match GOCART2G: lake and snow fractions are independent land masks.
-      fracland = max(0.0_fp, min(1.0_fp, 1.0_fp - frlake)) * &
-         max(0.0_fp, min(1.0_fp, 1.0_fp - frsno))
+      ! Calculate land fraction (TODO: I am using 1 - frlake - frsno, not following GOCART below)
+      ! fracland = max(0.0_fp, min(1.0_fp, 1.0_fp - frlake)) * &
+      !    max(0.0_fp, min(1.0_fp, 1.0_fp - frsno))
+
+      fracland = max(0.0_fp, min(1.0_fp, 1.0_fp - frsno - frlake))  ! my calculation
 
       ! Compute vertical-to-horizontal mass flux ratio
       ! B.Marticorena, G.Bergametti, J.Geophys.Res., 1995
@@ -292,8 +294,7 @@ contains
       end select
 
       ! Main computation loop - CUSTOMIZE THIS SECTION FOR YOUR SCHEME
-      ! Dust emission is a surface flux, so it is only applied to the first layer (k=1)
-      do k = 1, 1
+      do k = 1, num_layers
 
          ! Apply to each species
          do species_idx = 1, num_species
@@ -335,11 +336,7 @@ contains
       end if
       if (present(dust_effective_threshold)) then
          ! Add your custom effective dust threshold friction velocity: u_thres * h / r calculation
-         if (abs(R) > 1.0e-12_fp) then
-            dust_effective_threshold = ustar_threshold * H / R
-         else
-            dust_effective_threshold = 0.0_fp
-         end if
+         dust_effective_threshold = ustar_threshold * H / R
       end if
 
    end subroutine compute_fengsha
@@ -364,7 +361,7 @@ contains
    !!
    !!!>
    subroutine KokDistribution(radius, rLow, rUp, dist)
-      !use catchem_bridge_constants, only: pi
+      !use constants, only: pi
       IMPLICIT NONE
       ! Parameters
       real(fp), dimension(:), intent(in)  :: radius
@@ -391,25 +388,16 @@ contains
       nbins = size(radius)
 
       do n = 1, nbins
-         if (radius(n) > 0.0_fp .and. rLow(n) > 0.0_fp .and. rUp(n) > rLow(n)) then
-            diameter = radius(n) * 2.0_fp
-            dlam = diameter / lambda
-            dist(n) = diameter * (1._fp + erf(factor * log(diameter/mmd))) * exp(-dlam * dlam * dlam) * log(rUp(n)/rLow(n))
-            if (dist(n) /= dist(n) .or. dist(n) < 0.0_fp) then
-               dist(n) = 0.0_fp
-            end if
-            dvol = dvol + dist(n)
-         else
-            dist(n) = 0.0_fp
-         end if
+         diameter = radius(n) * 2.0_fp
+         dlam = diameter / lambda
+         dist(n) = diameter * (1._fp + erf(factor * log(diameter/mmd))) * exp(-dlam * dlam * dlam) * log(rUp(n)/rLow(n))
+         dvol = dvol + dist(n)
       end do
 
       ! Normalize Distribution
-      if (dvol > 0.0_fp) then
-         do n = 1, nbins
-            dist(n) = dist(n) / dvol
-         end do
-      end if
+      do n = 1, nbins
+         dist(n) = dist(n) / dvol
+      end do
 
    end subroutine KokDistribution
 
@@ -512,12 +500,9 @@ contains
       real(fp), intent(in) :: sig, m, Beta, Lc
       real(fp) :: feff
       real(fp) :: R1, R2
-      real(fp) :: denom1, denom2
 
-      denom1 = max(1.0e-6_fp, 1.0_fp - sig * m * Lc)
-      denom2 = max(1.0e-6_fp, 1.0_fp + m * Beta * Lc)
-      R1 = 1.0_fp / sqrt(denom1)
-      R2 = 1.0_fp / sqrt(denom2)
+      R1 = 1.0_fp / sqrt(1.0_fp - sig * m * Lc)
+      R2 = 1.0_fp / sqrt(1.0_fp + m * Beta * Lc)
       feff = R1 * R2
    end function calc_drag_partition
 
@@ -715,12 +700,7 @@ contains
       !--------------------------------------------
       ! MB95 Drag Partition
       !--------------------------------------------
-      if (z0 > 0.0_fp) then
-         R = 1.0_fp - (log(max(z0s, z0) / z0s ) / log(0.7_fp * (0.1_fp / z0s) ** 0.8_fp))
-         R = max(0.0_fp, min(1.0_fp, R))
-      else
-         R = 1.0_fp
-      end if
+      R = 1.0_fp - (log(z0 / z0s ) / log(0.7_fp * (0.1_fp / z0s) ** 0.8_fp))
       return
 
    end subroutine MB95_DragPartition
@@ -762,8 +742,9 @@ contains
       !--------------------------------------------
       ! Compute Draxler Horizontal Flux
       !--------------------------------------------
-      if (R > 1.0e-12_fp .and. ustar > 1.0e-12_fp .and. ustar >= ustar_threshold) then
-         u_ts = ustar_threshold * H / R
+      u_ts = ustar_threshold * H / R
+
+      if (ustar >= ustar_threshold) then
          HorizFlux = max(0._fp ,(ustar * R) ** 3.0_fp * (1.0_fp - ( u_ts / ustar ) ** 2.0_fp))
       endif
 
@@ -804,10 +785,9 @@ contains
       !--------------------------------------------
       ! Compute Kawamura Horizontal Flux
       !--------------------------------------------
-      if (R > 1.0e-12_fp .and. ustar > 1.0e-12_fp .and. ustar >= ustar_threshold) then
-         u_ts = ustar_threshold * H / R
-         HorizFlux = MAX(0._fp, (ustar ** 3.0_fp * (1.0_fp - (u_ts / ustar) ** 2.0_fp) * (1.0_fp + (u_ts / ustar) ** 2.0_fp ) ) )
-      endif
+      u_ts = ustar_threshold * H / R
+
+      HorizFlux = MAX(0._fp, (ustar ** 3.0_fp * (1.0_fp - (u_ts / ustar) ** 2.0_fp) * (1.0_fp + (u_ts / ustar) ** 2.0_fp ) ) )
 
    end subroutine Kawamura_HorizFlux
 
