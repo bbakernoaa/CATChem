@@ -208,12 +208,13 @@ contains
             wetdep_flux_per_species_per_level=col_diag_flux, &
             diagnostic_species_id=diagnostic_species_id)
 
-         ! Match the upstream ProcessWetDepInterface replacement contract:
-         ! compute_jacob's returned array is written directly to the state.
-         ! The values retain their native aerosol (ug/kg) or gas (ppmv) units.
+         ! compute_jacob returns a finite-step tendency in the native
+         ! aerosol (ug/kg/s) or gas (ppmv/s) units.  Apply it to the
+         ! concentration state while preserving species with zero tendency.
          do ispec = 1, n_species
             tendency(icol, :, ispec) = real(col_tendencies(:, ispec), c_double)
-            conc(icol, :, ispec) = real(col_tendencies(:, ispec), c_double)
+            conc(icol, :, ispec) = conc(icol, :, ispec) + &
+               real(dt * col_tendencies(:, ispec), c_double)
          end do
 
          if (diagnostics /= 0) then
