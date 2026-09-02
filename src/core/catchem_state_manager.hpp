@@ -693,6 +693,20 @@ namespace catchem {
             z0h->set_generation(import_generation);
         }
 
+        // Legacy metstate_mod defaults missing ocean salinity to zero. This
+        // disables the optional iodine/ocean-O3 treatment while retaining a
+        // host-provided salinity field when one is available.
+        void derive_salinity() {
+            if (const auto salinity = find_field<2>("SALINITY"); salinity && salinity->is_current(import_generation))
+                return;
+            auto buffer = std::make_shared<std::vector<double>>(n_cols, 0.0);
+            owned_buffers.push_back(buffer);
+            bind_met_field_2d("SALINITY", buffer->data());
+            auto salinity = find_field<2>("SALINITY");
+            salinity->mark_host_modified();
+            salinity->set_generation(import_generation);
+        }
+
         void derive_relative_humidity() {
             if (const auto rh = find_field<3>("RH"); rh && rh->is_current(import_generation))
                 return;
