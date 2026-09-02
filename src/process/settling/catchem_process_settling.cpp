@@ -26,6 +26,15 @@ namespace catchem {
 
     SettlingProcess::SettlingProcess() : active_scheme("c++_kokkos"), fortran_callback(nullptr) {}
 
+    void SettlingProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
+        // DELP, AIRDEN, and RH are optional host products. GOCART settling
+        // requires all three, so make them current before the execution plan
+        // validates this process contract.
+        state->derive_delp();
+        state->derive_airden();
+        state->derive_relative_humidity();
+    }
+
     void SettlingProcess::init(std::shared_ptr<StateManager> state) {
         const auto config = state->config_manager();
         if (!config)
