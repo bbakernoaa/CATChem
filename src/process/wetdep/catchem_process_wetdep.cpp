@@ -22,8 +22,7 @@ namespace catchem {
     ProcessContract WetDepProcess::get_contract() const {
         return {get_name(),
                 {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
-                 host_field_3d("MAIRDEN", "kg/m3", FieldRequirement::Optional),
-                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
+                 host_field_3d("AIRDEN", "kg/m3"), host_field_3d("AIRDEN_DRY", "kg/m3"),
                  host_field_interface("PFILSAN", "kg/m2/s"), host_field_interface("PFLLSAN", "kg/m2/s"),
                  host_field_3d("QV", "kg/kg"), host_field_3d("REEVAPLS", "kg/kg/s"), host_concentration()},
                 {}};
@@ -34,6 +33,7 @@ namespace catchem {
     void WetDepProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_reevapls();
         state->derive_airden_dry();
+        state->derive_airden();
     }
 
     void WetDepProcess::init(std::shared_ptr<StateManager> state) {
@@ -108,7 +108,7 @@ namespace catchem {
 
         // 1. Fetch raw pointers to Met Views
         double* airden_dry_ptr = state->write_field<3>("AIRDEN_DRY");
-        double* mairden_ptr = state->write_field<3>("MAIRDEN");
+        double* airden_ptr = state->write_field<3>("AIRDEN");
 
         double* pedge_ptr = state->write_field<3>("PEDGE");
         double* t_ptr = state->write_field<3>("T");
@@ -118,7 +118,7 @@ namespace catchem {
         double* reevapls_ptr = state->write_field<3>("REEVAPLS");
 
         require_field_pointer("WetDep", "AIRDEN_DRY", airden_dry_ptr);
-        require_field_pointer("WetDep", "MAIRDEN", mairden_ptr);
+        require_field_pointer("WetDep", "AIRDEN", airden_ptr);
         require_field_pointer("WetDep", "PEDGE", pedge_ptr);
         require_field_pointer("WetDep", "T", t_ptr);
         require_field_pointer("WetDep", "PFILSAN", pfilsan_ptr);
@@ -185,7 +185,7 @@ namespace catchem {
         run_wetdep_science_bridge(
             state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
             diagnostics_enabled ? 1 : 0, jacob_scale_factor, jacob_radius_threshold, jacob_so4_gocart_resusp ? 1 : 0,
-            jacob_so4_washout_eff, airden_dry_ptr, mairden_ptr, pedge_ptr, pfilsan_ptr, pfllsan_ptr, reevapls_ptr,
+            jacob_so4_washout_eff, airden_dry_ptr, airden_ptr, pedge_ptr, pfilsan_ptr, pfllsan_ptr, reevapls_ptr,
             t_ptr, (bool*)is_aerosol.data(), henry_cr.data(), henry_k0.data(), henry_pKa.data(), wd_retfactor.data(),
             (bool*)wd_LiqAndGas.data(), wd_convfacI2G.data(), wd_rainouteff.data_handle(), wd_reevap_frac.data(),
             radius.data(), mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(),

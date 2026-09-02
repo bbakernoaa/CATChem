@@ -30,8 +30,8 @@ namespace catchem {
                  host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
                                PersistencePolicy::Persistent),
                  host_field_2d("PBLH", "m"), host_field_2d("USTAR", "m/s"), host_field_2d("U10M", "m/s"),
-                 host_field_2d("V10M", "m/s"), host_field_2d("LWI", "1"),
-                 host_field_2d("Z0H", "m", FieldRequirement::Optional), host_concentration()},
+                 host_field_2d("V10M", "m/s"), host_field_2d("LWI", "1"), host_field_2d("Z0", "m"),
+                 host_concentration()},
                 {}};
     }
 
@@ -40,7 +40,6 @@ namespace catchem {
     void SO4chemProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_delp();
         state->derive_airden();
-        state->derive_z0h();
     }
 
     void SO4chemProcess::init(std::shared_ptr<StateManager> state) {
@@ -177,8 +176,8 @@ namespace catchem {
         require_field_pointer("SO4chem", "U10M", u10m_ptr);
         require_field_pointer("SO4chem", "V10M", v10m_ptr);
 
-        double* z0h = state->write_field<2>("Z0H");
-        require_field_pointer("SO4chem", "Z0H", z0h);
+        const double* z0_ptr = state->read_field<2>("Z0");
+        require_field_pointer("SO4chem", "Z0", z0_ptr);
 
         // 3. Chemical and Tendency Views
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
@@ -202,7 +201,8 @@ namespace catchem {
             diagnostics_enabled ? 1 : 0, gocart_update_so2 ? 1 : 0, state->clock().year, state->clock().month,
             state->clock().day, state->clock().hour, state->clock().minute, state->clock().second, airden_ptr, cldf_ptr,
             delp_ptr, pmid_ptr, t_ptr, z_ptr, hflux_ptr, lat_ptr, lon_ptr, lwi.data(), pblh_ptr, u10m_ptr, ustar_ptr,
-            v10m_ptr, z0h, mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(),
+            v10m_ptr, const_cast<double*>(z0_ptr), mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
+            mock_tendency.data(),
             (bool*)firsttime.data(), nymd_last.data(), nhms_last_recycle.data(), xh2o2_init.data(), pso4_so2.data(),
             pso4_g_so2.data(), pso4_aq_so2.data(), pso2_dms.data(), dms_flux.data(), diagnostic_species_id.data(),
             diagnostic_species_id.size());

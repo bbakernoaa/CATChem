@@ -47,7 +47,6 @@ namespace catchem {
                  host_field_2d("FRSNO", "frac"),
                  host_field_2d("SWGDN", "W/m2"),
                  host_field_2d("Z0", "m"),
-                 host_field_2d("Z0H", "m", FieldRequirement::Optional),
                  host_field_2d("SALINITY", "1", FieldRequirement::Optional),
                  host_field_2d("FRLAKE", "1"),
                  host_field_2d("GWETTOP", "1"),
@@ -64,7 +63,6 @@ namespace catchem {
         state->derive_bxheight();
         state->derive_airden();
         state->derive_relative_humidity();
-        state->derive_z0h();
         state->derive_salinity();
         state->derive_drydep_landuse();
         state->derive_obk();
@@ -170,7 +168,6 @@ namespace catchem {
         const double* frsno_ptr = state->read_field<2>("FRSNO");
         const double* swgdn_ptr = state->read_field<2>("SWGDN");
         const double* z0_ptr = state->read_field<2>("Z0");
-        const double* z0h_ptr = state->read_field<2>("Z0H");
         const double* salinity_ptr = state->read_field<2>("SALINITY");
         const double* frlake_ptr = state->read_field<2>("FRLAKE");
         const double* gwettop_ptr = state->read_field<2>("GWETTOP");
@@ -183,7 +180,6 @@ namespace catchem {
         require_field_pointer("DryDep", "FRSNO", frsno_ptr);
         require_field_pointer("DryDep", "SWGDN", swgdn_ptr);
         require_field_pointer("DryDep", "Z0", z0_ptr);
-        require_field_pointer("DryDep", "Z0H", z0h_ptr);
         require_field_pointer("DryDep", "SALINITY", salinity_ptr);
         require_field_pointer("DryDep", "FRLAKE", frlake_ptr);
         require_field_pointer("DryDep", "GWETTOP", gwettop_ptr);
@@ -302,7 +298,7 @@ namespace catchem {
             const_cast<double*>(ts_ptr), const_cast<double*>(ustar_ptr), const_cast<double*>(z0_ptr),
             const_cast<double*>(frlake_ptr), const_cast<double*>(gwettop_ptr), const_cast<double*>(hflux_ptr),
             lwi.data(), const_cast<double*>(pblh_ptr), const_cast<double*>(u10m_ptr), const_cast<double*>(v10m_ptr),
-            const_cast<double*>(z0h_ptr), mw_g.data(), dd_f0.data(), dd_hstar.data(), dd_DvzAerSnow.data(),
+            const_cast<double*>(z0_ptr), mw_g.data(), dd_f0.data(), dd_hstar.data(), dd_DvzAerSnow.data(),
             dd_DvzMinVal_snow.data(), dd_DvzMinVal_land.data(), density.data(), radius.data(), (bool*)is_seasalt.data(),
             (bool*)is_dust.data(), lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(), conc_ptr,
             mock_tendency.data(), diag_con, diag_vel, diagnostic_species_id.data(), diagnostic_species_id.size());
