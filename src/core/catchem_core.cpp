@@ -49,18 +49,21 @@ namespace {
                 continue;
             double lo = std::numeric_limits<double>::infinity();
             double hi = -std::numeric_limits<double>::infinity();
+            double sum = 0.0;
             for (int icol = 0; icol < nc; ++icol)
                 for (int ilev = 0; ilev < nl; ++ilev) {
                     const double v = view(icol, ilev, static_cast<int>(ispec));
                     lo = std::min(lo, v);
                     hi = std::max(hi, v);
+                    sum += v;
                 }
             catchem::Logger::debug(&state, "watch-species bounds after process",
                                    {{"step", std::to_string(step)},
                                     {"process", process_name},
                                     {"species", state.chemistry().species_list[ispec].short_name},
                                     {"min", std::to_string(lo)},
-                                    {"max", std::to_string(hi)}});
+                                    {"max", std::to_string(hi)},
+                                    {"mixing_ratio_sum", std::to_string(sum)}});
         }
     }
 
