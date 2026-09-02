@@ -102,6 +102,11 @@ contains
       real(fp) :: col_soilm(n_soil)
       real(fp) :: col_conc(n_levels, n_species)
       real(fp) :: col_tendency(n_levels, n_species)
+      ! Surface-emission schemes receive a one-layer physical surface column.
+      ! The bridge, not the scheme, owns CATChem's bottom-to-top indexing.
+      real(fp) :: surface_airden(1)
+      real(fp) :: surface_conc(1, n_species)
+      real(fp) :: surface_tendency(1, n_species)
 
       real(fp) :: f_species_density(n_species)
       real(fp) :: f_species_radius(n_species)
@@ -208,20 +213,24 @@ contains
          col_utar_threshold(:) = 0.0_fp
 
          if (local_scheme == "fengsha") then
+            surface_airden(1) = col_airden(1)
+            surface_conc(1, :) = col_conc(1, :)
+            surface_tendency = 0.0_fp
             call compute_fengsha( &
-               n_levels, n_species, fengsha_config, g0, &
-               col_airden, real(f_clayfrac(icol), fp), real(f_frlake(icol), fp), real(f_frsno(icol), fp), &
+               1, n_species, fengsha_config, g0, &
+               surface_airden, real(f_clayfrac(icol), fp), real(f_frlake(icol), fp), real(f_frsno(icol), fp), &
                real(f_gvf(icol), fp), real(f_lai(icol), fp), int(f_lwi(icol)), real(f_rdrag(icol), fp), &
                real(f_sandfrac(icol), fp), col_soilm, real(f_ssm(icol), fp), real(f_tskin(icol), fp), &
                real(f_ustar(icol), fp), real(f_ustar_threshold(icol), fp), real(f_z0(icol), fp), &
                f_species_radius, f_species_lower_radius, f_species_upper_radius, &
-               col_conc, col_tendency, &
+               surface_conc, surface_tendency, &
                dust_emission_total=col_emission_total, &
                dust_emission_per_bin=col_emission_bin, &
                dust_horizontal_flux=col_horizontal_flux, &
                dust_moisture_correction=col_moisture_correction, &
                dust_effective_threshold=col_effective_threshold, &
                diagnostic_species_id=diagnostic_species_id)
+            col_tendency(1, :) = surface_tendency(1, :)
          else if (local_scheme == "ginoux") then
             call compute_ginoux( &
                n_levels, n_species, ginoux_config, g0, &
