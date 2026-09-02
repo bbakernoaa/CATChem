@@ -213,58 +213,72 @@ namespace catchem {
 
         static std::string units_for(const std::string& name) {
             const auto key = canonical_field_name(name);
-            if (key == "T" || key == "TS")
+            // Temperature
+            if (key == "T" || key == "TS" || key == "T2M" || key == "SOILT")
                 return "K";
-            if (key == "QV")
+            // Water vapor
+            if (key == "QV" || key == "QV2M")
                 return "kg/kg";
+            // Unitless variables
             if (key == "RH" || key == "CLDFRC" || key == "SUNCOSMID")
                 return "1";
-            if (key == "PMID" || key == "PEDGE" || key == "PS")
+            // Pressure related fields
+            if (key == "PMID" || key == "PEDGE" || key == "PS" || key == "DELP")
                 return "Pa";
+            // Height related fields
             if (key == "Z" || key == "ZMID" || key == "BXHEIGHT" || key == "PBLH" || key == "ORO")
                 return "m";
+            // Density
             if (key == "AIRDEN" || key == "AIRDEN_DRY" || key == "MAIRDEN")
                 return "kg/m3";
+            // Coordinates
             if (key == "LAT" || key == "LON")
                 return "degrees";
+            // Cell area
             if (key == "AREA_M2")
                 return "m2";
-            if (key == "DELP")
-                return "Pa";
-            if (key == "U" || key == "V")
+            // Wind fields
+            if (key == "U" || key == "V" || key == "U10M" || key == "V10M" || key == "USTAR" ||
+                key == "USTAR_THRESHOLD")
                 return "m/s";
-            if (key == "T2M" || key == "SOILT")
-                return "K";
-            if (key == "QV2M")
-                return "kg/kg";
+            // Precipitation
             if (key == "PRECLSC" || key == "PRECCON")
                 return "m";
             if (key == "WCA")
                 return "m3";
+            // Rain / ice flux rates
             if (key == "PFILSAN" || key == "PFLLSAN")
                 return "kg/m2/s";
+            // Re-evaporation tendency
             if (key == "REEVAPLS")
                 return "kg/kg/s";
+            // Green Vegetative Fraction
             if (key == "GVF")
                 return "frac";
+            // Fractional ocean, seaice, snow
             if (key == "FROCEAN" || key == "FRSEAICE" || key == "FRSNO")
                 return "frac";
+            // Leaf Area index
             if (key == "LAI" || key == "FRLAI")
                 return "m2/m2";
+            // Land Parameters
             if (key == "CLAYFRAC" || key == "FRLAKE" || key == "LWI" || key == "DLUSE" || key == "DSOILTYPE" ||
                 key == "SNDFRC" || key == "GWETTOP" || key == "CLDF" || key == "SSM" || key == "RDRAG" ||
                 key == "FRLANDUSE" || key == "ILAND")
                 return "1";
+            // Sea Surface temperature
             if (key == "SST")
                 return "K";
-            if (key == "U10M" || key == "V10M" || key == "USTAR" || key == "USTAR_THRESHOLD")
-                return "m/s";
+            // Canopy fields
             if (key == "CMM" || key == "RCA")
                 return "s/m";
+            // Soil Moisture
             if (key == "SOILM")
                 return "m3/m3";
+            // Roughness and Obhokov length
             if (key == "Z0" || key == "Z0H" || key == "OBK")
                 return "m";
+            // Heat fluxes and downward shortwave
             if (key == "HFLUX" || key == "EFLUX" || key == "HFLUX_UP" || key == "SWGDN")
                 return "W/m2";
             return "";

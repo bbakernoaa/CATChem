@@ -4,11 +4,6 @@ import_fields:
     dimensions: 3
     units: "K"
     optional: false
-  - standard_name: "inst_spec_humid_levels"
-    catchem_var: "QV"
-    dimensions: 3
-    units: "kg/kg"
-    optional: true
   - standard_name: "inst_rel_humid_levels"
     catchem_var: "RH"
     dimensions: 3
@@ -200,8 +195,9 @@ import_fields:
   - standard_name: "inst_ice_nonconv_tendency_levels"
     catchem_var: "PFILSAN"
     dimensions: 3
-    # UFS supplies nlev values for interfaces 1:nlev.  CATChem's legacy
-    # metstate uses 0:nlev, represented here as Fortran indices 1:nlev+1.
+    # UFS supplies nlev levels.  Preserve the upstream CATChem cap's
+    # nlev+1 interface layout by copying those values into entries 1:nlev
+    # and repeating the final host value at entry nlev+1.
     vertical_axis: "level_to_interface"
     units: "kg/m2/s"
     optional: false
@@ -238,6 +234,8 @@ import_fields:
   - standard_name: "inst_tracer_mass_frac"
     catchem_var: "chem"
     dimensions: 4
+    # Match upstream: specific humidity is supplied by the host-owned sphum
+    # tracer, rather than through a competing rank-3 meteorology import.
     host_tracer_name: "sphum"
     host_tracer_var: "QV"
     units: "1"

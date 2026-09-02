@@ -78,6 +78,16 @@ module catchem_nuopc_interface
          type(c_ptr), intent(out) :: ptr_out
       end function
 
+      integer(c_int) function catchem_diag_get_pointer_checked(core_ptr, name, rank, dims, ptr_out) &
+         bind(C, name="catchem_diag_get_pointer_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), value :: rank
+         integer(c_int), intent(in) :: dims(*)
+         type(c_ptr), intent(out) :: ptr_out
+      end function
+
       integer(c_int) function catchem_state_get_species_name_at_checked(state_ptr, index, name_out, name_length) &
          bind(C, name="catchem_state_get_species_name_at_checked")
          import :: c_ptr, c_char, c_int
@@ -1592,13 +1602,22 @@ contains
             if (.not. allocated(cc_wrap%met_buf_3d(fidx)%data)) then
                allocate(cc_wrap%met_buf_3d(fidx)%data(size(fptr3d, 1), size(fptr3d, 2), size(fptr3d, 3) + 1))
             end if
-            cc_wrap%met_buf_3d(fidx)%data(:,:,1) = 0.0_c_double
-            cc_wrap%met_buf_3d(fidx)%data(:,:,2:) = real(fptr3d, c_double)
+            ! Match the upstream cap's interface reconstruction: the UFS
+            ! nlev values occupy CATChem entries 1:nlev and the final value
+            ! is repeated at nlev+1.
+            cc_wrap%met_buf_3d(fidx)%data(:,:,1:size(fptr3d,3)) = real(fptr3d, c_double)
+            cc_wrap%met_buf_3d(fidx)%data(:,:,size(fptr3d,3)+1) = real(fptr3d(:,:,size(fptr3d,3)), c_double)
          else
             if (.not. allocated(cc_wrap%met_buf_3d(fidx)%data)) then
                allocate(cc_wrap%met_buf_3d(fidx)%data(size(fptr3d, 1), size(fptr3d, 2), size(fptr3d, 3)))
             end if
             cc_wrap%met_buf_3d(fidx)%data = real(fptr3d, c_double)
+         end if
+
+         ! UFS provides geopotential for Z and ZMID; CATChem process
+         ! kernels consume geometric height in metres, as in upstream.
+         if (trim(field_map%catchem_var) == 'Z' .or. trim(field_map%catchem_var) == 'ZMID') then
+            cc_wrap%met_buf_3d(fidx)%data = cc_wrap%met_buf_3d(fidx)%data / real(g0, c_double)
          end if
 
          ! Bind through the checked semantic contract.  The field mapping, not
@@ -2505,13 +2524,16 @@ contains
       real(fp), allocatable, intent(out) :: pm10(:,:,:)
       integer, intent(out) :: rc
 
-      real(fp), pointer :: air_density(:,:,:) => null()
-      real(fp), pointer :: conc_data(:,:,:) => null()
+      ! StateManager owns its met and chemistry buffers as C++ double arrays.
+      ! Do not use CATChem_Model%get_species_conc_ptr here: that legacy wrapper
+      ! presents the raw C++ storage as real(fp), which is 4-byte by default.
+      real(c_double), pointer :: air_density(:,:,:) => null()
+      real(c_double), pointer :: conc_data(:,:,:) => null()
       integer :: i, num_total_species, dims(3)
       real(fp) :: w25, w10
       character(len=64) :: species_name
       character(kind=c_char) :: c_species_name(64)
-      type(c_ptr) :: raw_airden_ptr
+      type(c_ptr) :: raw_airden_ptr, raw_conc_ptr
       integer(c_int) :: catchem_status, species_count, aerosol_value
 
       rc = CC_SUCCESS
@@ -2557,11 +2579,14 @@ contains
          w10 = pm_tracer_weight(trim(species_name), 'PM10')
          if (w25 == 0.0_fp .and. w10 == 0.0_fp) cycle
 
-         call cc_wrap%catchem_model%get_species_conc_ptr(i, conc_data, dims, rc)
-         if (rc /= 0 .or. .not. associated(conc_data)) cycle
+         catchem_status = catchem_state_get_species_conc_pointer_checked( &
+            cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), &
+            int(dims(1) * dims(2), c_int), int(dims(3), c_int), raw_conc_ptr)
+         if (catchem_status /= 0_c_int .or. .not. c_associated(raw_conc_ptr)) cycle
+         call c_f_pointer(raw_conc_ptr, conc_data, dims)
 
-         if (w25 /= 0.0_fp) pm25 = pm25 + w25 * conc_data * air_density
-         if (w10 /= 0.0_fp) pm10 = pm10 + w10 * conc_data * air_density
+         if (w25 /= 0.0_fp) pm25 = pm25 + real(real(w25, c_double) * conc_data * air_density, fp)
+         if (w10 /= 0.0_fp) pm10 = pm10 + real(real(w10, c_double) * conc_data * air_density, fp)
 
          nullify(conc_data)
       end do
@@ -2586,8 +2611,10 @@ contains
       integer, intent(out) :: rc
 
       real(fp), allocatable :: pm25(:,:,:), pm10(:,:,:)
-      real(fp), pointer :: diag_ptr(:,:,:) => null()
+      real(c_double), pointer :: diag_ptr(:,:,:) => null()
       integer :: ni, nj, nk
+      integer(c_int) :: diag_dims(3), catchem_status
+      type(c_ptr) :: raw_diag_ptr
 
       rc = CC_SUCCESS
 
@@ -2619,21 +2646,26 @@ contains
       end if
 
       ! Write current values into the C++-owned diagnostic storage
-      call cc_wrap%catchem_model%get_diagnostic_ptr('pm25', diag_ptr, (/ni, nj, nk/), rc)
-      if (rc /= 0 .or. .not. associated(diag_ptr)) then
+      diag_dims = int([ni, nj, nk], c_int)
+      catchem_status = catchem_diag_get_pointer_checked(cc_wrap%catchem_model%cpp_core_ptr, &
+         'pm25' // c_null_char, 3_c_int, diag_dims, raw_diag_ptr)
+      if (catchem_status /= 0_c_int .or. .not. c_associated(raw_diag_ptr)) then
          write(*,'(A)') 'Error: could not map pm25 diagnostic storage'
          rc = CC_FAILURE
          return
       end if
+      call c_f_pointer(raw_diag_ptr, diag_ptr, [ni, nj, nk])
       diag_ptr = pm25
       nullify(diag_ptr)
 
-      call cc_wrap%catchem_model%get_diagnostic_ptr('pm10', diag_ptr, (/ni, nj, nk/), rc)
-      if (rc /= 0 .or. .not. associated(diag_ptr)) then
+      catchem_status = catchem_diag_get_pointer_checked(cc_wrap%catchem_model%cpp_core_ptr, &
+         'pm10' // c_null_char, 3_c_int, diag_dims, raw_diag_ptr)
+      if (catchem_status /= 0_c_int .or. .not. c_associated(raw_diag_ptr)) then
          write(*,'(A)') 'Error: could not map pm10 diagnostic storage'
          rc = CC_FAILURE
          return
       end if
+      call c_f_pointer(raw_diag_ptr, diag_ptr, [ni, nj, nk])
       diag_ptr = pm10
       nullify(diag_ptr)
 
