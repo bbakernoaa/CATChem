@@ -496,6 +496,10 @@ namespace catchem {
          * Calculates dry air mass densities based on mid-point pressures, temperature, and specific humidity.
          */
         void derive_airden_dry() {
+            // A current host field is authoritative.  Derive only when the
+            // host did not supply AIRDEN_DRY for this import generation.
+            if (met.AIRDEN_DRY && met.AIRDEN_DRY->is_current(import_generation))
+                return;
             if (!met.PMID || !met.T || met.PMID->availability != AvailabilityState::Current ||
                 met.T->availability != AvailabilityState::Current)
                 return;
@@ -811,6 +815,12 @@ namespace catchem {
         // This is a process-owned physical diagnostic, not a missing-input
         // fallback.  Its source fields are validated before any mutation.
         void derive_reevapls() {
+            // Preserve a current host-provided re-evaporation tendency.
+            // The diagnostic calculation below is the fallback for hosts
+            // that do not exchange REEVAPLS.
+            if (const auto reevapls = find_field<3>("REEVAPLS");
+                reevapls && reevapls->is_current(import_generation))
+                return;
             auto pfilsan = find_field<3>("PFILSAN");
             auto pfllsan = find_field<3>("PFLLSAN");
             if (!met.T || !met.QV || !met.PMID || !met.PEDGE || !pfilsan || !pfllsan ||

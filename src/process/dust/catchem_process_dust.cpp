@@ -53,8 +53,11 @@ namespace catchem {
 
     void DustProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_delp();
-        if (!state->read_field<3>("AIRDEN"))
-            state->derive_airden();
+        // derive_airden preserves a current host field and rebuilds its
+        // process-owned field after begin_import_generation() invalidates
+        // timestep data.  Testing pointer existence here misses that latter
+        // case on the second and later coupling steps.
+        state->derive_airden();
     }
 
     void DustProcess::init(std::shared_ptr<StateManager> state) {
