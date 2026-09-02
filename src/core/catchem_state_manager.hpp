@@ -249,10 +249,11 @@ namespace catchem {
                 return "frac";
             if (key == "FROCEAN" || key == "FRSEAICE" || key == "FRSNO")
                 return "frac";
-            if (key == "LAI")
+            if (key == "LAI" || key == "FRLAI")
                 return "m2/m2";
             if (key == "CLAYFRAC" || key == "FRLAKE" || key == "LWI" || key == "DLUSE" || key == "DSOILTYPE" ||
-                key == "SNDFRC" || key == "GWETTOP" || key == "CLDF" || key == "SSM" || key == "RDRAG")
+                key == "SNDFRC" || key == "GWETTOP" || key == "CLDF" || key == "SSM" || key == "RDRAG" ||
+                key == "FRLANDUSE" || key == "ILAND")
                 return "1";
             if (key == "SST")
                 return "K";
@@ -705,6 +706,68 @@ namespace catchem {
             auto salinity = find_field<2>("SALINITY");
             salinity->mark_host_modified();
             salinity->set_generation(import_generation);
+        }
+
+        // Reconstruct the legacy 20-category land-use fields from UFS's
+        // dominant land-use index and leaf-area index. DLUSE=0 is water,
+        // which legacy CATChem places in category 17 (one-based).
+        void derive_drydep_landuse() {
+            constexpr int n_landuse = 20;
+            auto dluse = find_field<2>("DLUSE");
+            if (!dluse || !dluse->is_current(import_generation))
+                throw std::runtime_error("Cannot derive dry-deposition land use: requires current DLUSE");
+
+            if (const auto frlai = find_field<3>("FRLAI"); !frlai || !frlai->is_current(import_generation)) {
+                auto lai = find_field<2>("LAI");
+                if (!lai || !lai->is_current(import_generation))
+                    throw std::runtime_error("Cannot derive FRLAI: requires current LAI and DLUSE");
+                auto buffer = std::make_shared<std::vector<double>>(static_cast<std::size_t>(n_cols) * n_landuse, 0.0);
+                owned_buffers.push_back(buffer);
+                dluse->sync_to_host();
+                lai->sync_to_host();
+                const double* land_type = dluse->host_data();
+                const double* leaf_area = lai->host_data();
+                for (int column = 0; column < n_cols; ++column) {
+                    const int category = static_cast<int>(land_type[column]);
+                    if (category >= 1 && category <= n_landuse)
+                        buffer->at(static_cast<std::size_t>(column + (category - 1) * n_cols)) = leaf_area[column];
+                    for (int slot = 14; slot <= 16; ++slot)
+                        buffer->at(static_cast<std::size_t>(column + slot * n_cols)) = 0.0;
+                }
+                bind_met_field_3d_contract("FRLAI", buffer->data(), n_landuse, SemanticAxis::SoilLayer);
+                auto out = find_field<3>("FRLAI");
+                out->mark_host_modified();
+                out->set_generation(import_generation);
+            }
+
+            if (const auto frlanduse = find_field<3>("FRLANDUSE"); !frlanduse || !frlanduse->is_current(import_generation)) {
+                auto buffer = std::make_shared<std::vector<double>>(static_cast<std::size_t>(n_cols) * n_landuse, 0.0);
+                owned_buffers.push_back(buffer);
+                dluse->sync_to_host();
+                const double* land_type = dluse->host_data();
+                for (int column = 0; column < n_cols; ++column) {
+                    int category = static_cast<int>(land_type[column]);
+                    if (category == 0) category = 17;
+                    if (category >= 1 && category <= n_landuse)
+                        buffer->at(static_cast<std::size_t>(column + (category - 1) * n_cols)) = 1.0;
+                }
+                bind_met_field_3d_contract("FRLANDUSE", buffer->data(), n_landuse, SemanticAxis::SoilLayer);
+                auto out = find_field<3>("FRLANDUSE");
+                out->mark_host_modified();
+                out->set_generation(import_generation);
+            }
+
+            if (const auto iland = find_field<3>("ILAND"); !iland || !iland->is_current(import_generation)) {
+                auto buffer = std::make_shared<std::vector<double>>(static_cast<std::size_t>(n_cols) * n_landuse, 0.0);
+                owned_buffers.push_back(buffer);
+                for (int category = 0; category < n_landuse; ++category)
+                    for (int column = 0; column < n_cols; ++column)
+                        buffer->at(static_cast<std::size_t>(column + category * n_cols)) = category + 1;
+                bind_met_field_3d_contract("ILAND", buffer->data(), n_landuse, SemanticAxis::SoilLayer);
+                auto out = find_field<3>("ILAND");
+                out->mark_host_modified();
+                out->set_generation(import_generation);
+            }
         }
 
         void derive_relative_humidity() {
