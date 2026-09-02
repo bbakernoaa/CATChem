@@ -8,10 +8,10 @@
 namespace catchem {
 
     extern "C" void run_settling_science_bridge(int n_columns, int n_levels, int n_species, double dt,
-                                                int swelling_method, int correction_maring, double* airden,
+                                                double scale_factor, int swelling_method, int correction_maring, double* airden,
                                                 double* delp, double* rh, double* temperature, double* z_edge,
                                                 const int* aerosol_indices, const double* radius, const double* density,
-                                                double* concentration);
+                                                double* concentration, int* bridge_rc);
 
     ProcessContract SettlingProcess::get_contract() const {
         ProcessContract contract{get_name(),
@@ -121,6 +121,12 @@ namespace catchem {
             return;
         }
 
+        // The execution plan invokes prepare_inputs before run(), but direct
+        // API users and focused process tests may call run() themselves.
+        // These derivations are generation-aware and therefore preserve
+        // host-provided fields while supplying only absent prerequisites.
+        prepare_inputs(state);
+
         int num_aerosols = state->chemistry().aerosol_indices.size();
         if (num_aerosols == 0)
             return;
@@ -137,11 +143,14 @@ namespace catchem {
         require_field_pointer("Settling", "CHEM_CONC",
                               state->chemistry().conc ? state->chemistry().conc->host_data() : nullptr);
 
+        int bridge_rc = 0;
         run_settling_science_bridge(
-            state->column_count(), state->level_count(), num_aerosols, state->clock().timestep, gocart_swelling_method,
+            state->column_count(), state->level_count(), num_aerosols, state->clock().timestep, gocart_scale_factor, gocart_swelling_method,
             gocart_correction_maring ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp,
             state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge, host_aero_indices.data(),
-            host_radius_dry.data(), host_rhop_dry.data(), state->chemistry().conc->host_write());
+            host_radius_dry.data(), host_rhop_dry.data(), state->chemistry().conc->host_write(), &bridge_rc);
+        if (bridge_rc != 0)
+            throw std::runtime_error("Settling science bridge failed with status " + std::to_string(bridge_rc));
         state->chemistry().conc->mark_host_modified();
     }
 

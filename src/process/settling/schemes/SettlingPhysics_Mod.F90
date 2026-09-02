@@ -71,13 +71,14 @@ contains
    !! @param[out]   vsettle_out      Settling velocity [m/s] (optional)
    !! @param[out]   fluxout          Surface mass flux lost by settling [kg/m2/s] (optional)
    !! @param[in]    correction_maring Apply Maring et al. 2003 correction (optional)
+   !! @param[in]    scale_factor      Uniform settling-velocity scaling (optional, default=1)
    !! @param[in]    solver_type      1=default solver, 2=UFS solver (optional, default=1)
    !! @param[out]   rc               Return code (0=success)
    !---------------------------------------------------------------------------
    subroutine settling_compute(nlev, klid, cdt, grav, &
       radius_dry, rhop_dry, swelling_flag, &
       conc, t, airden, rh, z_edge, delp, &
-      vsettle_out, fluxout, correction_maring, solver_type, rc)
+      vsettle_out, fluxout, correction_maring, scale_factor, solver_type, rc)
 
       integer, intent(in) :: nlev
       integer, intent(in) :: klid
@@ -95,6 +96,7 @@ contains
       real(fp), intent(out), optional :: vsettle_out(nlev)
       real(fp), intent(out), optional :: fluxout
       logical, intent(in), optional :: correction_maring
+      real(fp), intent(in), optional :: scale_factor
       integer, intent(in), optional :: solver_type
       integer, intent(out) :: rc
 
@@ -105,13 +107,19 @@ contains
       real(fp) :: radius(nlev), rhop(nlev)
       real(fp) :: vsettle(nlev)
       real(fp) :: qa(nlev)
-      real(fp) :: cmass_before, cmass_after
+      real(fp) :: cmass_before, cmass_after, velocity_scale
 
       rc = 0
 
       ! Default solver type
       solver = 1
       if (present(solver_type)) solver = solver_type
+      velocity_scale = 1.0_fp
+      if (present(scale_factor)) velocity_scale = scale_factor
+      if (velocity_scale <= 0.0_fp) then
+         rc = 101
+         return
+      end if
 
       ONE_OVER_G = 1.0_fp / grav
 
@@ -147,6 +155,7 @@ contains
          call settling_calc_vsettle(radius(k), rhop(k), airden(k), &
             t(k), grav, vsettle(k))
       end do
+      vsettle = vsettle * velocity_scale
 
       ! Apply Maring correction if requested
       if (present(correction_maring)) then
