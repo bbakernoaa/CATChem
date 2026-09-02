@@ -57,7 +57,7 @@ namespace {
                     hi = std::max(hi, v);
                     sum += v;
                 }
-            catchem::Logger::debug(&state, "watch-species bounds after process",
+            catchem::Logger::info(&state, "watch-species bounds after process",
                                    {{"step", std::to_string(step)},
                                     {"process", process_name},
                                     {"species", state.chemistry().species_list[ispec].short_name},

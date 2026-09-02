@@ -204,11 +204,9 @@ contains
          return
       end if
 
-      ! Calculate land fraction (TODO: I am using 1 - frlake - frsno, not following GOCART below)
-      ! fracland = max(0.0_fp, min(1.0_fp, 1.0_fp - frlake)) * &
-      !    max(0.0_fp, min(1.0_fp, 1.0_fp - frsno))
-
-      fracland = max(0.0_fp, min(1.0_fp, 1.0_fp - frsno - frlake))  ! my calculation
+      ! Match GOCART2G: lake and snow fractions are independent land masks.
+      fracland = max(0.0_fp, min(1.0_fp, 1.0_fp - frlake)) * &
+         max(0.0_fp, min(1.0_fp, 1.0_fp - frsno))
 
       ! Compute vertical-to-horizontal mass flux ratio
       ! B.Marticorena, G.Bergametti, J.Geophys.Res., 1995
