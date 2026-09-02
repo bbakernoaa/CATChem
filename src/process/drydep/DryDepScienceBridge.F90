@@ -286,16 +286,15 @@ contains
                f_is_gas_arr, col_diag_con, col_diag_vel, diagnostic_species_id)
          endif
 
-         ! Write tendencies and concentrations back in-place (casting back to c_double)
-         ! Prevent zeroing out un-computed species
+         ! Match the legacy process-interface finite-step update.  The
+         ! schemes return a dry-deposition frequency [1/s], which upstream
+         ! applies as an exponential loss over the chemistry timestep.
          do ispec = 1, n_species
             if (abs(col_tendencies(1, ispec)) > 1.0e-32_fp) then
-               ! col_tendencies returns the dry deposition frequency [1/s].
-               ! True tendency = -1.0 * concentration * deposition_frequency
-               col_tendencies(1, ispec) = -1.0_fp * f_conc(1, ispec) * col_tendencies(1, ispec)
-
-               tendency(icol, 1, ispec) = real(col_tendencies(1, ispec), c_double)
-               conc(icol, 1, ispec) = conc(icol, 1, ispec) + real(dt * col_tendencies(1, ispec), c_double)
+               f_conc(1, ispec) = f_conc(1, ispec) * &
+                  (1.0_fp - max(1.0_fp - exp(-col_tendencies(1, ispec) * real(dt, fp)), 0.0_fp))
+               tendency(icol, 1, ispec) = real((f_conc(1, ispec) - real(conc(icol, 1, ispec), fp) ) / real(dt, fp), c_double)
+               conc(icol, 1, ispec) = real(f_conc(1, ispec), c_double)
             end if
          end do
 

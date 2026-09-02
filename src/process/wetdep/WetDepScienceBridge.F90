@@ -208,14 +208,12 @@ contains
             wetdep_flux_per_species_per_level=col_diag_flux, &
             diagnostic_species_id=diagnostic_species_id)
 
-         ! Convert tendencies from process-specific units (ug/kg/s or ppm/s) to kg/kg/s
-         ! Write tendencies and concentrations back in-place (casting to c_double)
-         ! col_tendencies is output in the same native units (ug/kg for aero, ppm for gas).
+         ! Match the upstream ProcessWetDepInterface replacement contract:
+         ! compute_jacob's returned array is written directly to the state.
+         ! The values retain their native aerosol (ug/kg) or gas (ppmv) units.
          do ispec = 1, n_species
-            if (any(abs(col_tendencies(:, ispec)) > 1.0e-32_fp)) then
-               tendency(icol, :, ispec) = real(col_tendencies(:, ispec), c_double)
-               conc(icol, :, ispec) = conc(icol, :, ispec) + real(dt * col_tendencies(:, ispec), c_double)
-            end if
+            tendency(icol, :, ispec) = real(col_tendencies(:, ispec), c_double)
+            conc(icol, :, ispec) = real(col_tendencies(:, ispec), c_double)
          end do
 
          if (diagnostics /= 0) then
