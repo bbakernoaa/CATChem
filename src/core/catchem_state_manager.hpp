@@ -262,7 +262,7 @@ namespace catchem {
                 return "s/m";
             if (key == "SOILM")
                 return "m3/m3";
-            if (key == "Z0" || key == "OBK")
+            if (key == "Z0" || key == "Z0H" || key == "OBK")
                 return "m";
             if (key == "HFLUX" || key == "EFLUX" || key == "HFLUX_UP" || key == "SWGDN")
                 return "W/m2";
@@ -671,6 +671,26 @@ namespace catchem {
                     met_utilities::monin_obukhov_length(ustar[c], ts[c], hflux[c], p[c] / (constants::RD * t[c]));
             obk->mark_host_modified();
             obk->set_generation(import_generation);
+        }
+
+        // Legacy metstate_mod uses the momentum roughness length as the
+        // thermal roughness length when the host does not supply Z0H.
+        void derive_z0h() {
+            if (const auto z0h = find_field<2>("Z0H"); z0h && z0h->is_current(import_generation))
+                return;
+            auto z0 = find_field<2>("Z0");
+            if (!z0 || !z0->is_current(import_generation))
+                throw std::runtime_error("Cannot derive Z0H: requires current Z0");
+            auto buffer = std::make_shared<std::vector<double>>(n_cols, 0.0);
+            owned_buffers.push_back(buffer);
+            bind_met_field_2d("Z0H", buffer->data());
+            z0->sync_to_host();
+            const double* source = z0->host_data();
+            for (int column = 0; column < n_cols; ++column)
+                buffer->at(column) = source[column];
+            auto z0h = find_field<2>("Z0H");
+            z0h->mark_host_modified();
+            z0h->set_generation(import_generation);
         }
 
         void derive_relative_humidity() {

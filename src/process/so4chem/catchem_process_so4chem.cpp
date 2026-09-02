@@ -40,6 +40,7 @@ namespace catchem {
     void SO4chemProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_delp();
         state->derive_airden();
+        state->derive_z0h();
     }
 
     void SO4chemProcess::init(std::shared_ptr<StateManager> state) {
