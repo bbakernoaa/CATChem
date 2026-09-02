@@ -393,6 +393,11 @@ namespace catchem {
          * Computes the vertical distance of each grid cell based on pressure edges, temperature, and moisture content.
          */
         void derive_bxheight() {
+            // Use a current host-provided layer thickness when available.
+            // Hydrostatic reconstruction is only the fallback for hosts that
+            // do not exchange BXHEIGHT.
+            if (met.BXHEIGHT && met.BXHEIGHT->is_current(import_generation))
+                return;
             if (!met.PEDGE || !met.T || met.PEDGE->availability != AvailabilityState::Current ||
                 met.T->availability != AvailabilityState::Current)
                 return;
