@@ -3,6 +3,7 @@
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
+#include <array>
 #include <iostream>
 
 extern "C" {
@@ -132,21 +133,28 @@ namespace catchem {
         std::vector<char> is_gas;
         std::vector<double> mw_g;
 
-        for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
-            auto& meta = state->chemistry().species_list[i];
-            if (meta.is_seasalt) {
-                if (!(meta.density > 0.0 && meta.radius > 0.0 && meta.lower_radius > 0.0 &&
-                      meta.upper_radius > meta.lower_radius && meta.mw_g > 0.0))
-                    throw std::runtime_error("SeaSalt species '" + meta.short_name +
-                                             "' requires explicit density, radius bounds, and molecular weight");
-                ss_global_indices.push_back(i);
-                density.push_back(meta.density);
-                radius.push_back(meta.radius);
-                lower_radius.push_back(meta.lower_radius);
-                upper_radius.push_back(meta.upper_radius);
-                is_gas.push_back(meta.is_gas ? 1 : 0);
-                mw_g.push_back(meta.mw_g);
-            }
+        // Route legacy size bins by canonical name rather than declaration
+        // position.  Their ordering is part of the GEOS/Gong scheme contract.
+        constexpr std::array<const char*, 5> seasalt_bin_names = {"SEAS1", "SEAS2", "SEAS3", "SEAS4", "SEAS5"};
+        for (const char* name : seasalt_bin_names) {
+            const auto found = state->chemistry().species_name_to_index.find(name);
+            if (found == state->chemistry().species_name_to_index.end())
+                throw std::runtime_error("SeaSalt requires canonical species '" + std::string(name) + "'");
+            const int index = found->second;
+            const auto& meta = state->chemistry().species_list[index];
+            if (!meta.is_seasalt)
+                throw std::runtime_error("SeaSalt species '" + meta.short_name + "' must set is_seasalt: true");
+            if (!(meta.density > 0.0 && meta.radius > 0.0 && meta.lower_radius > 0.0 &&
+                  meta.upper_radius > meta.lower_radius && meta.mw_g > 0.0))
+                throw std::runtime_error("SeaSalt species '" + meta.short_name +
+                                         "' requires explicit density, radius bounds, and molecular weight");
+            ss_global_indices.push_back(index);
+            density.push_back(meta.density);
+            radius.push_back(meta.radius);
+            lower_radius.push_back(meta.lower_radius);
+            upper_radius.push_back(meta.upper_radius);
+            is_gas.push_back(meta.is_gas ? 1 : 0);
+            mw_g.push_back(meta.mw_g);
         }
 
         int n_seasalt = ss_global_indices.size();

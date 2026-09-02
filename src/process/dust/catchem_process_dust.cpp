@@ -3,6 +3,7 @@
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -249,27 +250,35 @@ namespace catchem {
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("Dust", "CHEM_CONC", conc_ptr);
 
-        // 4. Slice dust species so the scheme size distribution matches the legacy Fortran interface.
+        // 4. Route the legacy dust bins by their canonical names.  The science
+        // kernel assigns bin physics positionally, so deriving that position
+        // from YAML declaration order would silently map a reordered species
+        // list onto the wrong bins.
         std::vector<int> dust_global_indices;
         std::vector<double> density;
         std::vector<double> radius;
         std::vector<double> lower_radius;
         std::vector<double> upper_radius;
-        for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
-            const auto& meta = state->chemistry().species_list[i];
-            if (meta.is_dust) {
-                if (!(meta.density > 0.0 && meta.radius > 0.0 && meta.lower_radius > 0.0 &&
-                      meta.upper_radius > meta.lower_radius))
-                    throw std::runtime_error(
-                        "Dust species '" + meta.short_name +
-                        "' requires explicit positive density, radius, lower_radius, and upper_radius");
+        constexpr std::array<const char*, 5> dust_bin_names = {"DUST1", "DUST2", "DUST3", "DUST4", "DUST5"};
+        for (const char* name : dust_bin_names) {
+            const auto found = state->chemistry().species_name_to_index.find(name);
+            if (found == state->chemistry().species_name_to_index.end())
+                throw std::runtime_error("Dust requires canonical species '" + std::string(name) + "'");
+            const int index = found->second;
+            const auto& meta = state->chemistry().species_list[index];
+            if (!meta.is_dust)
+                throw std::runtime_error("Dust species '" + meta.short_name + "' must set is_dust: true");
+            if (!(meta.density > 0.0 && meta.radius > 0.0 && meta.lower_radius > 0.0 &&
+                  meta.upper_radius > meta.lower_radius))
+                throw std::runtime_error(
+                    "Dust species '" + meta.short_name +
+                    "' requires explicit positive density, radius, lower_radius, and upper_radius");
 
-                dust_global_indices.push_back(static_cast<int>(i));
-                density.push_back(meta.density);
-                radius.push_back(meta.radius);
-                lower_radius.push_back(meta.lower_radius);
-                upper_radius.push_back(meta.upper_radius);
-            }
+            dust_global_indices.push_back(index);
+            density.push_back(meta.density);
+            radius.push_back(meta.radius);
+            lower_radius.push_back(meta.lower_radius);
+            upper_radius.push_back(meta.upper_radius);
         }
 
         const int n_dust = static_cast<int>(dust_global_indices.size());

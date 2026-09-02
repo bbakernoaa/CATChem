@@ -7,10 +7,11 @@
 
 namespace catchem {
 
-    extern "C" void run_settling_science_bridge(int n_columns, int n_levels, int n_species, double dt,
-                                                double scale_factor, int swelling_method, int correction_maring, double* airden,
-                                                double* delp, double* rh, double* temperature, double* z_edge,
-                                                const int* aerosol_indices, const double* radius, const double* density,
+    extern "C" void run_settling_science_bridge(int n_columns, int n_levels, int n_aerosols, int n_total_species,
+                                                double dt, double scale_factor, int swelling_method, int correction_maring,
+                                                double* airden, double* delp, double* rh, double* temperature,
+                                                double* z_edge, const char* aerosol_species_names,
+                                                const char* species_names, const double* radius, const double* density,
                                                 double* concentration, int* bridge_rc);
 
     ProcessContract SettlingProcess::get_contract() const {
@@ -71,26 +72,12 @@ namespace catchem {
 
         int num_aerosols = state->chemistry().aerosol_indices.size();
         if (num_aerosols > 0) {
-#ifdef CATCHEM_ENABLE_KOKKOS
-            dev_aero_indices =
-                Kokkos::View<int*, Kokkos::DefaultExecutionSpace::memory_space>("dev_aero_indices", num_aerosols);
-            dev_radius_dry =
-                Kokkos::View<double*, Kokkos::DefaultExecutionSpace::memory_space>("dev_radius_dry", num_aerosols);
-            dev_rhop_dry =
-                Kokkos::View<double*, Kokkos::DefaultExecutionSpace::memory_space>("dev_rhop_dry", num_aerosols);
-
-            auto host_aero_indices = Kokkos::create_mirror_view(dev_aero_indices);
-            auto host_radius_dry = Kokkos::create_mirror_view(dev_radius_dry);
-            auto host_rhop_dry = Kokkos::create_mirror_view(dev_rhop_dry);
-#else
-            host_aero_indices.assign(num_aerosols, 0);
+            aerosol_species_names.assign(static_cast<size_t>(num_aerosols) * 32, ' ');
             host_radius_dry.assign(num_aerosols, 0.0);
             host_rhop_dry.assign(num_aerosols, 0.0);
-#endif
 
             for (int i = 0; i < num_aerosols; ++i) {
                 int ispec = state->chemistry().aerosol_indices[i];
-                host_aero_indices[i] = ispec;
                 double r_val = state->chemistry().species_list[ispec].radius;
                 double d_val = state->chemistry().species_list[ispec].density;
                 if (!(r_val > 0.0 && d_val > 0.0))
@@ -98,13 +85,9 @@ namespace catchem {
                                              "' requires explicit radius and density");
                 host_radius_dry[i] = r_val * 1e-6; // Species properties are configured in microns.
                 host_rhop_dry[i] = d_val;
+                std::copy_n(state->chemistry().species_names_c_arr.data() + static_cast<size_t>(ispec) * 32, 32,
+                            aerosol_species_names.data() + static_cast<size_t>(i) * 32);
             }
-
-#ifdef CATCHEM_ENABLE_KOKKOS
-            Kokkos::deep_copy(dev_aero_indices, host_aero_indices);
-            Kokkos::deep_copy(dev_radius_dry, host_radius_dry);
-            Kokkos::deep_copy(dev_rhop_dry, host_rhop_dry);
-#endif
         }
     }
 
@@ -145,10 +128,12 @@ namespace catchem {
 
         int bridge_rc = 0;
         run_settling_science_bridge(
-            state->column_count(), state->level_count(), num_aerosols, state->clock().timestep, gocart_scale_factor, gocart_swelling_method,
-            gocart_correction_maring ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp,
-            state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge, host_aero_indices.data(),
-            host_radius_dry.data(), host_rhop_dry.data(), state->chemistry().conc->host_write(), &bridge_rc);
+            state->column_count(), state->level_count(), num_aerosols, state->species_count(), state->clock().timestep,
+            gocart_scale_factor,
+            gocart_swelling_method, gocart_correction_maring ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp,
+            state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
+            aerosol_species_names.data(), state->chemistry().species_names_c_arr.data(), host_radius_dry.data(),
+            host_rhop_dry.data(), state->chemistry().conc->host_write(), &bridge_rc);
         if (bridge_rc != 0)
             throw std::runtime_error("Settling science bridge failed with status " + std::to_string(bridge_rc));
         state->chemistry().conc->mark_host_modified();

@@ -17,7 +17,8 @@ void run_drydep_science_bridge(
     double* u10m, double* v10m, double* z0h, double* mw_g, double* dd_f0, double* dd_hstar, double* dd_DvzAerSnow,
     double* dd_DvzMinVal_snow, double* dd_DvzMinVal_land, double* density, double* radius, bool* is_seasalt,
     bool* is_dust, double* lower_radius, double* upper_radius, bool* is_gas, double* conc, double* tendency,
-    double* diag_con, double* diag_vel, const int* diagnostic_species_id, int n_diag_species);
+    const char* species_names, double* diag_con, double* diag_vel, const int* diagnostic_species_id,
+    int n_diag_species);
 }
 
 namespace catchem {
@@ -301,7 +302,8 @@ namespace catchem {
             const_cast<double*>(z0_ptr), mw_g.data(), dd_f0.data(), dd_hstar.data(), dd_DvzAerSnow.data(),
             dd_DvzMinVal_snow.data(), dd_DvzMinVal_land.data(), density.data(), radius.data(), (bool*)is_seasalt.data(),
             (bool*)is_dust.data(), lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(), conc_ptr,
-            mock_tendency.data(), diag_con, diag_vel, diagnostic_species_id.data(), diagnostic_species_id.size());
+            mock_tendency.data(), state->chemistry().species_names_c_arr.data(), diag_con, diag_vel,
+            diagnostic_species_id.data(), diagnostic_species_id.size());
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();

@@ -1,5 +1,4 @@
 #pragma once
-#include "catchem_kokkos_compat.hpp"
 #include "catchem_process_interface.hpp"
 #include <functional>
 #include <vector>
@@ -22,17 +21,12 @@ namespace catchem {
         int gocart_swelling_method = 1;
         bool gocart_correction_maring = false;
 
-#ifdef CATCHEM_ENABLE_KOKKOS
-        // Device Views for aerosol properties
-        Kokkos::View<int*, Kokkos::DefaultExecutionSpace::memory_space> dev_aero_indices;
-        Kokkos::View<double*, Kokkos::DefaultExecutionSpace::memory_space> dev_radius_dry;
-        Kokkos::View<double*, Kokkos::DefaultExecutionSpace::memory_space> dev_rhop_dry;
-#else
-        // Host-only aerosol property arrays (mdspans over these feed the kernel)
-        std::vector<int> host_aero_indices;
+        // The Fortran science bridge resolves these canonical names against
+        // the full chemistry species list.  Do not pass C++ indices across
+        // this language boundary: C++ is zero-based and Fortran is one-based.
+        std::vector<char> aerosol_species_names;
         std::vector<double> host_radius_dry;
         std::vector<double> host_rhop_dry;
-#endif
 
     public:
         SettlingProcess();

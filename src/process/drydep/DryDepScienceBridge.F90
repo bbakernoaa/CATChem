@@ -25,7 +25,7 @@ contains
       species_radius, species_is_seasalt, species_is_dust, species_lower_radius, &
       species_upper_radius, is_gas_arr, &
    ! Concentrations, Tendencies & Diagnostics
-      c_conc, c_tendency, c_diag_con, c_diag_vel, &
+      c_conc, c_tendency, species_names, c_diag_con, c_diag_vel, &
       diagnostic_species_id, n_diag_species &
       ) bind(C, name="run_drydep_science_bridge")
 
@@ -64,6 +64,7 @@ contains
       real(c_double), intent(in) :: species_lower_radius(n_species)
       real(c_double), intent(in) :: species_upper_radius(n_species)
       logical(c_bool), intent(in) :: is_gas_arr(n_species)
+      character(kind=c_char), intent(in) :: species_names(32,n_species)
       integer(c_int), value :: n_diag_species
       integer(c_int), intent(in) :: diagnostic_species_id(n_diag_species)
 
@@ -190,7 +191,16 @@ contains
          call c_f_pointer(c_diag_vel, diag_vel, [n_cols, n_species])
       endif
 
-      dummy_sp_names = "UNKNOWN"
+      ! Keep the canonical chemistry catalog with the concentration and
+      ! metadata arrays.  The legacy routines accept fixed-width labels;
+      ! names longer than their 30-character ABI are safely truncated.
+      do ispec = 1, n_species
+         do icol = 1, len(dummy_sp_names(ispec))
+            if (icol > size(species_names, 1)) exit
+            dummy_sp_names(ispec)(icol:icol) = species_names(icol, ispec)
+         end do
+         dummy_sp_names(ispec) = trim(adjustl(dummy_sp_names(ispec)))
+      end do
 
       ! Copy metadata once
       f_mw_g = real(species_mw_g, fp)

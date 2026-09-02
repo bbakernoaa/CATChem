@@ -202,10 +202,9 @@ namespace catchem {
             state->clock().day, state->clock().hour, state->clock().minute, state->clock().second, airden_ptr, cldf_ptr,
             delp_ptr, pmid_ptr, t_ptr, z_ptr, hflux_ptr, lat_ptr, lon_ptr, lwi.data(), pblh_ptr, u10m_ptr, ustar_ptr,
             v10m_ptr, const_cast<double*>(z0_ptr), mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
-            mock_tendency.data(),
-            (bool*)firsttime.data(), nymd_last.data(), nhms_last_recycle.data(), xh2o2_init.data(), pso4_so2.data(),
-            pso4_g_so2.data(), pso4_aq_so2.data(), pso2_dms.data(), dms_flux.data(), diagnostic_species_id.data(),
-            diagnostic_species_id.size());
+            mock_tendency.data(), (bool*)firsttime.data(), nymd_last.data(), nhms_last_recycle.data(),
+            xh2o2_init.data(), pso4_so2.data(), pso4_g_so2.data(), pso4_aq_so2.data(), pso2_dms.data(), dms_flux.data(),
+            diagnostic_species_id.data(), diagnostic_species_id.size());
 
         // 6. Map persistent column diagnostics straight to registered C++ Diagnostics Views
         if (state->diagnostic_manager() && diagnostics_enabled) {

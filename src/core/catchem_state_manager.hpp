@@ -743,14 +743,16 @@ namespace catchem {
                 out->set_generation(import_generation);
             }
 
-            if (const auto frlanduse = find_field<3>("FRLANDUSE"); !frlanduse || !frlanduse->is_current(import_generation)) {
+            if (const auto frlanduse = find_field<3>("FRLANDUSE");
+                !frlanduse || !frlanduse->is_current(import_generation)) {
                 auto buffer = std::make_shared<std::vector<double>>(static_cast<std::size_t>(n_cols) * n_landuse, 0.0);
                 owned_buffers.push_back(buffer);
                 dluse->sync_to_host();
                 const double* land_type = dluse->host_data();
                 for (int column = 0; column < n_cols; ++column) {
                     int category = static_cast<int>(land_type[column]);
-                    if (category == 0) category = 17;
+                    if (category == 0)
+                        category = 17;
                     if (category >= 1 && category <= n_landuse)
                         buffer->at(static_cast<std::size_t>(column + (category - 1) * n_cols)) = 1.0;
                 }
@@ -837,8 +839,7 @@ namespace catchem {
             // Preserve a current host-provided re-evaporation tendency.
             // The diagnostic calculation below is the fallback for hosts
             // that do not exchange REEVAPLS.
-            if (const auto reevapls = find_field<3>("REEVAPLS");
-                reevapls && reevapls->is_current(import_generation))
+            if (const auto reevapls = find_field<3>("REEVAPLS"); reevapls && reevapls->is_current(import_generation))
                 return;
             auto pfilsan = find_field<3>("PFILSAN");
             auto pfllsan = find_field<3>("PFLLSAN");
