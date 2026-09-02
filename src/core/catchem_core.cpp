@@ -33,7 +33,10 @@ namespace {
     // process, so a runaway species can be bisected to the introducing process
     // without re-running the whole coupled model multiple times.
     void log_watch_species_bounds(catchem::StateManager& state, const std::string& process_name, std::size_t step) {
-        static const std::vector<std::string> watch = {"so2", "so4", "dms", "msa", "bc1", "bc2", "oc1", "oc2"};
+    static const std::vector<std::string> watch = {
+        "so2", "so4", "dms", "msa", "bc1", "bc2", "oc1", "oc2",
+        "dust1", "dust2", "dust3", "dust4", "dust5",
+        "seas1", "seas2", "seas3", "seas4", "seas5"};
         if (!state.chemistry().conc)
             return;
         const auto view = state.chemistry().conc->mdspan();
