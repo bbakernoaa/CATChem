@@ -210,21 +210,45 @@ namespace catchem {
 
         const auto config = state->config_manager();
         if (config && config->data.simulation.verbose_enabled) {
+            // DELP is level-major (index = column + level*n_cols).  Because
+            // derive_delp() takes pressure_thickness(PEDGE[L], PEDGE[L+1]) with
+            // no abs(), a non-zero DELP field only exists when pressure
+            // descends with increasing level index, i.e. level 0 is the surface.
+            // Log the surface (level 0) and top (last level) layer thicknesses
+            // explicitly so a run can confirm both the vertical ordering and the
+            // surface-layer depth without inferring them from the array max.
+            const int n_levels = state->level_count();
+            const int n_columns = state->column_count();
             double min_delp = std::numeric_limits<double>::infinity();
             double max_delp = 0.0;
-            for (int level = 0; level < state->level_count(); ++level) {
-                for (int column = 0; column < state->column_count(); ++column) {
+            double surf_min = std::numeric_limits<double>::infinity();
+            double surf_max = 0.0;
+            double top_min = std::numeric_limits<double>::infinity();
+            double top_max = 0.0;
+            for (int level = 0; level < n_levels; ++level) {
+                for (int column = 0; column < n_columns; ++column) {
                     const std::size_t index =
-                        static_cast<std::size_t>(column) + static_cast<std::size_t>(level) * state->column_count();
-                    if (std::isfinite(delp_ptr[index]) && delp_ptr[index] > 0.0) {
-                        min_delp = std::min(min_delp, delp_ptr[index]);
-                        max_delp = std::max(max_delp, delp_ptr[index]);
+                        static_cast<std::size_t>(column) + static_cast<std::size_t>(level) * n_columns;
+                    if (!std::isfinite(delp_ptr[index]) || delp_ptr[index] <= 0.0)
+                        continue;
+                    min_delp = std::min(min_delp, delp_ptr[index]);
+                    max_delp = std::max(max_delp, delp_ptr[index]);
+                    if (level == 0) {
+                        surf_min = std::min(surf_min, delp_ptr[index]);
+                        surf_max = std::max(surf_max, delp_ptr[index]);
+                    } else if (level == n_levels - 1) {
+                        top_min = std::min(top_min, delp_ptr[index]);
+                        top_max = std::max(top_max, delp_ptr[index]);
                     }
                 }
             }
             Logger::debug(state.get(), "Dust layer-mass conversion inputs",
                           {{"delp_pa_min", std::to_string(min_delp)},
                            {"delp_pa_max", std::to_string(max_delp)},
+                           {"delp_surface_pa_min", std::to_string(surf_min)},
+                           {"delp_surface_pa_max", std::to_string(surf_max)},
+                           {"delp_top_pa_min", std::to_string(top_min)},
+                           {"delp_top_pa_max", std::to_string(top_max)},
                            {"conversion", "flux*g/DELP*1e9 kg/kg-to-ug/kg"}});
         }
 
