@@ -1775,7 +1775,7 @@ contains
             end if
 
 #ifdef CATCHEM_TRACE_NUOPC
-            write(*,'(A,A,A,A,A,I0,A,L1,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] emission target=', trim(mapped_species_name), &
+            write(*,'(A,A,A,A,A,A,A,I0,A,L1,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] emission target=', trim(mapped_species_name), &
                ' category=', trim(category_name), ' field=', trim(field_name), ' index=', species_index, &
                ' gas=', is_gas, ' scale=', scale_factor, ' converter=', converter
             call flush(6)
