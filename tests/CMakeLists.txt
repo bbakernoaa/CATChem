@@ -145,8 +145,14 @@ if(CATCHEM_BUILD_CCPP)
   )
 endif()
 
-# Foundational Fortran testing helper library (quarantined — legacy core replaced by C++)
-# add_library(testing testing_mod.f90)
+# Foundational Fortran testing helper library.  Restored for the spec-011 US4
+# constants-parity gate (test_Constants).
+add_library(testing testing_mod.f90)
+set_target_properties(
+  testing
+  PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+)
+target_link_libraries(testing PUBLIC catchem_utilities)
 
 # Restored Low-Level Foundational Unit Tests
 macro(add_fortran_test name_test)
@@ -167,13 +173,10 @@ macro(add_fortran_test name_test)
   )
 endmacro()
 
-# Legacy Fortran core unit tests (quarantined — behavior now covered by test_catchem_properties)
-# add_fortran_test(test_Precision)
-# add_fortran_test(test_Error)
-# add_fortran_test(test_Constants)
-# add_fortran_test(test_GridGeometry)
-# add_fortran_test(test_TimeState)
-# add_fortran_test(test_MetState)
+# Constants parity is an explicit spec-011 US4 gate.  The other low-level
+# Fortran core unit tests were retired: their behavior is covered by
+# test_catchem_properties and the C++ suite.
+add_fortran_test(test_Constants)
 
 # High-level API init-sequence test — mirrors the NUOPC cap's usage of
 # CATChem_Model (facade construction, met binding, timestep)
@@ -197,26 +200,6 @@ if(TARGET CATChem)
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 endif()
-
-# UnitConversion needs specific include search dirs (quarantined)
-# add_executable(test_UnitConversion test_UnitConversion.f90)
-# target_link_libraries(test_UnitConversion PRIVATE CATChem_core testing)
-# set_target_properties(
-#   test_UnitConversion
-#   PROPERTIES
-#     Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
-#     LINKER_LANGUAGE Fortran
-# )
-# target_include_directories(
-#   test_UnitConversion
-#   PRIVATE ${CMAKE_BINARY_DIR}/include
-# )
-# add_dependencies(test_UnitConversion CATChem_core)
-# add_test(
-#   NAME test_UnitConversion
-#   COMMAND test_UnitConversion
-#   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-# )
 
 # C++ Interop and Integration Suite — runs in both build flavors; the
 # CATChem_core_cpp link carries Kokkos (or standalone mdspan) transitively.
@@ -449,6 +432,41 @@ add_process_unit_test(carbchem CATChem_process_carbchem)
 # must fail validation (settling scale_factor round-trip).
 add_process_unit_test(option_propagation CATChem_process_settling)
 
+# Derived-meteorology parity: CLDFRC is the vertical sum of CLDF (spec 011 US3).
+add_executable(test_catchem_derived_met test_catchem_derived_met.cpp)
+target_link_libraries(
+  test_catchem_derived_met
+  PRIVATE CATChem_core_cpp CATChem_core
+)
+set_target_properties(
+  test_catchem_derived_met
+  PROPERTIES CXX_STANDARD 20 LINKER_LANGUAGE CXX
+)
+add_test(
+  NAME test_catchem_derived_met
+  COMMAND test_catchem_derived_met
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+catchem_label_tests("unit;cpp;derived_met" test_catchem_derived_met)
+
+# Indexing-contract regression lock: CAP->core->bridge flat column-major order
+# and interface extents (spec 011 US5).
+add_executable(test_catchem_index_contract test_catchem_index_contract.cpp)
+target_link_libraries(
+  test_catchem_index_contract
+  PRIVATE CATChem_core_cpp CATChem_core
+)
+set_target_properties(
+  test_catchem_index_contract
+  PROPERTIES CXX_STANDARD 20 LINKER_LANGUAGE CXX
+)
+add_test(
+  NAME test_catchem_index_contract
+  COMMAND test_catchem_index_contract
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+catchem_label_tests("unit;cpp;dataflow;index_contract" test_catchem_index_contract)
+
 # Modern Randomized Property-Based Testing
 add_executable(test_catchem_properties test_catchem_properties.cpp)
 target_link_libraries(
@@ -482,6 +500,117 @@ add_test(
   COMMAND test_catchem_properties
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+
+# The Default configuration is the production-like full process schedule used
+# by the legacy-vs-C++ numerical parity harness.  Keep a focused contract test
+# separate from the smaller root-level configuration used by API unit tests.
+add_executable(test_default_config_contract test_default_config_contract.cpp)
+target_link_libraries(test_default_config_contract PRIVATE CATChem_core_cpp)
+add_test(
+  NAME test_default_config_contract
+  COMMAND test_default_config_contract
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+catchem_label_tests("configuration;parity" test_default_config_contract)
+
+# Standalone candidate executable used by run_default_numerical_parity.py.
+# It is intentionally not a normal CTest: the matching legacy executable is
+# built in a separate upstream/develop worktree.
+add_executable(
+  default_parity_candidate_runner
+  default_parity_candidate_runner.cpp
+)
+target_link_libraries(
+  default_parity_candidate_runner
+  PRIVATE
+    CATChem_core_cpp
+    CATChem_process_seasalt
+    CATChem_process_dust
+    CATChem_process_carbchem
+    CATChem_process_settling
+    CATChem_process_drydep
+    CATChem_process_so4chem
+    CATChem_process_wetdep
+)
+
+# The comparator is intentionally independent of either core: legacy and C++
+# runners write normalized JSON snapshots, so they cannot collide on Fortran
+# module names or symbols.  This fixture validates the comparator in normal
+# CI; use it with outputs from separately-built worktrees for science parity.
+find_program(PYTHON_EXECUTABLE NAMES python3 python)
+if(PYTHON_EXECUTABLE)
+  add_test(
+    NAME test_default_parity_met_profile
+    COMMAND
+      ${PYTHON_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/build_parity_met_profile.py --profile
+      ${CMAKE_CURRENT_SOURCE_DIR}/MetProfiles/Profile_NCWCP.csv --levels 64
+      --columns 1 --output
+      ${CMAKE_CURRENT_BINARY_DIR}/default_parity_met_profile.json
+  )
+  catchem_label_tests("parity" test_default_parity_met_profile)
+
+  add_test(
+    NAME test_parity_snapshot_comparator
+    COMMAND
+      ${PYTHON_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/compare_parity_snapshots.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/parity/legacy.json
+      ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/parity/candidate.json
+  )
+  catchem_label_tests("parity" test_parity_snapshot_comparator)
+
+  # C++ equivalents of the legacy per-process integration tests.  Each case
+  # enters through the C++ core, binds the shared MET/species fixture, and
+  # runs exactly one process from the Default configuration.
+  foreach(
+    process_name
+    seasalt
+    dust
+    carbchem
+    settling
+    drydep
+    so4chem
+    wetdep
+  )
+    add_test(
+      NAME test_cpp_${process_name}_integration
+      COMMAND
+        ${PYTHON_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/run_cpp_process_integration.py
+        --candidate-runner $<TARGET_FILE:default_parity_candidate_runner>
+        --process ${process_name} --source-root ${CMAKE_SOURCE_DIR}
+    )
+    catchem_label_tests("integration;cpp;${process_name}" test_cpp_${process_name}_integration)
+  endforeach()
+
+  # Match the three scheme variants exercised by the upstream Fortran
+  # sea-salt integration test.  They are separate YAML-configured C++ cases.
+  foreach(seasalt_scheme gong97 gong03 geos12)
+    add_test(
+      NAME test_cpp_seasalt_${seasalt_scheme}_integration
+      COMMAND
+        ${PYTHON_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/run_cpp_process_integration.py
+        --candidate-runner $<TARGET_FILE:default_parity_candidate_runner>
+        --process seasalt --seasalt-scheme ${seasalt_scheme} --source-root
+        ${CMAKE_SOURCE_DIR}
+    )
+    catchem_label_tests("integration;cpp;seasalt;${seasalt_scheme}" test_cpp_seasalt_${seasalt_scheme}_integration)
+  endforeach()
+
+  # Missing-host-input guard: dropping PMID from the staged MET profile must
+  # abort the settling process with a named error (spec 011 US1).
+  add_test(
+    NAME test_cpp_settling_missing_pmid
+    COMMAND
+      ${PYTHON_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/run_cpp_process_integration.py
+      --candidate-runner $<TARGET_FILE:default_parity_candidate_runner>
+      --process settling --drop-field PMID --source-root ${CMAKE_SOURCE_DIR}
+  )
+  catchem_label_tests("integration;cpp;settling" test_cpp_settling_missing_pmid)
+endif()
 
 # Multi-Atmospheric Scenario Property Test
 add_executable(test_catchem_scenarios test_catchem_scenarios.cpp)

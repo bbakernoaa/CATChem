@@ -493,6 +493,26 @@ void CatchemPropertiesTest_ValidDerivationVectors() {
     }
 }
 
+void CatchemPropertiesTest_HostWetDepFieldsAreAuthoritative() {
+    catchem::StateManager state(1, 2, 1);
+    std::vector<double> airden_dry{9.1, 9.2};
+    std::vector<double> reevapls{3.1e-6, 3.2e-6};
+    std::vector<double> bxheight{123.0, 456.0};
+
+    state.bind_met_field_3d("AIRDEN_DRY", airden_dry.data());
+    state.bind_met_field_3d("REEVAPLS", reevapls.data());
+    state.bind_met_field_3d("BXHEIGHT", bxheight.data());
+
+    state.derive_airden_dry();
+    state.derive_reevapls();
+    state.derive_bxheight();
+    state.sync_to_host();
+
+    assert(airden_dry[0] == 9.1 && airden_dry[1] == 9.2);
+    assert(reevapls[0] == 3.1e-6 && reevapls[1] == 3.2e-6);
+    assert(bxheight[0] == 123.0 && bxheight[1] == 456.0);
+}
+
 void CatchemPropertiesTest_ConstantsAndPrecision() {
     std::cout << "=== Running CatchemPropertiesTest.ConstantsAndPrecision ===" << std::endl;
     assert(std::abs(catchem::constants::RD - 287.05) < 0.1);
@@ -529,6 +549,7 @@ int main(int argc, char* argv[]) {
         }
 
         CatchemPropertiesTest_RobustMetDerivations();
+        CatchemPropertiesTest_HostWetDepFieldsAreAuthoritative();
         CatchemPropertiesTest_StateBindingAndRebinding();
         CatchemPropertiesTest_GridAndDimensions();
         CatchemPropertiesTest_TimeStateCalculations();

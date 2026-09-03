@@ -64,16 +64,26 @@ namespace {
         const int n_species = state->species_count();
         std::vector<double> temperature(n_cols * n_levels, 280.0);
         std::vector<double> pmid(n_cols * n_levels, 100000.0);
-        std::vector<double> pedge(n_cols * (n_levels + 1), 100000.0);
+        std::vector<double> pedge(n_cols * (n_levels + 1));
+        std::vector<double> z_edge(n_cols * (n_levels + 1));
         std::vector<double> airden(n_cols * n_levels, 1.2);
+        std::vector<double> rh(n_cols * n_levels, 0.5);
         std::vector<double> bxheight(n_cols * n_levels, 100.0);
         std::vector<double> chem_conc(static_cast<size_t>(n_cols) * n_levels * n_species, 1.0e-8);
+
+        for (int level = 0; level <= n_levels; ++level)
+            for (int column = 0; column < n_cols; ++column) {
+                pedge[static_cast<size_t>(column + level * n_cols)] = 100000.0 - 5000.0 * level;
+                z_edge[static_cast<size_t>(column + level * n_cols)] = 100.0 * level;
+            }
 
         state->bind_met_field_3d("T", temperature.data());
         state->bind_met_field_3d("PMID", pmid.data());
         state->bind_met_field_3d("PEDGE", pedge.data());
+        state->bind_met_field_3d("Z", z_edge.data());
         state->bind_met_field_3d("AIRDEN", airden.data());
         state->bind_met_field_3d("AIRDEN_DRY", airden.data());
+        state->bind_met_field_3d("RH", rh.data());
         state->bind_met_field_3d("BXHEIGHT", bxheight.data());
         state->bind_unified_chemistry(chem_conc.data());
 

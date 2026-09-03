@@ -190,7 +190,7 @@ contains
       if (rc /= ESMF_SUCCESS) return
       ntr = 5
       tracer_names = [character(len=ESMF_MAXSTR) :: 'sphum', 'chemical_gas', 'chemical_aerosol', 'PM25', 'PM10']
-      tracer_units = [character(len=ESMF_MAXSTR) :: '1', 'ppm', 'kg kg^-1', 'not-a-chemical-unit', 'not-a-chemical-unit']
+      tracer_units = [character(len=ESMF_MAXSTR) :: '1', 'ppm', 'kg kg^-1', 'ug m-3', 'ug m-3']
       do i = 1, field_config%n_import_fields
          if (field_config%import_fields(i)%optional .and. &
             .not. field_config%import_fields(i)%advertise) cycle
@@ -200,8 +200,7 @@ contains
                name=trim(field_config%import_fields(i)%standard_name), rc=rc)
           case (3)
             nzf = 5
-            if (trim(field_config%import_fields(i)%catchem_var) == 'PEDGE' .or. &
-               trim(field_config%import_fields(i)%catchem_var) == 'Z') nzf = 6
+            if (trim(field_config%import_fields(i)%vertical_axis) == 'interface') nzf = 6
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
                ungriddedLBound=(/1/), ungriddedUBound=(/nzf/), &
                name=trim(field_config%import_fields(i)%standard_name), rc=rc)
@@ -485,6 +484,8 @@ program nuopc_contract_harness
    exchange_tracer_units = 'kg kg-1'; exchange_tracer_units(1) = '1'
    ! UFS advertises gas tracers in ppmv and aerosol tracers in ug/kg.
    exchange_tracer_units(2) = 'ppm'; exchange_tracer_units(3) = 'ug/kg'
+   ! PM2.5/PM10 are diagnostic mass concentrations, not transported tracers.
+   exchange_tracer_units(4:5) = 'ug m-3'
 
    ! The direct transform fixture does not pass through the ESMF cap's
    ! catchem_nuopc_init wrapper, so install the same validated descriptor
@@ -558,8 +559,7 @@ program nuopc_contract_harness
          end if
        case (3)
          nzf = nz
-         if (trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'PEDGE' .or. &
-            trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'Z') nzf = nz + 1
+         if (trim(cc_wrap%field_config%import_fields(i)%vertical_axis) == 'interface') nzf = nz + 1
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
             ungriddedLBound=(/1/), ungriddedUBound=(/nzf/), &
             name=trim(cc_wrap%field_config%import_fields(i)%standard_name), rc=rc)
@@ -648,6 +648,20 @@ program nuopc_contract_harness
    end if
    print *, 'PASS: transform_nuopc_to_catchem over the full required mapping'
 
+   ! UFS supplies PF*SAN on nlev levels.  Preserve upstream CATChem's
+   ! nlev+1 interface reconstruction by repeating the final host value.
+   do i = 1, cc_wrap%field_config%n_import_fields
+      if (trim(cc_wrap%field_config%import_fields(i)%vertical_axis) /= 'level_to_interface') cycle
+      if (.not. allocated(cc_wrap%met_buf_3d(i)%data) .or. &
+         size(cc_wrap%met_buf_3d(i)%data, 3) /= nz + 1) then
+         error stop 'PF*SAN level_to_interface buffer extent is invalid'
+      end if
+      if (cc_wrap%met_buf_3d(i)%data(1,1,1) /= 111.0_c_double .or. &
+         cc_wrap%met_buf_3d(i)%data(1,1,nz+1) /= cc_wrap%met_buf_3d(i)%data(1,1,nz)) then
+         error stop 'PF*SAN level_to_interface buffer was not reconstructed as upstream'
+      end if
+   end do
+
    ! Confirm gas and aerosol slots reach their native CATChem units while
    ! the host-owned rank-4 boundary remains otherwise untouched.
    if (abs(cc_wrap%chem_buf_4d(1,1,1,gas_idx) - 1.0E-6_c_double * &
@@ -703,6 +717,18 @@ program nuopc_contract_harness
          error stop 1
       end if
    end block
+   block
+      real(fp), allocatable :: pm_diag(:,:,:)
+
+      call cc_wrap%catchem_model%get_diagnostic('pm25', pm_diag, rc)
+      if (rc /= 0 .or. abs(pm_diag(1,1,1)) > 1.0e-3_fp) &
+         error stop 'PM25 diagnostic has an incorrect C++ buffer precision'
+      deallocate(pm_diag)
+      call cc_wrap%catchem_model%get_diagnostic('pm10', pm_diag, rc)
+      if (rc /= 0 .or. abs(pm_diag(1,1,1)) > 1.0e-3_fp) &
+         error stop 'PM10 diagnostic has an incorrect C++ buffer precision'
+      deallocate(pm_diag)
+   end block
    print *, 'PASS: PM2.5/PM10 diagnostics updated and registered'
 
    ! 7. Test transform_catchem_to_nuopc (full C++ Core -> C API -> Fortran export state)
@@ -748,8 +774,23 @@ program nuopc_contract_harness
       if (abs(fptr4(1,1,1,2) - 1.0E-6_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8 .or. &
          abs(fptr4(1,1,1,3) - 2.0E-6_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8) &
          error stop 'Chemical export conversion failed'
-      if (fptr4(1,1,1,4) < 0.0_ESMF_KIND_R8 .or. fptr4(1,1,1,5) < 0.0_ESMF_KIND_R8) &
-         error stop 'PM diagnostic overlay is invalid'
+      block
+         real(fp), allocatable :: pm_diag(:,:,:)
+         call cc_wrap%catchem_model%get_diagnostic('pm25', pm_diag, rc)
+         if (rc /= 0 .or. .not. allocated(pm_diag)) then
+            error stop 'PM25 diagnostic was not exported in ug m-3'
+         end if
+         if (abs(fptr4(1,1,1,4) - pm_diag(1,1,1)) > 1.0e-12_ESMF_KIND_R8) &
+            error stop 'PM25 diagnostic was not exported in ug m-3'
+         deallocate(pm_diag)
+         call cc_wrap%catchem_model%get_diagnostic('pm10', pm_diag, rc)
+         if (rc /= 0 .or. .not. allocated(pm_diag)) then
+            error stop 'PM10 diagnostic was not exported in ug m-3'
+         end if
+         if (abs(fptr4(1,1,1,5) - pm_diag(1,1,1)) > 1.0e-12_ESMF_KIND_R8) &
+            error stop 'PM10 diagnostic was not exported in ug m-3'
+         deallocate(pm_diag)
+      end block
    end do
    print *, 'PASS: transform_catchem_to_nuopc over export state'
 

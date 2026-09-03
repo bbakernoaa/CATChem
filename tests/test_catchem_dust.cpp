@@ -46,6 +46,22 @@ int main(int argc, char* argv[]) {
         }
         state->load_species_config(species_path);
 
+        // The science bridge consumes dust bins in species-list order.  Keep
+        // this mechanism-independent: the active dust metadata must define a
+        // physically ordered bin sequence, not a set of tracer-name rules.
+        std::vector<size_t> dust_indices;
+        for (size_t index = 0; index < state->chemistry().species_list.size(); ++index) {
+            if (state->chemistry().species_list[index].is_dust)
+                dust_indices.push_back(index);
+        }
+        assert(!dust_indices.empty());
+        for (size_t bin = 0; bin < dust_indices.size(); ++bin) {
+            const auto& species = state->chemistry().species_list[dust_indices[bin]];
+            assert(species.lower_radius < species.radius && species.radius < species.upper_radius);
+            if (bin > 0)
+                assert(state->chemistry().species_list[dust_indices[bin - 1]].radius < species.radius);
+        }
+
         std::vector<double> u10m(n_cols, 15.0);
         std::vector<double> v10m(n_cols, 0.0);
         std::vector<double> ustar(n_cols, 0.8);
@@ -98,6 +114,14 @@ int main(int argc, char* argv[]) {
         dust->init(state);
         dust->run(state);
         state->sync_to_host();
+
+        // A size-distribution model need not be monotonic by bin number.
+        // Check only physical invariants, not tracer-name-specific fractions.
+        const auto value_at = [&](size_t species_index) {
+            return chem_conc[species_index * static_cast<size_t>(n_cols * n_levels)];
+        };
+        for (const auto species_index : dust_indices)
+            assert(value_at(species_index) >= 0.0);
 
         std::cout << "SUCCESS: Dust process executed successfully." << std::endl;
     }

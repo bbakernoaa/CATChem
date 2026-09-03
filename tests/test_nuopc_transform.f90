@@ -129,8 +129,7 @@ program test_nuopc_transform
          end if
        case (3)
          nzf = nz
-         if (trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'PEDGE' .or. &
-            trim(cc_wrap%field_config%import_fields(i)%catchem_var) == 'Z') nzf = nz + 1
+         if (trim(cc_wrap%field_config%import_fields(i)%vertical_axis) == 'interface') nzf = nz + 1
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
             ungriddedLBound=(/1/), ungriddedUBound=(/nzf/), &
             name=trim(cc_wrap%field_config%import_fields(i)%standard_name), rc=rc)

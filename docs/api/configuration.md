@@ -46,46 +46,40 @@ namespace catchem {
 
 ## Configuration Files Format
 
-### 1. Main Simulation Config (`test_config.yml`)
-Configures physical grid dimensions, model timelines, and scheduled processes:
+### 1. Main Simulation Config (`CATChem_config.yml`)
+Configures the run timeline, referenced species/emission files, and scheduled
+processes (see `configs/Default/CATChem_config.yml` for a production example):
 
 ```yaml
-# CATChem Simulation Configuration
-model:
-  name: "CATChem Simulation"
-  timestep: 300.0  # seconds
+simulation:
+  name: test
+  start_date: 20240501 0000
+  end_date: 20240501 0100
+  species_filename: ./Configs/Default/CATChem_species.yml
+  emission_filename: ./Configs/Default/CATChem_emission.yml
 
 grid:
   nx: 100
   ny: 100
   nz: 50
-
-processes:
-  - name: "photolysis"
-    enabled: true
-    parameters:
-      config_file: "src/external/musica/configs/tuvx/tuv_5_4.yml"
-  - name: "gaschem"
-    enabled: true
-    parameters:
-      config_dir: "src/external/musica/configs/tuvx/from_host/"
 ```
 
-### 2. Species Metadata Config (`test_species.yml`)
-Configures active chemical species, molecular weights, and properties:
+### 2. Species Metadata Config (`CATChem_species.yml`)
+Configures active chemical species, molecular weights, and physics flags
+(see `configs/Default/CATChem_species.yml`):
 
 ```yaml
-# Chemical Species Configuration
-species:
-  - name: "O3"
-    molecular_weight: 0.0479982  # kg/mol
-    description: "Ozone"
-    category: "gas"
+- name: so2
+  __description: Sulfur dioxide
+  __is_gas: true
+  __is_drydep: true
+  __is_wetdep: true
 
-  - name: "NO2"
-    molecular_weight: 0.0460055  # kg/mol
-    description: "Nitrogen Dioxide"
-    category: "gas"
+- name: dust1
+  __description: Dust bin 1
+  __is_dust: true
+  __radius: 5.0e-07
+  __density: 2500.0
 ```
 
 ---
