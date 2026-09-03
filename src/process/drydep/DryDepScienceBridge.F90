@@ -153,6 +153,9 @@ contains
       call c_f_pointer(c_bxheight, bxheight, [n_cols, n_levels])
       call c_f_pointer(c_airden,   airden,   [n_cols, n_levels])
       call c_f_pointer(c_t_air,    t_air,    [n_cols, n_levels])
+      ! c_z_edges carries the geometric-height interface levels [m], shape
+      ! (n_cols, n_levels+1) — the GOCART aero scheme's hghte slot.  It must
+      ! not be fed air pressure (PEDGE, Pa); that produced NaN velocities.
       call c_f_pointer(c_z_edges,  z_edges,  [n_cols, n_levels+1])
       call c_f_pointer(c_rh,       rh,       [n_cols, n_levels])
 

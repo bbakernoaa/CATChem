@@ -3,8 +3,8 @@
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
-#include <array>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
 #include <limits>

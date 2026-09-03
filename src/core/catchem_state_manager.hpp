@@ -806,8 +806,15 @@ namespace catchem {
             bind_met_field_2d("CLDFRC", buffer->data());
             cldf->sync_to_host();
             const double* src = cldf->host_data();
-            for (int c = 0; c < n_cols; ++c)
-                buffer->at(c) = src[c];
+            // Legacy parity: CLDFRC is the vertical SUM of the layer cloud
+            // fractions (upstream `SUM(CLDF, DIM=3)`), clamped to [0, 1].
+            // Copying only the surface level severely underestimates it.
+            for (int c = 0; c < n_cols; ++c) {
+                double column_sum = 0.0;
+                for (int lev = 0; lev < n_levels; ++lev)
+                    column_sum += src[static_cast<std::size_t>(c) + static_cast<std::size_t>(lev) * n_cols];
+                buffer->at(c) = std::clamp(column_sum, 0.0, 1.0);
+            }
             auto derived = find_field<2>("CLDFRC");
             derived->mark_host_modified();
             derived->set_generation(import_generation);

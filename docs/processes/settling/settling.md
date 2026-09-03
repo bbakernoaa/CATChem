@@ -16,13 +16,13 @@ The Settling process implements Process for computing gravitational settling of 
 **Name:** `gocart`
 **Description:** GOCART gravitational settling scheme
 **Author:** Wei Li
-**Reference:** GOCART2G process library Chem_SettlingSimple function
+**Reference:** GOCART2G process library `Chem_Settling` function
 #### Parameters
 
 | Parameter | Default | Range | Description |
 |-----------|---------|--------|-------------|
 | `scale_factor` | 1.0 |  -  | settling velocity factor |
-| `simple_scheme` | False |  -  | read in mie data for wet particles if true; otherwise calculate particles wet swelling internally |
+| `simple_scheme` | False |  -  | read in mie data for wet particles if true; otherwise calculate particles wet swelling internally. **Note:** `true` requires Mie optics tables and is unsupported by the C++ core; the process fails loudly if enabled. |
 | `swelling_method` | 1 |  -  | method for calculating particle swelling: 1 Fitzgerald 1975; 2 for Gerber 1985 |
 | `correction_maring` | False |  -  | correct the settling velocity following Maring et al, 2003 |
 
@@ -32,9 +32,13 @@ The Settling process implements Process for computing gravitational settling of 
 - `TSTEP` - Meteorological field required for scheme computation
 - `AIRDEN` - Meteorological field required for scheme computation
 - `RH` - Meteorological field required for scheme computation
-- `Z` - Meteorological field required for scheme computation
-- `PMID` - Meteorological field required for scheme computation
-- `DELP` - Meteorological field required for scheme computation
+- `Z` - Geometric height on the **interface** grid (n_levels + 1), required for scheme computation
+- `PMID` - Layer mid-level pressure [Pa], required for scheme computation
+- `DELP` - Layer pressure thickness [Pa], required for scheme computation
+
+> The `gocart` scheme delegates to the upstream GOCART2G `Chem_Settling`
+> kernel so results are numerically identical to `upstream/develop`. Missing
+> or stale fields raise an explicit error before the kernel is invoked.
 
 
 

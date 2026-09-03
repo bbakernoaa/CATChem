@@ -8,17 +8,19 @@
 namespace catchem {
 
     extern "C" void run_settling_science_bridge(int n_columns, int n_levels, int n_aerosols, int n_total_species,
-                                                double dt, double scale_factor, int swelling_method, int correction_maring,
-                                                double* airden, double* delp, double* rh, double* temperature,
+                                                double dt, double scale_factor, int swelling_method,
+                                                int correction_maring, int maring_dust_only, double* airden,
+                                                double* delp, const double* pmid, double* rh, double* temperature,
                                                 double* z_edge, const char* aerosol_species_names,
-                                                const char* species_names, const double* radius, const double* density,
-                                                double* concentration, int* bridge_rc);
+                                                const char* species_names, const int* species_is_dust,
+                                                const double* radius, const double* density, double* concentration,
+                                                int* bridge_rc);
 
     ProcessContract SettlingProcess::get_contract() const {
         ProcessContract contract{get_name(),
                                  {host_field_3d("T", "K"), host_field_3d("AIRDEN", "kg/m3"),
-                                  host_field_3d("DELP", "Pa"), host_field_3d("RH", "1"), host_field_interface("Z", "m"),
-                                  host_concentration()},
+                                  host_field_3d("DELP", "Pa"), host_field_3d("PMID", "Pa"), host_field_3d("RH", "1"),
+                                  host_field_interface("Z", "m"), host_concentration()},
                                  {}};
         for (auto& field : contract.fields)
             field.execution_space = ExecutionSpaceIntent::Device;
@@ -51,6 +53,7 @@ namespace catchem {
         gocart_simple_scheme = configured->second.get_bool("gocart/simple_scheme", gocart_simple_scheme);
         gocart_swelling_method = configured->second.get_int("gocart/swelling_method", gocart_swelling_method);
         gocart_correction_maring = configured->second.get_bool("gocart/correction_maring", gocart_correction_maring);
+        gocart_maring_dust_only = configured->second.get_bool("gocart/maring_dust_only", gocart_maring_dust_only);
         if (!(gocart_scale_factor > 0.0))
             throw std::invalid_argument("Settling gocart scale_factor must be positive");
         if (gocart_swelling_method != 1 && gocart_swelling_method != 2)
@@ -67,6 +70,7 @@ namespace catchem {
                      {{"scheme", active_scheme},
                       {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
                       {"gocart/correction_maring", gocart_correction_maring ? "true" : "false"},
+                      {"gocart/maring_dust_only", gocart_maring_dust_only ? "true" : "false"},
                       {"gocart/simple_scheme", "false (species metadata)"},
                       {"gocart/swelling_method", std::to_string(gocart_swelling_method)}});
 
@@ -75,6 +79,7 @@ namespace catchem {
             aerosol_species_names.assign(static_cast<size_t>(num_aerosols) * 32, ' ');
             host_radius_dry.assign(num_aerosols, 0.0);
             host_rhop_dry.assign(num_aerosols, 0.0);
+            host_is_dust.assign(num_aerosols, 0);
 
             for (int i = 0; i < num_aerosols; ++i) {
                 int ispec = state->chemistry().aerosol_indices[i];
@@ -83,8 +88,11 @@ namespace catchem {
                 if (!(r_val > 0.0 && d_val > 0.0))
                     throw std::runtime_error("Settling aerosol '" + state->chemistry().species_list[ispec].short_name +
                                              "' requires explicit radius and density");
-                host_radius_dry[i] = r_val * 1e-6; // Species properties are configured in microns.
+                // Radii are configured in micrometres and cross the bridge in
+                // micrometres; the legacy scheme performs the µm -> m conversion.
+                host_radius_dry[i] = r_val;
                 host_rhop_dry[i] = d_val;
+                host_is_dust[i] = state->chemistry().species_list[ispec].is_dust ? 1 : 0;
                 std::copy_n(state->chemistry().species_names_c_arr.data() + static_cast<size_t>(ispec) * 32, 32,
                             aerosol_species_names.data() + static_cast<size_t>(i) * 32);
             }
@@ -111,15 +119,19 @@ namespace catchem {
         prepare_inputs(state);
 
         int num_aerosols = state->chemistry().aerosol_indices.size();
-        if (num_aerosols == 0)
+        if (num_aerosols == 0) {
+            Logger::info(state.get(), "Settling skipped: no aerosol species registered", {});
             return;
+        }
 
         require_field_pointer("Settling", "T", state->meteorology().T ? state->meteorology().T->host_data() : nullptr);
         require_field_pointer("Settling", "AIRDEN",
                               state->meteorology().AIRDEN ? state->meteorology().AIRDEN->host_data() : nullptr);
         double* delp = state->write_field<3>("DELP");
         double* z_edge = state->write_field<3>("Z");
+        const double* pmid = state->read_field<3>("PMID");
         require_field_pointer("Settling", "DELP", delp);
+        require_field_pointer("Settling", "PMID", pmid);
         require_field_pointer("Settling", "RH",
                               state->meteorology().RH ? state->meteorology().RH->host_data() : nullptr);
         require_field_pointer("Settling", "Z", z_edge);
@@ -129,11 +141,11 @@ namespace catchem {
         int bridge_rc = 0;
         run_settling_science_bridge(
             state->column_count(), state->level_count(), num_aerosols, state->species_count(), state->clock().timestep,
-            gocart_scale_factor,
-            gocart_swelling_method, gocart_correction_maring ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp,
+            gocart_scale_factor, gocart_swelling_method, gocart_correction_maring ? 1 : 0,
+            gocart_maring_dust_only ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp, pmid,
             state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
-            aerosol_species_names.data(), state->chemistry().species_names_c_arr.data(), host_radius_dry.data(),
-            host_rhop_dry.data(), state->chemistry().conc->host_write(), &bridge_rc);
+            aerosol_species_names.data(), state->chemistry().species_names_c_arr.data(), host_is_dust.data(),
+            host_radius_dry.data(), host_rhop_dry.data(), state->chemistry().conc->host_write(), &bridge_rc);
         if (bridge_rc != 0)
             throw std::runtime_error("Settling science bridge failed with status " + std::to_string(bridge_rc));
         state->chemistry().conc->mark_host_modified();
@@ -149,7 +161,8 @@ extern "C" {
 void catchem_register_settling_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "settling", []() { return std::make_shared<catchem::SettlingProcess>(); }, {},
-        catchem::make_settings_validator("settling", {"gocart/scale_factor", "gocart/simple_scheme",
-                                                      "gocart/swelling_method", "gocart/correction_maring"}));
+        catchem::make_settings_validator("settling",
+                                         {"gocart/scale_factor", "gocart/simple_scheme", "gocart/swelling_method",
+                                          "gocart/correction_maring", "gocart/maring_dust_only"}));
 }
 }

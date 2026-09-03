@@ -11,22 +11,24 @@ namespace catchem {
         std::function<void(void*)> fortran_callback;
 
         // GOCART scheme options staged from the runtime configuration
-        // (processes/settling/gocart/*).  scale_factor and correction_maring
-        // act on the C++ settling kernel directly.  simple_scheme and
-        // swelling_method select wet-particle Mie/swelling treatments that
-        // the dry-radius C++ kernel does not implement; they are accepted
-        // for configuration parity but currently have no effect there.
+        // (processes/settling/gocart/*).  They are forwarded verbatim to the
+        // Fortran science bridge, which reproduces the upstream GOCART2G
+        // settling path.  scale_factor is retained for configuration parity;
+        // the upstream metadata path does not consume it.  simple_scheme
+        // requires Mie tables and stays unsupported (init rejects it).
         double gocart_scale_factor = 1.0;
         bool gocart_simple_scheme = false;
         int gocart_swelling_method = 1;
         bool gocart_correction_maring = false;
+        bool gocart_maring_dust_only = true;
 
         // The Fortran science bridge resolves these canonical names against
         // the full chemistry species list.  Do not pass C++ indices across
         // this language boundary: C++ is zero-based and Fortran is one-based.
         std::vector<char> aerosol_species_names;
-        std::vector<double> host_radius_dry;
+        std::vector<double> host_radius_dry; // micrometres, as configured
         std::vector<double> host_rhop_dry;
+        std::vector<int> host_is_dust; // 0/1 per settling species
 
     public:
         SettlingProcess();

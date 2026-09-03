@@ -6,19 +6,21 @@
 #include <iostream>
 
 extern "C" {
-void run_drydep_science_bridge(
-    int n_cols, int n_levels, int n_species, double dt, const char* gas_scheme, const char* aero_scheme,
-    int diagnostics, double wesely_scale_factor, int wesely_co2_effect, double wesely_co2_level,
-    double wesely_co2_reference, double gocart_scale_factor, int gocart_resuspension, int gocart_dust_resusp_only,
-    double zhang_scale_factor, double* bxheight, double* airden, double* t_air, double* pedge, double* rh,
-    double* cldfrc, double* frlai, double* frlanduse, int* iland, bool* is_ice, bool* is_land, bool* is_snow,
-    double* lat, double* lon, double* obk, double* ps, double* salinity, double* suncosmid, double* swgdn, double* ts,
-    double* tskin, double* ustar, double* z0, double* frlake, double* gwettop, double* hflux, int* lwi, double* pblh,
-    double* u10m, double* v10m, double* z0h, double* mw_g, double* dd_f0, double* dd_hstar, double* dd_DvzAerSnow,
-    double* dd_DvzMinVal_snow, double* dd_DvzMinVal_land, double* density, double* radius, bool* is_seasalt,
-    bool* is_dust, double* lower_radius, double* upper_radius, bool* is_gas, double* conc, double* tendency,
-    const char* species_names, double* diag_con, double* diag_vel, const int* diagnostic_species_id,
-    int n_diag_species);
+void run_drydep_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* gas_scheme,
+                               const char* aero_scheme, int diagnostics, double wesely_scale_factor,
+                               int wesely_co2_effect, double wesely_co2_level, double wesely_co2_reference,
+                               double gocart_scale_factor, int gocart_resuspension, int gocart_dust_resusp_only,
+                               double zhang_scale_factor, double* bxheight, double* airden, double* t_air,
+                               double* z_edges, double* rh, double* cldfrc, double* frlai, double* frlanduse,
+                               int* iland, bool* is_ice, bool* is_land, bool* is_snow, double* lat, double* lon,
+                               double* obk, double* ps, double* salinity, double* suncosmid, double* swgdn, double* ts,
+                               double* tskin, double* ustar, double* z0, double* frlake, double* gwettop, double* hflux,
+                               int* lwi, double* pblh, double* u10m, double* v10m, double* z0h, double* mw_g,
+                               double* dd_f0, double* dd_hstar, double* dd_DvzAerSnow, double* dd_DvzMinVal_snow,
+                               double* dd_DvzMinVal_land, double* density, double* radius, bool* is_seasalt,
+                               bool* is_dust, double* lower_radius, double* upper_radius, bool* is_gas, double* conc,
+                               double* tendency, const char* species_names, double* diag_con, double* diag_vel,
+                               const int* diagnostic_species_id, int n_diag_species);
 }
 
 namespace catchem {
@@ -29,6 +31,7 @@ namespace catchem {
                  host_field_3d("QV", "kg/kg"),
                  host_field_3d("PMID", "Pa"),
                  host_field_interface("PEDGE", "Pa"),
+                 host_field_interface("Z", "m"),
                  host_field_3d("BXHEIGHT", "m"),
                  host_field_3d("AIRDEN", "kg/m3"),
                  host_field_3d("RH", "1"),
@@ -137,6 +140,7 @@ namespace catchem {
         const double* airden_ptr = state->read_field<3>("AIRDEN");
         const double* t_ptr = state->read_field<3>("T");
         const double* pedge_ptr = state->read_field<3>("PEDGE");
+        const double* z_ptr = state->read_field<3>("Z");
         const double* rh_ptr = state->read_field<3>("RH");
 
         // 2. Retrieve surface met and grid positions
@@ -153,6 +157,9 @@ namespace catchem {
         require_field_pointer("DryDep", "AIRDEN", airden_ptr);
         require_field_pointer("DryDep", "T", t_ptr);
         require_field_pointer("DryDep", "PEDGE", pedge_ptr);
+        // The GOCART aero scheme consumes geometric height in its z_edges slot;
+        // feeding PEDGE (Pa) there produced NaN deposition velocities.
+        require_field_pointer("DryDep", "Z", z_ptr);
         require_field_pointer("DryDep", "PS", ps_ptr);
         require_field_pointer("DryDep", "TS", ts_ptr);
         require_field_pointer("DryDep", "RH", rh_ptr);
@@ -291,9 +298,9 @@ namespace catchem {
             wesely_co2_effect ? 1 : 0, wesely_co2_level, wesely_co2_reference, gocart_scale_factor,
             gocart_resuspension ? 1 : 0, gocart_dust_resuspension_only ? 1 : 0, zhang_scale_factor,
             const_cast<double*>(bxheight_ptr), const_cast<double*>(airden_ptr), const_cast<double*>(t_ptr),
-            const_cast<double*>(pedge_ptr), const_cast<double*>(rh_ptr), const_cast<double*>(cldfrc),
-            frlai.data_handle(), frlanduse.data_handle(), iland.data_handle(), (bool*)is_ice.data(),
-            (bool*)is_land.data(), (bool*)is_snow.data(), const_cast<double*>(lat_ptr), const_cast<double*>(lon_ptr),
+            const_cast<double*>(z_ptr), const_cast<double*>(rh_ptr), const_cast<double*>(cldfrc), frlai.data_handle(),
+            frlanduse.data_handle(), iland.data_handle(), (bool*)is_ice.data(), (bool*)is_land.data(),
+            (bool*)is_snow.data(), const_cast<double*>(lat_ptr), const_cast<double*>(lon_ptr),
             const_cast<double*>(obk_ptr), const_cast<double*>(ps_ptr), const_cast<double*>(salinity_ptr),
             const_cast<double*>(suncosmid), const_cast<double*>(swgdn_ptr), const_cast<double*>(ts_ptr),
             const_cast<double*>(ts_ptr), const_cast<double*>(ustar_ptr), const_cast<double*>(z0_ptr),

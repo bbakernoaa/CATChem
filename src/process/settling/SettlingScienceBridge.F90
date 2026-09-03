@@ -1,32 +1,66 @@
-! C ABI adapter for the metadata-based legacy GOCART settling implementation.
+! C ABI adapter for the legacy GOCART2G settling science path.
+!
+! This bridge reproduces the upstream/develop ProcessSettlingInterface
+! execution exactly: one `compute_gocart` call per column covering all
+! settling species, using the metadata (non-Mie) branch of the scheme.
+! Units and layout follow specs/011-restore-numerical-parity/contracts/
+! settling-science-bridge.md:
+!   - every array is column-major with the flattened column fastest;
+!   - the vertical order is bottom-to-top (compute_gocart reverses internally);
+!   - concentrations are µg/kg on both sides of the boundary (kg/kg conversion
+!     happens inside the scheme);
+!   - radius is passed in µm (µm -> m conversion happens inside the scheme).
 module SettlingScienceBridge_Mod
    use iso_c_binding, only: c_int, c_double, c_char
    use catchem_bridge_precision, only: fp
-   use SettlingPhysics_Mod, only: settling_compute
+   use catchem_bridge_error, only: CC_SUCCESS
+   use GOCART2G_MieMod, only: GOCART2G_Mie
+   use SettlingCommon_Mod, only: SettlingSchemeGOCARTConfig
+   use SettlingScheme_GOCART_Mod, only: compute_gocart
    implicit none
 contains
-   subroutine run_settling_science_bridge(n_columns, n_levels, n_aerosols, n_total_species, dt, scale_factor, swelling_method, correction_maring, &
-      airden, delp, rh, temperature, z_edge, aerosol_species_names, species_names, radius, density, concentration, bridge_rc) &
+   subroutine run_settling_science_bridge(n_columns, n_levels, n_aerosols, n_total_species, &
+      dt, scale_factor, swelling_method, correction_maring, maring_dust_only, &
+      airden, delp, pmid, rh, temperature, z_edge, &
+      aerosol_species_names, species_names, species_is_dust, radius, density, &
+      concentration, bridge_rc) &
       bind(C, name='run_settling_science_bridge')
-      integer(c_int), value :: n_columns, n_levels, n_aerosols, n_total_species, swelling_method, correction_maring
+      integer(c_int), value :: n_columns, n_levels, n_aerosols, n_total_species
+      integer(c_int), value :: swelling_method, correction_maring, maring_dust_only
       real(c_double), value :: dt, scale_factor
-      real(c_double), intent(in) :: airden(n_columns,n_levels), delp(n_columns,n_levels), rh(n_columns,n_levels)
-      real(c_double), intent(in) :: temperature(n_columns,n_levels), z_edge(n_columns,n_levels+1)
-      character(kind=c_char), intent(in) :: aerosol_species_names(32,n_aerosols), species_names(32,n_total_species)
+      real(c_double), intent(in) :: airden(n_columns,n_levels), delp(n_columns,n_levels)
+      real(c_double), intent(in) :: pmid(n_columns,n_levels), rh(n_columns,n_levels)
+      real(c_double), intent(in) :: temperature(n_columns,n_levels)
+      real(c_double), intent(in) :: z_edge(n_columns,n_levels+1)
+      character(kind=c_char), intent(in) :: aerosol_species_names(32,n_aerosols)
+      character(kind=c_char), intent(in) :: species_names(32,n_total_species)
+      integer(c_int), intent(in) :: species_is_dust(n_aerosols)
       real(c_double), intent(in) :: radius(n_aerosols), density(n_aerosols)
       real(c_double), intent(inout) :: concentration(n_columns,n_levels,n_total_species)
       integer(c_int), intent(out) :: bridge_rc
-      integer :: column, species, k, rc, target_species(n_aerosols)
-      character(len=32) :: aerosol_name, target_name
-      real(fp) :: qa(n_levels)
+
+      type(SettlingSchemeGOCARTConfig) :: params
+      type(GOCART2G_Mie), allocatable :: mie_data(:)
+      character(len=32) :: aerosol_names(n_aerosols)
+      integer :: target_species(n_aerosols)
+      integer :: species_mie_map(n_aerosols)
+      logical :: is_dust(n_aerosols)
+      real(fp) :: species_radius(n_aerosols), species_density(n_aerosols)
+      real(fp) :: airden_1d(n_levels), delp_1d(n_levels), pmid_1d(n_levels)
+      real(fp) :: rh_1d(n_levels), t_1d(n_levels), z_1d(n_levels+1)
+      real(fp) :: conc_2d(n_levels,n_aerosols), tend_2d(n_levels,n_aerosols)
+      integer :: column, species, k
 
       bridge_rc = 0_c_int
+      if (n_aerosols <= 0) return
+
+      ! Resolve settling species against the full chemistry list by name
+      ! (no index crossing the boundary); mirror upstream trimmed comparison.
       do species = 1, n_aerosols
-         aerosol_name = c_name_to_fortran(aerosol_species_names(:,species))
+         aerosol_names(species) = c_name_to_fortran(aerosol_species_names(:,species))
          target_species(species) = 0
          do k = 1, n_total_species
-            target_name = c_name_to_fortran(species_names(:,k))
-            if (trim(target_name) == trim(aerosol_name)) then
+            if (trim(c_name_to_fortran(species_names(:,k))) == trim(aerosol_names(species))) then
                target_species(species) = k
                exit
             end if
@@ -37,24 +71,59 @@ contains
          end if
       end do
 
+      ! Scheme parameters for the metadata (non-Mie) path.  scale_factor is
+      ! retained for configuration compatibility but, exactly like upstream,
+      ! compute_gocart does not consume it on this path.
+      params%scheme_name = 'gocart'
+      params%scale_factor = real(scale_factor, fp)
+      params%simple_scheme = .false.
+      params%swelling_method = swelling_method
+      params%correction_maring = (correction_maring /= 0)
+      params%maring_dust_only = (maring_dust_only /= 0)
+
+      ! Metadata path: no Mie tables (mirrors upstream simple_scheme=false).
+      allocate(mie_data(0))
+      species_mie_map = 0
+      is_dust = (species_is_dust /= 0)
       do species = 1, n_aerosols
-         do column = 1, n_columns
+         ! Radii stay in µm: the scheme performs the µm -> m conversion.
+         species_radius(species) = real(radius(species), fp)
+         species_density(species) = real(density(species), fp)
+      end do
+
+      do column = 1, n_columns
+         do k = 1, n_levels
+            airden_1d(k) = real(airden(column,k), fp)
+            delp_1d(k) = real(delp(column,k), fp)
+            pmid_1d(k) = real(pmid(column,k), fp)
+            rh_1d(k) = real(rh(column,k), fp)
+            t_1d(k) = real(temperature(column,k), fp)
+         end do
+         do k = 1, n_levels + 1
+            z_1d(k) = real(z_edge(column,k), fp)
+         end do
+         do species = 1, n_aerosols
             do k = 1, n_levels
-               ! CATChem stores aerosol mixing ratios in ug/kg.  The
-               ! internalized GOCART solver operates in kg/kg.
-               qa(k) = real(concentration(column,k,target_species(species)), fp) * 1.0e-9_fp
+               ! µg/kg both sides; kg/kg conversion happens inside the scheme.
+               conc_2d(k,species) = real(concentration(column,k,target_species(species)), fp)
+               tend_2d(k,species) = 0.0_fp
             end do
-            call settling_compute(n_levels, 1, real(dt,fp), 9.80665_fp, real(radius(species),fp), &
-               real(density(species),fp), swelling_method, qa, real(temperature(column,:),fp), &
-               real(airden(column,:),fp), real(rh(column,:),fp), real(z_edge(column,:),fp), &
-               real(delp(column,:),fp), correction_maring=(correction_maring /= 0), &
-               scale_factor=real(scale_factor,fp), solver_type=2, rc=rc)
-            if (rc /= 0) then
-               bridge_rc = int(rc, c_int)
-               return
-            end if
+         end do
+
+         ! One call per column for all settling species, exactly like the
+         ! upstream run_gocart_scheme_column.  Scheme-internal failures report
+         ! through CC_Error (stderr banner) and return without aborting, which
+         ! is the legacy behavior; replacement tendencies are written back for
+         ! whatever the scheme produced.
+         call compute_gocart(n_levels, n_aerosols, params, &
+            airden_1d, delp_1d, pmid_1d, rh_1d, t_1d, real(dt, fp), z_1d, &
+            aerosol_names, mie_data, species_mie_map, species_radius, species_density, &
+            is_dust, conc_2d, tend_2d)
+
+         do species = 1, n_aerosols
             do k = 1, n_levels
-               concentration(column,k,target_species(species)) = real(qa(k), c_double) * 1.0e9_c_double
+               ! Replacement tendencies (max(0, qa) applied inside the scheme).
+               concentration(column,k,target_species(species)) = real(tend_2d(k,species), c_double)
             end do
          end do
       end do
