@@ -211,10 +211,19 @@ contains
          ! compute_jacob returns a finite-step tendency in the native
          ! aerosol (ug/kg/s) or gas (ppmv/s) units.  Apply it to the
          ! concentration state while preserving species with zero tendency.
+         !
+         ! The new concentration is clamped at zero to reproduce upstream's
+         ! contract exactly: upstream compute_jacob stores max(0, conc) as the
+         ! REPLACEMENT value and the interface assigns new_conc = tendency.
+         ! Here the scheme returns a rate ((new-old)/dt), so old + dt*rate
+         ! reconstructs the same new value, but the round-trip through /dt then
+         ! *dt (and the SO4 production term added after the max(0,.) clamp) can
+         ! undershoot below zero.  The max(0,.) below restores the positivity
+         ! guarantee upstream has, eliminating negative concentrations.
          do ispec = 1, n_species
             tendency(icol, :, ispec) = real(col_tendencies(:, ispec), c_double)
-            conc(icol, :, ispec) = conc(icol, :, ispec) + &
-               real(dt * col_tendencies(:, ispec), c_double)
+            conc(icol, :, ispec) = max( 0.0_c_double, &
+               conc(icol, :, ispec) + real(dt * col_tendencies(:, ispec), c_double) )
          end do
 
          if (diagnostics /= 0) then

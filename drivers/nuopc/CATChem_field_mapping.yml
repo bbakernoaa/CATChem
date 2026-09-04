@@ -4,11 +4,11 @@ import_fields:
     dimensions: 3
     units: "K"
     optional: false
-  - standard_name: "inst_rel_humid_levels"
-    catchem_var: "RH"
-    dimensions: 3
-    units: "1"
-    optional: true
+  # RH is intentionally NOT imported. Upstream/develop derives RH internally
+  # from T, QV, PMID (met_utilities::relative_humidity), and the C++ core uses
+  # the identical formula. Importing a host RH here would override the
+  # derivation and diverge hydrophilic swelling (settling/wetdep) from the
+  # legacy baseline. Keep RH derived to preserve numerical parity.
   - standard_name: "inst_geop_interface"
     catchem_var: "Z"
     dimensions: 3
