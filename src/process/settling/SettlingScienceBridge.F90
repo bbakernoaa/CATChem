@@ -126,7 +126,10 @@ contains
          do species = 1, n_aerosols
             do k = 1, n_levels
                ! Replacement tendencies (max(0, qa) applied inside the scheme).
-               concentration(column,k,target_species(species)) = real(tend_2d(k,species), c_double)
+               ! Clamp at zero to flush denormalized FP negatives that survive
+               ! the fp -> c_double cast (matches the emission bridge convention).
+               concentration(column,k,target_species(species)) = &
+                  max(0.0_c_double, real(tend_2d(k,species), c_double))
             end do
          end do
       end do
