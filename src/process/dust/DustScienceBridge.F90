@@ -12,7 +12,7 @@ module DustScienceBridge_Mod
 contains
 
    subroutine run_dust_science_bridge( &
-      n_cols, n_levels, n_species, n_soil, dt, &
+      n_cols, n_levels, n_species, n_total_species, n_soil, dt, &
       active_scheme, diagnostics, &
       fengsha_alpha, fengsha_gamma, fengsha_drylimit_factor, fengsha_moisture_factor, fengsha_kvhmax, &
       fengsha_drag_option, fengsha_horizflux_option, fengsha_moist_option, fengsha_distribution_option, &
@@ -20,16 +20,24 @@ contains
       airden, delp, clayfrac, frlake, frsno, gvf, lai, lwi, rdrag, sandfrac, &
       soilm, gwettop, ssm, tskin, u10m, v10m, ustar, ustar_threshold, z0, &
       species_density, species_radius, species_lower_radius, species_upper_radius, &
+      bin_species_names, species_names, &
       conc, tendency, &
       diag_emission_total, diag_emission_bin, diag_horizontal_flux, diag_moisture_correction, diag_effective_threshold, diag_utar_threshold, &
       diagnostic_species_id, n_diag_species &
       ) bind(C, name="run_dust_science_bridge")
 
       ! C-interoperable metadata
-      integer(c_int), value :: n_cols, n_levels, n_species, n_soil
+      ! n_species     : number of dust bin species (subset the scheme operates on)
+      ! n_total_species: number of species in the full unified conc array
+      integer(c_int), value :: n_cols, n_levels, n_species, n_total_species, n_soil
       real(c_double), value :: dt
       character(kind=c_char), intent(in) :: active_scheme(*)
       integer(c_int), value :: diagnostics
+      ! Dust bin names (subset) and the full chemistry catalog names.  The
+      ! bridge resolves each bin to its slot in the full conc array by name,
+      ! so no species index crosses the C boundary (mirrors settling).
+      character(kind=c_char), intent(in) :: bin_species_names(32, n_species)
+      character(kind=c_char), intent(in) :: species_names(32, n_total_species)
 
       ! Scheme tuning options staged by DustProcess::init from the runtime
       ! YAML.  The C++ layer owns parsing; the bridge only applies them onto
@@ -123,7 +131,11 @@ contains
       type(DustSchemeFENGSHAConfig) :: fengsha_config
       type(DustSchemeGINOUXConfig)  :: ginoux_config
       character(len=32) :: local_scheme
-      integer :: icol, i, ispec
+      integer :: icol, i, ispec, k
+      ! Map from each dust bin (1..n_species) to its column in the full conc
+      ! array (1..n_total_species), resolved by trimmed name comparison.
+      integer :: target_species(n_species)
+      character(len=32) :: bin_names(n_species)
 
       ! Map Scheme Name
       local_scheme = ""
@@ -174,8 +186,25 @@ contains
       call c_f_pointer(ustar_threshold, f_ustar_threshold, [n_cols])
       call c_f_pointer(z0, f_z0, [n_cols])
 
-      call c_f_pointer(conc, f_conc, [n_cols, n_levels, n_species])
-      call c_f_pointer(tendency, f_tendency, [n_cols, n_levels, n_species])
+      call c_f_pointer(conc, f_conc, [n_cols, n_levels, n_total_species])
+      call c_f_pointer(tendency, f_tendency, [n_cols, n_levels, n_total_species])
+
+      ! Resolve each dust bin to its slot in the full chemistry array by name.
+      do i = 1, n_species
+         bin_names(i) = c_name_to_fortran(bin_species_names(:, i))
+         target_species(i) = 0
+         do k = 1, n_total_species
+            if (trim(c_name_to_fortran(species_names(:, k))) == trim(bin_names(i))) then
+               target_species(i) = k
+               exit
+            end if
+         end do
+         if (target_species(i) == 0) then
+            write(*,'(A,A)') 'FATAL ERROR: DustScienceBridge cannot resolve dust bin ', trim(bin_names(i))
+            call flush(6)
+            error stop "FATAL ERROR: DustScienceBridge unresolved dust bin species"
+         end if
+      end do
 
       call c_f_pointer(species_density, f_density, [n_species])
       call c_f_pointer(species_radius, f_radius, [n_species])
@@ -202,7 +231,13 @@ contains
 
          col_airden(:) = real(f_airden(icol, :), fp)
          col_soilm(:)  = real(f_soilm(icol, :), fp)
-         col_conc(:,:) = real(f_conc(icol, :, :), fp)
+         ! Gather the dust-bin concentrations out of the full unified array
+         ! using the name-resolved map (mirrors settling's conc_2d gather).
+         do ispec = 1, n_species
+            do k = 1, n_levels
+               col_conc(k, ispec) = real(f_conc(icol, k, target_species(ispec)), fp)
+            end do
+         end do
          col_tendency(:,:) = 0.0_fp
 
          col_emission_total = 0.0_fp
@@ -246,13 +281,16 @@ contains
          end if
 
          ! Write tendencies (Convert kg/m2/s at surface layer 1 to ug/kg concentration change)
-         ! dqa = flux * dt * g0 / delp(1) * 1.0e9
+         ! dqa = flux * dt * g0 / delp(1) * 1.0e9.  Scatter back into the full
+         ! unified conc array via the name-resolved map.
          do ispec = 1, n_species
             if (abs(col_tendency(1, ispec)) > 1.0e-32_fp) then
                col_tendency(1, ispec) = (col_tendency(1, ispec) * real(dt, fp) * g0 / real(f_delp(icol, 1), fp)) * 1.0e9_fp
 
-               f_tendency(icol, 1, ispec) = f_tendency(icol, 1, ispec) + real(col_tendency(1, ispec) / real(dt, fp), c_double)
-               f_conc(icol, 1, ispec)     = f_conc(icol, 1, ispec)     + real(col_tendency(1, ispec), c_double)
+               f_tendency(icol, 1, target_species(ispec)) = &
+                  f_tendency(icol, 1, target_species(ispec)) + real(col_tendency(1, ispec) / real(dt, fp), c_double)
+               f_conc(icol, 1, target_species(ispec)) = &
+                  max(0.0_c_double, f_conc(icol, 1, target_species(ispec)) + real(col_tendency(1, ispec), c_double))
             end if
          end do
 
@@ -268,6 +306,18 @@ contains
 
       end do
 
+   contains
+      function c_name_to_fortran(c_name) result(name)
+         character(kind=c_char), intent(in) :: c_name(32)
+         character(len=32) :: name
+         integer :: ic
+         name = ''
+         do ic = 1, 32
+            if (c_name(ic) == c_null_char) exit
+            name(ic:ic) = c_name(ic)
+         end do
+         name = trim(adjustl(name))
+      end function c_name_to_fortran
    end subroutine run_dust_science_bridge
 
 end module DustScienceBridge_Mod

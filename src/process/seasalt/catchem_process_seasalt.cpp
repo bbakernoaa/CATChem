@@ -4,18 +4,20 @@
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include <array>
+#include <cctype>
 #include <iostream>
 
 extern "C" {
-void run_seasalt_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* active_scheme,
-                                int diagnostics, double gong97_scale_factor, int gong97_weibull_flag,
-                                double gong03_scale_factor, int gong03_weibull_flag, double geos12_scale_factor,
-                                int geos12_weibull_flag, double* frocean, double* frseaice, double* lat, double* lon,
-                                double* sst, double* u10m, double* v10m, double* ustar, double* delp, double* density,
-                                double* radius, double* lower_radius, double* upper_radius, bool* is_gas, double* mw_g,
-                                double* conc, double* tendency, double* diag_mass_total, double* diag_num_total,
-                                double* diag_mass_bin, double* diag_num_bin, const int* diagnostic_species_id,
-                                int n_diag_species);
+void run_seasalt_science_bridge(int n_cols, int n_levels, int n_species, int n_total_species, double dt,
+                                const char* active_scheme, int diagnostics, double gong97_scale_factor,
+                                int gong97_weibull_flag, double gong03_scale_factor, int gong03_weibull_flag,
+                                double geos12_scale_factor, int geos12_weibull_flag, double* frocean, double* frseaice,
+                                double* lat, double* lon, double* sst, double* u10m, double* v10m, double* ustar,
+                                double* delp, double* density, double* radius, double* lower_radius,
+                                double* upper_radius, bool* is_gas, double* mw_g, const char* bin_species_names,
+                                const char* species_names, double* conc, double* tendency, double* diag_mass_total,
+                                double* diag_num_total, double* diag_mass_bin, double* diag_num_bin,
+                                const int* diagnostic_species_id, int n_diag_species);
 }
 
 namespace catchem {
@@ -165,22 +167,28 @@ namespace catchem {
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("SeaSalt", "CHEM_CONC", conc_ptr);
 
-        // Allocate contiguous temporary slice for concentrations
-        std::vector<double> sliced_conc(state->column_count() * state->level_count() * n_seasalt, 0.0);
+        // The bridge now operates directly on the full unified concentration
+        // array and resolves each sea-salt bin to its slot by name.  No slice
+        // buffers and no manual copy-back (mirrors settling/drydep/wetdep).
+        const int n_total_species = state->species_count();
+
+        // Pack the sea-salt bin names into the 32-char-per-name flat layout the
+        // bridge expects, in the same order as the metadata arrays.
+        // Upper-case to match the catalog convention in species_names_c_arr
+        // (ChemState stores short names upper-cased); the bridge compares by
+        // trimmed name, so both sides must use the same case.
+        std::vector<char> bin_species_names(static_cast<size_t>(32) * n_seasalt, ' ');
         for (int i = 0; i < n_seasalt; ++i) {
-            int g_idx = ss_global_indices[i];
-            for (int col = 0; col < state->column_count(); ++col) {
-                for (int lvl = 0; lvl < state->level_count(); ++lvl) {
-                    int src_idx =
-                        col + lvl * state->column_count() + g_idx * state->column_count() * state->level_count();
-                    int dest_idx = col + lvl * state->column_count() + i * state->column_count() * state->level_count();
-                    sliced_conc[dest_idx] = conc_ptr[src_idx];
-                }
-            }
+            const std::string& nm = state->chemistry().species_list[ss_global_indices[i]].short_name;
+            for (size_t c = 0; c < nm.size() && c < 32; ++c)
+                bin_species_names[static_cast<size_t>(i) * 32 + c] =
+                    static_cast<char>(std::toupper(static_cast<unsigned char>(nm[c])));
         }
 
-        // Allocate local tendencies buffer for sliced subset
-        std::vector<double> mock_tendency(state->column_count() * state->level_count() * n_seasalt, 0.0);
+        // Full-width tendency scratch (the bridge writes only the sea-salt slots).
+        std::vector<double> full_tendency(static_cast<size_t>(state->column_count()) * state->level_count() *
+                                              n_total_species,
+                                          0.0);
 
         // 3. Extract diagnostics
         double* diag_mass_total_ptr =
@@ -201,30 +209,19 @@ namespace catchem {
             diagnostic_species_id[i] = i + 1;
         }
 
-        // 5. Invoke flat science bridge
+        // 5. Invoke flat science bridge (operates on the full conc array;
+        // resolves sea-salt bins by name internally).
         run_seasalt_science_bridge(
-            state->column_count(), state->level_count(), n_seasalt, state->clock().timestep, active_scheme.c_str(),
-            diagnostics_enabled ? 1 : 0, gong97_scale_factor, gong97_weibull_flag ? 1 : 0, gong03_scale_factor,
-            gong03_weibull_flag ? 1 : 0, geos12_scale_factor, geos12_weibull_flag ? 1 : 0, frocean_ptr, frseaice_ptr,
-            lat_ptr, lon_ptr, sst_ptr, u10m_ptr, v10m_ptr, ustar_ptr, delp_ptr, density.data(), radius.data(),
-            lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(), mw_g.data(), sliced_conc.data(),
-            mock_tendency.data(), diag_mass_total_ptr, diag_num_total_ptr, diag_mass_bin.data(), diag_num_bin.data(),
+            state->column_count(), state->level_count(), n_seasalt, n_total_species, state->clock().timestep,
+            active_scheme.c_str(), diagnostics_enabled ? 1 : 0, gong97_scale_factor, gong97_weibull_flag ? 1 : 0,
+            gong03_scale_factor, gong03_weibull_flag ? 1 : 0, geos12_scale_factor, geos12_weibull_flag ? 1 : 0,
+            frocean_ptr, frseaice_ptr, lat_ptr, lon_ptr, sst_ptr, u10m_ptr, v10m_ptr, ustar_ptr, delp_ptr,
+            density.data(), radius.data(), lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(), mw_g.data(),
+            bin_species_names.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, full_tendency.data(),
+            diag_mass_total_ptr, diag_num_total_ptr, diag_mass_bin.data(), diag_num_bin.data(),
             diagnostic_species_id.data(), diagnostic_species_id.size());
 
-        // 6. Copy sliced concentrations back to main unified chemistry state
-        for (int i = 0; i < n_seasalt; ++i) {
-            int g_idx = ss_global_indices[i];
-            for (int col = 0; col < state->column_count(); ++col) {
-                for (int lvl = 0; lvl < state->level_count(); ++lvl) {
-                    int src_idx = col + lvl * state->column_count() + i * state->column_count() * state->level_count();
-                    int dest_idx =
-                        col + lvl * state->column_count() + g_idx * state->column_count() * state->level_count();
-                    conc_ptr[dest_idx] = sliced_conc[src_idx];
-                }
-            }
-        }
-
-        // 7. Map bin diagnostics back to dynamically registered individual C++ diagnostics
+        // 6. Map bin diagnostics back to dynamically registered individual C++ diagnostics
         if (state->diagnostic_manager() && diagnostics_enabled) {
             for (int i = 0; i < n_seasalt; ++i) {
                 auto& meta = state->chemistry().species_list[ss_global_indices[i]];

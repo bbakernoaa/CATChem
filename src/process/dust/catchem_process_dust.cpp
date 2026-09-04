@@ -5,14 +5,15 @@
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
 
 extern "C" {
-void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil, double dt, const char* active_scheme,
-                             int diagnostics, double fengsha_alpha, double fengsha_gamma,
+void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_total_species, int n_soil, double dt,
+                             const char* active_scheme, int diagnostics, double fengsha_alpha, double fengsha_gamma,
                              double fengsha_drylimit_factor, double fengsha_moisture_factor, double fengsha_kvhmax,
                              int fengsha_drag_option, int fengsha_horizflux_option, int fengsha_moist_option,
                              int fengsha_distribution_option, const double* ginoux_ch_du, int n_ginoux_ch_du,
@@ -22,7 +23,8 @@ void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_soil
                              const double* tskin, const double* u10m, const double* v10m, const double* ustar,
                              const double* ustar_threshold, const double* z0, const double* species_density,
                              const double* species_radius, const double* species_lower_radius,
-                             const double* species_upper_radius, double* conc, double* tendency,
+                             const double* species_upper_radius, const char* bin_species_names,
+                             const char* species_names, double* conc, double* tendency,
                              double* diag_emission_total, double* diag_emission_bin, double* diag_horizontal_flux,
                              double* diag_moisture_correction, double* diag_effective_threshold,
                              double* diag_utar_threshold, const int* diagnostic_species_id, int n_diag_species);
@@ -317,55 +319,56 @@ namespace catchem {
             return;
         }
 
-        std::vector<double> sliced_conc(static_cast<size_t>(state->column_count()) * state->level_count() * n_dust,
-                                        0.0);
+        // The bridge now operates directly on the full unified concentration
+        // array and resolves each dust bin to its slot by name.  No slice
+        // buffers and no manual copy-back (mirrors settling/drydep/wetdep).
+        const int n_total_species = state->species_count();
+
+        // Pack the dust bin names into the 32-char-per-name flat layout the
+        // bridge expects, in the same order as the metadata arrays.
+        // Upper-case to match the catalog convention in species_names_c_arr
+        // (ChemState stores short names upper-cased); the bridge compares by
+        // trimmed name, so both sides must use the same case.
+        std::vector<char> bin_species_names(static_cast<size_t>(32) * n_dust, ' ');
         for (int local_idx = 0; local_idx < n_dust; ++local_idx) {
-            const int global_idx = dust_global_indices[local_idx];
-            for (int col = 0; col < state->column_count(); ++col) {
-                for (int lev = 0; lev < state->level_count(); ++lev) {
-                    const int src_idx =
-                        col + lev * state->column_count() + global_idx * state->column_count() * state->level_count();
-                    const int dest_idx =
-                        col + lev * state->column_count() + local_idx * state->column_count() * state->level_count();
-                    sliced_conc[dest_idx] = conc_ptr[src_idx];
-                }
-            }
+            const std::string& nm = state->chemistry().species_list[dust_global_indices[local_idx]].short_name;
+            for (size_t c = 0; c < nm.size() && c < 32; ++c)
+                bin_species_names[static_cast<size_t>(local_idx) * 32 + c] =
+                    static_cast<char>(std::toupper(static_cast<unsigned char>(nm[c])));
         }
 
-        std::vector<double> mock_tendency(static_cast<size_t>(state->column_count()) * state->level_count() * n_dust,
+        // Full-width tendency scratch (the bridge writes only the dust slots).
+        std::vector<double> full_tendency(static_cast<size_t>(state->column_count()) * state->level_count() *
+                                              n_total_species,
                                           0.0);
+
+        // diagnostic_species_id remains the per-bin subset index (1..n_dust):
+        // the scheme still runs over n_dust bins internally.
         std::vector<int> local_diagnostic_species_id(n_dust);
-        for (int local_idx = 0; local_idx < n_dust; ++local_idx) {
+        for (int local_idx = 0; local_idx < n_dust; ++local_idx)
             local_diagnostic_species_id[local_idx] = local_idx + 1;
-        }
 
         std::vector<double> local_diag_emission_bin(static_cast<size_t>(state->column_count()) * n_dust, 0.0);
         std::vector<double> local_diag_utar_threshold(static_cast<size_t>(state->column_count()) * n_dust, 0.0);
 
         // 5. Invoke flat science bridge
         run_dust_science_bridge(
-            state->column_count(), state->level_count(), n_dust, n_soil, state->clock().timestep, active_scheme.c_str(),
-            diagnostics_enabled ? 1 : 0, fengsha_alpha, fengsha_gamma, fengsha_drylimit_factor,
+            state->column_count(), state->level_count(), n_dust, n_total_species, n_soil, state->clock().timestep,
+            active_scheme.c_str(), diagnostics_enabled ? 1 : 0, fengsha_alpha, fengsha_gamma, fengsha_drylimit_factor,
             fengsha_moist_correction_factor, fengsha_kvhmax, fengsha_drag_option, fengsha_horizflux_option,
             fengsha_moist_option, fengsha_distribution_option, ginoux_ch_du.data(),
             static_cast<int>(ginoux_ch_du.size()), airden_ptr, delp_ptr, clayfrac_ptr, frlake_ptr, frsno_ptr, gvf_ptr,
             lai_ptr, lwi.data(), rdrag_ptr, sandfrac_ptr, soilm_ptr, gwettop_ptr, ssm_ptr, tskin_ptr, u10m_ptr,
             v10m_ptr, ustar_ptr, ustar_th_ptr, z0_ptr, density.data(), radius.data(), lower_radius.data(),
-            upper_radius.data(), sliced_conc.data(), mock_tendency.data(), diag_emission_total,
-            local_diag_emission_bin.data(), diag_horizontal_flux, diag_moisture_correction, diag_effective_threshold,
-            local_diag_utar_threshold.data(), local_diagnostic_species_id.data(), local_diagnostic_species_id.size());
+            upper_radius.data(), bin_species_names.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
+            full_tendency.data(), diag_emission_total, local_diag_emission_bin.data(), diag_horizontal_flux,
+            diag_moisture_correction, diag_effective_threshold, local_diag_utar_threshold.data(),
+            local_diagnostic_species_id.data(), local_diagnostic_species_id.size());
 
+        // Scatter the per-bin diagnostics back to their global species slots.
         for (int local_idx = 0; local_idx < n_dust; ++local_idx) {
             const int global_idx = dust_global_indices[local_idx];
             for (int col = 0; col < state->column_count(); ++col) {
-                for (int lev = 0; lev < state->level_count(); ++lev) {
-                    const int src_idx =
-                        col + lev * state->column_count() + local_idx * state->column_count() * state->level_count();
-                    const int dest_idx =
-                        col + lev * state->column_count() + global_idx * state->column_count() * state->level_count();
-                    conc_ptr[dest_idx] = sliced_conc[src_idx];
-                }
-
                 if (diag_emission_bin) {
                     diag_emission_bin[col + global_idx * state->column_count()] =
                         local_diag_emission_bin[col + local_idx * state->column_count()];
