@@ -698,8 +698,8 @@ namespace catchem {
         }
 
         // Legacy metstate_mod defaults missing ocean salinity to zero. This
-        // disables the optional iodine/ocean-O3 treatment while retaining a
-        // host-provided salinity field when one is available.
+        // disables the optional salinity-dependent ocean chemistry treatment
+        // while retaining a host-provided salinity field when one is available.
         void derive_salinity() {
             if (const auto salinity = find_field<2>("SALINITY"); salinity && salinity->is_current(import_generation))
                 return;
@@ -713,8 +713,10 @@ namespace catchem {
 
         // Reconstruct the legacy 20-category land-use fields from UFS's
         // dominant land-use index and leaf-area index. DLUSE=0 is water,
-        // which legacy CATChem places in category 17 (one-based).
-        void derive_drydep_landuse() {
+        // which legacy CATChem places in category 17 (one-based).  The derived
+        // FRLAI/FRLANDUSE/ILAND fields are generic surface descriptors; any
+        // process that declares them in its contract may consume them.
+        void derive_landuse_categories() {
             constexpr int n_landuse = 20;
             auto dluse = find_field<2>("DLUSE");
             if (!dluse || !dluse->is_current(import_generation))
@@ -806,15 +808,12 @@ namespace catchem {
             bind_met_field_2d("CLDFRC", buffer->data());
             cldf->sync_to_host();
             const double* src = cldf->host_data();
-            // Legacy parity: CLDFRC is the vertical SUM of the layer cloud
-            // fractions (upstream `SUM(CLDF, DIM=3)`), clamped to [0, 1].
-            // Copying only the surface level severely underestimates it.
-            for (int c = 0; c < n_cols; ++c) {
-                double column_sum = 0.0;
-                for (int lev = 0; lev < n_levels; ++lev)
-                    column_sum += src[static_cast<std::size_t>(c) + static_cast<std::size_t>(lev) * n_cols];
-                buffer->at(c) = std::clamp(column_sum, 0.0, 1.0);
-            }
+            // Legacy parity: the upstream metstate_mod derives CLDFRC as the
+            // surface-layer cloud fraction (`CLDFRC(:,:) = CLDF(:,:,1)`), not a
+            // vertical sum.  The C++ vertical order is bottom-to-top, so the
+            // surface layer is level index 0.  Match that exactly.
+            for (int c = 0; c < n_cols; ++c)
+                buffer->at(c) = src[static_cast<std::size_t>(c)];
             auto derived = find_field<2>("CLDFRC");
             derived->mark_host_modified();
             derived->set_generation(import_generation);

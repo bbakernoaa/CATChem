@@ -79,6 +79,13 @@ namespace catchem {
 
     void CarbChemProcess::run(std::shared_ptr<StateManager> state) {
 
+        // The execution plan invokes prepare_inputs before run(), but direct
+        // API users and focused process tests may call run() themselves.
+        // These derivations are generation-aware and therefore preserve
+        // host-provided fields while supplying only absent prerequisites
+        // (matches SettlingProcess::run).
+        prepare_inputs(state);
+
         // 1. Retrieve 3D Meteorological state pointers
         double* airden_ptr = state->write_field<3>("AIRDEN");
 

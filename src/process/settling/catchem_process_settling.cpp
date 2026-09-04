@@ -8,13 +8,13 @@
 namespace catchem {
 
     extern "C" void run_settling_science_bridge(int n_columns, int n_levels, int n_aerosols, int n_total_species,
-                                                double dt, double scale_factor, int swelling_method,
+                                                double dt, double scale_factor, double swelling_rh_max,
                                                 int correction_maring, int maring_dust_only, double* airden,
                                                 double* delp, const double* pmid, double* rh, double* temperature,
                                                 double* z_edge, const char* aerosol_species_names,
                                                 const char* species_names, const int* species_is_dust,
-                                                const double* radius, const double* density, double* concentration,
-                                                int* bridge_rc);
+                                                const int* species_is_hydrophilic, const double* radius,
+                                                const double* density, double* concentration, int* bridge_rc);
 
     ProcessContract SettlingProcess::get_contract() const {
         ProcessContract contract{get_name(),
@@ -51,13 +51,14 @@ namespace catchem {
         // back to the compiled default declared in SettlingCommon_Mod.F90.
         gocart_scale_factor = configured->second.get_double("gocart/scale_factor", gocart_scale_factor);
         gocart_simple_scheme = configured->second.get_bool("gocart/simple_scheme", gocart_simple_scheme);
-        gocart_swelling_method = configured->second.get_int("gocart/swelling_method", gocart_swelling_method);
+        gocart_swelling_rh_max = configured->second.get_double("gocart/swelling_rh_max", gocart_swelling_rh_max);
         gocart_correction_maring = configured->second.get_bool("gocart/correction_maring", gocart_correction_maring);
         gocart_maring_dust_only = configured->second.get_bool("gocart/maring_dust_only", gocart_maring_dust_only);
         if (!(gocart_scale_factor > 0.0))
             throw std::invalid_argument("Settling gocart scale_factor must be positive");
-        if (gocart_swelling_method != 1 && gocart_swelling_method != 2)
-            throw std::invalid_argument("Settling gocart swelling_method must be 1 (Fitzgerald) or 2 (Gerber)");
+        // A non-positive cap disables the clamp; otherwise it must be a valid RH fraction.
+        if (gocart_swelling_rh_max > 1.0)
+            throw std::invalid_argument("Settling gocart swelling_rh_max must be <= 1.0 (RH fraction), or <= 0 to disable");
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and reaches the settling kernel.
@@ -72,7 +73,8 @@ namespace catchem {
                       {"gocart/correction_maring", gocart_correction_maring ? "true" : "false"},
                       {"gocart/maring_dust_only", gocart_maring_dust_only ? "true" : "false"},
                       {"gocart/simple_scheme", "false (species metadata)"},
-                      {"gocart/swelling_method", std::to_string(gocart_swelling_method)}});
+                      {"gocart/swelling", "per-species __hydrophilic (Gerber when true)"},
+                      {"gocart/swelling_rh_max", std::to_string(gocart_swelling_rh_max)}});
 
         int num_aerosols = state->chemistry().aerosol_indices.size();
         if (num_aerosols > 0) {
@@ -80,6 +82,7 @@ namespace catchem {
             host_radius_dry.assign(num_aerosols, 0.0);
             host_rhop_dry.assign(num_aerosols, 0.0);
             host_is_dust.assign(num_aerosols, 0);
+            host_is_hydrophilic.assign(num_aerosols, 1);
 
             for (int i = 0; i < num_aerosols; ++i) {
                 int ispec = state->chemistry().aerosol_indices[i];
@@ -93,6 +96,11 @@ namespace catchem {
                 host_radius_dry[i] = r_val;
                 host_rhop_dry[i] = d_val;
                 host_is_dust[i] = state->chemistry().species_list[ispec].is_dust ? 1 : 0;
+                // Per-species hygroscopicity drives wet-particle swelling: a
+                // hydrophilic aerosol grows with RH (Gerber), a hydrophobic one
+                // settles at its dry size.  Replaces the old global
+                // swelling_method knob.
+                host_is_hydrophilic[i] = state->chemistry().species_list[ispec].is_hydrophilic ? 1 : 0;
                 std::copy_n(state->chemistry().species_names_c_arr.data() + static_cast<size_t>(ispec) * 32, 32,
                             aerosol_species_names.data() + static_cast<size_t>(i) * 32);
             }
@@ -141,11 +149,12 @@ namespace catchem {
         int bridge_rc = 0;
         run_settling_science_bridge(
             state->column_count(), state->level_count(), num_aerosols, state->species_count(), state->clock().timestep,
-            gocart_scale_factor, gocart_swelling_method, gocart_correction_maring ? 1 : 0,
+            gocart_scale_factor, gocart_swelling_rh_max, gocart_correction_maring ? 1 : 0,
             gocart_maring_dust_only ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp, pmid,
             state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
             aerosol_species_names.data(), state->chemistry().species_names_c_arr.data(), host_is_dust.data(),
-            host_radius_dry.data(), host_rhop_dry.data(), state->chemistry().conc->host_write(), &bridge_rc);
+            host_is_hydrophilic.data(), host_radius_dry.data(), host_rhop_dry.data(),
+            state->chemistry().conc->host_write(), &bridge_rc);
         if (bridge_rc != 0)
             throw std::runtime_error("Settling science bridge failed with status " + std::to_string(bridge_rc));
         state->chemistry().conc->mark_host_modified();
@@ -162,7 +171,7 @@ void catchem_register_settling_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "settling", []() { return std::make_shared<catchem::SettlingProcess>(); }, {},
         catchem::make_settings_validator("settling",
-                                         {"gocart/scale_factor", "gocart/simple_scheme", "gocart/swelling_method",
+                                         {"gocart/scale_factor", "gocart/simple_scheme", "gocart/swelling_rh_max",
                                           "gocart/correction_maring", "gocart/maring_dust_only"}));
 }
 }

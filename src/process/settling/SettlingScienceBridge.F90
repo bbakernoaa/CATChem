@@ -20,14 +20,14 @@ module SettlingScienceBridge_Mod
    implicit none
 contains
    subroutine run_settling_science_bridge(n_columns, n_levels, n_aerosols, n_total_species, &
-      dt, scale_factor, swelling_method, correction_maring, maring_dust_only, &
+      dt, scale_factor, swelling_rh_max, correction_maring, maring_dust_only, &
       airden, delp, pmid, rh, temperature, z_edge, &
-      aerosol_species_names, species_names, species_is_dust, radius, density, &
+      aerosol_species_names, species_names, species_is_dust, species_is_hydrophilic, radius, density, &
       concentration, bridge_rc) &
       bind(C, name='run_settling_science_bridge')
       integer(c_int), value :: n_columns, n_levels, n_aerosols, n_total_species
-      integer(c_int), value :: swelling_method, correction_maring, maring_dust_only
-      real(c_double), value :: dt, scale_factor
+      integer(c_int), value :: correction_maring, maring_dust_only
+      real(c_double), value :: dt, scale_factor, swelling_rh_max
       real(c_double), intent(in) :: airden(n_columns,n_levels), delp(n_columns,n_levels)
       real(c_double), intent(in) :: pmid(n_columns,n_levels), rh(n_columns,n_levels)
       real(c_double), intent(in) :: temperature(n_columns,n_levels)
@@ -35,6 +35,7 @@ contains
       character(kind=c_char), intent(in) :: aerosol_species_names(32,n_aerosols)
       character(kind=c_char), intent(in) :: species_names(32,n_total_species)
       integer(c_int), intent(in) :: species_is_dust(n_aerosols)
+      integer(c_int), intent(in) :: species_is_hydrophilic(n_aerosols)
       real(c_double), intent(in) :: radius(n_aerosols), density(n_aerosols)
       real(c_double), intent(inout) :: concentration(n_columns,n_levels,n_total_species)
       integer(c_int), intent(out) :: bridge_rc
@@ -45,6 +46,7 @@ contains
       integer :: target_species(n_aerosols)
       integer :: species_mie_map(n_aerosols)
       logical :: is_dust(n_aerosols)
+      logical :: is_hydrophilic(n_aerosols)
       real(fp) :: species_radius(n_aerosols), species_density(n_aerosols)
       real(fp) :: airden_1d(n_levels), delp_1d(n_levels), pmid_1d(n_levels)
       real(fp) :: rh_1d(n_levels), t_1d(n_levels), z_1d(n_levels+1)
@@ -77,7 +79,7 @@ contains
       params%scheme_name = 'gocart'
       params%scale_factor = real(scale_factor, fp)
       params%simple_scheme = .false.
-      params%swelling_method = swelling_method
+      params%swelling_rh_max = real(swelling_rh_max, fp)
       params%correction_maring = (correction_maring /= 0)
       params%maring_dust_only = (maring_dust_only /= 0)
 
@@ -85,6 +87,7 @@ contains
       allocate(mie_data(0))
       species_mie_map = 0
       is_dust = (species_is_dust /= 0)
+      is_hydrophilic = (species_is_hydrophilic /= 0)
       do species = 1, n_aerosols
          ! Radii stay in µm: the scheme performs the µm -> m conversion.
          species_radius(species) = real(radius(species), fp)
@@ -118,7 +121,7 @@ contains
          call compute_gocart(n_levels, n_aerosols, params, &
             airden_1d, delp_1d, pmid_1d, rh_1d, t_1d, real(dt, fp), z_1d, &
             aerosol_names, mie_data, species_mie_map, species_radius, species_density, &
-            is_dust, conc_2d, tend_2d)
+            is_dust, is_hydrophilic, conc_2d, tend_2d)
 
          do species = 1, n_aerosols
             do k = 1, n_levels

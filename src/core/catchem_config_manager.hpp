@@ -126,6 +126,7 @@ namespace catchem {
         bool is_gocart_aero = false;
         bool is_dust = false;
         bool is_seasalt = false;
+        bool is_hydrophilic = true;
 
         double molecular_weight_kg_mol = 0.0;
         double mw_g = 0.0;

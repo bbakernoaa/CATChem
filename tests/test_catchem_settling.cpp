@@ -113,7 +113,7 @@ namespace {
         YAML::Node gocart;
         gocart["scale_factor"] = 1.0;
         gocart["simple_scheme"] = false;
-        gocart["swelling_method"] = 1;
+        gocart["swelling_rh_max"] = 0.95;
         gocart["correction_maring"] = correction_maring;
         gocart["maring_dust_only"] = maring_dust_only;
         YAML::Node settings;

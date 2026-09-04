@@ -18,7 +18,7 @@ namespace catchem {
         // requires Mie tables and stays unsupported (init rejects it).
         double gocart_scale_factor = 1.0;
         bool gocart_simple_scheme = false;
-        int gocart_swelling_method = 1;
+        double gocart_swelling_rh_max = 0.95;
         bool gocart_correction_maring = false;
         bool gocart_maring_dust_only = true;
 
@@ -28,7 +28,8 @@ namespace catchem {
         std::vector<char> aerosol_species_names;
         std::vector<double> host_radius_dry; // micrometres, as configured
         std::vector<double> host_rhop_dry;
-        std::vector<int> host_is_dust; // 0/1 per settling species
+        std::vector<int> host_is_dust;        // 0/1 per settling species
+        std::vector<int> host_is_hydrophilic; // 0/1 per settling species (drives wet swelling)
 
     public:
         SettlingProcess();

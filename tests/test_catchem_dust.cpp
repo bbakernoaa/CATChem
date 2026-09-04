@@ -4,6 +4,7 @@
 #include "catchem_kokkos_compat.hpp"
 #include "catchem_process_registry.hpp"
 #include "catchem_state_manager.hpp"
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <fstream>
@@ -83,7 +84,7 @@ int main(int argc, char* argv[]) {
         std::vector<double> lwi(n_cols, 1.0), ssm(n_cols, 0.1), z0(n_cols, 0.05);
         std::vector<double> chem_conc(n_cols * n_levels * n_species, 0.0);
 
-        state->bind_met_field_3d("air_density_dry", airden.data());
+        state->bind_met_field_3d("air_density", airden.data());
         state->bind_met_field_3d("DELP", delp.data());
         state->bind_met_field_3d("box_height", bxheight.data());
         state->bind_met_field_2d("clay_fraction", clay_fraction.data());
@@ -112,18 +113,60 @@ int main(int argc, char* argv[]) {
         auto dust = catchem::ProcessRegistry::get_instance().create("dust");
         assert(dust != nullptr);
         dust->init(state);
+
+        // FENGSHA gates emission on saltation: the White horizontal flux is
+        // max(0, R*ustar - ustar_threshold*H) * (...)^2, so emission only
+        // occurs when the drag-scaled friction velocity exceeds the moisture-
+        // adjusted threshold.  Exercise BOTH regimes through the real process
+        // to prove the gate works in each direction, not just that output is
+        // finite/non-negative.  The met arrays are bound by pointer, so we
+        // mutate the gating inputs in place and re-run.
+        const auto surface_index = [&](size_t species_index) {
+            // Surface layer (level 0) of the given species, column 0.
+            return species_index * static_cast<size_t>(n_cols * n_levels);
+        };
+        const auto total_dust = [&]() {
+            double sum = 0.0;
+            for (const auto species_index : dust_indices)
+                for (int col = 0; col < n_cols; ++col)
+                    sum += chem_conc[species_index * static_cast<size_t>(n_cols * n_levels) + col];
+            return sum;
+        };
+        const auto reset_chem = [&]() { std::fill(chem_conc.begin(), chem_conc.end(), 0.0); };
+
+        // --- Scenario A: saltation-favorable -> dust MUST emit --------------
+        // Strong wind, low threshold, near-unity drag partition, dry soil.
+        std::fill(ustar.begin(), ustar.end(), 0.8);
+        std::fill(ustar_threshold.begin(), ustar_threshold.end(), 0.15);
+        std::fill(rdrag.begin(), rdrag.end(), 1.0);
+        std::fill(surface_soil_moisture.begin(), surface_soil_moisture.end(), 0.02);
+        std::fill(soil_moisture.begin(), soil_moisture.end(), 0.02);
+        reset_chem();
         dust->run(state);
         state->sync_to_host();
 
-        // A size-distribution model need not be monotonic by bin number.
-        // Check only physical invariants, not tracer-name-specific fractions.
-        const auto value_at = [&](size_t species_index) {
-            return chem_conc[species_index * static_cast<size_t>(n_cols * n_levels)];
-        };
         for (const auto species_index : dust_indices)
-            assert(value_at(species_index) >= 0.0);
+            assert(chem_conc[surface_index(species_index)] >= 0.0); // physical floor
+        const double emitting_total = total_dust();
+        assert(emitting_total > 0.0 && "FENGSHA must emit dust under saltation-favorable inputs");
+        std::cout << "  Scenario A (emitting): total surface dust = " << emitting_total << std::endl;
 
-        std::cout << "SUCCESS: Dust process executed successfully." << std::endl;
+        // --- Scenario B: saltation-suppressed -> dust MUST be zero ----------
+        // Same wind, but the drag-scaled friction velocity R*ustar is far
+        // below the threshold, so no saltation and therefore no emission.
+        std::fill(ustar.begin(), ustar.end(), 0.8);
+        std::fill(ustar_threshold.begin(), ustar_threshold.end(), 2.0);
+        std::fill(rdrag.begin(), rdrag.end(), 0.01);
+        reset_chem();
+        dust->run(state);
+        state->sync_to_host();
+
+        const double suppressed_total = total_dust();
+        assert(suppressed_total == 0.0 && "FENGSHA must not emit dust when saltation is suppressed");
+        std::cout << "  Scenario B (suppressed): total surface dust = " << suppressed_total << std::endl;
+
+        std::cout << "SUCCESS: Dust process emits under favorable inputs and is silent when suppressed."
+                  << std::endl;
     }
     Kokkos::finalize();
     return 0;

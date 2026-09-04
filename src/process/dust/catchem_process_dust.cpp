@@ -153,6 +153,13 @@ namespace catchem {
 
     void DustProcess::run(std::shared_ptr<StateManager> state) {
 
+        // The execution plan invokes prepare_inputs before run(), but direct
+        // API users and focused process tests may call run() themselves.
+        // These derivations are generation-aware and therefore preserve
+        // host-provided fields while supplying only absent prerequisites
+        // (matches SettlingProcess::run).
+        prepare_inputs(state);
+
         // 1. Retrieve Meteorological state pointers
         const double* airden_ptr = state->read_field<3>("AIRDEN");
         const double* delp_ptr = state->read_field<3>("DELP");

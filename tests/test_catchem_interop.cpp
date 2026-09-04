@@ -251,13 +251,25 @@ int main(int argc, char* argv[]) {
 
             std::vector<double> mock_chem_state(n_cols * n_levels * n_species, 4.2); // Unified chem state
 
-            // 2. Bind arrays to StateManager
+            // 2. Bind arrays to StateManager.
+            //
+            // BXHEIGHT and AIRDEN_DRY are the derived OUTPUTS we want the core
+            // to compute.  A host-provided field is authoritative only while it
+            // is current for the active import generation, so we bind the
+            // output buffers first, then advance the import generation before
+            // binding the input met.  This mirrors the NUOPC import contract:
+            // begin_import_generation() marks previously bound fields stale, so
+            // the freshly bound inputs are current while the stale BXHEIGHT /
+            // AIRDEN_DRY are (re)derived into the buffers we read back below.
+            catchem_state_bind_met_3d(state, "BXHEIGHT", bxheight_array.data());
+            catchem_state_bind_met_3d(state, "AIRDEN_DRY", airden_dry_array.data());
+
+            catchem_state_begin_import_generation(state);
+
             catchem_state_bind_met_3d(state, "T", temp_array.data());
             catchem_state_bind_met_3d(state, "QV", qv_array.data());
             catchem_state_bind_met_3d(state, "PMID", pmid_array.data());
             catchem_state_bind_met_3d(state, "PEDGE", pedge_array.data());
-            catchem_state_bind_met_3d(state, "BXHEIGHT", bxheight_array.data());
-            catchem_state_bind_met_3d(state, "AIRDEN_DRY", airden_dry_array.data());
 
             catchem_state_bind_unified_chemistry(state, mock_chem_state.data());
 
@@ -410,6 +422,7 @@ int main(int argc, char* argv[]) {
             std::vector<double> pedge_array(n_cols * (n_levels + 1), 101325.0); // Pressure edges [Pa]
             std::vector<double> airden_array(n_cols * n_levels, 1.2);           // Output dry density
             std::vector<double> bxheight_array(n_cols * n_levels, 1000.0);      // Output height
+            std::vector<double> z_array(n_cols * (n_levels + 1), 0.0);          // Geometric height edges [m]
 
             for (int i = 0; i < n_cols; ++i) {
                 pedge_array[i + 0 * n_cols] = 101325.0; // Surface
@@ -418,6 +431,9 @@ int main(int argc, char* argv[]) {
                 pedge_array[i + 3 * n_cols] = 70000.0;
                 pedge_array[i + 4 * n_cols] = 60000.0;
                 pedge_array[i + 5 * n_cols] = 50000.0; // Top
+                // Monotonically increasing geometric height edges (surface=0).
+                for (int lev = 0; lev <= n_levels; ++lev)
+                    z_array[i + lev * n_cols] = 500.0 * lev;
             }
 
             std::vector<double> mock_chem_state(n_cols * n_levels * n_species,
@@ -428,6 +444,7 @@ int main(int argc, char* argv[]) {
             catchem_state_bind_met_3d(state, "QV", qv_array.data());
             catchem_state_bind_met_3d(state, "PMID", pmid_array.data());
             catchem_state_bind_met_3d(state, "PEDGE", pedge_array.data());
+            catchem_state_bind_met_3d(state, "Z", z_array.data());
             catchem_state_bind_met_3d(state, "BXHEIGHT", bxheight_array.data());
             catchem_state_bind_met_3d(state, "AIRDEN", airden_array.data());
 
@@ -450,27 +467,28 @@ int main(int argc, char* argv[]) {
             // Note: Since all aerosols settle down, concentration at the top layer should decrease.
             // We just check if the top layer of an aerosol species is less than 1.0.
 
-            // Get index of an aerosol (e.g., 'so4')
-            int idx_so4_1based = catchem_state_get_species_index(state, "so4");
-            int idx_so4_0based = idx_so4_1based - 1;
+            // Probe a COARSE aerosol bin.  Gravitational settling velocity
+            // scales with particle size, so an accumulation-mode species like
+            // so4 (~0.35 um) barely moves in one step, while the coarsest
+            // sea-salt bin (seas5) has a large fall speed and measurably
+            // depletes the top layer.  Using a coarse bin makes the sink
+            // observable instead of lost in round-off.
+            int idx_1based = catchem_state_get_species_index(state, "seas5");
+            assert(idx_1based > 0);
+            int idx_0based = idx_1based - 1;
 
-            std::cout << "DEBUG: idx_so4_1based=" << idx_so4_1based << ", idx_so4_0based=" << idx_so4_0based
-                      << std::endl;
-
-            // Since LayoutLeft is (i, j, k), meaning (col, lev, spec)
-            // Wait, LayoutLeft means innermost dimension is leftmost.
-            // InteropField 3D: (col, level, species). Memory layout: col + level * nc + species * nc * nl
+            // InteropField 3D layout (col, level, species): col + level*nc + species*nc*nl
             int top_level_idx = n_levels - 1;
-            double top_layer_conc = mock_chem_state[0 + top_level_idx * n_cols + idx_so4_0based * n_cols * n_levels];
+            double top_layer_conc = mock_chem_state[0 + top_level_idx * n_cols + idx_0based * n_cols * n_levels];
 
-            std::cout << "DEBUG: top_layer_conc=" << top_layer_conc << std::endl;
+            std::cout << "DEBUG: seas5 top_layer_conc=" << top_layer_conc << std::endl;
             for (int k = 0; k < n_levels; ++k) {
                 std::cout << "  Level " << k
-                          << " conc = " << mock_chem_state[0 + k * n_cols + idx_so4_0based * n_cols * n_levels]
+                          << " conc = " << mock_chem_state[0 + k * n_cols + idx_0based * n_cols * n_levels]
                           << std::endl;
             }
 
-            assert(top_layer_conc < 1.0); // Concentration should drop at the top
+            assert(top_layer_conc < 1.0); // Coarse aerosol must settle out of the top layer
 
             catchem_core_destroy(core);
             std::cout << "SUCCESS: C++ Kokkos Settling Process Validation Passed!\n";
@@ -527,6 +545,7 @@ int main(int argc, char* argv[]) {
             std::vector<double> mock_qv(n_cols * n_levels, 0.01);
             std::vector<double> mock_pmid(n_cols * n_levels, 90000.0);
             std::vector<double> mock_pedge(n_cols * (n_levels + 1), 100000.0);
+            std::vector<double> mock_z(n_cols * (n_levels + 1), 0.0);
             std::vector<double> mock_bxheight(n_cols * n_levels, 100.0);
             std::vector<double> mock_airden(n_cols * n_levels, 1.2);
             std::vector<double> mock_rh(n_cols * n_levels, 0.5);
@@ -540,6 +559,8 @@ int main(int argc, char* argv[]) {
                 mock_pedge[i + 3 * n_cols] = 70000.0;
                 mock_pedge[i + 4 * n_cols] = 60000.0;
                 mock_pedge[i + 5 * n_cols] = 50000.0;
+                for (int lev = 0; lev <= n_levels; ++lev)
+                    mock_z[i + lev * n_cols] = 500.0 * lev; // geometric height edges [m]
             }
 
             std::vector<double> mock_ps(n_cols, 101300.0);
@@ -558,6 +579,7 @@ int main(int argc, char* argv[]) {
             catchem_state_bind_met_3d(state, "QV", mock_qv.data());
             catchem_state_bind_met_3d(state, "PMID", mock_pmid.data());
             catchem_state_bind_met_3d(state, "PEDGE", mock_pedge.data());
+            catchem_state_bind_met_3d(state, "Z", mock_z.data());
             catchem_state_bind_met_3d(state, "BXHEIGHT", mock_bxheight.data());
             catchem_state_bind_met_3d(state, "AIRDEN", mock_airden.data());
             catchem_state_bind_met_3d(state, "AIRDEN_DRY", mock_airden_dry.data());
@@ -639,7 +661,14 @@ int main(int argc, char* argv[]) {
             std::vector<double> mock_frseaice(n_cols, 0.0);
             std::vector<double> mock_sst(n_cols, 290.0);
             std::vector<double> mock_delp(n_cols * n_levels, 1000.0);
+            std::vector<double> mock_pedge(n_cols * (n_levels + 1), 0.0);
             std::vector<double> mock_ustar(n_cols, 0.5);
+
+            // Descending pressure interface so seasalt's DELP prerequisite is
+            // valid (derive_delp requires a current PEDGE).
+            for (int i = 0; i < n_cols; ++i)
+                for (int lev = 0; lev <= n_levels; ++lev)
+                    mock_pedge[i + lev * n_cols] = 101325.0 - 10000.0 * lev;
 
             // Bind them
 
@@ -652,6 +681,7 @@ int main(int argc, char* argv[]) {
             state->bind_met_field_2d("FRSEAICE", mock_frseaice.data());
             state->bind_met_field_2d("SST", mock_sst.data());
             state->bind_met_field_3d("DELP", mock_delp.data());
+            state->bind_met_field_3d("PEDGE", mock_pedge.data());
             catchem_state_bind_met_2d(state, "USTAR", mock_ustar.data());
 
             // Concentrations and Tendencies

@@ -31,7 +31,7 @@ timesteps:
 #============================================================================
 process:
   seasalt:
-    activate: false
+    activate: true
     scheme: geos12
     diagnostics: true
     scheme_opt: 3
@@ -58,6 +58,14 @@ process:
     activate: false
     scheme: gocart
   so4chem:
+    activate: false
+    scheme: gocart
+    diagnostics: true
+  wetdep:
+    activate: false
+    scheme: jacob
+    diagnostics: true
+  carbchem:
     activate: false
     scheme: gocart
     diagnostics: true

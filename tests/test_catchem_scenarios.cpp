@@ -1,4 +1,5 @@
 #include "catchem_api.hpp"
+#include "catchem_config_manager.hpp"
 #include "catchem_core.hpp"
 #include "catchem_kokkos_compat.hpp"
 #include "catchem_process_registry.hpp"
@@ -59,6 +60,53 @@ static std::string find_species_config() {
             return path;
     }
     return "CATChem_species.yml";
+}
+
+// Build a runtime ConfigManager that activates and configures all seven
+// processes with the schemes their init() contracts require.  The scenario
+// cores are created grid-only (catchem_core_create), so without an attached
+// configuration each process init() would reject the empty processes block.
+static std::shared_ptr<catchem::ConfigManager> make_scenario_config() {
+    const char* yaml =
+        "simulation:\n"
+        "  name: scenarios\n"
+        "processes:\n"
+        "  seasalt:\n"
+        "    activate: true\n"
+        "    scheme: geos12\n"
+        "    diagnostics: false\n"
+        "  dust:\n"
+        "    activate: true\n"
+        "    scheme: fengsha\n"
+        "    diagnostics: false\n"
+        "  drydep:\n"
+        "    activate: true\n"
+        "    gas_scheme: wesely\n"
+        "    aero_scheme: gocart\n"
+        "    diagnostics: false\n"
+        "  settling:\n"
+        "    activate: true\n"
+        "    scheme: gocart\n"
+        "    diagnostics: false\n"
+        "  so4chem:\n"
+        "    activate: true\n"
+        "    scheme: gocart\n"
+        "    diagnostics: false\n"
+        "  wetdep:\n"
+        "    activate: true\n"
+        "    scheme: jacob\n"
+        "    diagnostics: false\n"
+        "  carbchem:\n"
+        "    activate: true\n"
+        "    scheme: gocart\n"
+        "    diagnostics: false\n";
+    const std::string path = "scenarios_runtime_config.yml";
+    std::ofstream out(path);
+    out << yaml;
+    out.close();
+    auto config = std::make_shared<catchem::ConfigManager>();
+    config->load_from_file(path);
+    return config;
 }
 
 int main(int argc, char* argv[]) {
@@ -299,6 +347,10 @@ int main(int argc, char* argv[]) {
             auto* core = static_cast<catchem::Core*>(core_ptr);
             auto state = core->get_state_manager();
             state->load_species_config(species_path);
+            // Grid-only cores start with an empty processes block; attach a
+            // runtime configuration so each process init() sees its required
+            // scheme selection.
+            state->attach_config_manager(make_scenario_config());
 
             // Meteorological & Surface Tensors
             std::vector<double> t_air(size_3d);

@@ -12,7 +12,7 @@ program test_CATChem_API
    type(CATChem_Model) :: model
    real(c_double), target, allocatable :: lat(:,:), lon(:,:), temp(:,:,:), wrong_temp(:,:,:)
    real(c_double), target, allocatable :: sst(:,:), frocean(:,:), frseaice(:,:), ustar(:,:), u10m(:,:), v10m(:,:)
-   real(c_double), target, allocatable :: delp(:,:,:), chem_conc(:,:,:)
+   real(c_double), target, allocatable :: delp(:,:,:), pedge(:,:,:), chem_conc(:,:,:)
    integer :: rc, g_nx, g_ny, g_nz, issue_count
    character(len=512) :: physical_detail
    integer, parameter :: nx = 4, ny = 2, nz = 5
@@ -79,6 +79,7 @@ program test_CATChem_API
    allocate(v10m(nx, ny))
    allocate(temp(nx*ny, 1, nz))
    allocate(delp(nx*ny, 1, nz))
+   allocate(pedge(nx*ny, 1, nz + 1))
    allocate(chem_conc(nx*ny, nz, n_species))
 
    lat = 40.0_c_double
@@ -91,6 +92,14 @@ program test_CATChem_API
    v10m = 2.0_c_double
    temp = 290.0_c_double
    delp = 1000.0_c_double
+   ! Strictly positive, descending pressure interface (surface -> top) so the
+   ! seasalt process (and derive_delp) sees a valid layer thickness.
+   block
+      integer :: lev
+      do lev = 1, nz + 1
+         pedge(:, :, lev) = 101325.0_c_double - 1000.0_c_double * real(lev - 1, c_double)
+      end do
+   end block
    chem_conc = 0.0_c_double
 
    call model%bind_met_2d('LAT', lat)
@@ -103,6 +112,7 @@ program test_CATChem_API
    call model%bind_met_2d('V10M', v10m)
    call model%bind_met_3d('T', temp)
    call model%bind_met_3d('DELP', delp)
+   call model%bind_met_3d('PEDGE', pedge)
    call model%bind_unified_chemistry(chem_conc)
    print *, 'PASS: met arrays bound directly to C++ core'
 
@@ -137,7 +147,7 @@ program test_CATChem_API
    end if
    print *, 'PASS: finalize'
 
-   deallocate(lat, lon, sst, frocean, frseaice, ustar, u10m, v10m, temp, delp, chem_conc)
+   deallocate(lat, lon, sst, frocean, frseaice, ustar, u10m, v10m, temp, delp, pedge, chem_conc)
 
    print *, 'All CATChem_API init-sequence tests passed!'
 end program test_CATChem_API

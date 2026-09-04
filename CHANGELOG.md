@@ -2,6 +2,34 @@
 
 <!-- version list -->
 
+## Unreleased
+
+### Fixes
+
+- **settling**: restore the upstream GOCART2G `Chem_Settling` compute path. The
+  process now calls the legacy Fortran kernel with the full GOCART2G argument
+  contract (`PMID`, `DELP`, `Z` edges, wet-radius Mie data) instead of the
+  branch-local C++ `Stokes`/`Maring` reimplementation, which has been deleted.
+  The `simple_scheme` option is unsupported on this path and now fails loudly.
+- **drydep**: the GOCART aerosol scheme consumes geometric height (`Z`) for its
+  surface layer slot instead of the pressure edge array, removing the
+  `log(0)`-driven NaN in `drydepf` when `PEDGE` is uniform.
+- **core**: derived `CLDFRC` is only generated when no host cloud fraction is
+  current for the import generation, so host-imported `CLDFRC` is preserved
+  (matching the legacy column-sum semantics).
+- **core**: physical constants now match upstream `constants.F90` exactly:
+  `RSTARG = 8.3144598` J/K/mol, `H2O_MW = 18.016` g/mol, `Rd = 287.0` J/K/kg
+  (both the C++ `catchem_constants.hpp` and the Fortran
+  `catchem_bridge_constants` copies).
+
+### Testing
+
+- Added a legacy-parity oracle harness (`tests/run_settling_parity.py`,
+  `tests/run_drydep_parity.py`) that compares the C++ core against
+  `upstream/develop` Fortran snapshots at rtol 1e-6 / atol 1e-10.
+- Added `tests/test_catchem_index_contract.cpp` verifying the import-to-core
+  column-major slotting for 3-D and interface fields.
+
 ## v2.0.0 (2026-07-20)
 
 

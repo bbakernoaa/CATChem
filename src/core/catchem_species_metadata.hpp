@@ -28,6 +28,7 @@ namespace catchem {
         bool is_gocart_aero = false;
         bool is_dust = false;
         bool is_seasalt = false;
+        bool is_hydrophilic = true;
 
         // Physical / Numerical properties
         double mw_g = 0.0;

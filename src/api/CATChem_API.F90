@@ -880,10 +880,19 @@ contains
       integer, optional, intent(out) :: rc
 
       character(kind=c_char) :: c_name(64)
+      integer(c_int) :: status
 
       call to_c_string(name, c_name)
-      call catchem_state_bind_met_3d(this%state_mgr_ptr, c_name, c_loc(arr(1,1,1)))
-      if (present(rc)) rc = CC_SUCCESS
+      ! Route through the checked binder so an array whose extents do not
+      ! match the state contract is rejected with the exact boundary status
+      ! (e.g. extent mismatch) instead of being silently accepted.  CATChem
+      ! flattens the two horizontal Fortran dimensions into one column axis.
+      status = catchem_state_bind_met_3d_checked(this%state_mgr_ptr, c_name, c_loc(arr(1,1,1)), &
+         int(size(arr, 1) * size(arr, 2), c_int), int(size(arr, 3), c_int), 1_c_int)
+      if (present(rc)) then
+         rc = int(status)
+         if (status /= 0_c_int) call capture_boundary_error(this)
+      end if
    end subroutine model_bind_met_3d
 
    ! Bind a 3D meteorological field with an explicit vertical semantic axis.

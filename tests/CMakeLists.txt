@@ -432,7 +432,6 @@ add_process_unit_test(carbchem CATChem_process_carbchem)
 # must fail validation (settling scale_factor round-trip).
 add_process_unit_test(option_propagation CATChem_process_settling)
 
-# Derived-meteorology parity: CLDFRC is the vertical sum of CLDF (spec 011 US3).
 add_executable(test_catchem_derived_met test_catchem_derived_met.cpp)
 target_link_libraries(
   test_catchem_derived_met

@@ -783,6 +783,16 @@ contains
          RHBL = 0.98_fp
       ENDIF
 
+      ! KNOWN ASYMMETRY (TODO): #195 this hygroscopic-growth gate keys off IS_DUST
+      ! only, so every non-dust aerosol is grown here -- including the fresh
+      ! hydrophobic carbon bins (oc1/bc1).  The settling process instead selects
+      ! swelling per species via the __hydrophilic attribute (hydrophobic ->
+      ! no growth).  For consistency this Zhang path should also honor
+      ! __hydrophilic (skip growth when a species is hydrophobic), i.e. change
+      ! the guard to `IF (IS_HYDROPHILIC) THEN`.  Deferred: the production dry
+      ! deposition parity config uses the GOCART aero scheme (which does not
+      ! swell at all), so this only affects the Zhang path.  See the settling
+      ! spec note on per-species swelling.
       IF (.NOT. IS_DUST) THEN
          !update DIAM and DEN after hygroscopic growth for non-dust species
          call New_DIAM_DEN( SPC, IS_SEASALT, RHBL, RDRY, RWET, DIAM, DEN, RC)

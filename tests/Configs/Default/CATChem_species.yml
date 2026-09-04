@@ -115,11 +115,13 @@
   __dd_f0: 0.0
   __dd_hstar: 0.0
   molecular weight [kg mol-1]: 12.01e-3    #gocart is 180 g/mol but it seems not used in gocart processes. So we go with GC
-  __radius: 0.35   #gocart is 0.35; GC is 0.087
+  # Dry effective radius/bin edges from the GOCART BC optics table (optics_BC.v1_3.nc).
+  __radius: 0.03921
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
-  __lower_radius: 0.1
-  __upper_radius: 1.0
+  __lower_radius: 0.005
+  __upper_radius: 0.30
+  __is_hydrophilic: false   # bc1 is the freshly emitted hydrophobic mode (no wet swelling)
   __wd_rainouteff: [0.0, 0.0, 0.0]
   __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: BC
@@ -131,11 +133,13 @@
   __dd_f0: 0.0
   __dd_hstar: 0.0
   molecular weight [kg mol-1]: 12.01e-3    #gocart is 180 g/mol but it seems not used in gocart processes. So we go with GC
-  __radius: 0.35   #gocart is 0.35; GC is 0.087
+  # Dry effective radius/bin edges from the GOCART BC optics table (optics_BC.v1_3.nc).
+  __radius: 0.03921
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
-  __lower_radius: 0.1
-  __upper_radius: 1.0
+  __lower_radius: 0.005
+  __upper_radius: 0.30
+  __is_hydrophilic: true   # bc2 is the aged hydrophilic mode (swells with RH)
   __wd_rainouteff: [1.0, 1.0, 1.0]
   __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: BC
@@ -147,11 +151,13 @@
   __dd_f0: 0.0
   __dd_hstar: 0.0
   molecular weight [kg mol-1]: 12.01e-3    #gocart is 180 g/mol but it seems not used in gocart processes. So we go with GC
-  __radius: 0.35   #gocart is 0.35; GC is 0.087
+  # Dry effective radius/bin edges from the GOCART OC optics table (optics_OC.v1_3.nc).
+  __radius: 0.08766
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
-  __lower_radius: 0.1
-  __upper_radius: 1.0
+  __lower_radius: 0.005
+  __upper_radius: 0.30
+  __is_hydrophilic: false   # oc1 is the freshly emitted hydrophobic mode (no wet swelling)
   __wd_rainouteff: [0.0, 0.0, 0.0]
   __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: OC
@@ -163,11 +169,13 @@
   __dd_f0: 0.0
   __dd_hstar: 0.0
   molecular weight [kg mol-1]: 12.01e-3    #gocart is 180 g/mol but it seems not used in gocart processes. So we go with GC
-  __radius: 0.35   #gocart is 0.35; GC is 0.087
+  # Dry effective radius/bin edges from the GOCART OC optics table (optics_OC.v1_3.nc).
+  __radius: 0.08766
   __density: 1800.0
   __dd_DvzAerSnow: 0.03
-  __lower_radius: 0.1
-  __upper_radius: 1.0
+  __lower_radius: 0.005
+  __upper_radius: 0.30
+  __is_hydrophilic: true   # oc2 is the aged hydrophilic mode (swells with RH)
   __wd_rainouteff: [1.0, 1.0, 1.0]
   __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: OC
@@ -179,10 +187,13 @@
   __dd_f0: 0.0
   __dd_hstar: 0.0
   molecular weight [kg mol-1]: 29.00e-3
-  __radius: 0.73
-  __density: 2500.
+  # Dry effective radius/density from the GOCART DU optics table (optics_DU.v15_3.nc),
+  # matching the simple_scheme (optics-table) settling path. Dust does not swell.
+  __radius: 0.6359
+  __density: 2650.
   __is_dust: true
   __is_aerosol: true
+  __is_hydrophilic: false   # dust does not swell (optics-table growth = 1.0)
   __is_drydep: true
   __is_wetdep: true
   __wd_rainouteff: [0.8, 0.8, 0.8]
@@ -195,10 +206,11 @@
   __dd_f0: 0.0
   __dd_hstar: 0.0
   molecular weight [kg mol-1]: 29.00e-3
-  __radius: 1.4
+  __radius: 1.3244
   __density: 2650.
   __is_dust: true
   __is_aerosol: true
+  __is_hydrophilic: false   # dust does not swell (optics-table growth = 1.0)
   __is_drydep: true
   __is_wetdep: true
   __wd_rainouteff: [0.8, 0.8, 0.8]
@@ -211,10 +223,11 @@
   __dd_f0: 0.0
   __dd_hstar: 0.0
   molecular weight [kg mol-1]: 29.00e-3
-  __radius: 2.4
+  __radius: 2.3012
   __density: 2650.
   __is_dust: true
   __is_aerosol: true
+  __is_hydrophilic: false   # dust does not swell (optics-table growth = 1.0)
   __is_drydep: true
   __is_wetdep: true
   __wd_rainouteff: [0.8, 0.8, 0.8]
@@ -227,10 +240,11 @@
   __dd_f0: 0.0
   __dd_hstar: 0.0
   molecular weight [kg mol-1]: 29.00e-3
-  __radius: 4.5
+  __radius: 4.1672
   __density: 2650.
   __is_dust: true
   __is_aerosol: true
+  __is_hydrophilic: false   # dust does not swell (optics-table growth = 1.0)
   __is_drydep: true
   __is_wetdep: true
   __wd_rainouteff: [1.0, 1.0, 1.0]
@@ -243,10 +257,11 @@
   __dd_f0: 0.0
   __dd_hstar: 0.0
   molecular weight [kg mol-1]: 29.00e-3
-  __radius: 8.0
+  __radius: 7.6707
   __density: 2650.
   __is_dust: true
   __is_aerosol: true
+  __is_hydrophilic: false   # dust does not swell (optics-table growth = 1.0)
   __is_drydep: true
   __is_wetdep: true
   __wd_rainouteff: [1.0, 1.0, 1.0]

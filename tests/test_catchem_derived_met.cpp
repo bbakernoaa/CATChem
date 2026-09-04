@@ -8,9 +8,10 @@
 
 namespace {
 
-    // CLDFRC is the vertical SUM of the layer cloud fractions (upstream
-    // SUM(CLDF, DIM=3)), clamped to [0, 1].  Copying only the surface level
-    // (the pre-011 behaviour) severely underestimates it (spec 011 US3).
+    // CLDFRC parity: the upstream metstate_mod derives the surface cloud
+    // fraction as CLDFRC(:,:) = CLDF(:,:,1) -- the surface layer, not a
+    // vertical sum.  The C++ vertical order is bottom-to-top, so the surface
+    // layer is level index 0.
 
     enum FieldFlag : unsigned {
         F_CLDF = 1u << 0,
@@ -42,38 +43,40 @@ int main(int argc, char* argv[]) {
         const int n_levels = 5;
         const int n_species = 1;
 
-        // --- CLDFRC == clamp(sum_lev CLDF, 0, 1) per column ------------------
+        // --- CLDFRC == surface-layer (level 0) CLDF per column ---------------
         {
             auto core = std::make_shared<catchem::Core>(n_cols, n_levels, n_species);
             auto state = core->get_state_manager();
             std::vector<double> cldf(n_cols * n_levels, 0.0);
             for (int c = 0; c < n_cols; ++c)
                 for (int lev = 0; lev < n_levels; ++lev)
-                    cldf[flat(n_cols, c, lev)] = 0.1 + 0.01 * lev; // column sum = 0.6
+                    cldf[flat(n_cols, c, lev)] = 0.1 + 0.01 * lev; // surface (lev 0) = 0.1
             state->bind_met_field_3d("CLDF", cldf.data());
 
             state->derive_surface_cloud_fraction();
             const double* cldfrc = state->read_field<2>("CLDFRC");
             check(cldfrc != nullptr, "CLDFRC derived and readable");
-            bool sum_ok = cldfrc != nullptr;
-            for (int c = 0; c < n_cols && sum_ok; ++c)
-                sum_ok = std::abs(cldfrc[c] - 0.6) < 1.0e-12;
-            check(sum_ok, "CLDFRC equals the vertical sum of CLDF (0.6)");
+            bool surface_ok = cldfrc != nullptr;
+            for (int c = 0; c < n_cols && surface_ok; ++c)
+                surface_ok = std::abs(cldfrc[c] - 0.1) < 1.0e-12;
+            check(surface_ok, "CLDFRC equals the surface-layer CLDF (0.1)");
         }
 
-        // --- Column sums above one clamp to unity ----------------------------
+        // --- Upper-layer cloud does not leak into the surface value ----------
         {
             auto core = std::make_shared<catchem::Core>(n_cols, n_levels, n_species);
             auto state = core->get_state_manager();
-            std::vector<double> cldf(n_cols * n_levels, 0.5); // column sum = 2.5
+            std::vector<double> cldf(n_cols * n_levels, 0.5); // every layer 0.5
+            for (int c = 0; c < n_cols; ++c)
+                cldf[flat(n_cols, c, 0)] = 0.2; // distinct surface value
             state->bind_met_field_3d("CLDF", cldf.data());
 
             state->derive_surface_cloud_fraction();
             const double* cldfrc = state->read_field<2>("CLDFRC");
-            bool clamp_ok = cldfrc != nullptr;
-            for (int c = 0; c < n_cols && clamp_ok; ++c)
-                clamp_ok = std::abs(cldfrc[c] - 1.0) < 1.0e-12;
-            check(clamp_ok, "CLDFRC clamps a super-unity column sum to 1");
+            bool surface_only = cldfrc != nullptr;
+            for (int c = 0; c < n_cols && surface_only; ++c)
+                surface_only = std::abs(cldfrc[c] - 0.2) < 1.0e-12;
+            check(surface_only, "CLDFRC uses only the surface layer, ignoring layers aloft");
         }
 
         // --- Host-provided CLDFRC is preserved untouched ---------------------

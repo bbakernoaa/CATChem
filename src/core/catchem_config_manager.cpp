@@ -692,6 +692,12 @@ namespace catchem {
             species.is_gocart_aero = get_bool(species_node, "is_gocart_aero", false);
             species.is_dust = get_bool(species_node, "is_dust", false);
             species.is_seasalt = get_bool(species_node, "is_seasalt", false);
+            // Hydrophilic aerosols take on water at elevated RH and settle at
+            // their wet size; hydrophobic ones (e.g. fresh carbon, dust) do
+            // not.  Defaults to true so an omitted attribute keeps the common
+            // (soluble aerosol) behavior; set false for dust and the fresh
+            // (phobic) carbon bins.
+            species.is_hydrophilic = get_bool(species_node, "is_hydrophilic", true);
 
             if (species_node["molecular weight [kg mol-1]"]) {
                 species.molecular_weight_kg_mol = species_node["molecular weight [kg mol-1]"].as<double>();

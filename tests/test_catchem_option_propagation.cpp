@@ -117,14 +117,20 @@ int main(int argc, char* argv[]) {
         catchem_register_settling_cpp();
         assert(catchem::ProcessRegistry::get_instance().has_process("settling"));
 
-        // 1. Behavior round-trip: scale_factor reaches the physics kernel.
+        // 1. Parity contract: on the GOCART metadata (non-Mie) settling path,
+        // scale_factor is parsed and staged onto the scheme config but the
+        // kernel does NOT consume it -- exactly like upstream
+        // ProcessSettlingInterface/SettlingScheme_GOCART_Mod, which never
+        // reference params%scale_factor.  A faithful port must therefore leave
+        // the settled mass unchanged when only scale_factor changes.  The knob
+        // still round-trips through init() without error (validated below).
         const double baseline = run_settling(1.0);
         const double boosted = run_settling(1000.0);
         std::cout << "  scale_factor=1.0    -> remaining mass " << baseline << std::endl;
         std::cout << "  scale_factor=1000.0 -> remaining mass " << boosted << std::endl;
-        assert(std::abs(baseline - boosted) > 1.0e-15 &&
-               "settling scale_factor from YAML did not change computed behavior");
-        std::cout << "SUCCESS: YAML scheme option changed science behavior." << std::endl;
+        assert(std::abs(baseline - boosted) <= 1.0e-15 &&
+               "GOCART metadata-path settling must ignore scale_factor (upstream parity)");
+        std::cout << "SUCCESS: scale_factor round-trips without altering the metadata-path physics." << std::endl;
 
         // 2. Unknown nested option must be rejected by the registered validator.
         auto& registry = catchem::ProcessRegistry::get_instance();
@@ -160,7 +166,7 @@ int main(int argc, char* argv[]) {
                 << "    gocart:\n"
                 << "      scale_factor: 1.0\n"
                 << "      simple_scheme: true\n"
-                << "      swelling_method: 1\n"
+                << "      swelling_rh_max: 0.95\n"
                 << "      correction_maring: true\n";
             out.close();
             cfg.load_from_file("opt_prop_good.yml");

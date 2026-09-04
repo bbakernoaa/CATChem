@@ -9,6 +9,7 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <string>
 #include <string_view>
@@ -304,8 +305,11 @@ void CatchemPropertiesTest_SpeciesMetadataAPI() {
     assert(dust1_idx > 0);
     assert(catchem_state_is_species_dust(&state, dust1_idx) == 1);
     assert(catchem_state_is_species_aerosol(&state, dust1_idx) == 1);
-    assert(catchem_state_get_species_density(&state, dust1_idx) == 2500.0);
-    assert(catchem_state_get_species_radius(&state, dust1_idx) == 0.73);
+    // Dust dry effective radius/density come from the GOCART DU optics table
+    // (optics_DU.v15_3.nc) so the metadata settling path matches the
+    // optics-table (simple_scheme) path.
+    assert(catchem_state_get_species_density(&state, dust1_idx) == 2650.0);
+    assert(catchem_state_get_species_radius(&state, dust1_idx) == 0.6359);
     assert(catchem_state_get_species_lower_radius(&state, dust1_idx) == 0.1);
     assert(catchem_state_get_species_upper_radius(&state, dust1_idx) == 1.0);
     assert(catchem_state_get_species_radius(&state, count + 1) == 0.0);
@@ -482,14 +486,21 @@ void CatchemPropertiesTest_ValidDerivationVectors() {
             catchem::met_utilities::virtual_temperature(temperature[level], humidity[level]);
         const double expected_height = (catchem::constants::RD / catchem::constants::G0) * virtual_temperature *
                                        std::log(pressure_edge[level] / pressure_edge[level + 1]);
-        assert(std::abs(state.meteorology().BXHEIGHT->host_data()[level] - expected_height) < 1.0e-10);
+        // The derivation computes in catchem::fp, which is float unless the
+        // build promotes reals (USE_REAL8).  Compare with a relative tolerance
+        // scaled to fp's epsilon so the check is correct in both single- and
+        // double-precision builds instead of assuming double.
+        const double rel_tol = 32.0 * static_cast<double>(std::numeric_limits<catchem::fp>::epsilon());
+        assert(std::abs(state.meteorology().BXHEIGHT->host_data()[level] - expected_height) <=
+               rel_tol * std::abs(expected_height));
 
         const double ratio =
             (catchem::constants::AIR_MW / catchem::constants::H2O_MW) * humidity[level] / (1.0 - humidity[level]);
         const double water_mole_fraction = ratio / (1.0 + ratio);
         const double expected_density =
             pressure_mid[level] * (1.0 - water_mole_fraction) / (catchem::constants::RD * temperature[level]);
-        assert(std::abs(state.meteorology().AIRDEN_DRY->host_data()[level] - expected_density) < 1.0e-12);
+        assert(std::abs(state.meteorology().AIRDEN_DRY->host_data()[level] - expected_density) <=
+               rel_tol * std::abs(expected_density));
     }
 }
 
@@ -601,6 +612,28 @@ int main(int argc, char* argv[]) {
             std::exit(1);
         }
         state->load_species_config(config_path);
+
+        // The grid-only core starts with an empty processes block.  Attach a
+        // runtime configuration so each process init() sees the scheme it
+        // requires (settling/so4chem/carbchem gocart, dust fengsha, drydep
+        // wesely/gocart, wetdep jacob, seasalt geos12).
+        {
+            const std::string cfg_path = "properties_runtime_config.yml";
+            std::ofstream cfg(cfg_path);
+            cfg << "simulation:\n  name: properties\n"
+                << "processes:\n"
+                << "  seasalt:\n    activate: true\n    scheme: geos12\n    diagnostics: false\n"
+                << "  dust:\n    activate: true\n    scheme: fengsha\n    diagnostics: false\n"
+                << "  drydep:\n    activate: true\n    gas_scheme: wesely\n    aero_scheme: gocart\n    diagnostics: false\n"
+                << "  settling:\n    activate: true\n    scheme: gocart\n    diagnostics: false\n"
+                << "  so4chem:\n    activate: true\n    scheme: gocart\n    diagnostics: false\n"
+                << "  wetdep:\n    activate: true\n    scheme: jacob\n    diagnostics: false\n"
+                << "  carbchem:\n    activate: true\n    scheme: gocart\n    diagnostics: false\n";
+            cfg.close();
+            auto runtime_config = std::make_shared<catchem::ConfigManager>();
+            runtime_config->load_from_file(cfg_path);
+            state->attach_config_manager(runtime_config);
+        }
 
         // Set up bounded fuzzer generator with fixed seed
         std::mt19937 gen(1337);
