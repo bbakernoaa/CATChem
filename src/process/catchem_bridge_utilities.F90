@@ -30,13 +30,47 @@ module catchem_bridge_precision
    ! KIND parameter for 8-byte precision
    INTEGER, PARAMETER, PUBLIC :: f8 = KIND( 0.0_8 ) !< KIND parameter for 8-byte precision
 
-#ifdef USE_REAL8
-   ! Use 8-byte floating point precision when asked.
-   INTEGER, PARAMETER, PUBLIC :: fp = f8 !< KIND parameter for 8-byte precision
+   ! Kind of an unsuffixed real literal.  Under -fdefault-real-8 / -r8 the
+   ! compiler promotes this to 8 bytes; without it, 4 bytes.  This is the
+   ! precision the science schemes actually run in, because they are all
+   ! compiled with those promotion flags.
+   INTEGER, PARAMETER, PUBLIC :: default_real_kind = KIND(0.0)
+
+   !=========================================================================
+   ! PRECISION SELECTION  (double precision by DEFAULT)
+   !=========================================================================
+   ! `fp` is the kind for every buffer that crosses the C++/Fortran boundary
+   ! in the science bridges.  It MUST equal the precision the schemes run in,
+   ! or concentrations get corrupted at the boundary (denormal negatives,
+   ! precision loss) with no error.
+   !
+   ! Double precision is the DEFAULT: it matches how GOCART/UFS build the
+   ! science (-fdefault-real-8 / -r8) and is the safe choice.  Single
+   ! precision is an explicit opt-in via USE_REAL4 for builds that
+   ! deliberately want 4-byte reals.
+#ifdef USE_REAL4
+   INTEGER, PARAMETER, PUBLIC :: fp = f4 !< explicit 4-byte opt-in
 #else
-   ! Use 4-byte floating point by default.
-   INTEGER, PARAMETER, PUBLIC :: fp = f4 !< KIND parameter for 4-byte precision
+   INTEGER, PARAMETER, PUBLIC :: fp = f8 !< 8-byte (default)
 #endif
+
+   !=========================================================================
+   ! COMPILE-TIME PRECISION GUARD
+   !=========================================================================
+   ! Final safety net: assert `fp` equals the promoted default-real kind of
+   ! THIS compilation unit.  This module (catchem_utilities) is compiled with
+   ! the same real-8 promotion as the process schemes, so `fp` (default f8)
+   ! must match.  If they ever diverge -- e.g. USE_REAL4 forces f4 while the
+   ! schemes are still promoted to real-8, or the real-8 promotion is dropped
+   ! from this target -- the parameter below gets a negative array extent and
+   ! the build FAILS with a clear message instead of silently corrupting
+   ! concentrations at runtime.
+   !
+   ! To build single precision you must BOTH define USE_REAL4 AND remove the
+   ! -fdefault-real-8 / -r8 promotion from the scheme + utilities targets, so
+   ! the two stay consistent.
+   INTEGER, PARAMETER, PRIVATE :: &
+      catchem_fp_precision_guard(1 - 2*MERGE(0, 1, fp == default_real_kind)) = 0
 
    !=========================================================================
    ! Parameters for missing values

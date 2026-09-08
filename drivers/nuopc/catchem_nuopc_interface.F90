@@ -165,6 +165,70 @@ module catchem_nuopc_interface
          character(kind=c_char), intent(out) :: process_name(*), cause(*)
          integer(c_int), value :: process_name_len, cause_len
       end function catchem_core_get_timestep_outcome
+
+      ! Emission-config query API used to resolve a MET_* map target back to the
+      ! emission field that declares it (config is the source of truth).  These
+      ! bind to the same global C symbols declared privately in
+      ! catchem_nuopc_emis_mod; re-declaring here keeps this module self-contained.
+      integer(c_int) function catchem_config_has_emission_mapping(core_ptr) &
+         bind(C, name="catchem_config_has_emission_mapping")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function catchem_config_has_emission_mapping
+
+      integer(c_int) function catchem_config_get_emission_category_count(core_ptr) &
+         bind(C, name="catchem_config_get_emission_category_count")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function catchem_config_get_emission_category_count
+
+      subroutine catchem_config_get_emission_category_name_at(core_ptr, index, name_out, max_len) &
+         bind(C, name="catchem_config_get_emission_category_name_at")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: index
+         character(kind=c_char), intent(out) :: name_out(*)
+         integer(c_int), value :: max_len
+      end subroutine catchem_config_get_emission_category_name_at
+
+      integer(c_int) function catchem_config_get_emission_field_count(core_ptr, category_name) &
+         bind(C, name="catchem_config_get_emission_field_count")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: category_name(*)
+      end function catchem_config_get_emission_field_count
+
+      subroutine catchem_config_get_emission_field_name_at(core_ptr, category_name, field_idx, name_out, max_len) &
+         bind(C, name="catchem_config_get_emission_field_name_at")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: category_name(*)
+         integer(c_int), value :: field_idx
+         character(kind=c_char), intent(out) :: name_out(*)
+         integer(c_int), value :: max_len
+      end subroutine catchem_config_get_emission_field_name_at
+
+      integer(c_int) function catchem_config_get_emission_species_map_count(core_ptr, category_name, field_name) &
+         bind(C, name="catchem_config_get_emission_species_map_count")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: category_name(*)
+         character(kind=c_char), intent(in) :: field_name(*)
+      end function catchem_config_get_emission_species_map_count
+
+      subroutine catchem_config_get_emission_species_map_at(core_ptr, category_name, field_name, map_idx, &
+         target_species_out, max_len, scale_out, species_idx_out) &
+         bind(C, name="catchem_config_get_emission_species_map_at")
+         import :: c_ptr, c_char, c_int, c_double
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: category_name(*)
+         character(kind=c_char), intent(in) :: field_name(*)
+         integer(c_int), value :: map_idx
+         character(kind=c_char), intent(out) :: target_species_out(*)
+         integer(c_int), value :: max_len
+         real(c_double), intent(out) :: scale_out
+         integer(c_int), intent(out) :: species_idx_out
+      end subroutine catchem_config_get_emission_species_map_at
    end interface
 
    private
@@ -977,80 +1041,135 @@ contains
          return
       end if
 
-      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_CLAYFRAC', 'clayfrac', 'CLAYF'], &
-         [character(len=32) :: 'CLAY'], &
+      ! Bind each FENGSHA dust input by the EXACT canonical field name that the
+      ! Bind each FENGSHA dust input by its canonical emission-map TARGET
+      ! (MET_CLAYFRAC, MET_SSM, MET_RDRAG, ...).  bind_static_field resolves the
+      ! target back to the emission field that declares it in `map:` using the
+      ! emission config itself, so the config is the single source of truth for
+      ! the field-name-to-target mapping (dust.sep -> MET_SSM,
+      ! fengsha.PC/albedo_drag -> MET_RDRAG, ...).  No hardcoded field-name
+      ! aliases and no substring/fuzzy matching.
+      call bind_static_field(cc_wrap, 'MET_CLAYFRAC', &
          'CLAYFRAC', cc_wrap%dust_clayfrac, 1.0_c_double, rc)
       if (rc /= CC_SUCCESS) return
 
-      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_SANDFRAC', 'sandfrac', 'SANDF'], &
-         [character(len=32) :: 'SAND'], &
+      call bind_static_field(cc_wrap, 'MET_SANDFRAC', &
          'SNDFRC', cc_wrap%dust_sandfrac, 1.0_c_double, rc)
       if (rc /= CC_SUCCESS) return
 
-      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_SSM', 'sep', 'SSM'], &
-         [character(len=32) :: 'SSM', 'SEDIMENT'], &
+      call bind_static_field(cc_wrap, 'MET_SSM', &
          'SSM', cc_wrap%dust_ssm, 1.0_c_double, rc)
       if (rc /= CC_SUCCESS) return
 
-      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_RDRAG', 'PC', 'RDRAG'], &
-         [character(len=32) :: 'RDRAG', 'DRAG'], &
+      call bind_static_field(cc_wrap, 'MET_RDRAG', &
          'RDRAG', cc_wrap%dust_rdrag, 1.0_c_double, rc)
       if (rc /= CC_SUCCESS) return
 
-      call bind_static_field(cc_wrap, [character(len=32) :: 'MET_USTAR_THRESHOLD', 'uthres', 'UTHR'], &
-         [character(len=32) :: 'UTHR', 'THRESH'], &
+      call bind_static_field(cc_wrap, 'MET_USTAR_THRESHOLD', &
          'USTAR_THRESHOLD', cc_wrap%dust_ustar_threshold, 1.0_c_double, rc)
 
    end subroutine bind_static_met_from_aqmio
 
-   !> \brief Helper: bind one static AQMIO field into CATChem met state.
-   subroutine bind_static_field(cc_wrap, source_names, search_tokens, met_name, met_buffer, scale, rc)
+   !> \brief Resolve the emission field NAME that maps to a canonical target.
+   !!
+   !! Consults the emission configuration (the single source of truth): scans
+   !! every category/field and returns the first field whose `map:` list
+   !! contains `target_name` (e.g. 'MET_SSM').  Returns '' if none maps to it.
+   !! This removes any hardcoded field-name alias from the binding code -- the
+   !! config alone decides which field (dust.sep, fengsha.PC/albedo_drag, ...)
+   !! supplies each MET_* target.
+   function resolve_emission_field_for_target(cc_wrap, target_name) result(field_out)
 
       type(cc_wrap_type), intent(inout) :: cc_wrap
-      character(len=*), intent(in) :: source_names(:)
-      character(len=*), intent(in) :: search_tokens(:)
+      character(len=*), intent(in) :: target_name
+      character(len=64) :: field_out
+
+      type(c_ptr) :: core_ptr
+      character(len=64) :: category_name, field_name, mapped_species
+      integer(c_int) :: n_categories, n_fields, n_maps
+      integer :: icat, ifield, imap
+      real(c_double) :: scale_factor
+      integer(c_int) :: species_index
+
+      field_out = ''
+      core_ptr = cc_wrap%catchem_model%cpp_core_ptr
+      if (.not. c_associated(core_ptr)) return
+      if (catchem_config_has_emission_mapping(core_ptr) == 0_c_int) return
+
+      n_categories = catchem_config_get_emission_category_count(core_ptr)
+      do icat = 0, n_categories - 1
+         call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, 64_c_int)
+         call trim_at_null(category_name)
+         n_fields = catchem_config_get_emission_field_count(core_ptr, trim(category_name) // c_null_char)
+         do ifield = 0, n_fields - 1
+            call catchem_config_get_emission_field_name_at(core_ptr, trim(category_name) // c_null_char, &
+               ifield, field_name, 64_c_int)
+            call trim_at_null(field_name)
+            n_maps = catchem_config_get_emission_species_map_count(core_ptr, &
+               trim(category_name) // c_null_char, trim(field_name) // c_null_char)
+            do imap = 0, n_maps - 1
+               call catchem_config_get_emission_species_map_at(core_ptr, &
+                  trim(category_name) // c_null_char, trim(field_name) // c_null_char, imap, &
+                  mapped_species, 64_c_int, scale_factor, species_index)
+               call trim_at_null(mapped_species)
+               if (trim(mapped_species) == trim(target_name)) then
+                  field_out = trim(field_name)
+                  return
+               end if
+            end do
+         end do
+      end do
+
+   contains
+      !> Truncate a C-filled buffer at its NUL terminator and blank-pad.
+      subroutine trim_at_null(str)
+         character(len=*), intent(inout) :: str
+         integer :: idx
+         idx = index(str, c_null_char)
+         if (idx > 0) str(idx:) = ' '
+      end subroutine trim_at_null
+
+   end function resolve_emission_field_for_target
+
+   !> \brief Helper: bind one static AQMIO field into CATChem met state.
+   subroutine bind_static_field(cc_wrap, target_name, met_name, met_buffer, scale, rc)
+
+      type(cc_wrap_type), intent(inout) :: cc_wrap
+      character(len=*), intent(in) :: target_name  !< canonical emission-map target, e.g. 'MET_SSM'
       character(len=*), intent(in) :: met_name
       real(c_double), allocatable, intent(inout) :: met_buffer(:,:)
       real(c_double), intent(in) :: scale
       integer, intent(out) :: rc
 
       type(ExtEmisFieldType), pointer :: src_field
-      integer :: i, j, n
+      character(len=64) :: resolved_field
+      integer :: i, j
 
       rc = CC_SUCCESS
+
+      ! Resolve the emission field NAME that declares target_name in its `map:`
+      ! by consulting the emission CONFIG (the single source of truth), then
+      ! bind that field by its exact name.  This keeps the field-name <-> target
+      ! mapping entirely in configuration (dust.sep -> MET_SSM,
+      ! fengsha.PC/albedo_drag -> MET_RDRAG, ...), with no hardcoded field-name
+      ! aliases in code and no substring/fuzzy matching.
+      resolved_field = resolve_emission_field_for_target(cc_wrap, target_name)
+
       src_field => null()
-      do n = 1, size(source_names)
-         src_field => cc_wrap%ext_emis%find_emission_field(trim(source_names(n)))
-         if (associated(src_field)) exit
-      end do
+      if (len_trim(resolved_field) > 0) &
+         src_field => cc_wrap%ext_emis%find_emission_field(trim(resolved_field))
       if (associated(src_field)) then
 #ifdef CATCHEM_TRACE_NUOPC
-         write(*,'(A,A,A,A)') '[CATCHEM DEBUG] bind_static_field exact met=', trim(met_name), &
-            ' source=', trim(src_field%field_name)
+         write(*,'(A,A,A,A,A,A)') '[CATCHEM DEBUG] bind_static_field met=', trim(met_name), &
+            ' target=', trim(target_name), ' source=', trim(src_field%field_name)
          call flush(6)
 #endif
          call bind_static_field_data(cc_wrap, src_field, met_name, met_buffer, scale, rc)
          return
       end if
 
-      if (.not. allocated(cc_wrap%ext_emis%categories)) return
-      do i = 1, cc_wrap%ext_emis%n_categories
-         if (.not. allocated(cc_wrap%ext_emis%categories(i)%fields)) cycle
-         do j = 1, cc_wrap%ext_emis%categories(i)%n_fields
-            if (field_name_matches(cc_wrap%ext_emis%categories(i)%fields(j)%field_name, search_tokens)) then
-#ifdef CATCHEM_TRACE_NUOPC
-               write(*,'(A,A,A,A,A,A)') '[CATCHEM DEBUG] bind_static_field token met=', trim(met_name), &
-                  ' category=', trim(cc_wrap%ext_emis%categories(i)%category_name), &
-                  ' source=', trim(cc_wrap%ext_emis%categories(i)%fields(j)%field_name)
-               call flush(6)
-#endif
-               call bind_static_field_data(cc_wrap, cc_wrap%ext_emis%categories(i)%fields(j), &
-                  met_name, met_buffer, scale, rc)
-               return
-            end if
-         end do
-      end do
-
+      ! Not found: leave the met buffer unbound (the dust process validates the
+      ! required inputs and will error clearly if a mandatory field is missing).
 #ifdef CATCHEM_TRACE_NUOPC
       write(*,'(A,A,A,I0)') '[CATCHEM DEBUG] bind_static_field missing met=', trim(met_name), &
          ' n_categories=', cc_wrap%ext_emis%n_categories
@@ -1116,47 +1235,6 @@ contains
       call cc_wrap%catchem_model%bind_met_2d(trim(met_name), met_buffer)
 
    end subroutine bind_static_field_data
-
-   !> \brief Return true when a field name contains any token, ignoring case.
-   function field_name_matches(field_name, search_tokens) result(matches)
-
-      character(len=*), intent(in) :: field_name
-      character(len=*), intent(in) :: search_tokens(:)
-      logical :: matches
-
-      integer :: n
-      character(len=len(field_name)) :: upper_field
-      character(len=len(search_tokens(1))) :: upper_token
-
-      matches = .false.
-      upper_field = uppercase(field_name)
-      do n = 1, size(search_tokens)
-         upper_token = uppercase(search_tokens(n))
-         if (len_trim(upper_token) > 0 .and. index(trim(upper_field), trim(upper_token)) > 0) then
-            matches = .true.
-            return
-         end if
-      end do
-
-   end function field_name_matches
-
-   !> \brief Convert ASCII letters in a string to uppercase.
-   function uppercase(input_string) result(output_string)
-
-      character(len=*), intent(in) :: input_string
-      character(len=len(input_string)) :: output_string
-
-      integer :: n, letter_code
-
-      output_string = input_string
-      do n = 1, len(input_string)
-         letter_code = iachar(output_string(n:n))
-         if (letter_code >= iachar('a') .and. letter_code <= iachar('z')) then
-            output_string(n:n) = achar(letter_code - 32)
-         end if
-      end do
-
-   end function uppercase
 
    ! Finalize CATChem for NUOPC interface
    !!

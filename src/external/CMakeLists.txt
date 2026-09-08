@@ -8,6 +8,19 @@ set_target_properties(
   PROPERTIES Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
 )
 
+# The precision module MUST be compiled with the SAME real-8 promotion the
+# process libraries use unconditionally, so its kind(0.0) is 8-byte and the
+# compile-time precision guard validates against the real promotion.  Do NOT
+# gate this on the global Fortran flags: the promotion is per-target.
+if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU|G95")
+  target_compile_options(
+    catchem_utilities
+    PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-fdefault-real-8;-fdefault-double-8>
+  )
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel|IntelLLVM")
+  target_compile_options(catchem_utilities PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-r8>)
+endif()
+
 #
 # GOCART-2G Process Library
 #
@@ -20,18 +33,20 @@ set(
 set(_lib GOCART2G)
 
 add_library(${_lib} ${_srcs})
+# GOCART2G holds the shared science kernels (Chem_Settling, wet/dry removal,
+# emission helpers) called by the process schemes.  It MUST be promoted to
+# real-8 unconditionally to match those schemes and the `fp` kind; gating on
+# the global Fortran flags (which the per-target promotion does not set) would
+# leave GOCART2G in single precision while its callers run double -- a silent
+# precision/ABI mismatch across the call boundary.
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU|G95")
   target_compile_options(${_lib} PRIVATE -ffree-line-length-none)
-  # Detect if parent build promotes default real to 8-byte and propagate to GOCART2G
-  if(CMAKE_Fortran_FLAGS MATCHES "-fdefault-real-8")
-    target_compile_options(${_lib} PRIVATE -fdefault-real-8 -fdefault-double-8)
-  endif()
-elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  # Detect if parent build promotes default real to 8-byte and propagate to GOCART2G
-  # Intel supports: -r8, -real-size 64, and ifx also accepts -fdefault-real-8
-  if(CMAKE_Fortran_FLAGS MATCHES "-r8|-real-size 64|-fdefault-real-8")
-    target_compile_options(${_lib} PRIVATE -r8)
-  endif()
+  target_compile_options(
+    ${_lib}
+    PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-fdefault-real-8;-fdefault-double-8>
+  )
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel|IntelLLVM")
+  target_compile_options(${_lib} PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-r8>)
 endif()
 
 #find_package(NetCDF REQUIRED COMPONENTS Fortran)

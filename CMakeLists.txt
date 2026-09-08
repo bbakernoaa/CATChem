@@ -352,22 +352,20 @@ if(CATCHEM_BUILD_NUOPC)
   message(STATUS "CATChem: using ESMF target '${CATCHEM_ESMF_TARGET}'")
 endif()
 
-# Auto-detect if default real is promoted to 8-byte by the parent build
-# or by per-target flags, and define USE_REAL8 so precision_mod sets fp=f8.
-if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU|G95")
-  if(CMAKE_Fortran_FLAGS MATCHES "-fdefault-real-8")
-    add_compile_definitions(USE_REAL8)
-    message(STATUS "CATChem: detected -fdefault-real-8, enabling USE_REAL8")
-  endif()
-elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel|IntelLLVM")
-  if(CMAKE_Fortran_FLAGS MATCHES "-r8|-real-size 64|-fdefault-real-8")
-    add_compile_definitions(USE_REAL8)
-    message(
-      STATUS
-      "CATChem: detected real-8 promotion flag, enabling USE_REAL8"
-    )
-  endif()
-endif()
+# Precision selection for the Fortran science bridges/schemes.
+#
+# DOUBLE precision is the default.  The bridge precision module
+# (catchem_bridge_precision) sets `fp = f8` unless USE_REAL4 is explicitly
+# defined, matching how GOCART/UFS build the science (-fdefault-real-8 / -r8)
+# and matching the real-8 promotion every process library + the
+# catchem_utilities target apply.  A compile-time guard in that module fails
+# the build if `fp` ever diverges from the actual default-real promotion, so
+# the precision cannot silently mismatch across the C++/Fortran boundary
+# regardless of how a parent build (e.g. UFS `add_subdirectory(CATChem)`)
+# configures flags.
+#
+# To build single precision, define USE_REAL4 AND drop the -fdefault-real-8 /
+# -r8 promotion from the scheme + utilities targets so the two stay consistent.
 
 # Find yaml-cpp for configuration parsing
 if(NOT TARGET yaml-cpp::yaml-cpp AND NOT TARGET yaml-cpp)
