@@ -112,7 +112,23 @@ int main(int argc, char* argv[]) {
 
         auto dust = catchem::ProcessRegistry::get_instance().create("dust");
         assert(dust != nullptr);
+        // The shared test config leaves processes.dust.diagnostics off; force
+        // it on so init() registers the diagnostic fields this test checks.
+        runtime_config->data.processes["dust"].diagnostics = true;
         dust->init(state);
+
+        // Per-bin diagnostics must register as compact [ncols, n_dust] fields
+        // (not full-width species arrays) so the NUOPC driver can emit one 3D
+        // (nx, ny, nbin) variable; per-column diagnostics stay [ncols, 1].
+        {
+            const auto manager = core->get_diagnostic_manager();
+            const int n_dust = static_cast<int>(dust_indices.size());
+            assert(manager->has_field("dust_emission_bin"));
+            assert(manager->get_field("dust_emission_bin")->dimensions == std::vector<int>({n_cols, n_dust}));
+            assert(manager->has_field("dust_utar_threshold"));
+            assert(manager->get_field("dust_utar_threshold")->dimensions == std::vector<int>({n_cols, n_dust}));
+            assert(manager->get_field("dust_emission_total")->dimensions == std::vector<int>({n_cols, 1}));
+        }
 
         // FENGSHA gates emission on saltation: the White horizontal flux is
         // max(0, R*ustar - ustar_threshold*H) * (...)^2, so emission only

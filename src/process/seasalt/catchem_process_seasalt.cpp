@@ -88,16 +88,21 @@ namespace catchem {
             state->diagnostic_manager()->register_field("seasalt_number_emission_total", "Total Number Emission",
                                                         "#/m2/s", DiagType::FIELD_2D, dims_1d);
 
-            for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {
-                auto& meta = state->chemistry().species_list[i];
-                if (meta.is_seasalt) {
-                    std::string mass_name = "seasalt_mass_emission_" + meta.short_name;
-                    std::string num_name = "seasalt_number_emission_" + meta.short_name;
-                    state->diagnostic_manager()->register_field(mass_name, "Mass Emission " + meta.short_name,
-                                                                "kg/m2/s", DiagType::FIELD_2D, dims_1d);
-                    state->diagnostic_manager()->register_field(num_name, "Number Emission " + meta.short_name,
-                                                                "#/m2/s", DiagType::FIELD_2D, dims_1d);
-                }
+            // Per-bin emissions register as one compact [ncols, n_seasalt]
+            // field each, so the NUOPC driver can write a single 3D
+            // (nx, ny, nbin) variable instead of one field per size bin.
+            // Bin order is the canonical SEAS1..SEAS5 order used by run().
+            int n_seasalt_bins = 0;
+            for (const auto& meta : state->chemistry().species_list) {
+                if (meta.is_seasalt)
+                    ++n_seasalt_bins;
+            }
+            if (n_seasalt_bins > 0) {
+                std::vector<int> dims_bins = {state->column_count(), n_seasalt_bins};
+                state->diagnostic_manager()->register_field("seasalt_mass_emission_bins", "Mass Emission Per Bin",
+                                                            "kg/m2/s", DiagType::FIELD_2D, dims_bins);
+                state->diagnostic_manager()->register_field("seasalt_number_emission_bins", "Number Emission Per Bin",
+                                                            "#/m2/s", DiagType::FIELD_2D, dims_bins);
             }
         }
     }
@@ -200,8 +205,29 @@ namespace catchem {
                 ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_number_emission_total")
                 : nullptr;
 
-        std::vector<double> diag_mass_bin(state->column_count() * n_seasalt, 0.0);
-        std::vector<double> diag_num_bin(state->column_count() * n_seasalt, 0.0);
+        // Per-bin diagnostics write straight into the compact registered
+        // fields ([ncols, n_seasalt], column-major).  The bridge's Fortran
+        // shape is [n_cols, n_species] with n_species = n_seasalt, so the
+        // memory layout matches with no gather/scatter step.
+        double* diag_mass_bin_ptr =
+            diagnostics_enabled && state->diagnostic_manager()
+                ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_mass_emission_bins")
+                : nullptr;
+        double* diag_num_bin_ptr =
+            diagnostics_enabled && state->diagnostic_manager()
+                ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_number_emission_bins")
+                : nullptr;
+        if (diagnostics_enabled) {
+            const int registered_bins =
+                diag_mass_bin_ptr ? static_cast<int>(state->diagnostic_manager()
+                                                          ->get_field("seasalt_mass_emission_bins")
+                                                          ->dimensions[1])
+                                  : 0;
+            if (registered_bins < n_seasalt)
+                throw std::runtime_error("SeaSalt diagnostic bin capacity (" + std::to_string(registered_bins) +
+                                         ") is smaller than the " + std::to_string(n_seasalt) +
+                                         " configured sea-salt bins");
+        }
 
         // Dynamic ID array mapping diagnostic species (1-based index in the sliced sea salt subset!)
         std::vector<int> diagnostic_species_id(n_seasalt);
@@ -218,25 +244,8 @@ namespace catchem {
             frocean_ptr, frseaice_ptr, lat_ptr, lon_ptr, sst_ptr, u10m_ptr, v10m_ptr, ustar_ptr, delp_ptr,
             density.data(), radius.data(), lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(), mw_g.data(),
             bin_species_names.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, full_tendency.data(),
-            diag_mass_total_ptr, diag_num_total_ptr, diag_mass_bin.data(), diag_num_bin.data(),
+            diag_mass_total_ptr, diag_num_total_ptr, diag_mass_bin_ptr, diag_num_bin_ptr,
             diagnostic_species_id.data(), diagnostic_species_id.size());
-
-        // 6. Map bin diagnostics back to dynamically registered individual C++ diagnostics
-        if (state->diagnostic_manager() && diagnostics_enabled) {
-            for (int i = 0; i < n_seasalt; ++i) {
-                auto& meta = state->chemistry().species_list[ss_global_indices[i]];
-                std::string mass_name = "seasalt_mass_emission_" + meta.short_name;
-                std::string num_name = "seasalt_number_emission_" + meta.short_name;
-                double* mass_ptr = (double*)state->diagnostic_manager()->get_host_pointer(mass_name);
-                double* num_ptr = (double*)state->diagnostic_manager()->get_host_pointer(num_name);
-                for (int col = 0; col < state->column_count(); ++col) {
-                    if (mass_ptr)
-                        mass_ptr[col] = diag_mass_bin[col + i * state->column_count()];
-                    if (num_ptr)
-                        num_ptr[col] = diag_num_bin[col + i * state->column_count()];
-                }
-            }
-        }
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();

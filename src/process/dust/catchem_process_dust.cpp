@@ -135,14 +135,17 @@ namespace catchem {
         if (!diagnostics_enabled)
             return;
 
-        // 4. Register C++ Diagnostic fields (registering 1D fields as 2D with second dimension of 1)
+        // 4. Register C++ Diagnostic fields (registering 1D fields as 2D with second dimension of 1).
+        // Per-bin fields use a compact [ncols, n_dust] layout so the NUOPC
+        // driver can emit them as a single 3D (nx, ny, nbin) variable; the
+        // science bridge already writes exactly that column-major shape.
         std::vector<int> dims_1d_as_2d = {state->column_count(), 1};
-        std::vector<int> dims_2d = {state->column_count(), state->species_count()};
+        std::vector<int> dims_bins = {state->column_count(), static_cast<int>(diagnostic_species_id.size())};
 
         state->diagnostic_manager()->register_field("dust_emission_total", "Total Dust Emission", "kg/m2/s",
                                                     DiagType::FIELD_2D, dims_1d_as_2d);
         state->diagnostic_manager()->register_field("dust_emission_bin", "Dust Emission Per Bin", "kg/m2/s",
-                                                    DiagType::FIELD_2D, dims_2d);
+                                                    DiagType::FIELD_2D, dims_bins);
         state->diagnostic_manager()->register_field("dust_horizontal_flux", "Dust Horizontal Flux", "kg/m/s",
                                                     DiagType::FIELD_2D, dims_1d_as_2d);
         state->diagnostic_manager()->register_field("dust_moisture_correction", "Dust Moisture Correction", "unitless",
@@ -150,7 +153,7 @@ namespace catchem {
         state->diagnostic_manager()->register_field("dust_effective_threshold", "Dust Effective Threshold", "m/s",
                                                     DiagType::FIELD_2D, dims_1d_as_2d);
         state->diagnostic_manager()->register_field("dust_utar_threshold", "Dust Ustar Threshold Per Bin", "m/s",
-                                                    DiagType::FIELD_2D, dims_2d);
+                                                    DiagType::FIELD_2D, dims_bins);
     }
 
     void DustProcess::run(std::shared_ptr<StateManager> state) {
@@ -348,9 +351,6 @@ namespace catchem {
         for (int local_idx = 0; local_idx < n_dust; ++local_idx)
             local_diagnostic_species_id[local_idx] = local_idx + 1;
 
-        std::vector<double> local_diag_emission_bin(static_cast<size_t>(state->column_count()) * n_dust, 0.0);
-        std::vector<double> local_diag_utar_threshold(static_cast<size_t>(state->column_count()) * n_dust, 0.0);
-
         // 5. Invoke flat science bridge
         run_dust_science_bridge(
             state->column_count(), state->level_count(), n_dust, n_total_species, n_soil, state->clock().timestep,
@@ -361,24 +361,9 @@ namespace catchem {
             lai_ptr, lwi.data(), rdrag_ptr, sandfrac_ptr, soilm_ptr, gwettop_ptr, ssm_ptr, tskin_ptr, u10m_ptr,
             v10m_ptr, ustar_ptr, ustar_th_ptr, z0_ptr, density.data(), radius.data(), lower_radius.data(),
             upper_radius.data(), bin_species_names.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
-            full_tendency.data(), diag_emission_total, local_diag_emission_bin.data(), diag_horizontal_flux,
-            diag_moisture_correction, diag_effective_threshold, local_diag_utar_threshold.data(),
+            full_tendency.data(), diag_emission_total, diag_emission_bin, diag_horizontal_flux,
+            diag_moisture_correction, diag_effective_threshold, diag_utar_threshold,
             local_diagnostic_species_id.data(), local_diagnostic_species_id.size());
-
-        // Scatter the per-bin diagnostics back to their global species slots.
-        for (int local_idx = 0; local_idx < n_dust; ++local_idx) {
-            const int global_idx = dust_global_indices[local_idx];
-            for (int col = 0; col < state->column_count(); ++col) {
-                if (diag_emission_bin) {
-                    diag_emission_bin[col + global_idx * state->column_count()] =
-                        local_diag_emission_bin[col + local_idx * state->column_count()];
-                }
-                if (diag_utar_threshold) {
-                    diag_utar_threshold[col + global_idx * state->column_count()] =
-                        local_diag_utar_threshold[col + local_idx * state->column_count()];
-                }
-            }
-        }
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();

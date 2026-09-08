@@ -77,6 +77,26 @@ int main(int argc, char* argv[]) {
         auto seasalt = catchem::ProcessRegistry::get_instance().create("seasalt");
         assert(seasalt != nullptr);
         seasalt->init(state);
+
+        // Per-bin emissions must register as compact [ncols, n_seasalt] fields
+        // (one mass + one number array), replacing the former per-species 2D
+        // fields, so the NUOPC driver writes a single 3D (nx, ny, nbin)
+        // variable.  Totals stay [ncols, 1].
+        {
+            const auto manager = core->get_diagnostic_manager();
+            int n_seasalt = 0;
+            for (const auto& meta : state->chemistry().species_list)
+                if (meta.is_seasalt)
+                    ++n_seasalt;
+            assert(n_seasalt > 0);
+            assert(manager->has_field("seasalt_mass_emission_bins"));
+            assert(manager->get_field("seasalt_mass_emission_bins")->dimensions == std::vector<int>({n_cols, n_seasalt}));
+            assert(manager->has_field("seasalt_number_emission_bins"));
+            assert(manager->get_field("seasalt_number_emission_bins")->dimensions ==
+                   std::vector<int>({n_cols, n_seasalt}));
+            assert(manager->get_field("seasalt_mass_emission_total")->dimensions == std::vector<int>({n_cols, 1}));
+        }
+
         seasalt->run(state);
         state->sync_to_host();
 

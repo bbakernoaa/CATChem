@@ -301,6 +301,13 @@ int catchem_config_get_diag_enabled(void* core_ptr) {
     return core->get_config_manager()->data.diagnostics.output.enabled ? 1 : 0;
 }
 
+int catchem_config_get_process_diagnostics_enabled(void* core_ptr) {
+    if (core_ptr == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return core->get_config_manager()->data.diagnostics.output.process_diagnostics ? 1 : 0;
+}
+
 int catchem_config_get_diag_species_count(void* core_ptr) {
     if (core_ptr == nullptr)
         return 0;

@@ -25,7 +25,7 @@
 
 module catchem_nuopc_interface
 
-   use iso_c_binding, only: c_loc, c_null_char, c_char, c_double, c_ptr, c_int, c_long_long, c_associated, c_f_pointer, c_intptr_t
+   use iso_c_binding, only: c_loc, c_null_char, c_null_ptr, c_char, c_double, c_ptr, c_int, c_long_long, c_associated, c_f_pointer, c_intptr_t
    use ESMF
    use NUOPC
    use MPI
@@ -86,6 +86,80 @@ module catchem_nuopc_interface
          integer(c_int), value :: rank
          integer(c_int), intent(in) :: dims(*)
          type(c_ptr), intent(out) :: ptr_out
+      end function
+
+      ! Diagnostic enumeration used by write_process_diagnostics to discover
+      ! the fields each process registered in the C++ DiagnosticManager.
+      integer(c_int) function catchem_diag_get_count_checked(core_ptr, count_out) &
+         bind(C, name="catchem_diag_get_count_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), intent(out) :: count_out
+      end function
+
+      integer(c_int) function catchem_diag_get_name_at_checked(core_ptr, index, name_out, name_length) &
+         bind(C, name="catchem_diag_get_name_at_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: index, name_length
+         character(kind=c_char), intent(out) :: name_out(*)
+      end function
+
+      integer(c_int) function catchem_diag_get_rank_checked(core_ptr, name, rank_out) &
+         bind(C, name="catchem_diag_get_rank_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), intent(out) :: rank_out
+      end function
+
+      integer(c_int) function catchem_diag_get_dims_checked(core_ptr, name, dims_out, dims_length) &
+         bind(C, name="catchem_diag_get_dims_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), intent(out) :: dims_out(*)
+         integer(c_int), value :: dims_length
+      end function
+
+      integer(c_int) function catchem_diag_get_units_checked(core_ptr, name, units_out, units_length) &
+         bind(C, name="catchem_diag_get_units_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         character(kind=c_char), intent(out) :: units_out(*)
+         integer(c_int), value :: units_length
+      end function
+
+      integer(c_int) function catchem_diag_get_description_checked(core_ptr, name, desc_out, desc_length) &
+         bind(C, name="catchem_diag_get_description_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         character(kind=c_char), intent(out) :: desc_out(*)
+         integer(c_int), value :: desc_length
+      end function
+
+      subroutine catchem_diag_sync_to_host(core_ptr) &
+         bind(C, name="catchem_diag_sync_to_host")
+         import :: c_ptr
+         type(c_ptr), value :: core_ptr
+      end subroutine
+
+      ! Species metadata predicates (macro-generated in catchem_api_config.cpp;
+      ! they return the flag directly and yield 0 for an invalid index).
+      integer(c_int) function catchem_state_is_species_dust(state_ptr, index) &
+         bind(C, name="catchem_state_is_species_dust")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+      end function
+
+      integer(c_int) function catchem_state_is_species_seasalt(state_ptr, index) &
+         bind(C, name="catchem_state_is_species_seasalt")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
       end function
 
       integer(c_int) function catchem_state_get_species_name_at_checked(state_ptr, index, name_out, name_length) &
@@ -2149,6 +2223,14 @@ contains
          return
       end if
 
+      ! Write per-process diagnostic variables (dust/seasalt emissions,
+      ! fluxes, thresholds) when diagnostics.output/process_diagnostics is on.
+      call write_process_diagnostics(cc_wrap, 'all', filename, rc)
+      if (rc /= CC_SUCCESS) then
+         write(*,'(A)') 'Warning: Failed to write process diagnostics.'
+         rc = CC_SUCCESS
+      end if
+
       ! Update last output time
       cc_wrap%last_output_time = current_time
 
@@ -2158,7 +2240,23 @@ contains
 
    !> \brief Write diagnostics for a specific process
    !!
-   !! \param process_name Name of the process
+   !! Discovers the fields the C++ process layer registered in the
+   !! DiagnosticManager and writes the dust_ and seasalt_ prefixed ones to
+   !! the NetCDF diagnostic file.  Per-column fields (registered shape
+   !! [ncols, 1]) are written as 2D (nx, ny) variables; per-bin fields
+   !! (shape [ncols, nbin]) are written as a single 3D (nx, ny, nbin)
+   !! variable whose third axis follows the mechanism's dust/seasalt bin
+   !! order (the bin species names are appended to the description).
+   !!
+   !! The diagnostic storage is column-major with the same flattened column
+   !! index (col = i + (j-1)*nx) the science bridges use, so the [ncols, n]
+   !! buffer reinterprets directly as (nx, ny[, nbin]) with no reshaping.
+   !!
+   !! Gated by diagnostics/output/enabled (checked by the caller) and
+   !! diagnostics/output/process_diagnostics.
+   !!
+   !! \param cc_wrap CATChem wrapper containing model state and configuration
+   !! \param process_name Name of the process ('all' selects every process)
    !! \param filename Output filename
    !! \param rc Return code
    subroutine write_process_diagnostics(cc_wrap, process_name, filename, rc)
@@ -2167,7 +2265,154 @@ contains
       character(len=*), intent(in) :: filename
       integer, intent(out) :: rc
 
+      ! Local variables
+      integer(c_int) :: c_status, c_count, i, rank
+      integer(c_int) :: dims(3), n_dust, n_seasalt, n_species
+      integer :: nx, ny, k
+      character(kind=c_char) :: c_name(64), c_species_name(64)
+      character(kind=c_char) :: c_units(32), c_desc(256)
+      character(len=64) :: field_name, species_name
+      character(len=32) :: units_str
+      character(len=256) :: desc_str, bin_list
+      type(c_ptr) :: raw_ptr
+      real(fp), pointer :: ptr_2d(:,:) => null()
+      real(fp), pointer :: ptr_3d(:,:,:) => null()
+      logical :: is_dust_field, is_seasalt_field
+
       rc = CC_SUCCESS
+
+      ! Gate: per-process diagnostic output is opt-in.
+      if (.not. cc_wrap%catchem_model%is_process_diag_enabled()) return
+
+      nx = cc_wrap%catchem_model%nx
+      ny = cc_wrap%catchem_model%ny
+
+      ! Bring every device-resident diagnostic view back to the host once
+      ! before reading raw pointers (no-op in host-only builds).
+      call catchem_diag_sync_to_host(cc_wrap%catchem_model%cpp_core_ptr)
+
+      c_status = catchem_diag_get_count_checked(cc_wrap%catchem_model%cpp_core_ptr, c_count)
+      if (c_status /= 0_c_int) then
+         rc = CC_FAILURE
+         return
+      end if
+
+      ! Bin counts used to validate per-bin field extents, from the loaded
+      ! species mechanism metadata.
+      n_dust = 0
+      n_seasalt = 0
+      n_species = 0
+      c_status = catchem_state_get_species_count_checked(cc_wrap%catchem_model%state_mgr_ptr, n_species)
+      if (c_status == 0_c_int) then
+         do i = 1, n_species
+            if (catchem_state_is_species_dust(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int)) /= 0) then
+               n_dust = n_dust + 1
+            end if
+            if (catchem_state_is_species_seasalt(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int)) /= 0) then
+               n_seasalt = n_seasalt + 1
+            end if
+         end do
+      end if
+
+      do i = 0, c_count - 1
+         c_status = catchem_diag_get_name_at_checked(cc_wrap%catchem_model%cpp_core_ptr, &
+                     int(i, c_int), c_name, 64_c_int)
+         if (c_status /= 0_c_int) cycle
+         call catchem_c_string_to_fortran(c_name, field_name)
+
+         is_dust_field = (index(field_name, 'dust_') == 1)
+         is_seasalt_field = (index(field_name, 'seasalt_') == 1)
+         if (.not. (is_dust_field .or. is_seasalt_field)) cycle
+         if (trim(process_name) /= 'all') then
+            if (.not. ((trim(process_name) == 'dust' .and. is_dust_field) .or. &
+                       (trim(process_name) == 'seasalt' .and. is_seasalt_field))) cycle
+         end if
+
+         rank = 0
+         c_status = catchem_diag_get_rank_checked(cc_wrap%catchem_model%cpp_core_ptr, &
+                     trim(field_name) // c_null_char, rank)
+         if (c_status /= 0_c_int .or. rank /= 2_c_int) cycle
+
+         dims = 0
+         c_status = catchem_diag_get_dims_checked(cc_wrap%catchem_model%cpp_core_ptr, &
+                     trim(field_name) // c_null_char, dims, 3_c_int)
+         if (c_status /= 0_c_int) cycle
+         ! Process diagnostics are flattened over columns: [ncols, 1] totals
+         ! or [ncols, nbin] per-bin arrays.  Anything else (e.g. a 3D field
+         ! a host registered under the same prefix) is not ours to write.
+         if (dims(1) /= nx * ny .or. dims(2) < 1) then
+            write(*,'(A,A)') 'Warning: Skipping process diagnostic with unexpected shape: ', trim(field_name)
+            cycle
+         end if
+         if (is_dust_field .and. dims(2) > 1 .and. dims(2) /= n_dust) then
+            write(*,'(A,A)') 'Warning: Skipping process diagnostic, bin count mismatch: ', trim(field_name)
+            cycle
+         end if
+         if (is_seasalt_field .and. dims(2) > 1 .and. dims(2) /= n_seasalt) then
+            write(*,'(A,A)') 'Warning: Skipping process diagnostic, bin count mismatch: ', trim(field_name)
+            cycle
+         end if
+
+         units_str = ''
+         c_status = catchem_diag_get_units_checked(cc_wrap%catchem_model%cpp_core_ptr, &
+                     trim(field_name) // c_null_char, c_units, 32_c_int)
+         if (c_status == 0_c_int) call catchem_c_string_to_fortran(c_units, units_str)
+         desc_str = ''
+         c_status = catchem_diag_get_description_checked(cc_wrap%catchem_model%cpp_core_ptr, &
+                     trim(field_name) // c_null_char, c_desc, 256_c_int)
+         if (c_status == 0_c_int) call catchem_c_string_to_fortran(c_desc, desc_str)
+
+         raw_ptr = c_null_ptr
+         c_status = catchem_diag_get_pointer_checked(cc_wrap%catchem_model%cpp_core_ptr, &
+                     trim(field_name) // c_null_char, 2_c_int, dims, raw_ptr)
+         if (c_status /= 0_c_int .or. .not. c_associated(raw_ptr)) then
+            write(*,'(A,A)') 'Warning: Could not map process diagnostic storage: ', trim(field_name)
+            cycle
+         end if
+
+         if (dims(2) == 1) then
+            ! Per-column field: reinterpret [ncols,1] as (nx,ny) 2D output.
+            call c_f_pointer(raw_ptr, ptr_2d, [nx, ny])
+            call write_diagnostic_field(cc_wrap, trim(field_name), DIAG_REAL_2D, 0.0_fp, &
+               array_2d_ptr=ptr_2d, description=trim(desc_str), &
+               units=trim(units_str), filename=filename, rc=rc)
+            nullify(ptr_2d)
+         else
+            ! Per-bin field: reinterpret [ncols,nbin] as (nx,ny,nbin) 3D
+            ! output.  The third axis follows mechanism declaration order, so
+            ! list the bin species names in the description for consumers.
+            bin_list = ''
+            do k = 1, n_species
+               c_status = catchem_state_get_species_name_at_checked( &
+                  cc_wrap%catchem_model%state_mgr_ptr, int(k, c_int), c_species_name, 64_c_int)
+               if (c_status /= 0_c_int) cycle
+               call catchem_c_string_to_fortran(c_species_name, species_name)
+               if (is_dust_field) then
+                  if (catchem_state_is_species_dust(cc_wrap%catchem_model%state_mgr_ptr, &
+                     int(k, c_int)) == 0) cycle
+               else
+                  if (catchem_state_is_species_seasalt(cc_wrap%catchem_model%state_mgr_ptr, &
+                     int(k, c_int)) == 0) cycle
+               end if
+               if (len_trim(bin_list) > 0) bin_list = trim(bin_list) // ','
+               bin_list = trim(bin_list) // trim(species_name)
+            end do
+            if (len_trim(bin_list) > 0) then
+               desc_str = trim(desc_str) // ' [bins: ' // trim(bin_list) // ']'
+            end if
+            call c_f_pointer(raw_ptr, ptr_3d, [nx, ny, int(dims(2))])
+            call write_diagnostic_field(cc_wrap, trim(field_name), DIAG_REAL_3D, 0.0_fp, &
+               array_3d_ptr=ptr_3d, description=trim(desc_str), &
+               units=trim(units_str), filename=filename, rc=rc)
+            nullify(ptr_3d)
+         end if
+
+         if (rc /= CC_SUCCESS) then
+            write(*,'(A,A)') 'Warning: Failed to write process diagnostic: ', trim(field_name)
+            rc = CC_SUCCESS
+         end if
+      end do
+
    end subroutine write_process_diagnostics
 
    !> \brief Write individual diagnostic field to NetCDF

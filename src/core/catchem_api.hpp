@@ -161,6 +161,7 @@ void catchem_config_get_output_directory(void* core_ptr, char* buffer, int max_l
 void catchem_config_get_output_prefix(void* core_ptr, char* buffer, int max_len);
 int catchem_config_get_latlon_output(void* core_ptr);
 int catchem_config_get_diag_enabled(void* core_ptr);
+int catchem_config_get_process_diagnostics_enabled(void* core_ptr);
 int catchem_config_get_diag_species_count(void* core_ptr);
 void catchem_config_get_diag_species_at(void* core_ptr, int index, char* buffer, int max_len);
 int catchem_config_get_process_active(void* core_ptr, const char* process_name);
@@ -265,6 +266,8 @@ int catchem_diag_get_count(void* core_ptr);
 int catchem_diag_get_count_checked(void* core_ptr, int* count_out);
 void catchem_diag_get_name_at(void* core_ptr, int index, char* name_out);
 int catchem_diag_get_name_at_checked(void* core_ptr, int index, char* name_out, int name_length);
+int catchem_diag_get_units_checked(void* core_ptr, const char* name, char* units_out, int units_length);
+int catchem_diag_get_description_checked(void* core_ptr, const char* name, char* desc_out, int desc_length);
 
 // YAML Species Metadata
 void catchem_state_load_species_config(void* state_ptr, const char* filename);

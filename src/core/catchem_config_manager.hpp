@@ -62,6 +62,7 @@ namespace catchem {
         int frequency = 0;
         std::string format;
         int compress_lev = 0;
+        bool process_diagnostics = false;
         std::vector<std::string> diag_list;
     };
 

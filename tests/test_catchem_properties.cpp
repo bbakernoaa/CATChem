@@ -339,6 +339,8 @@ void CatchemPropertiesTest_ConfigManagerLoadsTypedFixtureData() {
     assert(config_mgr.data.diagnostics.output.prefix == "catchem_diag");
     assert(config_mgr.data.diagnostics.output.frequency == 3600);
     assert(config_mgr.data.diagnostics.output.format == "netcdf");
+    // Per-process diagnostic output is opt-in via diagnostics/output/process_diagnostics.
+    assert(config_mgr.data.diagnostics.output.process_diagnostics);
     assert(config_mgr.data.diagnostics.output.diag_list.size() == 7);
     assert(config_mgr.data.diagnostics.output.diag_list[0] == "so2");
     assert(config_mgr.data.diagnostics.collection.enabled);

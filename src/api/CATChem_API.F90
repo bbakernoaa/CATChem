@@ -267,6 +267,12 @@ module CATChem_API
          type(c_ptr), value :: core_ptr
       end function
 
+      integer(c_int) function catchem_config_get_process_diagnostics_enabled(core_ptr) &
+         bind(C, name="catchem_config_get_process_diagnostics_enabled")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
       integer(c_int) function catchem_config_get_diag_species_count(core_ptr) &
          bind(C, name="catchem_config_get_diag_species_count")
          import :: c_ptr, c_int
@@ -479,6 +485,7 @@ module CATChem_API
       procedure :: get_output_prefix => model_get_output_prefix
       procedure :: is_latlon_output_enabled => model_is_latlon_output_enabled
       procedure :: is_diag_enabled => model_is_diag_enabled
+      procedure :: is_process_diag_enabled => model_is_process_diag_enabled
       procedure :: get_diag_species_count => model_get_diag_species_count
       procedure :: get_diag_species_at => model_get_diag_species_at
       procedure :: is_process_active => model_is_process_active
@@ -1073,6 +1080,15 @@ contains
       logical :: enabled
       enabled = (catchem_config_get_diag_enabled(this%cpp_core_ptr) /= 0_c_int)
    end function model_is_diag_enabled
+
+   !> \brief True when diagnostics.output/process_diagnostics is enabled in the
+   !! runtime YAML.  Gates the per-process diagnostic variables (dust/seasalt
+   !! emissions, fluxes, thresholds) written by the NUOPC driver.
+   function model_is_process_diag_enabled(this) result(enabled)
+      class(CATChem_Model), intent(in) :: this
+      logical :: enabled
+      enabled = (catchem_config_get_process_diagnostics_enabled(this%cpp_core_ptr) /= 0_c_int)
+   end function model_is_process_diag_enabled
 
    function model_get_diag_species_count(this) result(count)
       class(CATChem_Model), intent(in) :: this

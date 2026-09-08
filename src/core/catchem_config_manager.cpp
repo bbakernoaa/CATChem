@@ -592,6 +592,8 @@ namespace catchem {
                     data.diagnostics.output.frequency = value_or<int>(output["frequency"], 0);
                     data.diagnostics.output.format = value_or<std::string>(output["format"], "");
                     data.diagnostics.output.compress_lev = value_or<int>(output["compress_lev"], 0);
+                    data.diagnostics.output.process_diagnostics =
+                        value_or<bool>(output["process_diagnostics"], false);
                     data.diagnostics.output.diag_list = string_vector_or_empty(output["diag_list"]);
                 }
                 if (diagnostics["collection"]) {

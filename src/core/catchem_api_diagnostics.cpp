@@ -264,4 +264,39 @@ int catchem_diag_get_name_at_checked(void* core_ptr, int index, char* name_out, 
     copy_string_to_buffer(names[static_cast<std::size_t>(index)], name_out, name_length);
     return CATCHEM_SUCCESS;
 }
+
+int catchem_diag_get_units_checked(void* core_ptr, const char* name, char* units_out, int units_length) {
+    if (units_out && units_length > 0)
+        units_out[0] = '\0';
+    if (!name || !units_out || units_length <= 0)
+        return fail(catchem::BoundaryStatus::NullArgument, "diagnostic_get_units", "name",
+                    "field name and a positive-length units output are required");
+    catchem::AdmissionLease admission;
+    const int status = admit_handle(core_ptr, catchem::HandleType::Core, "diagnostic_get_units", admission);
+    if (status != CATCHEM_SUCCESS)
+        return status;
+    auto manager = static_cast<catchem::Core*>(core_ptr)->get_diagnostic_manager();
+    if (!manager || !manager->has_field(name))
+        return fail(catchem::BoundaryStatus::MissingField, "diagnostic_get_units", name, "field is not registered");
+    copy_string_to_buffer(manager->get_field(name)->units, units_out, units_length);
+    return CATCHEM_SUCCESS;
+}
+
+int catchem_diag_get_description_checked(void* core_ptr, const char* name, char* desc_out, int desc_length) {
+    if (desc_out && desc_length > 0)
+        desc_out[0] = '\0';
+    if (!name || !desc_out || desc_length <= 0)
+        return fail(catchem::BoundaryStatus::NullArgument, "diagnostic_get_description", "name",
+                    "field name and a positive-length description output are required");
+    catchem::AdmissionLease admission;
+    const int status = admit_handle(core_ptr, catchem::HandleType::Core, "diagnostic_get_description", admission);
+    if (status != CATCHEM_SUCCESS)
+        return status;
+    auto manager = static_cast<catchem::Core*>(core_ptr)->get_diagnostic_manager();
+    if (!manager || !manager->has_field(name))
+        return fail(catchem::BoundaryStatus::MissingField, "diagnostic_get_description", name,
+                    "field is not registered");
+    copy_string_to_buffer(manager->get_field(name)->description, desc_out, desc_length);
+    return CATCHEM_SUCCESS;
+}
 }
