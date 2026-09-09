@@ -1233,11 +1233,6 @@ contains
       if (len_trim(resolved_field) > 0) &
          src_field => cc_wrap%ext_emis%find_emission_field(trim(resolved_field))
       if (associated(src_field)) then
-#ifdef CATCHEM_TRACE_NUOPC
-         write(*,'(A,A,A,A,A,A)') '[CATCHEM DEBUG] bind_static_field met=', trim(met_name), &
-            ' target=', trim(target_name), ' source=', trim(src_field%field_name)
-         call flush(6)
-#endif
          call bind_static_field_data(cc_wrap, src_field, met_name, met_buffer, scale, rc)
          return
       end if
@@ -1301,11 +1296,6 @@ contains
          return
       end if
 
-#ifdef CATCHEM_TRACE_NUOPC
-      write(*,'(A,A,A,A,A,I0,A,I0)') '[CATCHEM DEBUG] bind_static_field_data met=', trim(met_name), &
-         ' source=', trim(src_field%field_name), ' shape=[', size(met_buffer, 1), ',', size(met_buffer, 2), ']'
-      call flush(6)
-#endif
       call cc_wrap%catchem_model%bind_met_2d(trim(met_name), met_buffer)
 
    end subroutine bind_static_field_data
@@ -1649,14 +1639,6 @@ contains
             return
          end if
 
-#ifdef CATCHEM_TRACE_NUOPC
-         write(*, '(A,A,A,A,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 2D: ', &
-            trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
-            ' shape=[', size(fptr2d, 1), ',', size(fptr2d, 2), '] ptr=', transfer(c_loc(fptr2d(1,1)), 0_c_intptr_t), &
-            ' min=', minval(fptr2d), ' max=', maxval(fptr2d)
-         call flush(6)
-#endif
-
          if (size(fptr2d, 1) /= cc_wrap%catchem_model%nx .or. &
             size(fptr2d, 2) /= cc_wrap%catchem_model%ny) then
             call ESMF_LogWrite("Shape mismatch for 2D import field: " // trim(field_map%standard_name) // &
@@ -1734,14 +1716,6 @@ contains
             rc = ESMF_FAILURE
             return
          end if
-
-#ifdef CATCHEM_TRACE_NUOPC
-         write(*, '(A,A,A,A,A,I0,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 3D: ', &
-            trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
-            ' shape=[', size(fptr3d, 1), ',', size(fptr3d, 2), ',', size(fptr3d, 3), '] ptr=', transfer(c_loc(fptr3d(1,1,1)), 0_c_intptr_t), &
-            ' min=', minval(fptr3d), ' max=', maxval(fptr3d)
-         call flush(6)
-#endif
 
          if (trim(field_map%vertical_axis) == 'level_to_interface') then
             if (allocated(cc_wrap%met_buf_3d(fidx)%data)) then
@@ -1835,14 +1809,6 @@ contains
                size(fptr4d,3), size(fptr4d,4)))
          end if
          cc_wrap%host_tracer_buf_4d = real(fptr4d, c_double)
-
-#ifdef CATCHEM_TRACE_NUOPC
-         write(*, '(A,A,A,A,A,I0,A,I0,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] transform 4D: ', &
-            trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var), &
-            ' shape=[', size(fptr4d, 1), ',', size(fptr4d, 2), ',', size(fptr4d, 3), ',', size(fptr4d, 4), &
-            '] ptr=', transfer(c_loc(fptr4d(1,1,1,1)), 0_c_intptr_t), ' min=', minval(fptr4d), ' max=', maxval(fptr4d)
-         call flush(6)
-#endif
 
          catchem_status = catchem_state_get_species_count_checked( &
             cc_wrap%catchem_model%state_mgr_ptr, species_count)
@@ -2080,15 +2046,6 @@ contains
             end if
          end if
 
-#ifdef CATCHEM_TRACE_NUOPC
-         write(*, '(A,A,A,I0,A,I0,A,I0,A,I0,A,Z16,A,G12.4,A,G12.4)') &
-            '[CATCHEM DEBUG] export 4D pre-overlay: ', trim(field_map%standard_name), &
-            ' shape=[', size(fptr4d,1), ',', size(fptr4d,2), ',', size(fptr4d,3), ',', size(fptr4d,4), &
-            '] ptr=', transfer(c_loc(fptr4d(1,1,1,1)), 0_c_intptr_t), &
-            ' min=', minval(fptr4d), ' max=', maxval(fptr4d)
-         call flush(6)
-#endif
-
          ni = size(fptr4d, 1)
          nj = size(fptr4d, 2)
          nk = size(fptr4d, 3)
@@ -2140,12 +2097,6 @@ contains
                end if
             end do   !nv
          end if
-
-#ifdef CATCHEM_TRACE_NUOPC
-         write(*, '(A,A,A,G12.4,A,G12.4)') '[CATCHEM DEBUG] export 4D post-overlay: ', &
-            trim(field_map%standard_name), ' min=', minval(fptr4d), ' max=', maxval(fptr4d)
-         call flush(6)
-#endif
 
        case default
          call ESMF_LogWrite("Unknown export field dimension for: "//trim(field_map%catchem_var), &

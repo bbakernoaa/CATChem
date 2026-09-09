@@ -584,18 +584,11 @@ contains
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__,  file=__FILE__))  return  ! bail out
 
-#ifdef CATCHEM_TRACE_NUOPC
-      write(*, '(A,I0,A,G12.4)') '[CAP DEBUG] ModelAdvance enter localPet=', localPet, ' dt_seconds=', dt_seconds
-      call flush(6)
-#endif
-
       ! Import meteorological data from other components
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionEnter("transform_nuopc_to_catchem", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
-      write(*, '(A,I0)') '[CAP DEBUG] ModelAdvance: calling transform_nuopc_to_catchem localPet=', localPet
-      call flush(6)
 #endif
       call transform_nuopc_to_catchem(is%wrap, importState, currTime, rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -611,8 +604,6 @@ contains
       call ESMF_TraceRegionEnter("catchem_nuopc_run", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
-      write(*, '(A,I0)') '[CAP DEBUG] ModelAdvance: calling catchem_nuopc_run localPet=', localPet
-      call flush(6)
 #endif
       call catchem_nuopc_run(is%wrap, dt_seconds, currTime, errmsg, rc)
       if (rc /= ESMF_SUCCESS) then
@@ -632,8 +623,6 @@ contains
       call ESMF_TraceRegionEnter("transform_catchem_to_nuopc", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
-      write(*, '(A,I0)') '[CAP DEBUG] ModelAdvance: calling transform_catchem_to_nuopc localPet=', localPet
-      call flush(6)
 #endif
       call transform_catchem_to_nuopc(is%wrap, exportState, rc, nextTime)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -650,8 +639,6 @@ contains
       call ESMF_TraceRegionExit("transform_catchem_to_nuopc", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
          line=__LINE__, file=__FILE__)) return
-      write(*, '(A,I0)') '[CAP DEBUG] ModelAdvance completed successfully localPet=', localPet
-      call flush(6)
 #endif
 
       ! Log successful completion
