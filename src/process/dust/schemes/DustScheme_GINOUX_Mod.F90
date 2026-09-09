@@ -120,6 +120,11 @@ contains
       real(fp) :: w10m                                 !< 10m wind speed [m/s]
       real(fp) :: emission_temp                        !< Temporary variable for emission calculation
 
+      ! `species_conc` is part of the shared scheme calling convention and
+      ! intentionally unused by this scheme; reference it so the interface
+      ! stays uniform without an unused-dummy-argument warning.
+      associate(unused_species_conc => species_conc); end associate
+
       !needs to reinitialize otherwise the skip condition below will cause weird maps.
       if (present(utar_threshold_per_bin)) utar_threshold_per_bin = 0.0_fp
       if (present(dust_emission_total)) dust_emission_total = 0.0_fp

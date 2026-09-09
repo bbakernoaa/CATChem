@@ -32,6 +32,7 @@ module WetDepScheme_JACOB_Mod
    use catchem_bridge_error, only: CC_Warning, CC_SUCCESS !CC_Error
    use WetDepCommon_Mod, only: WetDepSchemeJACOBConfig
    use catchem_bridge_constants, only: g0, AIRMW  !load the constants needed for this scheme
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
 
    implicit none
    private
@@ -693,7 +694,7 @@ contains
 
          ! -- fraction of species in liquid and ice phases (guarded against overflow/NaN)
          c_tot = one + l2g + i2g
-         if ( c_tot /= c_tot .or. c_tot >= 1.0e10_fp ) then
+         if ( ieee_is_nan(c_tot) .or. c_tot >= 1.0e10_fp ) then
             if ( l2g >= i2g ) then
                f_l = one
                f_i = zero
@@ -1065,7 +1066,7 @@ contains
          l2g = liq_to_gas_ratio( k0, cr, pKa, tk, qliq )
 
          ! -- washout fraction from Henry's Law (guarded against overflow/NaN)
-         if ( l2g /= l2g .or. l2g >= 1.0e10_fp ) then
+         if ( ieee_is_nan(l2g) .or. l2g >= 1.0e10_fp ) then
             washfrac = one
          else
             washfrac = l2g / ( one + l2g )

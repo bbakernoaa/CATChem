@@ -138,6 +138,7 @@ if(CATCHEM_ENABLE_KOKKOS)
       kokkos
       URL
         "https://github.com/kokkos/kokkos/releases/download/${CATCHEM_KOKKOS_VERSION}/kokkos-${CATCHEM_KOKKOS_VERSION}.tar.gz"
+      DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     )
     FetchContent_MakeAvailable(kokkos)
   endif()

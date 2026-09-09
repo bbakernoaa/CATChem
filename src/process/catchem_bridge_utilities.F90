@@ -111,6 +111,19 @@ module catchem_bridge_precision
       module procedure rae_f4, rae_f8
    end interface rae
 
+   !> Exact IEEE equality, spelled without == so gfortran's -Wcompare-reals
+   !! stays quiet at deliberate exact comparisons (sentinels, literal zeros).
+   !! (a <= b .and. a >= b) is precisely a == b: false for NaN, true for
+   !! equal infinities and for +0/-0. Not a tolerance test; see `rae` for that.
+   interface exact_equal
+      module procedure exact_equal_f4, exact_equal_f8
+   end interface exact_equal
+
+   !> Exact test for zero: exact_equal(x, 0). True for +0 and -0 only.
+   interface is_exact_zero
+      module procedure is_exact_zero_f4, is_exact_zero_f8
+   end interface is_exact_zero
+
 contains
 
    !> Real approximately equal: `abs(a - b) < tiny(a)`
@@ -130,6 +143,30 @@ contains
       diff = abs(a - b)
       res = diff < tiny(a)
    end function rae_f8
+
+   !> Exact equality (see the `exact_equal` interface)
+   elemental logical function exact_equal_f4(a, b) result(res)
+      real(f4), intent(in) :: a, b
+      res = (a <= b .and. a >= b)
+   end function exact_equal_f4
+
+   !> Exact equality (see the `exact_equal` interface)
+   elemental logical function exact_equal_f8(a, b) result(res)
+      real(f8), intent(in) :: a, b
+      res = (a <= b .and. a >= b)
+   end function exact_equal_f8
+
+   !> Exact zero test (see the `is_exact_zero` interface)
+   elemental logical function is_exact_zero_f4(x) result(res)
+      real(f4), intent(in) :: x
+      res = exact_equal_f4(x, 0.0_f4)
+   end function is_exact_zero_f4
+
+   !> Exact zero test (see the `is_exact_zero` interface)
+   elemental logical function is_exact_zero_f8(x) result(res)
+      real(f8), intent(in) :: x
+      res = exact_equal_f8(x, 0.0_f8)
+   end function is_exact_zero_f8
 
 end module catchem_bridge_precision
 

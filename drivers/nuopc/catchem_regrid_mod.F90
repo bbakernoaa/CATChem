@@ -83,10 +83,8 @@ contains
 
       ! -- local variables
       integer :: localrc, ncid, ncStatus
-      integer :: nlon, nlat, ndims, xtype, uid
-      integer :: timeDimLen, idx
-      integer, allocatable :: dimids(:)
-      character(len=ESMF_MAXSTR) :: dimName
+      integer :: nlon, nlat
+      integer :: idx
       real(ESMF_KIND_R8), allocatable :: lonCoord(:), latCoord(:)
       real(ESMF_KIND_R4), pointer     :: srcPtr(:,:) => null()
       real(ESMF_KIND_R4), pointer     :: dstPtr(:,:) => null()
@@ -384,7 +382,6 @@ contains
 
       integer :: ncStatus, varId, ndims
       integer, allocatable :: dimids(:)
-      integer :: dimId
 
       rc = ESMF_SUCCESS
 

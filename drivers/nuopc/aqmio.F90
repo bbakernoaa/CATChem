@@ -365,7 +365,7 @@ contains
       ! -- local variables
       integer :: localrc
       integer :: ncStatus
-      integer :: item, localDe, localDeCount, tileCount
+      integer :: localDe, localDeCount, tileCount
       integer :: liofmt
       integer :: cmode
       logical :: create
@@ -533,7 +533,7 @@ contains
       ! -- local variables
       integer :: localrc
       integer :: ncStatus
-      integer :: item, localDe, localDeCount
+      integer :: localDe, localDeCount
       type(ioWrapper) :: is
 
       ! -- begin
@@ -606,7 +606,7 @@ contains
       ! -- local variables
       integer :: localrc
       integer :: ncStatus
-      integer :: item, localDe, localDeCount, tileCount, pathLen
+      integer :: localDe, localDeCount, tileCount, pathLen
       integer :: liofmt
       logical :: isFileOpen
       character(len=ESMF_MAXPATHLEN) :: fullName, pathIn
@@ -697,7 +697,7 @@ contains
       ! -- local variables
       integer :: localrc
       integer :: ncStatus
-      integer :: item, localDe, localDeCount
+      integer :: localDe, localDeCount
       type(ioWrapper) :: is
 
       ! -- begin
@@ -752,7 +752,7 @@ contains
 
       ! -- local variables
       integer :: localrc
-      integer :: item, localDe, localDeCount
+      integer :: item, localDeCount
       integer :: liofmt
       type(ioWrapper) :: is
 
@@ -876,7 +876,7 @@ contains
 
       ! -- local variables
       integer :: localrc
-      integer :: item, localDe, localDeCount
+      integer :: item, localDeCount
       logical :: isOpen
       type(ioWrapper) :: is
 
@@ -973,7 +973,7 @@ contains
 
       ! -- local variables
       integer :: localrc
-      integer :: item, localDe, localDeCount
+      integer :: localDeCount
       logical :: isOpen
       type(ioWrapper) :: is
 
@@ -1061,7 +1061,6 @@ contains
       integer :: localrc
       integer :: localDe, localDeCount, rank
       integer :: de, deCount, dimCount, tile, tileCount, ungriddedCount
-      integer :: iofmt
       integer, dimension(:),   pointer     :: ungriddedLBound, ungriddedUBound
       integer, dimension(:),   allocatable :: deToTileMap, localDeToDeMap
       integer, dimension(:,:), allocatable :: minIndexPDe, maxIndexPDe
@@ -1069,7 +1068,6 @@ contains
       type(ioWrapper) :: is
       type(ESMF_Grid) :: grid, iogrid
       type(ESMF_DistGrid) :: distgrid
-      type(ESMF_VM) :: vm
       type(ESMF_GeomType_flag)      :: geomtype
       type(ESMF_StaggerLoc)         :: staggerloc
       type(ESMF_TypeKind_Flag)      :: typekind
@@ -2069,7 +2067,6 @@ contains
       integer :: yy, mm, dd, h, m, s
       integer, dimension(:), allocatable :: dimIds, dimLen
       character(len=19), dimension(:), allocatable :: timeStrings
-      type(ESMF_VM) :: vm
 
       ! -- begin
       if (present(rc)) rc = ESMF_SUCCESS
@@ -2961,6 +2958,10 @@ contains
       type(ESMF_State)     :: importState, exportState
       type(ESMF_Clock)     :: clock
       integer, intent(out) :: rc
+      ! ESMF entry-point signature; this no-op touches none of its arguments.
+      associate(unused_gcomp => gcomp, unused_import => importState, &
+         unused_export => exportState, unused_clock => clock)
+      end associate
       rc = ESMF_SUCCESS
    end subroutine IOCompNoOp
 
@@ -3106,7 +3107,7 @@ contains
       integer :: ncStatus
       integer :: rank, lrank
       integer :: dimCount, tileCount, tile
-      integer :: item, length, dimId, lvarId, uid, ndims, xtype
+      integer :: item, lvarId, uid, ndims, xtype
       integer, dimension(:),   allocatable :: dimIds, dimLen
       integer, dimension(:),   allocatable :: ungriddedLBound, ungriddedUBound
       integer, dimension(:,:), allocatable :: minIndexPTile, maxIndexPTile

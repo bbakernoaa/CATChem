@@ -94,6 +94,11 @@ contains
 
       type(SO4chemSchemeGOCARTConfig) :: gocart_config
 
+      ! `diagnostics` is part of the shared science-bridge calling convention;
+      ! so4chem does not emit per-process diagnostics yet, so reference it here
+      ! to keep the bridge signature uniform without an unused-argument warning.
+      associate(unused_diagnostics => diagnostics); end associate
+
       ! Apply the YAML tuning options staged by the C++ process layer so the
       ! scheme no longer runs on compiled defaults alone.
       gocart_config%update_so2 = (gocart_update_so2 /= 0)

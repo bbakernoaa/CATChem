@@ -848,6 +848,14 @@ CONTAINS
       type(ErrorManagerType), pointer, intent(inout) :: error_mgr
       integer, intent(out) :: rc
 
+      ! Placeholder implementation: the driver loads the files, so the object
+      ! and the list are intentionally unused here. Reference them to keep the
+      ! type-bound signature without an unused-dummy-argument warning (the
+      ! assumed-shape list is referenced through size(); an associate on it
+      ! trips a spurious -Wmaybe-uninitialized).
+      associate(unused_this => this); end associate
+      if (size(file_list) >= 0) continue
+
       rc = CC_SUCCESS
       call error_mgr%push_context('extemidata_load_files', 'Loading emission files')
 
