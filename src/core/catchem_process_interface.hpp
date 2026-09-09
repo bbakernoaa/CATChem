@@ -44,6 +44,8 @@ namespace catchem {
         PersistencePolicy persistence = PersistencePolicy::Timestep;
     };
 
+    // Aggregate-initialised at every get_contract() site: initialisers must
+    // name all four members (the Debug build warns on omitted trailing ones).
     struct ProcessContract {
         std::string process_name;
         std::vector<FieldAccessContract> fields;
@@ -126,7 +128,7 @@ namespace catchem {
     public:
         virtual ~ProcessInterface() = default;
         virtual std::string get_name() const = 0;
-        virtual ProcessContract get_contract() const { return {get_name(), {}, {}}; }
+        virtual ProcessContract get_contract() const { return {get_name(), {}, {}, {}}; }
         // Populate process-owned derived inputs before the execution plan
         // validates the process contract.  Host imports must already be bound.
         virtual void prepare_inputs(std::shared_ptr<StateManager> state) { (void)state; }

@@ -32,6 +32,7 @@ namespace catchem {
                  host_field_2d("PBLH", "m"), host_field_2d("USTAR", "m/s"), host_field_2d("U10M", "m/s"),
                  host_field_2d("V10M", "m/s"), host_field_2d("LWI", "1"), host_field_2d("Z0", "m"),
                  host_concentration()},
+                {},
                 {}};
     }
 

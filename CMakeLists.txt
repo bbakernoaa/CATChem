@@ -139,6 +139,7 @@ if(CATCHEM_ENABLE_KOKKOS)
       URL
         "https://github.com/kokkos/kokkos/releases/download/${CATCHEM_KOKKOS_VERSION}/kokkos-${CATCHEM_KOKKOS_VERSION}.tar.gz"
       DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+      SYSTEM # treat the fetched headers as system headers (no warnings from them)
     )
     FetchContent_MakeAvailable(kokkos)
   endif()
@@ -323,6 +324,17 @@ elseif(
     -error-limit
     0
   )
+endif()
+
+# C/C++ warning flags for CATChem-owned translation units (core, process
+# wrappers, tests). Debug only. Applied per directory so that vendored code
+# under src/external and fetched dependencies (Kokkos) are not affected.
+set(_catchem_cxx_warning_options "")
+if(
+  CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang|IntelLLVM"
+  AND CMAKE_BUILD_TYPE MATCHES "Debug"
+)
+  list(APPEND _catchem_cxx_warning_options -Wall -Wextra)
 endif()
 
 # Disable Intel oneAPI C/C++ warning about -g without -O0

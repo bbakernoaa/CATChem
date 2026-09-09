@@ -58,6 +58,7 @@ namespace catchem {
                  host_field_2d("U10M", "m/s"),
                  host_field_2d("V10M", "m/s"),
                  host_concentration()},
+                {},
                 {}};
     }
 

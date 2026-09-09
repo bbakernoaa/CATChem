@@ -1,6 +1,9 @@
 foreach(opt IN LISTS _catchem_compiler_options)
   add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:${opt}>")
 endforeach()
+foreach(opt IN LISTS _catchem_cxx_warning_options)
+  add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:${opt}>")
+endforeach()
 
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/catchem_test_config.hpp.in"

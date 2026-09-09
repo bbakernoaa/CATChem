@@ -14,6 +14,7 @@ namespace catchem {
         return {get_name(),
                 {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
                  host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()},
+                {},
                 {}};
     }
 

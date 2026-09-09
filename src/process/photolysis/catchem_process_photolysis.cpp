@@ -30,7 +30,8 @@ namespace catchem {
                  host_field_interface("PEDGE", "Pa", FieldRequirement::Optional), host_field_3d("BXHEIGHT", "m"),
                  host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
                  host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()},
-                {{"photolysis.ozone", "", true}}};
+                {{"photolysis.ozone", "", true}},
+                {}};
     }
 
     PhotolysisProcess::PhotolysisProcess() : config_path("") {}

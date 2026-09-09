@@ -157,7 +157,7 @@ double catchem_time_state_get_cos_sza(void* ptr, double lat, double lon, bool mi
     }
 }
 
-int catchem_time_state_get_timezone_offset(void* ptr, double lon) {
+int catchem_time_state_get_timezone_offset([[maybe_unused]] void* ptr, double lon) {
     try {
         int offset = static_cast<int>(lon / 15.0);
         return std::max(-12, std::min(14, offset));

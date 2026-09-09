@@ -25,6 +25,7 @@ namespace catchem {
                  host_field_3d("AIRDEN", "kg/m3"), host_field_3d("AIRDEN_DRY", "kg/m3"),
                  host_field_interface("PFILSAN", "kg/m2/s"), host_field_interface("PFLLSAN", "kg/m2/s"),
                  host_field_3d("QV", "kg/kg"), host_field_3d("REEVAPLS", "kg/kg/s"), host_concentration()},
+                {},
                 {}};
     }
 

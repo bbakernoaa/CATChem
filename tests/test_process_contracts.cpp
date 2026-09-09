@@ -20,6 +20,7 @@ public:
                   catchem::FieldRequirement::Required,
                   catchem::AccessIntent::Read,
                   catchem::ExecutionSpaceIntent::Host}},
+                {},
                 {}};
     }
 };
@@ -31,7 +32,7 @@ public:
         auto output =
             catchem::host_field_3d("DERIVED", "1", catchem::FieldRequirement::Required, catchem::AccessIntent::Write);
         output.produced = true;
-        return {get_name(), {output}, {}};
+        return {get_name(), {output}, {}, {}};
     }
 };
 
@@ -39,7 +40,7 @@ class ConsumerProcess : public catchem::test::RecordingProcess {
 public:
     using RecordingProcess::RecordingProcess;
     catchem::ProcessContract get_contract() const override {
-        return {get_name(), {catchem::host_field_3d("DERIVED", "1")}, {}};
+        return {get_name(), {catchem::host_field_3d("DERIVED", "1")}, {}, {}};
     }
 };
 

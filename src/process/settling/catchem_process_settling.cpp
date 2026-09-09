@@ -21,6 +21,7 @@ namespace catchem {
                                  {host_field_3d("T", "K"), host_field_3d("AIRDEN", "kg/m3"),
                                   host_field_3d("DELP", "Pa"), host_field_3d("PMID", "Pa"), host_field_3d("RH", "1"),
                                   host_field_interface("Z", "m"), host_concentration()},
+                                 {},
                                  {}};
         for (auto& field : contract.fields)
             field.execution_space = ExecutionSpaceIntent::Device;
