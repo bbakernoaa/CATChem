@@ -305,9 +305,11 @@ target_link_libraries(
     CATChem_process_dust
     CATChem_process_carbchem
 )
-target_compile_definitions(
+# Fixture paths come from the configured catchem_test_config.hpp (see
+# test_core_construction above for why quoted -D defines are avoided).
+target_include_directories(
   test_config_validation
-  PRIVATE CATCHEM_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(NAME test_config_validation COMMAND test_config_validation)
 catchem_label_tests("configuration" test_config_validation)
@@ -380,9 +382,11 @@ target_link_libraries(
     CATChem_process_dust
     CATChem_process_carbchem
 )
-target_compile_definitions(
+# Fixture paths come from the configured catchem_test_config.hpp (see
+# test_core_construction above for why quoted -D defines are avoided).
+target_include_directories(
   test_host_integration_conformance
-  PRIVATE CATCHEM_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(
   NAME test_host_integration_conformance

@@ -1,4 +1,5 @@
 #include "catchem_api.hpp"
+#include "catchem_test_config.hpp"
 
 #include "catchem_core.hpp"
 #include <array>
@@ -12,7 +13,7 @@
 // operations. This fixture locks their common failure taxonomy and axis values.
 int main() {
     const std::string conformance_config =
-        std::string(CATCHEM_TEST_SOURCE_DIR) + "/fixtures/host_conformance/CATChem_config.yml";
+        std::string(catchem::test::TEST_DIR) + "/fixtures/host_conformance/CATChem_config.yml";
     catchem::Core configured(conformance_config);
     const auto& ordered_species = configured.get_state_manager()->chemistry().species_list;
     assert(ordered_species.size() == 3);
@@ -36,7 +37,7 @@ int main() {
     assert(catchem_state_bind_met_3d_axis_checked(state, "T", layers.data(), 2, 3, 1, 99) == CATCHEM_INVALID_STATE);
     assert(catchem_state_bind_unified_chemistry_checked(state, chemistry.data(), 2, 3, 3) == CATCHEM_EXTENT_MISMATCH);
 
-    const std::string mechanism_file = std::string(CATCHEM_TEST_SOURCE_DIR) + "/fixtures/mechanisms/unfamiliar.yml";
+    const std::string mechanism_file = std::string(catchem::test::TEST_DIR) + "/fixtures/mechanisms/unfamiliar.yml";
     catchem_state_load_species_config(state, mechanism_file.c_str());
     assert(catchem_state_get_species_count(state) == 3);
     assert(catchem_state_get_species_index(state, "aerosol_c") == 3);

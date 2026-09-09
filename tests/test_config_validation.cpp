@@ -1,14 +1,11 @@
 #include "catchem_api.hpp"
 #include "catchem_config_manager.hpp"
+#include "catchem_test_config.hpp"
 #include <cassert>
 #include <string>
 
-#ifndef CATCHEM_TEST_SOURCE_DIR
-#define CATCHEM_TEST_SOURCE_DIR "."
-#endif
-
 int main() {
-    const std::string fixtures = std::string(CATCHEM_TEST_SOURCE_DIR) + "/fixtures/";
+    const std::string fixtures = std::string(catchem::test::TEST_DIR) + "/fixtures/";
     catchem::ConfigManager valid;
     valid.load_from_file(fixtures + "platform_integrity_valid.yml");
     valid.load_species_file(fixtures + "platform_integrity_species.yml");

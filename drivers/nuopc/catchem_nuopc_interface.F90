@@ -3184,8 +3184,9 @@ contains
          ! check if output directory exists, create if not
          inquire(file=trim(cc_wrap%output_directory), exist=dir_exists)
          if (.not. dir_exists) then
-            ! Create directory
-            call system('mkdir -p ' // trim(cc_wrap%output_directory))
+            ! Create directory (execute_command_line is the F2008 standard form;
+            ! the `system` extension has no explicit interface and ifx warns)
+            call execute_command_line('mkdir -p ' // trim(cc_wrap%output_directory))
          end if
       end if
 
