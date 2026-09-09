@@ -16,6 +16,8 @@ simulation:
   emission_filename: ./CATChem_emission.yml
   verbose:
     activate: true
+    # log_level: debug   # optional logger threshold: debug | info | warn | error
+    #                    (overrides CATCHEM_LOG_LEVEL; default when unset: info)
 #============================================================================
 # Grid settings
 #============================================================================

@@ -35,25 +35,50 @@ namespace catchem {
         log(state, "ERROR", Level::Error, message, context);
     }
 
+    std::optional<Logger::Level> Logger::level_from_string(std::string_view name) {
+        std::string value(name);
+        std::transform(value.begin(), value.end(), value.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (value == "debug")
+            return Level::Debug;
+        if (value == "info")
+            return Level::Info;
+        if (value == "warn" || value == "warning")
+            return Level::Warn;
+        if (value == "error")
+            return Level::Error;
+        return std::nullopt;
+    }
+
+    int& Logger::override_level() {
+        // Function-local static avoids static-initialisation-order problems and
+        // stays valid across shared-library teardown.  -1 means "no override".
+        static int override_value = -1;
+        return override_value;
+    }
+
+    void Logger::set_level(Level level) {
+        override_level() = static_cast<int>(level);
+    }
+
+    void Logger::clear_level() {
+        override_level() = -1;
+    }
+
     Logger::Level Logger::threshold() {
-        static const Level threshold_level = [] {
+        // An explicit override (YAML configuration) always wins over the
+        // environment variable, which is resolved once and cached.
+        if (const int forced = override_level(); forced >= 0)
+            return static_cast<Level>(forced);
+        static const Level env_level = [] {
             const char* raw = std::getenv("CATCHEM_LOG_LEVEL");
             if (raw != nullptr && raw[0] != '\0') {
-                std::string value(raw);
-                std::transform(value.begin(), value.end(), value.begin(),
-                               [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-                if (value == "debug")
-                    return Level::Debug;
-                if (value == "info")
-                    return Level::Info;
-                if (value == "warn" || value == "warning")
-                    return Level::Warn;
-                if (value == "error")
-                    return Level::Error;
+                if (const auto parsed = level_from_string(raw))
+                    return *parsed;
             }
             return Level::Info;
         }();
-        return threshold_level;
+        return env_level;
     }
 
     bool Logger::enabled(Level level) {

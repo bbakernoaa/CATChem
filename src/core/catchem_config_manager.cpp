@@ -1,4 +1,5 @@
 #include "catchem_config_manager.hpp"
+#include "catchem_logger.hpp"
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -532,6 +533,17 @@ namespace catchem {
                 }
                 if (sim["verbose"]) {
                     data.simulation.verbose_enabled = value_or<bool>(sim["verbose"]["activate"], false);
+                    // Optional explicit logger threshold.  When present it
+                    // always wins over the CATCHEM_LOG_LEVEL environment
+                    // variable; when absent the previous setting is kept.
+                    if (sim["verbose"]["log_level"]) {
+                        data.simulation.log_level = sim["verbose"]["log_level"].as<std::string>();
+                        const auto level = Logger::level_from_string(data.simulation.log_level);
+                        if (!level)
+                            throw std::invalid_argument(
+                                "simulation/verbose/log_level must be debug, info, warn, or error");
+                        Logger::set_level(*level);
+                    }
                 }
                 if (sim["nx"]) {
                     data.runtime.nx = sim["nx"].as<int>();

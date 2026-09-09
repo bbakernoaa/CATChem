@@ -1,6 +1,7 @@
 #include "catchem_api.hpp"
 #include "catchem_core.hpp"
 #include "catchem_kokkos_compat.hpp"
+#include "catchem_logger.hpp"
 #include "catchem_met_utilities.hpp"
 #include "catchem_process_registry.hpp"
 #include "catchem_state_manager.hpp"
@@ -160,6 +161,60 @@ void CatchemPropertiesTest_ConfigManagerHandlesScalarAndMissingNodes() {
     assert(config_mgr.get_string_list("simulation/nx").empty());
 
     std::cout << "=== PASS: CatchemPropertiesTest.ConfigManagerHandlesScalarAndMissingNodes ===" << std::endl;
+}
+
+void CatchemPropertiesTest_ConfigManagerLogLevelDrivesLogger() {
+    std::cout << "=== Running CatchemPropertiesTest.ConfigManagerLogLevelDrivesLogger ===" << std::endl;
+    using Level = catchem::Logger::Level;
+
+    // 1) simulation/verbose/log_level overrides the environment-derived
+    //    threshold (YAML always wins) and is recorded in the parsed data.
+    {
+        const std::string path = "cfg_log_level_warn.yml";
+        std::ofstream f(path);
+        f << "simulation:\n  name: loglevel\n  verbose:\n    activate: true\n    log_level: warn\n";
+        f.close();
+        catchem::ConfigManager mgr;
+        mgr.load_from_file(path);
+        assert(mgr.data.simulation.log_level == "warn");
+        assert(mgr.data.simulation.verbose_enabled);
+        assert(catchem::Logger::enabled(Level::Warn));
+        assert(!catchem::Logger::enabled(Level::Info));
+        assert(!catchem::Logger::enabled(Level::Debug));
+    }
+
+    // 2) An unrecognized level fails loudly at load time (fail-fast policy).
+    {
+        const std::string path = "cfg_log_level_bogus.yml";
+        std::ofstream f(path);
+        f << "simulation:\n  name: loglevel\n  verbose:\n    log_level: shout\n";
+        f.close();
+        bool threw = false;
+        try {
+            catchem::ConfigManager mgr;
+            mgr.load_from_file(path);
+        } catch (const std::exception&) {
+            threw = true;
+        }
+        assert(threw);
+    }
+
+    // 3) A config without log_level keeps the previous setting (absent != reset).
+    {
+        const std::string path = "cfg_log_level_absent.yml";
+        std::ofstream f(path);
+        f << "simulation:\n  name: loglevel\n  verbose:\n    activate: false\n";
+        f.close();
+        catchem::ConfigManager mgr;
+        mgr.load_from_file(path);
+        assert(mgr.data.simulation.log_level.empty());
+        assert(!catchem::Logger::enabled(Level::Info)); // warn override from step 1 persists
+    }
+
+    // Leave the process in the environment-controlled state for later tests.
+    catchem::Logger::clear_level();
+
+    std::cout << "=== PASS: CatchemPropertiesTest.ConfigManagerLogLevelDrivesLogger ===" << std::endl;
 }
 
 void CatchemPropertiesTest_StateBindingAndRebinding() {
@@ -570,6 +625,7 @@ int main(int argc, char* argv[]) {
         CatchemPropertiesTest_ConfigManagerParsesRunPhases();
         CatchemPropertiesTest_ConfigManagerTypedQueries();
         CatchemPropertiesTest_ConfigManagerHandlesScalarAndMissingNodes();
+        CatchemPropertiesTest_ConfigManagerLogLevelDrivesLogger();
         CatchemPropertiesTest_ConfigManagerLoadsTypedFixtureData();
         CatchemPropertiesTest_DiagnosticsManagerAndAPI();
         CatchemPropertiesTest_UnitConversions();

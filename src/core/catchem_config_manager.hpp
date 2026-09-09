@@ -32,6 +32,7 @@ namespace catchem {
         std::string species_filename;
         std::string emission_filename;
         bool verbose_enabled = false;
+        std::string log_level; ///< simulation/verbose/log_level, as written in the YAML (empty when unset)
     };
 
     struct RuntimeConfig {
