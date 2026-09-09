@@ -37,7 +37,7 @@ namespace catchem {
                                                 host_concentration()};
         if (active_scheme == "geos12")
             fields.push_back(host_field_2d("USTAR", "m/s"));
-        return {get_name(), std::move(fields), {}, {}};
+        return make_contract(get_name(), std::move(fields));
     }
 
     SeaSaltProcess::SeaSaltProcess() : active_scheme("geos12"), diagnostics_enabled(true) {}

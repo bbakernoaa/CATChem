@@ -6,16 +6,13 @@ class OptionalProcess : public catchem::test::RecordingProcess {
 public:
     using RecordingProcess::RecordingProcess;
     catchem::ProcessContract get_contract() const override {
-        return {get_name(),
-                {{"UNRELATED",
-                  "1",
-                  {catchem::SemanticAxis::Column},
-                  catchem::PersistencePolicy::Timestep,
-                  catchem::FieldRequirement::Optional,
-                  catchem::AccessIntent::Read,
-                  catchem::ExecutionSpaceIntent::Host}},
-                {},
-                {}};
+        return catchem::make_contract(get_name(), {{"UNRELATED",
+                                                    "1",
+                                                    {catchem::SemanticAxis::Column},
+                                                    catchem::PersistencePolicy::Timestep,
+                                                    catchem::FieldRequirement::Optional,
+                                                    catchem::AccessIntent::Read,
+                                                    catchem::ExecutionSpaceIntent::Host}});
     }
 };
 
@@ -23,7 +20,7 @@ class InactiveRequiredProcess : public catchem::test::RecordingProcess {
 public:
     using RecordingProcess::RecordingProcess;
     catchem::ProcessContract get_contract() const override {
-        return {get_name(), {catchem::host_field_3d("NOT_BOUND", "1")}, {}, {}};
+        return catchem::make_contract(get_name(), {catchem::host_field_3d("NOT_BOUND", "1")});
     }
 };
 

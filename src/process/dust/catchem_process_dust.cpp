@@ -49,7 +49,7 @@ namespace catchem {
                            host_field_2d("LWI", "1"), host_field_2d("SSM", "1"), host_field_2d("TS", "K"),
                            host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s")});
         }
-        return {get_name(), std::move(fields), {}, {}};
+        return make_contract(get_name(), std::move(fields));
     }
 
     DustProcess::DustProcess() : active_scheme("fengsha"), diagnostics_enabled(true) {}

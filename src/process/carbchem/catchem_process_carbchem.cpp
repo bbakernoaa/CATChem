@@ -19,11 +19,8 @@ void run_carbchem_science_bridge(int n_cols, int n_levels, int n_species, double
 namespace catchem {
 
     ProcessContract CarbChemProcess::get_contract() const {
-        return {get_name(),
-                {host_field_3d("PMID", "Pa"), host_field_3d("DELP", "Pa"), host_field_3d("AIRDEN", "kg/m3"),
-                 host_concentration()},
-                {},
-                {}};
+        return make_contract(get_name(), {host_field_3d("PMID", "Pa"), host_field_3d("DELP", "Pa"),
+                                          host_field_3d("AIRDEN", "kg/m3"), host_concentration()});
     }
 
     CarbChemProcess::CarbChemProcess() : active_scheme("gocart"), diagnostics_enabled(true) {}

@@ -21,17 +21,17 @@
 namespace catchem {
 
     ProcessContract PhotolysisProcess::get_contract() const {
-        return {get_name(),
-                {host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                               PersistencePolicy::Persistent),
-                 host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                               PersistencePolicy::Persistent),
-                 host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
-                 host_field_interface("PEDGE", "Pa", FieldRequirement::Optional), host_field_3d("BXHEIGHT", "m"),
-                 host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                 host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()},
-                {{"photolysis.ozone", "", true}},
-                {}};
+        return make_contract(get_name(),
+                             {host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                                            PersistencePolicy::Persistent),
+                              host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                                            PersistencePolicy::Persistent),
+                              host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
+                              host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
+                              host_field_3d("BXHEIGHT", "m"),
+                              host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
+                              host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()},
+                             {{"photolysis.ozone", "", true}});
     }
 
     PhotolysisProcess::PhotolysisProcess() : config_path("") {}
