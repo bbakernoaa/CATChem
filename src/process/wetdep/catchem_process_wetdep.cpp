@@ -59,12 +59,12 @@ namespace catchem {
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and will be passed to the bridge.
-        Logger::info(state.get(), "WetDep scheme options",
-                     {{"scheme", active_scheme},
-                      {"jacob/scale_factor", std::to_string(jacob_scale_factor)},
-                      {"jacob/radius_threshold", std::to_string(jacob_radius_threshold)},
-                      {"jacob/so4_gocart_resusp", jacob_so4_gocart_resusp ? "true" : "false"},
-                      {"jacob/so4_washout_eff", std::to_string(jacob_so4_washout_eff)}});
+        Logger::debug(state.get(), "WetDep scheme options",
+                      {{"scheme", active_scheme},
+                       {"jacob/scale_factor", std::to_string(jacob_scale_factor)},
+                       {"jacob/radius_threshold", std::to_string(jacob_radius_threshold)},
+                       {"jacob/so4_gocart_resusp", jacob_so4_gocart_resusp ? "true" : "false"},
+                       {"jacob/so4_washout_eff", std::to_string(jacob_so4_washout_eff)}});
 
         // Diagnostic species targeting: honor processes.wetdep.diag_species
         // when provided, otherwise fall back to the is_wetdep metadata flag.

@@ -70,14 +70,14 @@ namespace catchem {
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and will be passed to the bridge.
-        Logger::info(state.get(), "SeaSalt scheme options",
-                     {{"scheme", active_scheme},
-                      {"gong97/scale_factor", std::to_string(gong97_scale_factor)},
-                      {"gong97/weibull_flag", gong97_weibull_flag ? "true" : "false"},
-                      {"gong03/scale_factor", std::to_string(gong03_scale_factor)},
-                      {"gong03/weibull_flag", gong03_weibull_flag ? "true" : "false"},
-                      {"geos12/scale_factor", std::to_string(geos12_scale_factor)},
-                      {"geos12/weibull_flag", geos12_weibull_flag ? "true" : "false"}});
+        Logger::debug(state.get(), "SeaSalt scheme options",
+                      {{"scheme", active_scheme},
+                       {"gong97/scale_factor", std::to_string(gong97_scale_factor)},
+                       {"gong97/weibull_flag", gong97_weibull_flag ? "true" : "false"},
+                       {"gong03/scale_factor", std::to_string(gong03_scale_factor)},
+                       {"gong03/weibull_flag", gong03_weibull_flag ? "true" : "false"},
+                       {"geos12/scale_factor", std::to_string(geos12_scale_factor)},
+                       {"geos12/weibull_flag", geos12_weibull_flag ? "true" : "false"}});
 
         if (!diagnostics_enabled)
             return;

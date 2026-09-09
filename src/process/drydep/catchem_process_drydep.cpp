@@ -103,17 +103,17 @@ namespace catchem {
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and will be passed to the bridge.
-        Logger::info(state.get(), "DryDep scheme options",
-                     {{"gas_scheme", gas_scheme},
-                      {"aero_scheme", aero_scheme},
-                      {"wesely/scale_factor", std::to_string(wesely_scale_factor)},
-                      {"wesely/co2_effect", wesely_co2_effect ? "true" : "false"},
-                      {"wesely/co2_level", std::to_string(wesely_co2_level)},
-                      {"wesely/co2_reference", std::to_string(wesely_co2_reference)},
-                      {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
-                      {"gocart/resuspension", gocart_resuspension ? "true" : "false"},
-                      {"gocart/dust_resuspension_only", gocart_dust_resuspension_only ? "true" : "false"},
-                      {"zhang/scale_factor", std::to_string(zhang_scale_factor)}});
+        Logger::debug(state.get(), "DryDep scheme options",
+                      {{"gas_scheme", gas_scheme},
+                       {"aero_scheme", aero_scheme},
+                       {"wesely/scale_factor", std::to_string(wesely_scale_factor)},
+                       {"wesely/co2_effect", wesely_co2_effect ? "true" : "false"},
+                       {"wesely/co2_level", std::to_string(wesely_co2_level)},
+                       {"wesely/co2_reference", std::to_string(wesely_co2_reference)},
+                       {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
+                       {"gocart/resuspension", gocart_resuspension ? "true" : "false"},
+                       {"gocart/dust_resuspension_only", gocart_dust_resuspension_only ? "true" : "false"},
+                       {"zhang/scale_factor", std::to_string(zhang_scale_factor)}});
 
         // 1. Setup diagnostic species ID dynamically based on the is_drydep metadata switch
         for (size_t i = 0; i < state->chemistry().species_list.size(); ++i) {

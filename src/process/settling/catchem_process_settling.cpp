@@ -68,14 +68,14 @@ namespace catchem {
         if (gocart_simple_scheme)
             throw std::invalid_argument(
                 "Settling simple_scheme requires Mie tables and is unsupported by the C++ core");
-        Logger::info(state.get(), "Settling scheme options",
-                     {{"scheme", active_scheme},
-                      {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
-                      {"gocart/correction_maring", gocart_correction_maring ? "true" : "false"},
-                      {"gocart/maring_dust_only", gocart_maring_dust_only ? "true" : "false"},
-                      {"gocart/simple_scheme", "false (species metadata)"},
-                      {"gocart/swelling", "per-species __hydrophilic (Gerber when true)"},
-                      {"gocart/swelling_rh_max", std::to_string(gocart_swelling_rh_max)}});
+        Logger::debug(state.get(), "Settling scheme options",
+                      {{"scheme", active_scheme},
+                       {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
+                       {"gocart/correction_maring", gocart_correction_maring ? "true" : "false"},
+                       {"gocart/maring_dust_only", gocart_maring_dust_only ? "true" : "false"},
+                       {"gocart/simple_scheme", "false (species metadata)"},
+                       {"gocart/swelling", "per-species __hydrophilic (Gerber when true)"},
+                       {"gocart/swelling_rh_max", std::to_string(gocart_swelling_rh_max)}});
 
         int num_aerosols = state->chemistry().aerosol_indices.size();
         if (num_aerosols > 0) {
