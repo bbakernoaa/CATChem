@@ -78,14 +78,14 @@ target_link_libraries(
 )
 catchem_add_architecture_test(test_c_api_compatibility test_c_api_compatibility.cpp "boundary;compatibility")
 catchem_add_architecture_test(test_extension_process test_extension_process.cpp "mechanism;process-contract;lifecycle;dataflow")
-target_compile_definitions(
-  test_extension_process
-  PRIVATE CATCHEM_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
-)
 catchem_add_architecture_test(test_core_construction test_core_construction.cpp "mechanism;configuration;lifecycle")
-target_compile_definitions(
+# Source paths come from the configured catchem_test_config.hpp rather than a
+# quoted -D define: the Intel MPI compiler wrappers strip the quotes when the
+# define is passed on the command line (seen in the ci-intel host profile),
+# and test_extension_process never used the define.
+target_include_directories(
   test_core_construction
-  PRIVATE CATCHEM_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(
   NAME check_core_mechanism_independence
