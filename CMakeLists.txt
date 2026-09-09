@@ -434,6 +434,13 @@ if(CATCHEM_BUILD_NUOPC)
   # Only need to depend on CATChem - it already depends on CATChem_core, etc.
   add_dependencies(cc_nuopc CATChem)
 
+  # cc_nuopc compiles the same drivers/nuopc sources as NUOPC_CATChem_cap and
+  # both emit their .mod files into ${CATCHEM_NUOPC_MODULE_DIR}. Without an
+  # ordering between them, a parallel build lets two gfortran instances
+  # rename the same <module>.mod0 -> <module>.mod file and one of them fails
+  # with "Cannot rename module file". Serialise the two compilations.
+  add_dependencies(cc_nuopc NUOPC_CATChem_cap)
+
   # Link to library files in dependency order (most dependent first).
   # NOTE: $<TARGET_FILE:> carries no transitive usage requirements, so this
   # list must mirror the full dependency closure of the CATChem targets by
