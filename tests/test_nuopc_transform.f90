@@ -11,7 +11,7 @@ program test_nuopc_transform
    use iso_c_binding, only: c_ptr, c_char, c_double, c_int, c_associated, c_f_pointer, c_null_char
    use ESMF
    use catchem_nuopc_interface, only: load_field_config, transform_nuopc_to_catchem, &
-      transform_catchem_to_nuopc, field_config, cc_wrap_type, update_pm_diagnostics
+      transform_catchem_to_nuopc, field_config, cc_wrap_type, update_pm_diagnostics, TRACER_CHEMICAL
    use catchem_bridge_error, only: CC_SUCCESS
    use catchem_bridge_precision, only: fp
    use CATChem_API, only: CATChem_Model
@@ -187,6 +187,25 @@ program test_nuopc_transform
       call ESMF_StateAdd(importState, (/field/), rc=rc)
       call check(rc, "StateAdd")
    end do
+
+   ! 3b. Production builds cc_wrap%tracer_map inside catchem_nuopc_init from
+   !     tracerinfo metadata; this harness drives the transform directly, so
+   !     construct a minimal valid map mirroring init: two host chemical
+   !     tracers mapped 1:1 onto CATChem species with unit conversion factors.
+   !     Without it the rank-4 chemistry import has no validated mapping and
+   !     transform_nuopc_to_catchem fails by design.
+   allocate(cc_wrap%tracer_map%names(ntr))
+   allocate(cc_wrap%tracer_map%units(ntr))
+   allocate(cc_wrap%tracer_map%nuopc_to_cc(ntr))
+   allocate(cc_wrap%tracer_map%entry_kind(ntr))
+   allocate(cc_wrap%tracer_map%host_to_catchem(ntr))
+   allocate(cc_wrap%tracer_map%catchem_to_host(ntr))
+   cc_wrap%tracer_map%names = [character(len=128) :: 'tracer_a', 'tracer_b']
+   cc_wrap%tracer_map%units = 'kg kg-1'
+   cc_wrap%tracer_map%nuopc_to_cc = [1, 2]
+   cc_wrap%tracer_map%entry_kind = TRACER_CHEMICAL
+   cc_wrap%tracer_map%host_to_catchem = 1.0_c_double
+   cc_wrap%tracer_map%catchem_to_host = 1.0_c_double
 
    ! 4. Drive the production transform — the exact ursa run-phase path
    call ESMF_TimeSet(currTime, yy=2021, mm=3, dd=22, h=6, rc=rc)

@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
         // 2. Set up core with a single column and vertical grid matching config (3 levels -> 4 edges)
         int n_cols = 1;
         int n_levels = 3;
-        int n_species = 5;
+        int n_species = 4; // matches tests/fixtures/mechanisms/chapman.yml
 
         auto core = std::make_shared<catchem::Core>(n_cols, n_levels, n_species);
         auto state = core->get_state_manager();
@@ -74,6 +74,17 @@ int main(int argc, char* argv[]) {
         state->bind_met_field_3d("AIRDEN", airden.data());
         state->bind_met_field_3d("PEDGE", pedge.data());
         state->bind_met_field_3d("BXHEIGHT", bxheight.data());
+
+        // 3b. The photolysis process contract now requires the CONCENTRATION
+        // field and a mechanism carrying the photolysis.ozone role, and run()
+        // requires AIRDEN_DRY/PMID to be present. Bind them all.
+        std::string species_config = std::string(catchem::test::TEST_DIR) + "/fixtures/mechanisms/chapman.yml";
+        assert(file_exists(species_config) && "ERROR: Could not find the chapman mechanism fixture!");
+        state->load_species_config(species_config);
+        state->bind_met_field_3d("AIRDEN_DRY", airden.data());
+        state->bind_met_field_3d("PMID", pedge.data());
+        std::vector<double> conc_data(n_cols * n_levels * n_species, 1.0e-7);
+        state->bind_unified_chemistry(conc_data.data());
 
         // 4. Resolve the TUV-x configuration file path explicitly using configured header
         std::string config_path =

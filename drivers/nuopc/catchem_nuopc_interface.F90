@@ -325,6 +325,7 @@ module catchem_nuopc_interface
    public :: get_n_import_fields, get_import_field_info  ! Safe field_config access
    public :: get_n_export_fields, get_export_field_info  ! Safe field_config access
    public :: update_pm_diagnostics  ! Exposed for the NUOPC transform test harness
+   public :: TRACER_HOST_OWNED, TRACER_CHEMICAL, TRACER_DIAGNOSTIC  ! Tracer-map contract values for the test harness
    public :: catchem_nuopc_get_physical_validation_report
 
    !> \brief Field mapping configuration structure

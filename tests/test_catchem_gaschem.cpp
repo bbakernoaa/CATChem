@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
         // 2. Set up core and states
         int n_cols = 1;
         int n_levels = 3;
-        int n_species = 5;
+        int n_species = 4; // matches tests/fixtures/mechanisms/chapman.yml
 
         auto core = std::make_shared<catchem::Core>(n_cols, n_levels, n_species);
         auto state = core->get_state_manager();
@@ -76,10 +76,11 @@ int main(int argc, char* argv[]) {
         state->bind_met_field_3d("PMID", pedge.data()); // PMID maps to PMID in tests
         state->bind_met_field_3d("BXHEIGHT", bxheight.data());
 
-        // Load species metadata explicitly using configured header
-        std::string species_config = std::string(catchem::test::TEST_DIR) + "/Configs/Default/CATChem_species.yml";
-        assert(file_exists(species_config) &&
-               "ERROR: Could not find CATChem_species.yml at the explicit test directory location!");
+        // Load a mechanism whose species mirror chapman v0 (so every CATChem
+        // species maps into the MICM variable map) and that carries the
+        // photolysis.ozone role the photolysis contract requires.
+        std::string species_config = std::string(catchem::test::TEST_DIR) + "/fixtures/mechanisms/chapman.yml";
+        assert(file_exists(species_config) && "ERROR: Could not find the chapman mechanism fixture!");
         state->load_species_config(species_config);
         std::vector<double> conc_data(n_cols * n_levels * n_species, 1.0); // 1.0 ppmv initially
         state->bind_unified_chemistry(conc_data.data());
