@@ -64,7 +64,7 @@ jobs:
           cmake .. \
             -DCATCHEM_BUILD_TESTING=ON \
             -DCATCHEM_BUILD_NUOPC=ON \
-            -DCATCHEM_BUILD_MUSICA=ON \
+            -DCATCHEM_BUILD_MUSICA=$([[ "${{ matrix.profile }}" == openmp ]] && echo ON || echo OFF) \
             -DCATCHEM_ENABLE_KOKKOS=$([[ "${{ matrix.profile }}" == openmp ]] && echo ON || echo OFF) \
             -DCATCHEM_ENABLE_BOUNDS_CHECK=ON \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/kokkos-install" \

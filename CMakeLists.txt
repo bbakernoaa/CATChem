@@ -262,9 +262,12 @@ if(CATCHEM_ENABLE_BOUNDS_CHECK)
       INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:-fcheck=bounds>"
     )
   elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel|IntelLLVM")
+    # SHELL: keeps "-check bounds" together. Without it CMake de-duplicates
+    # the repeated "-check" token against the Debug list's "-check all,nouninit"
+    # and ifx receives a bare "bounds" ("error #10236: File not found: 'bounds'").
     target_compile_options(
       catchem_validation_options
-      INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:-check;bounds>"
+      INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:SHELL:-check bounds>"
     )
   else()
     message(
