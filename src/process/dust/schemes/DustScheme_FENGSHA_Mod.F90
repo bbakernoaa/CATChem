@@ -263,27 +263,6 @@ contains
       FengshaScale = alpha_grav * fracland * (ssm ** params%gamma) * airden(1)
       total_emissions = FengshaScale * h_to_v_ratio * q
 
-      !debug only
-      ! if (total_emissions > 1.0e-5_fp) then
-      !    write(*,'(A,F12.8)') 'Debug: Total Emissions = ', total_emissions
-      !    write(*,'(A,F12.8)') 'Debug: Total Fengsha Scale = ', FengshaScale
-      !    write(*,'(A,F12.8)') 'Debug: h_to_v_ratio = ', h_to_v_ratio
-      !    write(*,'(A,F12.8)') 'Debug: q = ', q
-      !    write(*,'(A,F12.8)') 'Debug: ustar = ', ustar
-      !    write(*,'(A,F12.8)') 'Debug: ustar_threshold = ', ustar_threshold
-      !    write(*,'(A,F12.8)') 'Debug: h = ', h
-      !    write(*,'(A,F12.8)') 'Debug: R = ', R
-      !    write(*,'(A,F12.8)') 'Debug: clayfrac = ', clayfrac
-      !    write(*,'(A,F12.8)') 'Debug: sandfrac = ', sandfrac
-      !    write(*,'(A,F12.8)') 'Debug: soilm = ', soilm(1)
-      !    write(*,'(A,F12.8)') 'Debug: LAI = ', LAI
-      !    write(*,'(A,F12.8)') 'Debug: fracland = ', fracland
-      !    write(*,'(A,F12.8)') 'Debug: airden = ', airden(1)
-      !    write(*,'(A,F12.8)') 'Debug: ssm = ', ssm
-      !    write(*,'(A,F12.8)') 'Debug: alpha_grav = ', alpha_grav
-      ! end if
-
-
       ! get distribution of dust and map total emissions to species bins
       !--------------------------------
       select case (params%distribution_option)

@@ -221,7 +221,7 @@ namespace catchem {
         }
 
         const auto config = state->config_manager();
-        if (config && config->data.simulation.verbose_enabled) {
+        if (config && config->data.simulation.verbose_enabled && Logger::enabled(Logger::Level::Debug)) {
             // DELP is level-major (index = column + level*n_cols).  Because
             // derive_delp() takes pressure_thickness(PEDGE[L], PEDGE[L+1]) with
             // no abs(), a non-zero DELP field only exists when pressure

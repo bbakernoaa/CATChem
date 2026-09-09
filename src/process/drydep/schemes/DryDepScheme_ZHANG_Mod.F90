@@ -956,7 +956,6 @@ contains
 
       !add error check here to make sure RS below is not a infinite value
       IF (rae(R1, 0.0_fp) .or. rae(USTAR, 0.0_fp)) THEN
-         !write(*,*) 'DEBUG INFO: SPC=', trim(SPC), LUC, USTAR, R1, ST, AA, VTS, CONST, DEN, DIAM, RHBL, RHB, AIRVS
          errMsg = 'USTAR or R1 is zero. Check met field or diameter (in m) of aerosol is too big.'
          CALL CC_Error( errMsg, RC, thisLoc )
          RETURN
@@ -1159,7 +1158,6 @@ contains
             ! add some protection against infinite loop
             i = i+1
             IF ( i .GT. 500 ) THEN
-               !write(*,*) 'Test NEW_DIAM_DEN output: ', trim(SPC), RHBL, RDRY, RWET, DIAM, DEN0, DEN,DEN1
                errMsg = 'Error in calculating new density for sea salt aerosol due to very low RH input!'
                CALL CC_Error( errMsg, RC, thisLoc )
                RETURN

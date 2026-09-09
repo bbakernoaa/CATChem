@@ -263,16 +263,22 @@ namespace catchem {
         require_field_pointer("Photolysis", "CHEM_CONC",
                               state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr);
 
+        // Column-level tracing is only useful when CATCHEM_LOG_LEVEL=DEBUG; the
+        // flag is hoisted out of the loop so the per-column string build and the
+        // ten Logger calls below cost nothing in nominal runs.
+        const bool dbg_column = Logger::enabled(Logger::Level::Debug);
         Logger::debug(state.get(), "Starting column-wise calculation loop");
         for (int i_col = 0; i_col < state->column_count(); ++i_col) {
-            std::string col_str = std::to_string(i_col);
-            Logger::debug(state.get(), "Calculating SZA for column", {{"col", col_str}});
+            std::string col_str = dbg_column ? std::to_string(i_col) : std::string();
+            if (dbg_column)
+                Logger::debug(state.get(), "Calculating SZA for column", {{"col", col_str}});
             double lat_deg = state->meteorology().LAT->host_view(i_col, 0);
             double lon_deg = state->meteorology().LON->host_view(i_col, 0);
             double cos_sza = state->clock().get_cos_sza(lat_deg, lon_deg, true);
             double sza_rad = std::acos(std::max(-1.0, std::min(1.0, cos_sza)));
 
-            Logger::debug(state.get(), "Updating grid height edges for column", {{"col", col_str}});
+            if (dbg_column)
+                Logger::debug(state.get(), "Updating grid height edges for column", {{"col", col_str}});
             height_edges[0] = 0.0;
             for (int i_lvl = 0; i_lvl < state->level_count(); ++i_lvl) {
                 double dz_m = state->meteorology().BXHEIGHT->host_view(i_col, i_lvl, 0);
@@ -282,7 +288,8 @@ namespace catchem {
                 musica::SetGridEdges(height_grid, height_edges.data(), height_edges.size(), &err);
             }
 
-            Logger::debug(state.get(), "Populating profile midpoint vectors for column", {{"col", col_str}});
+            if (dbg_column)
+                Logger::debug(state.get(), "Populating profile midpoint vectors for column", {{"col", col_str}});
             for (int i_lvl = 0; i_lvl < state->level_count(); ++i_lvl) {
                 double airden_kg_m3 = state->meteorology().AIRDEN_DRY->host_view(i_col, i_lvl, 0);
                 air_profile[i_lvl] = airden_kg_m3 * 2.079153e19;
@@ -296,21 +303,27 @@ namespace catchem {
                 }
             }
 
-            Logger::debug(state.get(), "Updating profiles in TUVX for column", {{"col", col_str}});
+            if (dbg_column)
+                Logger::debug(state.get(), "Updating profiles in TUVX for column", {{"col", col_str}});
             if (profile_air) {
-                Logger::debug(state.get(), "SetProfileMidpointValues for air in column", {{"col", col_str}});
+                if (dbg_column)
+                    Logger::debug(state.get(), "SetProfileMidpointValues for air in column", {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_air, air_profile.data(), state->level_count(), &err);
             }
             if (profile_o2) {
-                Logger::debug(state.get(), "SetProfileMidpointValues for O2 in column", {{"col", col_str}});
+                if (dbg_column)
+                    Logger::debug(state.get(), "SetProfileMidpointValues for O2 in column", {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_o2, o2_profile.data(), state->level_count(), &err);
             }
             if (profile_o3) {
-                Logger::debug(state.get(), "SetProfileMidpointValues for O3 in column", {{"col", col_str}});
+                if (dbg_column)
+                    Logger::debug(state.get(), "SetProfileMidpointValues for O3 in column", {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_o3, o3_profile.data(), state->level_count(), &err);
             }
             if (profile_temp) {
-                Logger::debug(state.get(), "SetProfileMidpointValues for temperature in column", {{"col", col_str}});
+                if (dbg_column)
+                    Logger::debug(state.get(), "SetProfileMidpointValues for temperature in column",
+                                  {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_temp, temp_profile.data(), state->level_count(), &err);
             }
 
@@ -318,7 +331,8 @@ namespace catchem {
             std::vector<double> edge_heating_rates((state->level_count() + 1) * tuvx_instance->GetHeatingRateCount(),
                                                    0.0);
 
-            Logger::debug(state.get(), "Calling musica::RunTuvx for column", {{"col", col_str}});
+            if (dbg_column)
+                Logger::debug(state.get(), "Calling musica::RunTuvx for column", {{"col", col_str}});
             musica::RunTuvx(tuvx_instance, sza_rad, 1.0, edge_photolysis_rates.data(), edge_heating_rates.data(),
                             nullptr, nullptr, nullptr, &err);
 
@@ -328,8 +342,9 @@ namespace catchem {
                 continue;
             }
 
-            Logger::debug(state.get(), "Copying midpoint-interpolated J-rates to diagnostics for column",
-                          {{"col", col_str}});
+            if (dbg_column)
+                Logger::debug(state.get(), "Copying midpoint-interpolated J-rates to diagnostics for column",
+                              {{"col", col_str}});
             if (state->diagnostic_manager()) {
                 for (size_t rx_idx = 0; rx_idx < photo_mappings.size_; ++rx_idx) {
                     std::string rx_name = photo_mappings.mappings_[rx_idx].name_.value_
