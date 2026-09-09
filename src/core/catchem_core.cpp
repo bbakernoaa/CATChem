@@ -33,6 +33,10 @@ namespace {
     // process, so a runaway species can be bisected to the introducing process
     // without re-running the whole coupled model multiple times.
     void log_watch_species_bounds(catchem::StateManager& state, const std::string& process_name, std::size_t step) {
+        // Per-step, per-process, per-species diagnostics: keep them behind the
+        // DEBUG threshold and skip the full-array sweep when it is off.
+        if (!catchem::Logger::enabled(catchem::Logger::Level::Debug))
+            return;
         static const std::vector<std::string> watch = {"so2",   "so4",   "dms",   "msa",   "bc1",   "bc2",
                                                        "oc1",   "oc2",   "dust1", "dust2", "dust3", "dust4",
                                                        "dust5", "seas1", "seas2", "seas3", "seas4", "seas5"};
@@ -56,13 +60,13 @@ namespace {
                     hi = std::max(hi, v);
                     sum += v;
                 }
-            catchem::Logger::info(&state, "watch-species bounds after process",
-                                  {{"step", std::to_string(step)},
-                                   {"process", process_name},
-                                   {"species", state.chemistry().species_list[ispec].short_name},
-                                   {"min", std::to_string(lo)},
-                                   {"max", std::to_string(hi)},
-                                   {"mixing_ratio_sum", std::to_string(sum)}});
+            catchem::Logger::debug(&state, "watch-species bounds after process",
+                                   {{"step", std::to_string(step)},
+                                    {"process", process_name},
+                                    {"species", state.chemistry().species_list[ispec].short_name},
+                                    {"min", std::to_string(lo)},
+                                    {"max", std::to_string(hi)},
+                                    {"mixing_ratio_sum", std::to_string(sum)}});
         }
     }
 
