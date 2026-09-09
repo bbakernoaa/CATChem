@@ -58,7 +58,8 @@ namespace catchem {
             throw std::invalid_argument("Settling gocart scale_factor must be positive");
         // A non-positive cap disables the clamp; otherwise it must be a valid RH fraction.
         if (gocart_swelling_rh_max > 1.0)
-            throw std::invalid_argument("Settling gocart swelling_rh_max must be <= 1.0 (RH fraction), or <= 0 to disable");
+            throw std::invalid_argument(
+                "Settling gocart swelling_rh_max must be <= 1.0 (RH fraction), or <= 0 to disable");
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and reaches the settling kernel.
@@ -147,14 +148,14 @@ namespace catchem {
                               state->chemistry().conc ? state->chemistry().conc->host_data() : nullptr);
 
         int bridge_rc = 0;
-        run_settling_science_bridge(
-            state->column_count(), state->level_count(), num_aerosols, state->species_count(), state->clock().timestep,
-            gocart_scale_factor, gocart_swelling_rh_max, gocart_correction_maring ? 1 : 0,
-            gocart_maring_dust_only ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp, pmid,
-            state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
-            aerosol_species_names.data(), state->chemistry().species_names_c_arr.data(), host_is_dust.data(),
-            host_is_hydrophilic.data(), host_radius_dry.data(), host_rhop_dry.data(),
-            state->chemistry().conc->host_write(), &bridge_rc);
+        run_settling_science_bridge(state->column_count(), state->level_count(), num_aerosols, state->species_count(),
+                                    state->clock().timestep, gocart_scale_factor, gocart_swelling_rh_max,
+                                    gocart_correction_maring ? 1 : 0, gocart_maring_dust_only ? 1 : 0,
+                                    state->meteorology().AIRDEN->host_data(), delp, pmid,
+                                    state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
+                                    aerosol_species_names.data(), state->chemistry().species_names_c_arr.data(),
+                                    host_is_dust.data(), host_is_hydrophilic.data(), host_radius_dry.data(),
+                                    host_rhop_dry.data(), state->chemistry().conc->host_write(), &bridge_rc);
         if (bridge_rc != 0)
             throw std::runtime_error("Settling science bridge failed with status " + std::to_string(bridge_rc));
         state->chemistry().conc->mark_host_modified();

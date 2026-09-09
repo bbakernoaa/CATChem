@@ -294,6 +294,10 @@ int catchem_config_get_latlon_output(void* core_ptr) {
     return core->get_config_manager()->data.diagnostics.output.format == "latlon" ? 1 : 0;
 }
 
+void catchem_set_config_echo_enabled(int enabled) {
+    catchem::ConfigManager::echo_config_to_stdout = (enabled != 0);
+}
+
 int catchem_config_get_diag_enabled(void* core_ptr) {
     if (core_ptr == nullptr)
         return 0;

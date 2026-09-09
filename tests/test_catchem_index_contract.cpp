@@ -26,7 +26,9 @@ namespace {
 
     // Encode a unique value per (column, level) so any index transposition is
     // detectable: value = 1000*level + column.
-    double tag(int column, int level) { return 1000.0 * level + column; }
+    double tag(int column, int level) {
+        return 1000.0 * level + column;
+    }
 
 } // namespace
 
@@ -100,8 +102,8 @@ int main(int argc, char* argv[]) {
             for (int c = 0; c < n_cols; ++c)
                 for (int lev = 0; lev < n_levels; ++lev)
                     for (int s = 0; s < n_species; ++s) {
-                        std::size_t flat =
-                            static_cast<std::size_t>(s) * n_levels * n_cols + static_cast<std::size_t>(lev) * n_cols + c;
+                        std::size_t flat = static_cast<std::size_t>(s) * n_levels * n_cols +
+                                           static_cast<std::size_t>(lev) * n_cols + c;
                         chem[flat] = 1000000.0 * s + tag(c, lev);
                     }
             state->bind_unified_chemistry(chem.data());

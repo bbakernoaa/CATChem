@@ -10,6 +10,10 @@
 
 namespace catchem {
 
+    // Default ON so standalone runs and tests keep echoing the effective
+    // configuration; the NUOPC driver turns this off on non-root PETs.
+    bool ConfigManager::echo_config_to_stdout = true;
+
     bool ValidationReport::has_errors() const {
         return std::any_of(issues.begin(), issues.end(),
                            [](const ValidationIssue& issue) { return issue.severity == ValidationSeverity::Error; });
@@ -512,10 +516,14 @@ namespace catchem {
         try {
             root_node = YAML::LoadFile(filename);
             // Echo the effective configuration to stdout so the run log (e.g.
-            // from the NUOPC cap) records exactly what the core parsed.
-            std::cout << "--- CATChem configuration: " << filename << " ---" << std::endl;
-            std::cout << root_node << std::endl;
-            std::cout << "--- End CATChem configuration ---" << std::endl;
+            // from the NUOPC cap) records exactly what the core parsed.  Under
+            // NUOPC the driver keeps this on the root PET only (every PET
+            // parses the same file); see echo_config_to_stdout.
+            if (echo_config_to_stdout) {
+                std::cout << "--- CATChem configuration: " << filename << " ---" << std::endl;
+                std::cout << root_node << std::endl;
+                std::cout << "--- End CATChem configuration ---" << std::endl;
+            }
             const YAML::Node& config = root_node;
             data.active_processes.clear();
             data.processes.clear();
@@ -604,8 +612,7 @@ namespace catchem {
                     data.diagnostics.output.frequency = value_or<int>(output["frequency"], 0);
                     data.diagnostics.output.format = value_or<std::string>(output["format"], "");
                     data.diagnostics.output.compress_lev = value_or<int>(output["compress_lev"], 0);
-                    data.diagnostics.output.process_diagnostics =
-                        value_or<bool>(output["process_diagnostics"], false);
+                    data.diagnostics.output.process_diagnostics = value_or<bool>(output["process_diagnostics"], false);
                     data.diagnostics.output.diag_list = string_vector_or_empty(output["diag_list"]);
                 }
                 if (diagnostics["collection"]) {

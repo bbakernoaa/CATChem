@@ -90,7 +90,8 @@ int main(int argc, char* argv[]) {
                     ++n_seasalt;
             assert(n_seasalt > 0);
             assert(manager->has_field("seasalt_mass_emission_bins"));
-            assert(manager->get_field("seasalt_mass_emission_bins")->dimensions == std::vector<int>({n_cols, n_seasalt}));
+            assert(manager->get_field("seasalt_mass_emission_bins")->dimensions ==
+                   std::vector<int>({n_cols, n_seasalt}));
             assert(manager->has_field("seasalt_number_emission_bins"));
             assert(manager->get_field("seasalt_number_emission_bins")->dimensions ==
                    std::vector<int>({n_cols, n_seasalt}));

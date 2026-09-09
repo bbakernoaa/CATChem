@@ -24,10 +24,10 @@ void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_tota
                              const double* ustar_threshold, const double* z0, const double* species_density,
                              const double* species_radius, const double* species_lower_radius,
                              const double* species_upper_radius, const char* bin_species_names,
-                             const char* species_names, double* conc, double* tendency,
-                             double* diag_emission_total, double* diag_emission_bin, double* diag_horizontal_flux,
-                             double* diag_moisture_correction, double* diag_effective_threshold,
-                             double* diag_utar_threshold, const int* diagnostic_species_id, int n_diag_species);
+                             const char* species_names, double* conc, double* tendency, double* diag_emission_total,
+                             double* diag_emission_bin, double* diag_horizontal_flux, double* diag_moisture_correction,
+                             double* diag_effective_threshold, double* diag_utar_threshold,
+                             const int* diagnostic_species_id, int n_diag_species);
 }
 
 namespace catchem {
@@ -341,9 +341,8 @@ namespace catchem {
         }
 
         // Full-width tendency scratch (the bridge writes only the dust slots).
-        std::vector<double> full_tendency(static_cast<size_t>(state->column_count()) * state->level_count() *
-                                              n_total_species,
-                                          0.0);
+        std::vector<double> full_tendency(
+            static_cast<size_t>(state->column_count()) * state->level_count() * n_total_species, 0.0);
 
         // diagnostic_species_id remains the per-bin subset index (1..n_dust):
         // the scheme still runs over n_dust bins internally.
@@ -362,8 +361,8 @@ namespace catchem {
             v10m_ptr, ustar_ptr, ustar_th_ptr, z0_ptr, density.data(), radius.data(), lower_radius.data(),
             upper_radius.data(), bin_species_names.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
             full_tendency.data(), diag_emission_total, diag_emission_bin, diag_horizontal_flux,
-            diag_moisture_correction, diag_effective_threshold, diag_utar_threshold,
-            local_diagnostic_species_id.data(), local_diagnostic_species_id.size());
+            diag_moisture_correction, diag_effective_threshold, diag_utar_threshold, local_diagnostic_species_id.data(),
+            local_diagnostic_species_id.size());
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();

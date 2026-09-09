@@ -228,6 +228,12 @@ module catchem_nuopc_interface
          integer(c_int), value :: default_val
       end function catchem_config_get_yaml_bool
 
+      subroutine catchem_set_config_echo_enabled(enabled) &
+         bind(C, name="catchem_set_config_echo_enabled")
+         import :: c_int
+         integer(c_int), value :: enabled
+      end subroutine catchem_set_config_echo_enabled
+
       integer(c_int) function catchem_core_get_timestep_outcome(core_ptr, status, timestep, duration, &
          import_generation, process_index, state_classification, process_name, process_name_len, cause, cause_len) &
          bind(C, name="catchem_core_get_timestep_outcome")
@@ -243,7 +249,7 @@ module catchem_nuopc_interface
       ! Emission-config query API used to resolve a MET_* map target back to the
       ! emission field that declares it (config is the source of truth).  These
       ! bind to the same global C symbols declared privately in
-      ! catchem_nuopc_emis_mod; re-declaring here keeps this module self-contained.
+      ! catchem_nuopc_emis_mod; redeclaring here keeps this module self-contained.
       integer(c_int) function catchem_config_has_emission_mapping(core_ptr) &
          bind(C, name="catchem_config_has_emission_mapping")
          import :: c_ptr, c_int
@@ -591,6 +597,8 @@ contains
       type(CATChem_InternalState) :: verify_is
       type(cc_wrap_type), pointer:: cc_wrap
       integer :: verify_rc
+      type(ESMF_VM) :: vm
+      integer :: localPet, vmrc
 
       ! Initialize
       rc = CC_SUCCESS
@@ -605,6 +613,16 @@ contains
       !get nx, ny
       nx = size(lat, 1)
       ny = size(lat, 2)
+
+      ! Every PET parses the same YAML, so echo the effective configuration to
+      ! stdout only on the root PET; the C++ core prints it during the
+      ! initialize() call below (see catchem_set_config_echo_enabled).
+      call ESMF_VMGetCurrent(vm, rc=vmrc)
+      if (vmrc == ESMF_SUCCESS) then
+         call ESMF_VMGet(vm, localPet=localPet, rc=vmrc)
+      end if
+      if (vmrc /= ESMF_SUCCESS) localPet = 0  ! single-PET or query failed: print
+      if (localPet /= 0) call catchem_set_config_echo_enabled(0_c_int)
 
       ! Initialize catchem using process-local variable
       if (present(nsoil) .and. present(nsoiltype) .and. present(nsurftype)) then
@@ -2267,7 +2285,7 @@ contains
 
       do i = 0, c_count - 1
          c_status = catchem_diag_get_name_at_checked(cc_wrap%catchem_model%cpp_core_ptr, &
-                     int(i, c_int), c_name, 64_c_int)
+            int(i, c_int), c_name, 64_c_int)
          if (c_status /= 0_c_int) cycle
          call catchem_c_string_to_fortran(c_name, field_name)
 
@@ -2276,17 +2294,17 @@ contains
          if (.not. (is_dust_field .or. is_seasalt_field)) cycle
          if (trim(process_name) /= 'all') then
             if (.not. ((trim(process_name) == 'dust' .and. is_dust_field) .or. &
-                       (trim(process_name) == 'seasalt' .and. is_seasalt_field))) cycle
+               (trim(process_name) == 'seasalt' .and. is_seasalt_field))) cycle
          end if
 
          rank = 0
          c_status = catchem_diag_get_rank_checked(cc_wrap%catchem_model%cpp_core_ptr, &
-                     trim(field_name) // c_null_char, rank)
+            trim(field_name) // c_null_char, rank)
          if (c_status /= 0_c_int .or. rank /= 2_c_int) cycle
 
          dims = 0
          c_status = catchem_diag_get_dims_checked(cc_wrap%catchem_model%cpp_core_ptr, &
-                     trim(field_name) // c_null_char, dims, 3_c_int)
+            trim(field_name) // c_null_char, dims, 3_c_int)
          if (c_status /= 0_c_int) cycle
          ! Process diagnostics are flattened over columns: [ncols, 1] totals
          ! or [ncols, nbin] per-bin arrays.  Anything else (e.g. a 3D field
@@ -2306,16 +2324,16 @@ contains
 
          units_str = ''
          c_status = catchem_diag_get_units_checked(cc_wrap%catchem_model%cpp_core_ptr, &
-                     trim(field_name) // c_null_char, c_units, 32_c_int)
+            trim(field_name) // c_null_char, c_units, 32_c_int)
          if (c_status == 0_c_int) call catchem_c_string_to_fortran(c_units, units_str)
          desc_str = ''
          c_status = catchem_diag_get_description_checked(cc_wrap%catchem_model%cpp_core_ptr, &
-                     trim(field_name) // c_null_char, c_desc, 256_c_int)
+            trim(field_name) // c_null_char, c_desc, 256_c_int)
          if (c_status == 0_c_int) call catchem_c_string_to_fortran(c_desc, desc_str)
 
          raw_ptr = c_null_ptr
          c_status = catchem_diag_get_pointer_checked(cc_wrap%catchem_model%cpp_core_ptr, &
-                     trim(field_name) // c_null_char, 2_c_int, dims, raw_ptr)
+            trim(field_name) // c_null_char, 2_c_int, dims, raw_ptr)
          if (c_status /= 0_c_int .or. .not. c_associated(raw_ptr)) then
             write(*,'(A,A)') 'Warning: Could not map process diagnostic storage: ', trim(field_name)
             cycle

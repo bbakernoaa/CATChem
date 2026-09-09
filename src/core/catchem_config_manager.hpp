@@ -195,6 +195,13 @@ namespace catchem {
         YAML::Node root_node;
 
     public:
+        // When false, load_from_file() suppresses the stdout echo of the parsed
+        // YAML.  The NUOPC driver disables it on non-root PETs so the effective
+        // configuration is printed once per run instead of once per PET.
+        // Defaults to true: standalone and test runs keep the historical
+        // behavior of printing exactly what the core parsed.
+        static bool echo_config_to_stdout;
+
         ConfigData data;
         bool is_loaded = false;
         std::string config_file_path;

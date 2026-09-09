@@ -10,8 +10,8 @@ int main() {
     config.load_species_file("Configs/Default/CATChem_species.yml");
     config.validate_or_throw();
 
-    const std::vector<std::string> expected_schedule = {
-        "seasalt", "dust", "carbchem", "settling", "drydep", "so4chem", "wetdep"};
+    const std::vector<std::string> expected_schedule = {"seasalt", "dust",    "carbchem", "settling",
+                                                        "drydep",  "so4chem", "wetdep"};
     assert(config.data.active_processes == expected_schedule);
     assert(config.data.grid.number_of_levels == 64);
     assert(config.data.timesteps.transport_timestep_in_s == 10);

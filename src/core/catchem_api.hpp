@@ -243,6 +243,15 @@ int catchem_config_get_yaml_list_count(void* core_ptr, const char* yaml_path);
  */
 void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int index, char* val_out, int max_len);
 
+/**
+ * @brief Enable or disable echoing the parsed YAML to stdout on configuration load.
+ * @param enabled Non-zero to echo (the default), zero to suppress.
+ *
+ * The NUOPC driver calls this with zero on non-root PETs so the effective
+ * configuration appears once per coupled run instead of once per PET.
+ */
+void catchem_set_config_echo_enabled(int enabled);
+
 // Diagnostic API
 void catchem_diag_register(void* core_ptr, const char* name, const char* desc, const char* units, int rank, int dim1,
                            int dim2, int dim3);

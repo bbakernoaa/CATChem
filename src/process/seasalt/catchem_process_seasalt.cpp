@@ -191,9 +191,8 @@ namespace catchem {
         }
 
         // Full-width tendency scratch (the bridge writes only the sea-salt slots).
-        std::vector<double> full_tendency(static_cast<size_t>(state->column_count()) * state->level_count() *
-                                              n_total_species,
-                                          0.0);
+        std::vector<double> full_tendency(
+            static_cast<size_t>(state->column_count()) * state->level_count() * n_total_species, 0.0);
 
         // 3. Extract diagnostics
         double* diag_mass_total_ptr =
@@ -219,10 +218,10 @@ namespace catchem {
                 : nullptr;
         if (diagnostics_enabled) {
             const int registered_bins =
-                diag_mass_bin_ptr ? static_cast<int>(state->diagnostic_manager()
-                                                          ->get_field("seasalt_mass_emission_bins")
-                                                          ->dimensions[1])
-                                  : 0;
+                diag_mass_bin_ptr
+                    ? static_cast<int>(
+                          state->diagnostic_manager()->get_field("seasalt_mass_emission_bins")->dimensions[1])
+                    : 0;
             if (registered_bins < n_seasalt)
                 throw std::runtime_error("SeaSalt diagnostic bin capacity (" + std::to_string(registered_bins) +
                                          ") is smaller than the " + std::to_string(n_seasalt) +
@@ -244,8 +243,8 @@ namespace catchem {
             frocean_ptr, frseaice_ptr, lat_ptr, lon_ptr, sst_ptr, u10m_ptr, v10m_ptr, ustar_ptr, delp_ptr,
             density.data(), radius.data(), lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(), mw_g.data(),
             bin_species_names.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, full_tendency.data(),
-            diag_mass_total_ptr, diag_num_total_ptr, diag_mass_bin_ptr, diag_num_bin_ptr,
-            diagnostic_species_id.data(), diagnostic_species_id.size());
+            diag_mass_total_ptr, diag_num_total_ptr, diag_mass_bin_ptr, diag_num_bin_ptr, diagnostic_species_id.data(),
+            diagnostic_species_id.size());
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();

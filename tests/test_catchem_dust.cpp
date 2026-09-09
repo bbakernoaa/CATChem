@@ -181,8 +181,7 @@ int main(int argc, char* argv[]) {
         assert(suppressed_total == 0.0 && "FENGSHA must not emit dust when saltation is suppressed");
         std::cout << "  Scenario B (suppressed): total surface dust = " << suppressed_total << std::endl;
 
-        std::cout << "SUCCESS: Dust process emits under favorable inputs and is silent when suppressed."
-                  << std::endl;
+        std::cout << "SUCCESS: Dust process emits under favorable inputs and is silent when suppressed." << std::endl;
     }
     Kokkos::finalize();
     return 0;
