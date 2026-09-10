@@ -957,44 +957,6 @@ contains
 
    end subroutine catchem_emis_read_regrid
 
-   !> \brief Get emission data for a specific field and location
-   !!
-   !! Returns emission rates for specified field at grid location.
-   !! Provides interface similar to aqm_emis_get.
-   !!
-   !! \param[in] ext_emis_data External emission data container
-   !! \param[in] category_name Name of emission category
-   !! \param[in] field_name Name of emission field
-   !! \param[in] i Longitude index
-   !! \param[in] j Latitude index
-   !! \param[in] k Vertical index (optional)
-   !! \return Emission rate [kg/m2/s]
-   function catchem_emis_get(ext_emis_data, field_name, i, j, k) result(emission_rate)
-      implicit none
-
-      type(ExtEmisDataType), intent(in) :: ext_emis_data
-      character(len=*), intent(in) :: field_name
-      integer, intent(in) :: i, j
-      integer, intent(in), optional :: k
-      real(fp) :: emission_rate
-
-      ! Local variables
-      integer :: kk
-      real(fp) :: rate
-
-      kk = 1
-      if (present(k)) kk = k
-
-      ! Get emission rate from ExtEmisDataType
-      rate = ext_emis_data%get_emission_rate(field_name, i, j, kk)
-
-      ! Apply any additional scaling or processing
-      emission_rate = rate
-
-   end function catchem_emis_get
-
-   !> \brief Apply emission data to chemical state
-   !!
    !> \brief Distribute 2D surface emissions vertically based on specified method
    !!
    !! Based on GOCART2G SulfateDistributeEmissions and distribute_aviation_emissions.

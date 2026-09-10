@@ -185,6 +185,16 @@ if(DEFINED BUILD_NUOPC)
   )
 endif()
 option(CATCHEM_BUILD_CCPP "Build the CCPP host interface" OFF)
+
+# Debug builds treat compiler warnings as errors so the tree cannot drift back
+# from zero warnings. OFF is the escape hatch for a toolchain that reports
+# something CATChem cannot fix. Release builds are unaffected (the warning
+# flag lists below are Debug-only).
+option(
+  CATCHEM_WARNINGS_AS_ERRORS
+  "Treat Debug-build compiler warnings as errors"
+  ON
+)
 option(
   CATCHEM_CCPP_TEST_STUBS
   "Build minimal CCPP framework stubs for contract testing"
@@ -338,6 +348,19 @@ if(
   AND CMAKE_BUILD_TYPE MATCHES "Debug"
 )
   list(APPEND _catchem_cxx_warning_options -Wall -Wextra)
+  if(CATCHEM_WARNINGS_AS_ERRORS)
+    list(APPEND _catchem_cxx_warning_options -Werror)
+  endif()
+endif()
+
+if(CATCHEM_WARNINGS_AS_ERRORS AND CMAKE_BUILD_TYPE MATCHES "Debug")
+  if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU|G95")
+    list(APPEND _catchem_compiler_options -Werror)
+  elseif(CMAKE_Fortran_COMPILER_ID MATCHES "^Intel")
+    # SHELL: keeps "-warn errors" as one unit; the list already holds
+    # "-warn all" and CMake would otherwise de-duplicate the second "-warn".
+    list(APPEND _catchem_compiler_options "SHELL:-warn errors")
+  endif()
 endif()
 
 # Disable Intel oneAPI C/C++ warning about -g without -O0

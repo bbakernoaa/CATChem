@@ -304,41 +304,6 @@ contains
 
    end subroutine compute_geos12
 
-   ! =======================================================================
-   ! SCHEME-SPECIFIC HELPER SUBROUTINES
-   ! =======================================================================
-   ! Add your custom scientific algorithms here as pure functions/subroutines
-   ! Examples: environmental response functions, species-specific calculations, etc.
-
-   !> Example helper function for environmental response
-   pure function compute_environmental_response_geos12(met_value, reference_value) result(factor)
-      real(fp), intent(in) :: met_value       ! Meteorological value
-      real(fp), intent(in) :: reference_value ! Reference value
-      real(fp) :: factor
-
-      ! Simple exponential response - customize for your scheme
-      factor = exp((met_value - reference_value) / reference_value)
-      factor = max(0.0_fp, min(10.0_fp, factor))  ! Reasonable bounds
-   end function compute_environmental_response_geos12
-
-   !> Example helper function for species-specific scaling
-   pure function compute_species_scaling_geos12(species_idx, params) result(scaling)
-      integer, intent(in) :: species_idx
-      type(SeaSaltSchemeGEOS12Config), intent(in) :: params
-      real(fp) :: scaling
-
-      ! Species-specific scaling - customize for your scheme
-      select case (species_idx)
-       case (1)
-         scaling = 1.0_fp    ! First species baseline
-       case (2:3)
-         scaling = 0.5_fp    ! Reduced emission for species 2-3
-       case default
-         scaling = 0.1_fp    ! Low emission for other species
-      end select
-
-   end function compute_species_scaling_geos12
-
    !>
    !! \brief Jeagle et al. 2012 SST correction
    !!

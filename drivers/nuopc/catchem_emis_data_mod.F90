@@ -187,9 +187,6 @@ MODULE catchem_nuopc_emis_data_mod
       !> \brief Add a new category to the container
       !! \copydoc extemidata_add_category
       PROCEDURE :: add_category => extemidata_add_category
-      !> \brief Load emission files
-      !! \copydoc extemidata_load_files
-      PROCEDURE :: load_emission_files => extemidata_load_files
       !> \brief Find emission field across all categories
       !! \copydoc extemidata_find_field
       PROCEDURE :: find_emission_field => extemidata_find_field
@@ -831,40 +828,6 @@ CONTAINS
       this%total_fields = this%total_fields + category%n_fields
 
    end subroutine extemidata_add_category
-
-   !> \brief Load emission files (placeholder)
-   !!
-   !! Placeholder implementation for loading all emission data from files.
-   !! Actual file I/O would be handled by the driver.
-   !!
-   !! \param[inout] this The ExtEmisDataType object
-   !! \param[in] file_list List of files to load
-   !! \param[inout] error_mgr Error manager for context and reporting
-   !! \param[out] rc Return code
-   subroutine extemidata_load_files(this, file_list, error_mgr, rc)
-      implicit none
-      class(ExtEmisDataType), intent(inout) :: this
-      character(len=*), intent(in) :: file_list(:)
-      type(ErrorManagerType), pointer, intent(inout) :: error_mgr
-      integer, intent(out) :: rc
-
-      ! Placeholder implementation: the driver loads the files, so the object
-      ! and the list are intentionally unused here. Reference them to keep the
-      ! type-bound signature without an unused-dummy-argument warning (the
-      ! assumed-shape list is referenced through size(); an associate on it
-      ! trips a spurious -Wmaybe-uninitialized).
-      associate(unused_this => this); end associate
-      if (size(file_list) >= 0) continue
-
-      rc = CC_SUCCESS
-      call error_mgr%push_context('extemidata_load_files', 'Loading emission files')
-
-      ! Placeholder - actual file loading is handled by the driver
-      print *, 'WARNING: ExtEmisData file loading is handled by driver'
-
-      call error_mgr%pop_context()
-
-   end subroutine extemidata_load_files
 
    !> \brief Find emission field across all categories
    !!
