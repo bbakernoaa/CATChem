@@ -173,11 +173,24 @@ namespace catchem {
         Logger::debug(state.get(), "Dynamic diagnostic field registration");
         if (state->diagnostic_manager()) {
             std::vector<int> dims_2d = {state->column_count(), state->level_count()};
+            // J-rate fields are rewritten in full (every column x level) on
+            // every step, so the blanket per-step reset that register_field()
+            // (DiagnosticPolicy::Instantaneous) performs is pure overhead.  They
+            // are registered Persistent instead; run() zeroes a column only on a
+            // TUV-x solver error, which preserves the Instantaneous semantics
+            // (unwritten cells read back as 0) without the per-step memset.
+            const std::vector<SemanticAxis> axes_2d = {SemanticAxis::Column, SemanticAxis::Level};
             for (size_t i = 0; i < photo_mappings.size_; ++i) {
                 std::string rx_name =
                     photo_mappings.mappings_[i].name_.value_ ? photo_mappings.mappings_[i].name_.value_ : "";
-                state->diagnostic_manager()->register_field(
-                    "photolysis_rate_" + rx_name, "Photolysis rate for " + rx_name, "s-1", DiagType::FIELD_2D, dims_2d);
+                std::string diag_name = "photolysis_rate_" + rx_name;
+                state->diagnostic_manager()->register_field_contract(diag_name, "Photolysis rate for " + rx_name, "s-1",
+                                                                     DiagType::FIELD_2D, dims_2d,
+                                                                     DiagnosticPolicy::Persistent, 0.0, axes_2d);
+                // Persistent fields never see the blanket reset, so seed the
+                // storage explicitly once; the per-step reset this replaces
+                // would otherwise have been the only zeroing pass.
+                state->diagnostic_manager()->get_field(diag_name)->reset();
             }
         }
         Logger::debug(state.get(), "PhotolysisProcess::init complete");
@@ -339,6 +352,23 @@ namespace catchem {
             if (err.code_ != 0) {
                 std::cerr << "PhotolysisProcess: Solver error in column " << i_col << ": "
                           << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
+                // The write loop below is skipped for this column, so clear its
+                // slice of every J-rate field.  This reproduces the zeroed cell
+                // that Instantaneous reset used to guarantee, now that the
+                // fields are Persistent and carry the previous step's values.
+                if (state->diagnostic_manager()) {
+                    for (size_t rx_idx = 0; rx_idx < photo_mappings.size_; ++rx_idx) {
+                        std::string rx_name = photo_mappings.mappings_[rx_idx].name_.value_
+                                                  ? photo_mappings.mappings_[rx_idx].name_.value_
+                                                  : "";
+                        double* diag_ptr = static_cast<double*>(
+                            state->diagnostic_manager()->get_host_pointer("photolysis_rate_" + rx_name));
+                        if (diag_ptr) {
+                            for (int i_lvl = 0; i_lvl < state->level_count(); ++i_lvl)
+                                diag_ptr[i_lvl * state->column_count() + i_col] = 0.0;
+                        }
+                    }
+                }
                 continue;
             }
 

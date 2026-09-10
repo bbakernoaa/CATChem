@@ -2919,17 +2919,20 @@ contains
       nj = size(pm25, 2)
       nk = size(pm25, 3)
 
-      ! Lazily register the PM fields in the C++ diagnostic manager
+      ! Lazily register the PM fields in the C++ diagnostic manager.  Both
+      ! fields are rewritten in full (diag_ptr = pm25/pm10 below) on every
+      ! step, so they are registered Persistent to skip the blanket
+      ! per-step reset that Instantaneous fields pay in begin_timestep().
       if (.not. cc_wrap%pm_diag_registered) then
          call cc_wrap%catchem_model%register_diagnostic('pm25', &
-            'PM2.5 aerosol mass concentration', 'ug m-3', (/ni, nj, nk/), rc)
+            'PM2.5 aerosol mass concentration', 'ug m-3', (/ni, nj, nk/), rc, persistent=.true.)
          if (rc /= 0) then
             write(*,'(A)') 'Error: could not register pm25 diagnostic'
             rc = CC_FAILURE
             return
          end if
          call cc_wrap%catchem_model%register_diagnostic('pm10', &
-            'PM10 aerosol mass concentration', 'ug m-3', (/ni, nj, nk/), rc)
+            'PM10 aerosol mass concentration', 'ug m-3', (/ni, nj, nk/), rc, persistent=.true.)
          if (rc /= 0) then
             write(*,'(A)') 'Error: could not register pm10 diagnostic'
             rc = CC_FAILURE

@@ -33,7 +33,9 @@ int main() {
     assert(config.data.processes.at("drydep").get_string("aero_scheme") == "gocart");
 
     assert(config.is_process_active("extemis"));
-    assert(config.data.diagnostics.output.enabled);
+    // NetCDF diagnostic output is intentionally disabled in the Default config;
+    // the parity runner reads state directly, not the output files.
+    assert(!config.data.diagnostics.output.enabled);
     assert(config.data.diagnostics.output.compress_lev == 2);
     assert(config.data.species.size() == 22);
     std::cout << "PASS: Default runtime configuration contract\n";

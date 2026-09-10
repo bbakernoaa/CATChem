@@ -961,22 +961,42 @@ contains
       if (present(rc)) rc = CC_SUCCESS
    end subroutine model_bind_unified_chemistry_4d
 
-   ! Register a 3D diagnostic field in the C++ DiagnosticManager
-   subroutine model_register_diagnostic(this, name, desc, units, dims, rc)
+   ! Register a 3D diagnostic field in the C++ DiagnosticManager.
+   !
+   ! By default the field is DiagnosticPolicy::Instantaneous, which the C++
+   ! manager resets (full-array memset) at the start of every timestep.  Hosts
+   ! that fully overwrite the field each step (e.g. the PM2.5/PM10 diagnostics)
+   ! can pass persistent=.true. to select DiagnosticPolicy::Persistent and skip
+   ! that per-step reset; the writer must then guarantee every element is
+   ! rewritten before the field is read.
+   subroutine model_register_diagnostic(this, name, desc, units, dims, rc, persistent)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: name, desc, units
       integer, intent(in) :: dims(3)
       integer, intent(out) :: rc
+      logical, optional, intent(in) :: persistent
 
       character(kind=c_char) :: c_name(64), c_desc(128), c_units(64)
+      integer(c_int) :: c_dims(3), c_axes(3)
+      integer, parameter :: POLICY_INSTANTANEOUS = 0, POLICY_PERSISTENT = 2
+      integer, parameter :: AXIS_COLUMN = 0, AXIS_LEVEL = 1, AXIS_SPECIES = 4
 
       rc = CC_FAILURE
       if (.not. c_associated(this%cpp_core_ptr)) return
       call to_c_string(name, c_name)
       call to_c_string(desc, c_desc)
       call to_c_string(units, c_units)
-      rc = int(catchem_diag_register_checked(this%cpp_core_ptr, c_name, c_desc, c_units, &
-         3_c_int, int(dims(1), c_int), int(dims(2), c_int), int(dims(3), c_int)))
+      if (present(persistent) .and. persistent) then
+         ! Match the axes DiagnosticManager::register_field() would derive for a
+         ! 3D field (Column, Level, Species) so re-registration stays consistent.
+         c_dims = int(dims, c_int)
+         c_axes = [AXIS_COLUMN, AXIS_LEVEL, AXIS_SPECIES]
+         rc = int(catchem_diag_register_contract_checked(this%cpp_core_ptr, c_name, c_desc, c_units, &
+            3_c_int, c_dims, c_axes, int(POLICY_PERSISTENT, c_int), 0.0_c_double))
+      else
+         rc = int(catchem_diag_register_checked(this%cpp_core_ptr, c_name, c_desc, c_units, &
+            3_c_int, int(dims(1), c_int), int(dims(2), c_int), int(dims(3), c_int)))
+      end if
       if (rc /= CC_SUCCESS) call capture_boundary_error(this)
    end subroutine model_register_diagnostic
 
