@@ -174,11 +174,19 @@ int main(int argc, char* argv[]) {
             auto contract = settling->get_contract();
             for (const char* name : {"T", "AIRDEN", "DELP", "RH", "Z", "PMID"}) {
                 bool present = false;
-                for (const auto& field : contract.fields)
-                    if (field.canonical_name == name)
+                for (const auto& field : contract.fields) {
+                    if (field.canonical_name == name) {
                         present = true;
+                        check(field.execution_space == catchem::ExecutionSpaceIntent::Host,
+                              std::string("Fortran settling bridge declares host access for ") + name);
+                    }
+                }
                 check(present, std::string("contract requires ") + name);
             }
+            for (const auto& field : contract.fields)
+                if (field.canonical_name == "CONCENTRATION")
+                    check(field.execution_space == catchem::ExecutionSpaceIntent::Host,
+                          "Fortran settling bridge declares host access for concentration");
         }
 
         // --- Absent contracted field aborts with a named error ---------------

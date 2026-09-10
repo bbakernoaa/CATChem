@@ -91,8 +91,18 @@ int main() {
     state_object->chemistry().conc->sync_to_device();
     assert(state_object->chemistry().conc->view()(0, 0, 0) == 99.0);
     double* slab = nullptr;
+#ifdef CATCHEM_ENABLE_KOKKOS
+    // The checked concentration pointer is the NUOPC/read boundary.  A
+    // device-side writer must be visible there without requiring the caller
+    // to know CATChem's internal mirror state.
+    auto device_concentration = state_object->chemistry().conc->device_write();
+    Kokkos::deep_copy(device_concentration, 314.0);
+#endif
     assert(catchem_state_get_species_conc_pointer_checked(state, 1, nc, nl, &slab) == CATCHEM_SUCCESS);
     assert(slab == chemistry.data());
+#ifdef CATCHEM_ENABLE_KOKKOS
+    assert(slab[0] == 314.0);
+#endif
     assert(catchem_state_get_species_conc_pointer_checked(state, ns, nc, nl, &slab) == CATCHEM_SUCCESS);
     assert(slab == chemistry.data() + nc * nl * (ns - 1));
     assert(catchem_state_get_species_conc_pointer_checked(state, 0, nc, nl, &slab) == CATCHEM_INVALID_INDEX);

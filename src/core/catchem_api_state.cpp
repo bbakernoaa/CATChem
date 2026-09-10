@@ -423,9 +423,17 @@ int catchem_state_get_species_conc_pointer_checked(void* state_ptr, int species_
             return CATCHEM_EXTENT_MISMATCH;
         if (species_index < 1 || species_index > state->species_count())
             return CATCHEM_INVALID_INDEX;
-        if (!state->chemistry().conc || !state->chemistry().conc->host_data())
+        if (!state->chemistry().conc)
             return CATCHEM_INVALID_STATE;
-        *ptr_out = state->chemistry().conc->host_data() + static_cast<std::size_t>(species_index - 1) * dim1 * dim2;
+        // This is a read boundary used by NUOPC export and diagnostics.  Make
+        // the host mirror current before exposing its raw pointer; otherwise a
+        // device-resident process can appear to have produced no concentration
+        // change at the coupling boundary.
+        const double* concentration = state->chemistry().conc->host_read();
+        if (!concentration)
+            return CATCHEM_INVALID_STATE;
+        *ptr_out = const_cast<double*>(concentration) +
+                   static_cast<std::size_t>(species_index - 1) * dim1 * dim2;
         return CATCHEM_SUCCESS;
     } catch (...) {
         return CATCHEM_INTERNAL_ERROR;

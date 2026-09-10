@@ -17,13 +17,16 @@ namespace catchem {
                                                 const double* density, double* concentration, int* bridge_rc);
 
     ProcessContract SettlingProcess::get_contract() const {
-        ProcessContract contract =
-            make_contract(get_name(), {host_field_3d("T", "K"), host_field_3d("AIRDEN", "kg/m3"),
-                                       host_field_3d("DELP", "Pa"), host_field_3d("PMID", "Pa"),
-                                       host_field_3d("RH", "1"), host_field_interface("Z", "m"), host_concentration()});
-        for (auto& field : contract.fields)
-            field.execution_space = ExecutionSpaceIntent::Device;
-        return contract;
+        // The current GOCART implementation invokes a Fortran science bridge
+        // with host pointers.  Advertising these fields as device accesses
+        // makes ExecutionPlan::complete() mark the device copy as the latest
+        // writer after the bridge has modified host concentration memory.
+        // A later host synchronization can then overwrite the settling result
+        // (and the concentration presented to a coupled host) with stale data.
+        return make_contract(get_name(), {host_field_3d("T", "K"), host_field_3d("AIRDEN", "kg/m3"),
+                                          host_field_3d("DELP", "Pa"), host_field_3d("PMID", "Pa"),
+                                          host_field_3d("RH", "1"), host_field_interface("Z", "m"),
+                                          host_concentration()});
     }
 
     SettlingProcess::SettlingProcess() : active_scheme("c++_kokkos"), fortran_callback(nullptr) {}
