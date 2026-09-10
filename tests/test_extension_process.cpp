@@ -9,13 +9,12 @@ public:
     explicit ExtensionProcess(bool& finalized) : finalized_(finalized) {}
     std::string get_name() const override { return "test-extension"; }
     catchem::ProcessContract get_contract() const override {
-        return {get_name(),
-                {catchem::host_field_3d("T", "K"), catchem::host_concentration()},
-                {{"extension.marker", "", true}},
-                {{"extension_value",
-                  "1",
-                  {catchem::SemanticAxis::Column, catchem::SemanticAxis::Singleton},
-                  catchem::PersistencePolicy::Timestep}}};
+        return catchem::make_contract(get_name(), {catchem::host_field_3d("T", "K"), catchem::host_concentration()},
+                                      {{"extension.marker", "", true}},
+                                      {{"extension_value",
+                                        "1",
+                                        {catchem::SemanticAxis::Column, catchem::SemanticAxis::Singleton},
+                                        catchem::PersistencePolicy::Timestep}});
     }
     void init(std::shared_ptr<catchem::StateManager> state) override {
         state->diagnostic_manager()->register_field("extension_value", "extension output", "1",

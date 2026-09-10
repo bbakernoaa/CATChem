@@ -74,13 +74,15 @@ contains
    subroutine CheckImport(model, rc)
       type(ESMF_GridComp) :: model
       integer, intent(out) :: rc
+      ! ESMF specialization signature; this no-op never touches the component.
+      associate(unused_model => model); end associate
       rc = ESMF_SUCCESS
    end subroutine CheckImport
 
    subroutine Advance(model, rc)
       type(ESMF_GridComp) :: model
       integer, intent(out) :: rc
-      type(ESMF_State) :: importState, exportState
+      type(ESMF_State) :: exportState
       type(ESMF_Clock) :: clock
       type(ESMF_Time) :: curr_time, next_time
       type(ESMF_TimeInterval) :: time_step
@@ -344,8 +346,7 @@ program nuopc_contract_harness
    use catchem_nuopc_interface, only: load_field_config, transform_nuopc_to_catchem, &
       transform_catchem_to_nuopc, field_config, cc_wrap_type, update_pm_diagnostics
    use catchem_bridge_error, only: CC_SUCCESS
-   use catchem_bridge_precision, only: fp
-   use catchem_bridge_constants, only: AIRMW
+   use catchem_bridge_precision, only: fp, exact_equal
    use CATChem_API, only: CATChem_Model
 
    implicit none
@@ -413,7 +414,8 @@ program nuopc_contract_harness
    character(kind=c_char) :: parity_c_name(64)
    character(len=64) :: parity_name
    character(len=512) :: parity_report
-   character(len=ESMF_MAXSTR) :: exchange_tracer_names(ntr), exchange_tracer_units(ntr)
+   ! Same length as cc_wrap_type%tracer_map%names/units (character(len=128)).
+   character(len=128) :: exchange_tracer_names(ntr), exchange_tracer_units(ntr)
    character(len=64), parameter :: parity_expected(3) = [character(len=64) :: &
       'unfamiliar_alpha', 'unfamiliar_beta', 'unfamiliar_gamma']
 
@@ -462,6 +464,7 @@ program nuopc_contract_harness
    parity_status = catchem_state_get_species_count_checked(cc_wrap%catchem_model%state_mgr_ptr, species_count)
    if (parity_status /= 0_c_int) error stop 'Active species count lookup failed'
    gas_slot = 0; aerosol_slot = 0
+   gas_idx = 0_c_int; aerosol_idx = 0_c_int
    do i = 1, species_count
       gas_flag = 0_c_int; aerosol_flag = 0_c_int
       if (catchem_state_is_species_gas_checked(cc_wrap%catchem_model%state_mgr_ptr, int(i,c_int), gas_flag) /= 0_c_int) cycle
@@ -656,8 +659,8 @@ program nuopc_contract_harness
          size(cc_wrap%met_buf_3d(i)%data, 3) /= nz + 1) then
          error stop 'PF*SAN level_to_interface buffer extent is invalid'
       end if
-      if (cc_wrap%met_buf_3d(i)%data(1,1,1) /= 111.0_c_double .or. &
-         cc_wrap%met_buf_3d(i)%data(1,1,nz+1) /= cc_wrap%met_buf_3d(i)%data(1,1,nz)) then
+      if (.not. exact_equal(cc_wrap%met_buf_3d(i)%data(1,1,1), 111.0_c_double) .or. &
+         .not. exact_equal(cc_wrap%met_buf_3d(i)%data(1,1,nz+1), cc_wrap%met_buf_3d(i)%data(1,1,nz))) then
          error stop 'PF*SAN level_to_interface buffer was not reconstructed as upstream'
       end if
    end do

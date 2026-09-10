@@ -22,7 +22,7 @@ namespace catchem {
 
         std::string get_name() const override { return name; }
 
-        void init(std::shared_ptr<StateManager> state) override {
+        void init([[maybe_unused]] std::shared_ptr<StateManager> state) override {
             // Initial setup if required
         }
 

@@ -457,6 +457,12 @@ namespace catchem {
             auto pedge = met.PEDGE->view();
             auto temp = met.T->view();
             auto bxheight = met.BXHEIGHT->view();
+            // Resolve QV outside the kernel: capturing `met` would capture `this`
+            // (deprecated under C++20 with [=], and not device-safe). When QV is
+            // absent, `qv` aliases `temp` purely to have a view of the right type;
+            // it is never read in that case.
+            const bool have_qv = met.QV && met.QV->availability == AvailabilityState::Current;
+            auto qv = have_qv ? met.QV->view() : temp;
 
 #ifdef CATCHEM_ENABLE_KOKKOS
             Kokkos::parallel_for(
@@ -467,9 +473,7 @@ namespace catchem {
                     double p_upper = pedge(icol, ilev + 1, 0);
 
                     if (p_upper > 0.0 && p_lower > 0.0 && p_lower > p_upper) {
-                        double q_val = (met.QV && met.QV->availability == AvailabilityState::Current)
-                                           ? met.QV->view()(icol, ilev, 0)
-                                           : 0.0;
+                        double q_val = have_qv ? qv(icol, ilev, 0) : 0.0;
                         if (!(q_val >= 0.0 && q_val < 1.0))
                             q_val = q_val == q_val ? (q_val < 0.0 ? 0.0 : 0.9999) : 0.0;
                         double t_val = temp(icol, ilev, 0);
@@ -488,9 +492,7 @@ namespace catchem {
                     double p_upper = pedge(icol, ilev + 1, 0);
 
                     if (p_upper > 0.0 && p_lower > 0.0 && p_lower > p_upper) {
-                        double q_val = (met.QV && met.QV->availability == AvailabilityState::Current)
-                                           ? met.QV->view()(icol, ilev, 0)
-                                           : 0.0;
+                        double q_val = have_qv ? qv(icol, ilev, 0) : 0.0;
                         if (!std::isfinite(q_val))
                             q_val = 0.0;
                         q_val = std::clamp(q_val, 0.0, 0.9999);
@@ -566,15 +568,16 @@ namespace catchem {
             auto pmid = met.PMID->view();
             auto temp = met.T->view();
             auto airden_dry = met.AIRDEN_DRY->view();
+            // See derive_bxheight: resolve QV outside the kernel.
+            const bool have_qv = met.QV && met.QV->availability == AvailabilityState::Current;
+            auto qv = have_qv ? met.QV->view() : temp;
 
 #ifdef CATCHEM_ENABLE_KOKKOS
             Kokkos::parallel_for(
                 "derive_airden_dry_kernel",
                 Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({0, 0}, {nc, nl}),
                 KOKKOS_LAMBDA(int icol, int ilev) {
-                    double q = (met.QV && met.QV->availability == AvailabilityState::Current)
-                                   ? met.QV->view()(icol, ilev, 0)
-                                   : 0.0;
+                    double q = have_qv ? qv(icol, ilev, 0) : 0.0;
                     if (!(q >= 0.0 && q < 1.0))
                         q = q == q ? (q < 0.0 ? 0.0 : 0.9999) : 0.0;
                     double pressure = pmid(icol, ilev, 0);
@@ -588,9 +591,7 @@ namespace catchem {
 #else
             for (int icol = 0; icol < nc; ++icol) {
                 for (int ilev = 0; ilev < nl; ++ilev) {
-                    double q = (met.QV && met.QV->availability == AvailabilityState::Current)
-                                   ? met.QV->view()(icol, ilev, 0)
-                                   : 0.0;
+                    double q = have_qv ? qv(icol, ilev, 0) : 0.0;
                     if (!std::isfinite(q))
                         q = 0.0;
                     q = std::clamp(q, 0.0, 0.9999);

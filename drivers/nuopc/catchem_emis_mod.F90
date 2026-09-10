@@ -37,7 +37,7 @@ module catchem_nuopc_emis_mod
    use aqmio
    use netcdf
    use catchem_regrid_mod, only: RegridCache, catchem_regrid_field, catchem_regrid_cleanup
-   use catchem_bridge_precision, only: fp
+   use catchem_bridge_precision, only: fp, is_exact_zero
    use catchem_bridge_error, only: CC_SUCCESS, CC_FAILURE
    use catchem_nuopc_emis_data_mod, only: ExtEmisDataType, ExtEmisCategoryType, ExtEmisFieldType
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
@@ -434,7 +434,7 @@ contains
             end if
          end if
 
-         call catchem_emis_apply(ext_emis_data%categories(i), i, ext_emis_data%global_scale, core_ptr, dt, current_time, localrc)
+         call catchem_emis_apply(ext_emis_data%categories(i), ext_emis_data%global_scale, core_ptr, dt, current_time, localrc)
          if (localrc /= CC_SUCCESS) then
             write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed to apply emissions for category: ', &
                trim(ext_emis_data%categories(i)%category_name)
@@ -477,7 +477,6 @@ contains
       real(ESMF_KIND_R4), pointer :: field_data_3d(:,:,:) => null()
       character(len=*), parameter :: pName = 'catchem_emis_read'
       logical :: use_regrid
-      logical :: didRegrid
       logical :: file_exists
 
       rc = CC_SUCCESS
@@ -958,44 +957,6 @@ contains
 
    end subroutine catchem_emis_read_regrid
 
-   !> \brief Get emission data for a specific field and location
-   !!
-   !! Returns emission rates for specified field at grid location.
-   !! Provides interface similar to aqm_emis_get.
-   !!
-   !! \param[in] ext_emis_data External emission data container
-   !! \param[in] category_name Name of emission category
-   !! \param[in] field_name Name of emission field
-   !! \param[in] i Longitude index
-   !! \param[in] j Latitude index
-   !! \param[in] k Vertical index (optional)
-   !! \return Emission rate [kg/m2/s]
-   function catchem_emis_get(ext_emis_data, field_name, i, j, k) result(emission_rate)
-      implicit none
-
-      type(ExtEmisDataType), intent(in) :: ext_emis_data
-      character(len=*), intent(in) :: field_name
-      integer, intent(in) :: i, j
-      integer, intent(in), optional :: k
-      real(fp) :: emission_rate
-
-      ! Local variables
-      integer :: kk
-      real(fp) :: rate
-
-      kk = 1
-      if (present(k)) kk = k
-
-      ! Get emission rate from ExtEmisDataType
-      rate = ext_emis_data%get_emission_rate(field_name, i, j, kk)
-
-      ! Apply any additional scaling or processing
-      emission_rate = rate
-
-   end function catchem_emis_get
-
-   !> \brief Apply emission data to chemical state
-   !!
    !> \brief Distribute 2D surface emissions vertically based on specified method
    !!
    !! Based on GOCART2G SulfateDistributeEmissions and distribute_aviation_emissions.
@@ -1035,6 +996,7 @@ contains
       integer :: i, j, k
       real(fp) :: ps, p0, p1, z0_col, z1_col, dz, deltaz, deltap
       real(fp) :: p100, p500, pPBL, p9000, p10000, zpbl
+      logical :: found100, found500, foundPBL, found9000, found10000
       real(fp) :: f_dist, emis_sfc
       real(fp) :: p_top, p_bot  ! pressure range for distribution
 
@@ -1043,8 +1005,8 @@ contains
       !   LTO (Landing/Take-Off):     0 -   100 m
       !   CDS (Climb/Descent):      100 -  9000 m
       !   CRS (Cruise):            9000 - 10000 m
-      real(fp), parameter :: AVN_LTO_BOT =     0.0_fp
-      real(fp), parameter :: AVN_LTO_TOP =   100.0_fp
+      ! Only the CDS/CRS tops are needed numerically; the LTO bounds (0-100 m)
+      ! are the p100 level computed below.
       real(fp), parameter :: AVN_CDS_TOP =  9.0e3_fp
       real(fp), parameter :: AVN_CRS_TOP = 10.0e3_fp
 
@@ -1070,7 +1032,7 @@ contains
          do i = 1, nx
             ! Save surface emission value (2D data is stored in k=1 slot)
             emis_sfc = emission_flux(i, j, 1)
-            if (emis_sfc == 0.0_fp) cycle
+            if (is_exact_zero(emis_sfc)) cycle
 
             ! Compute surface pressure by summing all layer thicknesses
             ps = 0.0_fp
@@ -1081,46 +1043,51 @@ contains
             ! Find pressure at target altitudes by walking from surface (k=1) upward (k=nz)
             p0 = ps
             z0_col = 0.0_fp
-            p100   = 0.0_fp
-            p500   = 0.0_fp
-            pPBL   = 0.0_fp
-            p9000  = 0.0_fp
-            p10000 = 0.0_fp
+            p100   = 0.0_fp;  found100   = .false.
+            p500   = 0.0_fp;  found500   = .false.
+            pPBL   = 0.0_fp;  foundPBL   = .false.
+            p9000  = 0.0_fp;  found9000  = .false.
+            p10000 = 0.0_fp;  found10000 = .false.
 
             do k = 1, nz
                p1 = p0 - delp(i, j, k)
                dz = delp(i, j, k) / (airden(i, j, k) * g0)
                z1_col = z0_col + dz
 
-               if (p100 == 0.0_fp .and. z0_col < 100.0_fp .and. z1_col >= 100.0_fp) then
+               if (.not. found100 .and. z0_col < 100.0_fp .and. z1_col >= 100.0_fp) then
                   deltaz = z1_col - 100.0_fp
                   deltap = deltaz * airden(i, j, k) * g0
                   p100 = p1 + deltap
+                  found100 = .true.
                end if
 
-               if (p500 == 0.0_fp .and. z0_col < 500.0_fp .and. z1_col >= 500.0_fp) then
+               if (.not. found500 .and. z0_col < 500.0_fp .and. z1_col >= 500.0_fp) then
                   deltaz = z1_col - 500.0_fp
                   deltap = deltaz * airden(i, j, k) * g0
                   p500 = p1 + deltap
+                  found500 = .true.
                end if
 
                zpbl = max(pblh(i, j), 100.0_fp)
-               if (pPBL == 0.0_fp .and. z0_col < zpbl .and. z1_col >= zpbl) then
+               if (.not. foundPBL .and. z0_col < zpbl .and. z1_col >= zpbl) then
                   deltaz = z1_col - zpbl
                   deltap = deltaz * airden(i, j, k) * g0
                   pPBL = p1 + deltap
+                  foundPBL = .true.
                end if
 
-               if (p9000 == 0.0_fp .and. z0_col < AVN_CDS_TOP .and. z1_col >= AVN_CDS_TOP) then
+               if (.not. found9000 .and. z0_col < AVN_CDS_TOP .and. z1_col >= AVN_CDS_TOP) then
                   deltaz = z1_col - AVN_CDS_TOP
                   deltap = deltaz * airden(i, j, k) * g0
                   p9000 = p1 + deltap
+                  found9000 = .true.
                end if
 
-               if (p10000 == 0.0_fp .and. z0_col < AVN_CRS_TOP .and. z1_col >= AVN_CRS_TOP) then
+               if (.not. found10000 .and. z0_col < AVN_CRS_TOP .and. z1_col >= AVN_CRS_TOP) then
                   deltaz = z1_col - AVN_CRS_TOP
                   deltap = deltaz * airden(i, j, k) * g0
                   p10000 = p1 + deltap
+                  found10000 = .true.
                end if
 
                p0 = p1
@@ -1128,11 +1095,11 @@ contains
             end do
 
             ! Fallback: if target height was never reached, use top-of-atmosphere pressure
-            if (p100   == 0.0_fp) p100   = p0
-            if (p500   == 0.0_fp) p500   = p0
-            if (pPBL   == 0.0_fp) pPBL   = p0
-            if (p9000  == 0.0_fp) p9000  = p0
-            if (p10000 == 0.0_fp) p10000 = p0
+            if (.not. found100)   p100   = p0
+            if (.not. found500)   p500   = p0
+            if (.not. foundPBL)   pPBL   = p0
+            if (.not. found9000)  p9000  = p0
+            if (.not. found10000) p10000 = p0
 
             ! Determine pressure range for this distribution type
             ! p_bot = higher pressure (lower altitude), p_top = lower pressure (higher altitude)
@@ -1218,12 +1185,13 @@ contains
    !! would produce and scaling down if it exceeds max_bb_exttau (30.0).
    !! Follows GOCART2G CAEmission pattern.
    !!
+   !! Placeholder: the Mie-based AOT check is not implemented yet, so the
+   !! factor is 1 everywhere. The inputs are carried so the intended
+   !! interface is visible at the call site.
+   !!
    !! \param[in]  emission_flux  3D emission flux after vertical distribution [kg/m2/s]
    !! \param[in]  scale_factor   Species-specific scale factor from mapping
    !! \param[in]  dt             Time step [s]
-   !! \param[in]  met_state      Meteorological state (for RH)
-   !! \param[in]  chem_state     Chemical state (for MieData)
-   !! \param[in]  species_idx    Species index in chem_state
    !! \param[out] f_bb           2D scaling factor [0..1] per column
    !! \param[out] rc             Return code
    subroutine compute_bb_emission_factor(emission_flux, scale_factor, dt, &
@@ -1234,7 +1202,13 @@ contains
       real(fp), intent(in)    :: scale_factor
       real(fp), intent(in)    :: dt
       real(fp), intent(out)   :: f_bb(:,:)
-      integer, intent(out)   :: rc
+      integer, intent(out)    :: rc
+
+      ! Inputs are not used by the placeholder; reference them so the
+      ! signature stays stable without unused-argument warnings (the
+      ! assumed-shape array via size(), scalars via associate).
+      associate(unused_scale => scale_factor, unused_dt => dt); end associate
+      if (size(emission_flux) >= 0) continue
 
       rc = CC_SUCCESS
       f_bb = 1.0_fp
@@ -1320,7 +1294,6 @@ contains
       real(fp) :: secs, secs_local, aBoreal, aNonBoreal, alpha
       real(fp) :: fBoreal, fNonBoreal
       integer :: nhms
-      character(len=*), parameter :: pName = 'apply_biomass_diurnal'
 
       rc = CC_SUCCESS
 
@@ -1351,7 +1324,7 @@ contains
       ! Apply diurnal factors depending on latitude
       do j = 1, ny
          do i = 1, nx
-            if (emission_2d(i,j) == 0.0_fp) cycle
+            if (is_exact_zero(emission_2d(i,j))) cycle
 
             ! Find corresponding index in diurnal cycle array
             ! 240 = 24*60*60 / 360 (seconds per degree of longitude)
@@ -1388,12 +1361,11 @@ contains
    !! \param[in] met_state Meteorological state for unit conversion
    !! \param[in] dt Time step [s]
    !! \param[out] rc Return code
-   subroutine catchem_emis_apply(category, icat, global_scale, core_ptr, dt, current_time, rc)
+   subroutine catchem_emis_apply(category, global_scale, core_ptr, dt, current_time, rc)
       use catchem_bridge_constants, only: g0, AIRMW
       implicit none
 
       type(ExtEmisCategoryType), intent(inout) :: category
-      integer, intent(in) :: icat
       real(fp), intent(in) :: global_scale
       type(c_ptr), intent(in), optional :: core_ptr
       real(fp), intent(in) :: dt
@@ -1467,7 +1439,7 @@ contains
       if (.not. c_associated(core_ptr)) return
 
       if (is_point_category(category)) then
-         call catchem_emis_apply_points(category, icat, global_scale, core_ptr, dt, rc)
+         call catchem_emis_apply_points(category, global_scale, core_ptr, dt, rc)
          return
       end if
 
@@ -1877,7 +1849,6 @@ contains
       real(ESMF_KIND_R8), allocatable :: locmind(:), glomind(:), locpet(:), glopet(:)
       integer, allocatable :: lmi(:), lmj(:)
       real(fp), parameter :: dtol = 1.0e-9_fp
-      character(len=*), parameter :: pName = 'catchem_map_points_to_grid'
 
       rc = CC_SUCCESS
 
@@ -1963,12 +1934,11 @@ contains
    !! rate (pemis) is taken in the file's native units [kg/s]; any mass conversion
    !! to the target species (e.g. kg S/s -> kg SO2/s, scale=2.0) is supplied through
    !! the species-map scale factor, exactly as for gridded emissions.
-   subroutine catchem_emis_apply_points(category, icat, global_scale, core_ptr, dt, rc)
+   subroutine catchem_emis_apply_points(category, global_scale, core_ptr, dt, rc)
       use catchem_bridge_constants, only: g0, AIRMW
       implicit none
 
       type(ExtEmisCategoryType), intent(inout) :: category
-      integer, intent(in) :: icat
       real(fp), intent(in) :: global_scale
       type(c_ptr), intent(in) :: core_ptr
       real(fp), intent(in) :: dt
@@ -1980,7 +1950,7 @@ contains
       real(c_double) :: area, fluxcol, hlow, hup, dzv, zb, zt, ovlp, frac
       real(c_double) :: converter, scale_factor, dmr
       character(len=64) :: mapped_species_name
-      character(len=EMIS_MAXSTR) :: msg, category_name, field_name
+      character(len=EMIS_MAXSTR) :: category_name, field_name
       character(len=*), parameter :: pName = 'catchem_emis_apply_points'
 
       integer(c_int) :: species_index
@@ -2476,7 +2446,7 @@ contains
       integer, intent(out) :: rc
       character(len=64), optional, allocatable, intent(out) :: diag_species(:)
 
-      integer :: localrc, i, n_diag
+      integer :: i, n_diag
       character(len=EMIS_MAXSTR) :: config_path, item_path, c_buf, clean_cat_name
 
       rc = CC_SUCCESS
@@ -2620,11 +2590,10 @@ contains
 
       ! Local variables
       integer :: localrc, ispec, i_diag, n_fields, n_species_fields
-      character(len=EMIS_MAXSTR) :: msg, field_name, field_units, species_list_path
+      character(len=EMIS_MAXSTR) :: field_name, field_units, species_list_path
       type(ExtEmisCategoryType) :: new_category
       type(ExtEmisFieldType) :: new_field
       character(len=64), allocatable :: diag_species_list(:)
-      character(len=*), parameter :: pName = 'catchem_emis_populate_category'
 
       rc = CC_SUCCESS
 
@@ -2728,7 +2697,6 @@ contains
       integer            :: curr_month, curr_year, start_month, start_year
       type(ESMF_Time)         :: startTime, currTime
       type(ESMF_TimeInterval) :: timeInterval
-      character(len=*), parameter :: pName = 'catchem_emis_setup_timing'
 
       rc = CC_SUCCESS
 
@@ -2797,7 +2765,6 @@ contains
       integer,          intent(out) :: rc
 
       integer :: localrc, yy, mm, dd, hh, doy
-      character(len=*), parameter :: pName = 'catchem_emis_period_key'
 
       rc = CC_SUCCESS
       key = 0
@@ -2859,7 +2826,6 @@ contains
       character(len=4) :: y4
       character(len=2) :: m2, d2, h2
       character(len=3) :: j3
-      character(len=*), parameter :: pName = 'resolve_filename_template'
 
       rc = CC_SUCCESS
 
@@ -2963,7 +2929,6 @@ contains
       integer :: curr_date, curr_secs, tc_date_i, tc_secs_i, slice_month
       integer :: target_year, target_month
       real(fp) :: frac_dummy
-      character(len=*), parameter :: pName = 'catchem_emis_find_time_index'
 
       rc = CC_SUCCESS
       irec = 1
@@ -3100,7 +3065,6 @@ contains
       integer  :: localrc, yy, mm, dd, hh, mn, ss
       integer  :: up_year, up_month, dim_curr, dim_lo, dim_up
       real(fp) :: pos, mid_curr, span
-      character(len=*), parameter :: pName = 'catchem_emis_month_bracket'
 
       rc = CC_SUCCESS
       frac = 0.0_fp

@@ -33,8 +33,9 @@ int main() {
     assert(config.data.processes.at("drydep").get_string("aero_scheme") == "gocart");
 
     assert(config.is_process_active("extemis"));
-    // NetCDF diagnostic output is intentionally disabled in the Default config;
-    // the parity runner reads state directly, not the output files.
+    // Diagnostics output is disabled in the Default configuration (upstream
+    // ddf07c50, "Disable diagnostics output in configuration file"); the
+    // rest of the output block (compression level etc.) stays as configured.
     assert(!config.data.diagnostics.output.enabled);
     assert(config.data.diagnostics.output.compress_lev == 2);
     assert(config.data.species.size() == 22);

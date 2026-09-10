@@ -1,13 +1,23 @@
 #include "catchem_chem_state.hpp"
 #include <cassert>
 
+namespace {
+    // SpeciesConfig is an aggregate with several string/vector members; build
+    // one from just a name so the test does not depend on member order.
+    catchem::SpeciesConfig make_species(const char* name) {
+        catchem::SpeciesConfig s;
+        s.name = name;
+        return s;
+    }
+} // namespace
+
 int main() {
     catchem::ConfigManager first_config;
     first_config.data.mechanism_identity = "first";
-    first_config.data.species = {{"alpha"}, {"beta"}};
+    first_config.data.species = {make_species("alpha"), make_species("beta")};
     catchem::ConfigManager second_config;
     second_config.data.mechanism_identity = "second";
-    second_config.data.species = {{"gamma"}, {"delta"}, {"epsilon"}};
+    second_config.data.species = {make_species("gamma"), make_species("delta"), make_species("epsilon")};
 
     catchem::ChemState first;
     catchem::ChemState second;

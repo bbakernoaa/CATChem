@@ -8,18 +8,16 @@ namespace catchem {
         std::mutex runtime_mutex;
         RuntimeSnapshot runtime_snapshot;
 
-        bool backend_initialized() noexcept {
 #ifdef CATCHEM_ENABLE_KOKKOS
+        // Only the Kokkos branch of the RuntimeLease constructor calls these;
+        // the host-only build has no backend to query or start.
+        bool backend_initialized() noexcept {
             return Kokkos::is_initialized();
-#else
-            return true;
-#endif
         }
         void initialize_backend() {
-#ifdef CATCHEM_ENABLE_KOKKOS
             Kokkos::initialize();
-#endif
         }
+#endif
         void finalize_backend() noexcept {
 #ifdef CATCHEM_ENABLE_KOKKOS
             if (Kokkos::is_initialized() && !Kokkos::is_finalized())

@@ -30,7 +30,7 @@ module catchem_nuopc_interface
    use NUOPC
    use MPI
    use CATChem_API, only: CATChem_Model
-   use catchem_bridge_precision, only: fp
+   use catchem_bridge_precision, only: fp, is_exact_zero
    use catchem_bridge_constants, only: g0, Rd, Re, AIRMW
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use catchem_bridge_error, only : CC_SUCCESS, CC_FAILURE
@@ -1236,7 +1236,6 @@ contains
 
       type(ExtEmisFieldType), pointer :: src_field
       character(len=64) :: resolved_field
-      integer :: i, j
 
       rc = CC_SUCCESS
 
@@ -1618,6 +1617,11 @@ contains
       type(ESMF_Info) :: field_info
       character(len=64) :: observed_units
 
+      ! `required` is carried in the signature for the import loop but the
+      ! missing-field policy is enforced by the caller; reference it so the
+      ! interface stays as documented without an unused-argument warning.
+      associate(unused_required => required); end associate
+
       rc = ESMF_SUCCESS
 
       observed_units = ''
@@ -1952,9 +1956,7 @@ contains
       real(fp), allocatable :: cc_diag_data(:,:,:)
       type(c_ptr) :: raw_species_ptr
       character(len=128), allocatable :: diagnostic_names(:)
-      real(ESMF_KIND_R8) :: unit_conv
-      integer :: i, j, k, v, col, ni, nj, nk, kk, nv, v_cc, found_index
-      integer(c_int) :: catchem_status, species_count
+      integer :: i, j, k, v, col, ni, nj, nk, kk, nv, found_index
       character(len=256) :: export_msg
 
       rc = ESMF_SUCCESS
@@ -2141,8 +2143,6 @@ contains
 
       !type(cc_wrap_type), pointer :: cc_wrap
       type(ESMF_Time) :: time_on_file
-      character(len=64), allocatable :: process_list(:)
-      integer :: num_processes, i
       logical :: time_to_write
       character(len=256) :: filename
 
@@ -2419,6 +2419,13 @@ contains
       real(ESMF_KIND_R4), pointer :: field_data_3d(:,:,:) => null()
       integer :: i, j, k, time_slice
 
+      ! Only the 2D/3D array kinds are written today; the scalar and 1D inputs
+      ! are part of the generic writer signature and intentionally unused.
+      ! (array_1d_ptr is an optional pointer, so it may only be referenced via
+      ! present(); scalar_value is a plain intent(in) value.)
+      associate(unused_scalar => scalar_value); end associate
+      if (present(array_1d_ptr)) continue
+
       rc = CC_SUCCESS
 
       ! Get current time slice - this will be the same for all fields in this diagnostic write
@@ -2532,7 +2539,7 @@ contains
 
       ! Local variables
       character(len=64), allocatable :: diag_species(:)
-      integer :: num_diag_species, i, j, species_idx, num_total_species, dims(3)
+      integer :: num_diag_species, i, species_idx, num_total_species, dims(3)
       character(len=64) :: species_name, field_name, units_str
       character(kind=c_char) :: c_species_name(64)
       character(len=128) :: description
@@ -2870,7 +2877,7 @@ contains
          call catchem_c_string_to_fortran(c_species_name, species_name)
          w25 = pm_tracer_weight(trim(species_name), 'PM25')
          w10 = pm_tracer_weight(trim(species_name), 'PM10')
-         if (w25 == 0.0_fp .and. w10 == 0.0_fp) cycle
+         if (is_exact_zero(w25) .and. is_exact_zero(w10)) cycle
 
          catchem_status = catchem_state_get_species_conc_pointer_checked( &
             cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), &
@@ -2878,8 +2885,8 @@ contains
          if (catchem_status /= 0_c_int .or. .not. c_associated(raw_conc_ptr)) cycle
          call c_f_pointer(raw_conc_ptr, conc_data, dims)
 
-         if (w25 /= 0.0_fp) pm25 = pm25 + real(real(w25, c_double) * conc_data * air_density, fp)
-         if (w10 /= 0.0_fp) pm10 = pm10 + real(real(w10, c_double) * conc_data * air_density, fp)
+         if (.not. is_exact_zero(w25)) pm25 = pm25 + real(real(w25, c_double) * conc_data * air_density, fp)
+         if (.not. is_exact_zero(w10)) pm10 = pm10 + real(real(w10, c_double) * conc_data * air_density, fp)
 
          nullify(conc_data)
       end do
@@ -2998,7 +3005,7 @@ contains
       type(ESMF_VM) :: vm
       type(ESMF_Grid) :: grid
       integer :: ibuf(1)  ! Buffer for MPI broadcast
-      integer :: tileCount, tile, localDe, localDeCount, localrc
+      integer :: tileCount, tile
       character(len=256) :: tileFilename
       character(len=16) :: tileSuffix
       integer :: dotpos
@@ -3180,8 +3187,9 @@ contains
          ! check if output directory exists, create if not
          inquire(file=trim(cc_wrap%output_directory), exist=dir_exists)
          if (.not. dir_exists) then
-            ! Create directory
-            call system('mkdir -p ' // trim(cc_wrap%output_directory))
+            ! Create directory (execute_command_line is the F2008 standard form;
+            ! the `system` extension has no explicit interface and ifx warns)
+            call execute_command_line('mkdir -p ' // trim(cc_wrap%output_directory))
          end if
       end if
 

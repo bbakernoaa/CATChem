@@ -56,9 +56,6 @@ USE ProcessExternalEmissionDataInterface_Mod, only: ProcessExternalEmissionDataI
 ### 1. Driver Integration
 
 ```fortran
-! Driver loads external emission files
-call driver%load_emission_files(emission_files, ext_emis_data, rc)
-
 ! Process validates and manages the data
 call external_emission_process%initialize(config, ext_emis_data, rc)
 call external_emission_process%validate_data(rc)

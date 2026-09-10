@@ -113,4 +113,56 @@ if(CATCHEM_BUILD_MUSICA)
 
   # Add MUSICA as a subdirectory
   add_subdirectory(musica)
+
+  # MUSICA and the dependencies it fetches (micm, mechanism_configuration) are
+  # ordinary in-tree targets, so their include directories are not treated as
+  # system headers and CATChem's Debug warning flags would report findings
+  # inside them. Re-export their include directories as SYSTEM.
+  foreach(
+    _dep
+    musica
+    musica::micm
+    micm::micm
+    micm
+    musica::mechanism_configuration
+    mechanism_configuration
+  )
+    if(TARGET ${_dep})
+      get_target_property(_dep_real ${_dep} ALIASED_TARGET)
+      if(NOT _dep_real)
+        set(_dep_real ${_dep})
+      endif()
+      set_property(
+        TARGET ${_dep_real}
+        APPEND
+        PROPERTY
+          INTERFACE_SYSTEM_INCLUDE_DIRECTORIES
+            $<TARGET_PROPERTY:${_dep_real},INTERFACE_INCLUDE_DIRECTORIES>
+      )
+    endif()
+  endforeach()
+
+  # musica-fortran exports -ffree-line-length-none as a PUBLIC compile option
+  # with no language guard (src/external/musica/fortran/CMakeLists.txt), so
+  # every C++ translation unit that links it gets
+  # "cc1plus: warning: command-line option '-ffree-line-length-none' is valid
+  # for Fortran but not for C++". Re-scope its interface compile options to
+  # Fortran here rather than patching the submodule.
+  if(TARGET musica-fortran)
+    get_target_property(_mf_opts musica-fortran INTERFACE_COMPILE_OPTIONS)
+    if(_mf_opts)
+      set(_mf_scoped "")
+      foreach(_opt IN LISTS _mf_opts)
+        if(_opt MATCHES "COMPILE_LANGUAGE")
+          list(APPEND _mf_scoped "${_opt}")
+        else()
+          list(APPEND _mf_scoped "$<$<COMPILE_LANGUAGE:Fortran>:${_opt}>")
+        endif()
+      endforeach()
+      set_target_properties(
+        musica-fortran
+        PROPERTIES INTERFACE_COMPILE_OPTIONS "${_mf_scoped}"
+      )
+    endif()
+  endif()
 endif()

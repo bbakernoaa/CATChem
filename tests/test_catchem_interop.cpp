@@ -38,9 +38,9 @@ public:
 
     std::string get_name() const override { return "DummyDiagProcess"; }
 
-    void init(std::shared_ptr<catchem::StateManager> state) override {}
+    void init([[maybe_unused]] std::shared_ptr<catchem::StateManager> state) override {}
 
-    void run(std::shared_ptr<catchem::StateManager> state) override {
+    void run([[maybe_unused]] std::shared_ptr<catchem::StateManager> state) override {
         // Retrieve the underlying diagnostic device View
         auto dust_flux = diag_mgr->get_device_view_2d("dust_emission_flux");
 
@@ -204,10 +204,6 @@ int main(int argc, char* argv[]) {
         {
             // Simulate Fortran explicitly linking and calling C++ register_settling_cpp
             catchem_register_settling_cpp();
-
-            int n_cols = 4;
-            int n_levels = 5;
-            int n_species = 2;
 
             void* core_ptr = catchem_core_create_from_config("CATChem_config.yml");
             assert(core_ptr != nullptr);
@@ -400,7 +396,6 @@ int main(int argc, char* argv[]) {
             void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
             assert(core != nullptr);
             void* state = catchem_core_get_state_manager(core);
-            auto* state_obj = static_cast<catchem::StateManager*>(state);
 
             // Load species config so we have aerosols to process
             std::string config_path = "";

@@ -1,4 +1,5 @@
 #include "catchem_core.hpp"
+#include "catchem_test_config.hpp"
 #include <cassert>
 #include <string>
 
@@ -26,7 +27,7 @@ int main() {
     catchem::Core direct(2, 3, 3);
     assert_common_wiring(direct, 2, 1, 3, 3);
 
-    const std::string config = CATCHEM_SOURCE_DIR "/tests/fixtures/platform_integrity_valid.yml";
+    const std::string config = std::string(catchem::test::SOURCE_DIR) + "/tests/fixtures/platform_integrity_valid.yml";
     catchem::Core configured(config);
     assert_common_wiring(configured, 2, 1, 3, 3);
 
@@ -36,7 +37,8 @@ int main() {
     catchem::Core options(catchem::CoreCreateOptions::configured_with_host_grid(config, 5, 4));
     assert_common_wiring(options, 5, 1, 4, 3);
 
-    const std::string disabled = CATCHEM_SOURCE_DIR "/tests/fixtures/configured_process_disabled.yml";
+    const std::string disabled =
+        std::string(catchem::test::SOURCE_DIR) + "/tests/fixtures/configured_process_disabled.yml";
     catchem::Core disabled_process(disabled);
     assert_common_wiring(disabled_process, 2, 1, 3, 3);
     assert(disabled_process.get_num_processes() == 0);

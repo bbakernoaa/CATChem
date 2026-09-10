@@ -44,6 +44,8 @@ namespace catchem {
         PersistencePolicy persistence = PersistencePolicy::Timestep;
     };
 
+    // Build instances with make_contract() below rather than positional braces,
+    // so adding a member here never silently changes call sites.
     struct ProcessContract {
         std::string process_name;
         std::vector<FieldAccessContract> fields;
@@ -122,11 +124,26 @@ namespace catchem {
                 ExecutionSpaceIntent::Host};
     }
 
+    // Named constructor for ProcessContract. Members are assigned individually,
+    // so a member added to the struct later takes its default here and no
+    // call site needs to change (positional brace-init would instead warn at
+    // every site, or silently default, depending on the compiler flags).
+    inline ProcessContract make_contract(std::string process_name, std::vector<FieldAccessContract> fields = {},
+                                         std::vector<MechanismRequirement> mechanism_requirements = {},
+                                         std::vector<DiagnosticDeclaration> diagnostics = {}) {
+        ProcessContract contract;
+        contract.process_name = std::move(process_name);
+        contract.fields = std::move(fields);
+        contract.mechanism_requirements = std::move(mechanism_requirements);
+        contract.diagnostics = std::move(diagnostics);
+        return contract;
+    }
+
     class ProcessInterface {
     public:
         virtual ~ProcessInterface() = default;
         virtual std::string get_name() const = 0;
-        virtual ProcessContract get_contract() const { return {get_name(), {}, {}}; }
+        virtual ProcessContract get_contract() const { return make_contract(get_name()); }
         // Populate process-owned derived inputs before the execution plan
         // validates the process contract.  Host imports must already be bound.
         virtual void prepare_inputs(std::shared_ptr<StateManager> state) { (void)state; }

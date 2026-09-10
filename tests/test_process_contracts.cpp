@@ -12,15 +12,14 @@ class ContractProcess : public catchem::test::RecordingProcess {
 public:
     using RecordingProcess::RecordingProcess;
     catchem::ProcessContract get_contract() const override {
-        return {get_name(),
-                {{"TEMPERATURE",
-                  "K",
-                  {catchem::SemanticAxis::Column, catchem::SemanticAxis::Level, catchem::SemanticAxis::Singleton},
-                  catchem::PersistencePolicy::Timestep,
-                  catchem::FieldRequirement::Required,
-                  catchem::AccessIntent::Read,
-                  catchem::ExecutionSpaceIntent::Host}},
-                {}};
+        return catchem::make_contract(get_name(), {{"TEMPERATURE",
+                                                    "K",
+                                                    {catchem::SemanticAxis::Column, catchem::SemanticAxis::Level,
+                                                     catchem::SemanticAxis::Singleton},
+                                                    catchem::PersistencePolicy::Timestep,
+                                                    catchem::FieldRequirement::Required,
+                                                    catchem::AccessIntent::Read,
+                                                    catchem::ExecutionSpaceIntent::Host}});
     }
 };
 
@@ -31,7 +30,7 @@ public:
         auto output =
             catchem::host_field_3d("DERIVED", "1", catchem::FieldRequirement::Required, catchem::AccessIntent::Write);
         output.produced = true;
-        return {get_name(), {output}, {}};
+        return catchem::make_contract(get_name(), {output});
     }
 };
 
@@ -39,7 +38,7 @@ class ConsumerProcess : public catchem::test::RecordingProcess {
 public:
     using RecordingProcess::RecordingProcess;
     catchem::ProcessContract get_contract() const override {
-        return {get_name(), {catchem::host_field_3d("DERIVED", "1")}, {}};
+        return catchem::make_contract(get_name(), {catchem::host_field_3d("DERIVED", "1")});
     }
 };
 

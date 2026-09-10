@@ -20,12 +20,11 @@ void run_wetdep_science_bridge(int n_cols, int n_levels, int n_species, double d
 namespace catchem {
 
     ProcessContract WetDepProcess::get_contract() const {
-        return {get_name(),
-                {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
-                 host_field_3d("AIRDEN", "kg/m3"), host_field_3d("AIRDEN_DRY", "kg/m3"),
-                 host_field_interface("PFILSAN", "kg/m2/s"), host_field_interface("PFLLSAN", "kg/m2/s"),
-                 host_field_3d("QV", "kg/kg"), host_field_3d("REEVAPLS", "kg/kg/s"), host_concentration()},
-                {}};
+        return make_contract(
+            get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
+                         host_field_3d("AIRDEN", "kg/m3"), host_field_3d("AIRDEN_DRY", "kg/m3"),
+                         host_field_interface("PFILSAN", "kg/m2/s"), host_field_interface("PFLLSAN", "kg/m2/s"),
+                         host_field_3d("QV", "kg/kg"), host_field_3d("REEVAPLS", "kg/kg/s"), host_concentration()});
     }
 
     WetDepProcess::WetDepProcess() : active_scheme("jacob"), diagnostics_enabled(true) {}

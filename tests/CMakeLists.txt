@@ -1,6 +1,9 @@
 foreach(opt IN LISTS _catchem_compiler_options)
   add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:${opt}>")
 endforeach()
+foreach(opt IN LISTS _catchem_cxx_warning_options)
+  add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:${opt}>")
+endforeach()
 
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/catchem_test_config.hpp.in"
@@ -75,14 +78,14 @@ target_link_libraries(
 )
 catchem_add_architecture_test(test_c_api_compatibility test_c_api_compatibility.cpp "boundary;compatibility")
 catchem_add_architecture_test(test_extension_process test_extension_process.cpp "mechanism;process-contract;lifecycle;dataflow")
-target_compile_definitions(
-  test_extension_process
-  PRIVATE CATCHEM_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
-)
 catchem_add_architecture_test(test_core_construction test_core_construction.cpp "mechanism;configuration;lifecycle")
-target_compile_definitions(
+# Source paths come from the configured catchem_test_config.hpp rather than a
+# quoted -D define: the Intel MPI compiler wrappers strip the quotes when the
+# define is passed on the command line (seen in the ci-intel host profile),
+# and test_extension_process never used the define.
+target_include_directories(
   test_core_construction
-  PRIVATE CATCHEM_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(
   NAME check_core_mechanism_independence
@@ -302,9 +305,11 @@ target_link_libraries(
     CATChem_process_dust
     CATChem_process_carbchem
 )
-target_compile_definitions(
+# Fixture paths come from the configured catchem_test_config.hpp (see
+# test_core_construction above for why quoted -D defines are avoided).
+target_include_directories(
   test_config_validation
-  PRIVATE CATCHEM_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(NAME test_config_validation COMMAND test_config_validation)
 catchem_label_tests("configuration" test_config_validation)
@@ -377,9 +382,11 @@ target_link_libraries(
     CATChem_process_dust
     CATChem_process_carbchem
 )
-target_compile_definitions(
+# Fixture paths come from the configured catchem_test_config.hpp (see
+# test_core_construction above for why quoted -D defines are avoided).
+target_include_directories(
   test_host_integration_conformance
-  PRIVATE CATCHEM_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(
   NAME test_host_integration_conformance

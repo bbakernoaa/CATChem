@@ -138,6 +138,8 @@ if(CATCHEM_ENABLE_KOKKOS)
       kokkos
       URL
         "https://github.com/kokkos/kokkos/releases/download/${CATCHEM_KOKKOS_VERSION}/kokkos-${CATCHEM_KOKKOS_VERSION}.tar.gz"
+      DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+      SYSTEM # treat the fetched headers as system headers (no warnings from them)
     )
     FetchContent_MakeAvailable(kokkos)
   endif()
@@ -183,6 +185,16 @@ if(DEFINED BUILD_NUOPC)
   )
 endif()
 option(CATCHEM_BUILD_CCPP "Build the CCPP host interface" OFF)
+
+# Debug builds treat compiler warnings as errors so the tree cannot drift back
+# from zero warnings. OFF is the escape hatch for a toolchain that reports
+# something CATChem cannot fix. Release builds are unaffected (the warning
+# flag lists below are Debug-only).
+option(
+  CATCHEM_WARNINGS_AS_ERRORS
+  "Treat Debug-build compiler warnings as errors"
+  ON
+)
 option(
   CATCHEM_CCPP_TEST_STUBS
   "Build minimal CCPP framework stubs for contract testing"
@@ -260,9 +272,12 @@ if(CATCHEM_ENABLE_BOUNDS_CHECK)
       INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:-fcheck=bounds>"
     )
   elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel|IntelLLVM")
+    # SHELL: keeps "-check bounds" together. Without it CMake de-duplicates
+    # the repeated "-check" token against the Debug list's "-check all,nouninit"
+    # and ifx receives a bare "bounds" ("error #10236: File not found: 'bounds'").
     target_compile_options(
       catchem_validation_options
-      INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:-check;bounds>"
+      INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:SHELL:-check bounds>"
     )
   else()
     message(
@@ -322,6 +337,32 @@ elseif(
     -error-limit
     0
   )
+endif()
+
+# C/C++ warning flags for CATChem-owned translation units (core, process
+# wrappers, tests). Debug only. Applied per directory so that vendored code
+# under src/external and fetched dependencies (Kokkos) are not affected.
+set(_catchem_cxx_warning_options "")
+if(
+  CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang|IntelLLVM"
+  AND CMAKE_BUILD_TYPE MATCHES "Debug"
+)
+  # -pedantic: reject GNU extensions and features from a newer standard than
+  # the one selected (the host-only build is C++17 for UFS compatibility).
+  list(APPEND _catchem_cxx_warning_options -Wall -Wextra -pedantic)
+  if(CATCHEM_WARNINGS_AS_ERRORS)
+    list(APPEND _catchem_cxx_warning_options -Werror)
+  endif()
+endif()
+
+if(CATCHEM_WARNINGS_AS_ERRORS AND CMAKE_BUILD_TYPE MATCHES "Debug")
+  if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU|G95")
+    list(APPEND _catchem_compiler_options -Werror)
+  elseif(CMAKE_Fortran_COMPILER_ID MATCHES "^Intel")
+    # SHELL: keeps "-warn errors" as one unit; the list already holds
+    # "-warn all" and CMake would otherwise de-duplicate the second "-warn".
+    list(APPEND _catchem_compiler_options "SHELL:-warn errors")
+  endif()
 endif()
 
 # Disable Intel oneAPI C/C++ warning about -g without -O0
@@ -433,6 +474,13 @@ if(CATCHEM_BUILD_NUOPC)
   # Manually handle the CATChem dependencies by linking to built libraries
   # Only need to depend on CATChem - it already depends on CATChem_core, etc.
   add_dependencies(cc_nuopc CATChem)
+
+  # cc_nuopc compiles the same drivers/nuopc sources as NUOPC_CATChem_cap and
+  # both emit their .mod files into ${CATCHEM_NUOPC_MODULE_DIR}. Without an
+  # ordering between them, a parallel build lets two gfortran instances
+  # rename the same <module>.mod0 -> <module>.mod file and one of them fails
+  # with "Cannot rename module file". Serialise the two compilations.
+  add_dependencies(cc_nuopc NUOPC_CATChem_cap)
 
   # Link to library files in dependency order (most dependent first).
   # NOTE: $<TARGET_FILE:> carries no transitive usage requirements, so this

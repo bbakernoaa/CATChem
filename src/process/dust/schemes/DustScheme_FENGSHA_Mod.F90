@@ -22,6 +22,7 @@
 !! Reference: Zhang et al. 2022
 module DustScheme_FENGSHA_Mod
 
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
    use catchem_bridge_precision, only: fp
    use DustCommon_Mod, only: DustSchemeFENGSHAConfig
 
@@ -154,6 +155,11 @@ contains
       real(fp) :: h_to_v_ratio                   !< Horizontal to Vertical Mass Flux Ratio
       real(fp) :: distribution(num_species)      !< Distribution Weights
 
+      ! `species_conc` is part of the shared scheme calling convention and
+      ! intentionally unused by this scheme; reference it so the interface
+      ! stays uniform without an unused-dummy-argument warning.
+      associate(unused_species_conc => species_conc); end associate
+
       !needs to reinitialize otherwise the skip condition below will cause weird maps.
       if (present(dust_effective_threshold)) dust_effective_threshold = 0.0_fp
       if (present(dust_horizontal_flux)) dust_horizontal_flux = 0.0_fp
@@ -183,7 +189,7 @@ contains
       end select
 
       if (.not. skip) then
-         skip = (clayfrac /= clayfrac) .or. (sandfrac /= sandfrac) ! check for NaNs
+         skip = ieee_is_nan(clayfrac) .or. ieee_is_nan(sandfrac) ! check for NaNs
          if (skip) return !return here to avoid floating point checking below.
       endif
 
