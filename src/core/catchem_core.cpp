@@ -74,28 +74,37 @@ namespace {
 
 namespace catchem {
 
+    // Member-wise assignment rather than designated initialisers: the host-only
+    // build is C++17 (kept for UFS toolchain compatibility) and designated
+    // initialisers are a C++20 feature that -pedantic rejects there.
     CoreCreateOptions CoreCreateOptions::direct_dimensions(int columns, int levels, int species) {
-        return {.config_file = {},
-                .columns = columns,
-                .levels = levels,
-                .species = species,
-                .use_configuration_grid = false};
+        CoreCreateOptions options;
+        options.config_file.clear();
+        options.columns = columns;
+        options.levels = levels;
+        options.species = species;
+        options.use_configuration_grid = false;
+        return options;
     }
 
     CoreCreateOptions CoreCreateOptions::configured(std::string config_file) {
-        return {.config_file = std::move(config_file),
-                .columns = 1,
-                .levels = 1,
-                .species = 0,
-                .use_configuration_grid = true};
+        CoreCreateOptions options;
+        options.config_file = std::move(config_file);
+        options.columns = 1;
+        options.levels = 1;
+        options.species = 0;
+        options.use_configuration_grid = true;
+        return options;
     }
 
     CoreCreateOptions CoreCreateOptions::configured_with_host_grid(std::string config_file, int columns, int levels) {
-        return {.config_file = std::move(config_file),
-                .columns = columns,
-                .levels = levels,
-                .species = 0,
-                .use_configuration_grid = false};
+        CoreCreateOptions options;
+        options.config_file = std::move(config_file);
+        options.columns = columns;
+        options.levels = levels;
+        options.species = 0;
+        options.use_configuration_grid = false;
+        return options;
     }
 
     Core::~Core() noexcept {

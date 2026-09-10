@@ -347,7 +347,9 @@ if(
   CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang|IntelLLVM"
   AND CMAKE_BUILD_TYPE MATCHES "Debug"
 )
-  list(APPEND _catchem_cxx_warning_options -Wall -Wextra)
+  # -pedantic: reject GNU extensions and features from a newer standard than
+  # the one selected (the host-only build is C++17 for UFS compatibility).
+  list(APPEND _catchem_cxx_warning_options -Wall -Wextra -pedantic)
   if(CATCHEM_WARNINGS_AS_ERRORS)
     list(APPEND _catchem_cxx_warning_options -Werror)
   endif()
