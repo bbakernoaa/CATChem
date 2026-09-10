@@ -403,7 +403,7 @@ contains
 
             call ESMF_LogWrite(trim(pName)//': reading emission for '// &
                trim(ext_emis_data%categories(i)%category_name)// &
-               " @ "//trim(timeString), ESMF_LOGMSG_INFO, rc=localrc)
+               " @ "//trim(timeString), ESMF_LOGMSG_DEBUG, rc=localrc)
 
             if (ext_emis_data%categories(i)%n_times == 0 .and. &
                index(trim(ext_emis_data%categories(i)%source_file), '%') == 0) then
@@ -445,7 +445,7 @@ contains
       end do
 
       call ESMF_LogWrite(trim(pName)//': Emission data updated', &
-         ESMF_LOGMSG_INFO, rc=localrc)
+         ESMF_LOGMSG_DEBUG, rc=localrc)
 
    end subroutine catchem_emis_update
 
@@ -637,7 +637,7 @@ contains
       !!not sure why this write will crash the model
       write(msg, '(A,A,A)') trim(pName), ': Successfully read emission data for category ', &
          trim(category_name)
-      call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO, rc=localrc)
+      call ESMF_LogWrite(msg, ESMF_LOGMSG_DEBUG, rc=localrc)
 
    end subroutine catchem_emis_read
 
@@ -733,7 +733,7 @@ contains
                write(msg, '(A,A,A,A)') trim(pName), &
                   ': multi-file time_interp for ', trim(category_name), &
                   ' next_file='//trim(filename_next)
-               call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=localrc)
+               call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_DEBUG, rc=localrc)
             end if
          else
             ! Same-file interpolation
@@ -746,7 +746,7 @@ contains
             write(msg, '(A,A,A,I3,A,I3)') trim(pName), &
                ': time_interp read for ', trim(category_name), &
                category%irec, '  and next=', irec_next
-            call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=localrc)
+            call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_DEBUG, rc=localrc)
          end if
       end if
 
@@ -953,7 +953,7 @@ contains
 
       write(msg, '(A,A,A)') trim(pName), &
          ': Successfully read & regridded emission data for category ', trim(category_name)
-      call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO, rc=localrc)
+      call ESMF_LogWrite(msg, ESMF_LOGMSG_DEBUG, rc=localrc)
 
    end subroutine catchem_emis_read_regrid
 
@@ -1814,7 +1814,7 @@ contains
       deallocate(tlat, tlon, temis, tbot, ttop)
 
       write(msg, '(A,I0,A,A)') trim(pName)//': read ', npts, ' point sources from ', trim(filename)
-      call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=localrc)
+      call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_DEBUG, rc=localrc)
 
    end subroutine catchem_emis_read_points
 
@@ -2187,7 +2187,7 @@ contains
       ! Check if diagnostics are enabled globally
       if (.not. ext_emis_data%diagnostic) then
          call ESMF_LogWrite(trim(pName)//': Global emission diagnostics disabled', &
-            ESMF_LOGMSG_INFO, rc=localrc)
+            ESMF_LOGMSG_DEBUG, rc=localrc)
          return
       end if
 
@@ -2233,7 +2233,7 @@ contains
             else
                write(msg, '(A,A,A,A,A)') trim(pName), ': Wrote emission field ', &
                   trim(field_name), ' from category ', trim(category_name)
-               call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO, rc=localrc)
+               call ESMF_LogWrite(msg, ESMF_LOGMSG_DEBUG, rc=localrc)
             end if
          end do
       end do
@@ -2907,7 +2907,7 @@ contains
       deallocate(dates, secs)
 
       write(msg, '(A,A,I0,A,A)') trim(pName), ': Cached ', nt, ' time slices from ', trim(filename)
-      call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=localrc)
+      call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_DEBUG, rc=localrc)
 
    end subroutine catchem_emis_read_time_coord
 

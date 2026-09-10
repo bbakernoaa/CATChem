@@ -238,7 +238,7 @@ contains
          call cache%add(nlon, nlat, regridMethod, srcGrid, srcField, routeHandle, idx)
 
          call ESMF_LogWrite("catchem_regrid_field: Computed regrid weights for "// &
-            trim(filename), ESMF_LOGMSG_INFO, rc=localrc)
+            trim(filename), ESMF_LOGMSG_DEBUG, rc=localrc)
       else
          srcField    = cache%entries(idx)%srcField
          routeHandle = cache%entries(idx)%routeHandle
