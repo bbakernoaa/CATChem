@@ -426,7 +426,6 @@ CONTAINS
 
       this%is_loaded = .false.  ! Will be set to true by driver after successful load
 
-      print *, 'WARNING: ExtEmisField file loading is handled by driver'
       call error_mgr%pop_context()
 
    end subroutine extemifield_load_from_file
@@ -852,7 +851,6 @@ CONTAINS
       call error_mgr%push_context('extemidata_load_files', 'Loading emission files')
 
       ! Placeholder - actual file loading is handled by the driver
-      print *, 'WARNING: ExtEmisData file loading is handled by driver'
 
       call error_mgr%pop_context()
 
