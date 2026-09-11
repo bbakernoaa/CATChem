@@ -110,7 +110,10 @@ MODULE catchem_nuopc_emis_data_mod
       LOGICAL                                   :: diagnostic = .true.  !< Enable diagnostic output for this category?
       REAL(fp)                                  :: global_scale = 1.0_fp !< Global scaling factor
       REAL(fp)                                  :: topfraction = -1.0_fp !< Top fraction for plumerise
-      CHARACTER(LEN=128)                        :: source_file = ''    !< Source file path and name
+      ! Path buffer must stay >= EMIS_MAXSTR (256) in catchem_nuopc_emis_mod:
+      ! the YAML reader hands over a 256-char string, and Fortran assignment
+      ! would silently truncate anything longer (breaks long RT run paths).
+      CHARACTER(LEN=256)                        :: source_file = ''    !< Source file path and name
       CHARACTER(LEN=128)                        :: format = ''         !< Format of file (only netcdf for now)
       CHARACTER(LEN=128)                        :: frequency = ''      !< Frequency of file (e.g., hourly, daily, weekly, monthly,static)
       CHARACTER(LEN=128)                        :: latname = ''       !< Latitude variable name in the file
