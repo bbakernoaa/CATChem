@@ -42,6 +42,14 @@ foreach(_source IN LISTS _catchem_architecture_sources)
   endif()
 endforeach()
 add_library(CATChem_core_cpp STATIC ${_cpp_core_srcs})
+# Link Kokkos first so its include directories precede every other
+# dependency's: an installed prefix that carries both yaml-cpp and an older
+# Kokkos (e.g. a spack view) would otherwise put that Kokkos's headers ahead
+# of the ones matching the Kokkos we actually link.
+if(CATCHEM_ENABLE_KOKKOS)
+  target_link_libraries(CATChem_core_cpp PUBLIC Kokkos::kokkos)
+endif()
+
 # Use the namespaced target: the plain `yaml-cpp` name is only a
 # directory-scoped alias in src/external when yaml-cpp comes from the
 # system/spack, so it is not visible here; yaml-cpp::yaml-cpp exists

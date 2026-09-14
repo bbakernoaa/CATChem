@@ -76,11 +76,13 @@ RUN <<INSTALL_ALL
 
   spack config add "packages:esmf:require:^openmpi"
 
-  # Build for the generic CPU family, not the detected microarch: containers may
-  # run on hosts lacking ISA extensions of the build host (e.g. spack detects
-  # neoverse_v1 on Apple-Silicon Docker and emits SVE, which SIGILLs at runtime).
-  # Adjust to x86_64 when building on an x86 host.
-  spack config add "packages:all:require:target=aarch64"
+  # Build for the generic CPU family of the build host, not the detected
+  # microarch: containers may run on hosts lacking ISA extensions of the build
+  # host (e.g. spack detects neoverse_v1 on Apple-Silicon Docker and emits SVE,
+  # which SIGILLs at runtime). `spack arch --target --family` prints x86_64 or
+  # aarch64 as appropriate, so this works for the linux/amd64 CI build and
+  # native arm64 builds alike.
+  spack config add "packages:all:require:target=$(spack arch --target --family)"
 
   spack env create ufschem
   spack env activate ufschem
