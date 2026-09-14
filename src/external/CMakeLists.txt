@@ -52,6 +52,26 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel|IntelLLVM")
   target_compile_options(${_lib} PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-r8>)
 endif()
 
+# The fpp preprocessor shipped with IntelLLVM 2025.2.1 miscounts macro
+# arguments in GOCART2G_MieMod.F90 ("#error: number of arguments doesn't
+# match"); 2025.3.x is fixed. Where an unaffected fpp from an earlier oneAPI
+# install exists (e.g. Gaea C6), preprocess this target with it instead —
+# same workaround the ufs-weather-model carries for its GOCART targets:
+# https://github.com/ufs-community/ufs-weather-model/issues/3213#issuecomment-4711120326
+# Remove once affected platforms move to a fixed compiler.
+set(_gocart_fpp "/opt/intel/oneapi/compiler/2025.0/bin/fpp")
+if(
+  CMAKE_Fortran_COMPILER_ID STREQUAL "IntelLLVM"
+  AND CMAKE_Fortran_COMPILER_VERSION VERSION_EQUAL 2025.2.1
+  AND EXISTS "${_gocart_fpp}"
+)
+  message(STATUS "GOCART2G: using ${_gocart_fpp} (IntelLLVM 2025.2.1 fpp bug)")
+  target_compile_options(
+    ${_lib}
+    PRIVATE -fpp-name=${_gocart_fpp} -Qoption,fpp,-P
+  )
+endif()
+
 #find_package(NetCDF REQUIRED COMPONENTS Fortran)
 
 # Use NetCDF from parent scope (already found by main UFS CMakeLists.txt or standalone CMakeLists.txt)
@@ -86,6 +106,16 @@ if(NOT yaml-cpp_FOUND AND NOT TARGET yaml-cpp::yaml-cpp AND NOT TARGET yaml-cpp)
   # This prevents MUSICA from fetching their own copy
   FetchContent_Declare(yaml-cpp SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/yaml-cpp)
   FetchContent_MakeAvailable(yaml-cpp)
+
+  # Rename the vendored yaml-cpp namespace: ESMF's static library bundles its
+  # own compiled yaml-cpp with public YAML:: symbols, so any executable
+  # linking both (e.g. the NUOPC tests) fails with duplicate definitions.
+  # PUBLIC so every consumer of these headers (including MUSICA) sees the
+  # same renamed namespace.
+  target_compile_definitions(
+    yaml-cpp
+    PUBLIC "$<$<COMPILE_LANGUAGE:CXX>:YAML=CATChem_YAML>"
+  )
 endif()
 
 # Ensure both yaml-cpp and yaml-cpp::yaml-cpp targets exist regardless of how it was found

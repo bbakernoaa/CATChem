@@ -42,6 +42,10 @@ foreach(_source IN LISTS _catchem_architecture_sources)
   endif()
 endforeach()
 add_library(CATChem_core_cpp STATIC ${_cpp_core_srcs})
+# Use the namespaced target: the plain `yaml-cpp` name is only a
+# directory-scoped alias in src/external when yaml-cpp comes from the
+# system/spack, so it is not visible here; yaml-cpp::yaml-cpp exists
+# everywhere in both provisioning modes.
 target_link_libraries(
   CATChem_core_cpp
   PUBLIC yaml-cpp::yaml-cpp catchem_validation_options

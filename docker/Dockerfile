@@ -8,12 +8,6 @@ SHELL ["/bin/bash", "-c"]
 ARG CATCHEM_ENABLE_KOKKOS=ON
 
 USER root
-RUN apt-get update --yes && \
-    if [ "${CATCHEM_ENABLE_KOKKOS}" = "ON" ]; then \
-      apt-get install --yes libkokkos-dev libyaml-cpp-dev; \
-    else \
-      apt-get install --yes libyaml-cpp-dev; \
-    fi
 
 COPY . /opt/catchem/src
 

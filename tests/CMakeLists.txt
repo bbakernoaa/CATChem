@@ -5,6 +5,19 @@ foreach(opt IN LISTS _catchem_cxx_warning_options)
   add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:${opt}>")
 endforeach()
 
+# Single knob for the OpenMP thread count of every Kokkos-capable test:
+# applied as OMP_NUM_THREADS through CTest ENVIRONMENT properties (collected
+# in _catchem_omp_tests below) and asserted by test_catchem_threading via
+# catchem_test_config.hpp. Only meaningful with CATCHEM_ENABLE_KOKKOS=ON;
+# the host-only build has no Kokkos or OpenMP.
+set(
+  CATCHEM_TEST_OMP_THREADS
+  "2"
+  CACHE STRING
+  "OpenMP thread count for Kokkos-capable tests"
+)
+set(_catchem_omp_tests "")
+
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/catchem_test_config.hpp.in"
   "${CMAKE_CURRENT_BINARY_DIR}/catchem_test_config.hpp"
@@ -202,6 +215,9 @@ if(TARGET CATChem)
     COMMAND test_CATChem_API
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
+  # Reaches Kokkos through the C API's no-arg initialize; only the
+  # environment can set its thread count.
+  list(APPEND _catchem_omp_tests test_CATChem_API)
 endif()
 
 # C++ Interop and Integration Suite — runs in both build flavors; the
@@ -209,6 +225,7 @@ endif()
 add_executable(test_catchem_logger test_catchem_logger.cpp)
 target_link_libraries(test_catchem_logger PRIVATE CATChem_core_cpp)
 add_test(NAME test_catchem_logger COMMAND test_catchem_logger)
+list(APPEND _catchem_omp_tests test_catchem_logger)
 
 add_executable(test_catchem_error test_catchem_error.cpp)
 target_link_libraries(test_catchem_error PRIVATE CATChem_core_cpp)
@@ -230,6 +247,7 @@ target_link_libraries(
 )
 set_target_properties(test_catchem_interop PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME test_catchem_interop COMMAND test_catchem_interop)
+list(APPEND _catchem_omp_tests test_catchem_interop)
 
 add_executable(test_catchem_dataflow test_catchem_dataflow.cpp)
 target_link_libraries(
@@ -506,6 +524,18 @@ add_test(
   COMMAND test_catchem_properties
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+list(APPEND _catchem_omp_tests test_catchem_properties)
+
+# Multithreading contract test — proves the OpenMP backend executes kernel
+# work across the pinned number of threads (CATCHEM_TEST_OMP_THREADS).
+# Kokkos-ON only: the host-only flavor has no parallel backend to verify.
+if(CATCHEM_ENABLE_KOKKOS)
+  add_executable(test_catchem_threading test_catchem_threading.cpp)
+  target_link_libraries(test_catchem_threading PRIVATE CATChem_core_cpp)
+  set_target_properties(test_catchem_threading PROPERTIES LINKER_LANGUAGE CXX)
+  add_test(NAME test_catchem_threading COMMAND test_catchem_threading)
+  list(APPEND _catchem_omp_tests test_catchem_threading)
+endif()
 
 # The Default configuration is the production-like full process schedule used
 # by the legacy-vs-C++ numerical parity harness.  Keep a focused contract test
@@ -687,6 +717,7 @@ if(CATCHEM_BUILD_MUSICA)
   )
   set_target_properties(test_catchem_photolysis PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_photolysis COMMAND test_catchem_photolysis)
+  list(APPEND _catchem_omp_tests test_catchem_photolysis)
 
   # Coupled Process Integration Test
   add_executable(test_catchem_gaschem test_catchem_gaschem.cpp)
@@ -700,6 +731,7 @@ if(CATCHEM_BUILD_MUSICA)
   )
   set_target_properties(test_catchem_gaschem PROPERTIES LINKER_LANGUAGE CXX)
   add_test(NAME test_catchem_gaschem COMMAND test_catchem_gaschem)
+  list(APPEND _catchem_omp_tests test_catchem_gaschem)
 endif()
 
 add_executable(test_catchem_gaschem_units test_catchem_gaschem_units.cpp)
@@ -713,6 +745,20 @@ if(CATCHEM_BUILD_NUOPC)
   # libesmf.a references the MPI C++ bindings; an executable link needs
   # them explicitly (the cap static library never resolves them itself).
   find_package(MPI COMPONENTS Fortran CXX REQUIRED)
+
+  # ctest-forked MPI programs inside a Slurm job step share one PMI
+  # endpoint, which serves only the first of them; the second dies in
+  # MPI_Init (SIGPIPE on the consumed socket). Launch each MPI test
+  # through mpiexec so every test gets its own MPI world regardless of
+  # ordering — same pattern as CECE (PR #83). TEST_LAUNCHER needs CMake
+  # >= 3.29; older ctest ignores it and runs the raw binary (safe where
+  # no Slurm environment exists, e.g. the containers).
+  if(POLICY CMP0178)
+    # New behavior ignores TEST_LAUNCHER documentation about
+    # semicolon-separated lists
+    cmake_policy(SET CMP0178 OLD)
+  endif()
+
   add_executable(test_nuopc_transform test_nuopc_transform.f90)
   target_link_libraries(
     test_nuopc_transform
@@ -723,6 +769,8 @@ if(CATCHEM_BUILD_NUOPC)
     PROPERTIES
       Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
       LINKER_LANGUAGE Fortran
+      TEST_LAUNCHER
+        "${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};1;${MPIEXEC_PREFLAGS}"
   )
   target_include_directories(
     test_nuopc_transform
@@ -750,6 +798,9 @@ if(CATCHEM_BUILD_NUOPC)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   )
   catchem_label_tests("integration;dataflow;boundary" test_nuopc_transform)
+  # Reaches Kokkos through the C API's no-arg initialize; only the
+  # environment can set its thread count.
+  list(APPEND _catchem_omp_tests test_nuopc_transform)
 
   add_executable(nuopc_contract_harness nuopc_contract_harness.F90)
   target_link_libraries(
@@ -761,6 +812,8 @@ if(CATCHEM_BUILD_NUOPC)
     PROPERTIES
       Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
       LINKER_LANGUAGE Fortran
+      TEST_LAUNCHER
+        "${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};1;${MPIEXEC_PREFLAGS}"
   )
   target_include_directories(
     nuopc_contract_harness
@@ -801,4 +854,20 @@ if(CATCHEM_BUILD_NUOPC)
   # test run waiting indefinitely in a NUOPC phase.
   set_tests_properties(nuopc_contract_valid PROPERTIES TIMEOUT 30)
   catchem_label_tests("integration;contract;boundary" nuopc_contract_valid)
+  # The lifecycle harness reaches Kokkos through the cap exactly as
+  # test_nuopc_transform does; give it the same thread pinning.
+  list(APPEND _catchem_omp_tests nuopc_contract_valid)
+endif()
+
+# Pin every Kokkos-capable test to the configured OpenMP thread count.
+# OMP_PROC_BIND=false silences the Kokkos affinity warning and avoids
+# pinning threads inside oversubscribed container builds ("For unit
+# testing set OMP_PROC_BIND=false" — Kokkos's own initialize hint).
+if(CATCHEM_ENABLE_KOKKOS AND _catchem_omp_tests)
+  set_tests_properties(
+    ${_catchem_omp_tests}
+    PROPERTIES
+      ENVIRONMENT
+        "OMP_NUM_THREADS=${CATCHEM_TEST_OMP_THREADS};OMP_PROC_BIND=false"
+  )
 endif()
