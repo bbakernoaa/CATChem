@@ -39,11 +39,15 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain stable
 
-# Clone spack-stack (version 2.1.1)
+# Clone spack-stack. Pinned to a develop commit (2026-09-14) rather than the
+# 2.1.1 release: the release's package recipes stop at kokkos 4.6.01 /
+# arborx 2.0, while develop carries kokkos 5.1.1, kokkos-kernels 5.1.1 and
+# arborx 2.1 — the versions CATChem (Kokkos >= 5.0) and CECE build against.
+# Move to the next tagged release once one ships with Kokkos 5.
 WORKDIR /opt/ufschem
 RUN git clone https://github.com/JCSDA/spack-stack && \
     cd spack-stack && \
-    git checkout 37c009d && \
+    git checkout 1f2f922ef43d870feacf8c3aa04ea7b1d8b2f94b && \
     git submodule update --init --recursive
 
 WORKDIR /opt/ufschem/spack-stack
@@ -86,7 +90,11 @@ RUN <<INSTALL_ALL
 
   spack env create ufschem
   spack env activate ufschem
-  spack add esmf yaml-cpp parallelio+pnetcdf py-pip kokkos+openmp+serial kokkos-kernels+openmp+serial arborx@2.1:+mpi+openmp+serial
+  # esmf@8.9.1: develop otherwise concretizes a 9.0 beta.
+  # py-pyyaml@6: (ESMF run dep) develop still picks 5.4.1, whose wheel no
+  #   longer builds with this pip/Cython ("yaml/_yaml.c: No such file").
+  # kokkos, kokkos-kernels, arborx are for CECE, which builds on this image.
+  spack add esmf@8.9.1 py-pyyaml@6: yaml-cpp parallelio+pnetcdf py-pip kokkos+openmp+serial kokkos-kernels+openmp+serial arborx@2.1:+mpi+openmp+serial
   spack concretize
   spack install --fail-fast
   spack gc -y
