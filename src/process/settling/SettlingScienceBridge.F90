@@ -18,12 +18,76 @@ module SettlingScienceBridge_Mod
    use SettlingCommon_Mod, only: SettlingSchemeGOCARTConfig
    use SettlingScheme_GOCART_Mod, only: compute_gocart
    implicit none
+
+   ! Aerosol optics (Mie) tables backing the legacy simple_scheme path.
+   !
+   ! GOCART2G_Mie is a Fortran derived type with deferred-length allocatable and
+   ! pointer components, so it cannot cross the C ABI; the store therefore lives
+   ! on this side and C++ only ever passes fixed-width names and paths.  The
+   ! tables are loaded once during process initialization and are read-only
+   ! afterwards, which mirrors the upstream ChemStateType%MieData ownership and
+   ! keeps every MPI rank's copy identical (same config, same files).
+   type(GOCART2G_Mie), allocatable, target, save :: mie_store(:)
+   character(len=32), allocatable, target, save :: mie_names_store(:)
+   ! Zero-sized target used as the scheme's Mie actual argument on the metadata
+   ! path, preserving today's "no tables" behavior.
+   type(GOCART2G_Mie), target, save :: empty_mie(0)
 contains
+   subroutine run_settling_mie_init(n_files, type_names, file_paths, init_rc) &
+      bind(C, name='run_settling_mie_init')
+      integer(c_int), value :: n_files
+      character(kind=c_char), intent(in) :: type_names(32,n_files)
+      character(kind=c_char), intent(in) :: file_paths(512,n_files)
+      integer(c_int), intent(out) :: init_rc
+
+      integer :: idx, local_rc
+
+      ! Idempotent re-initialization: drop any previous store so repeated
+      ! process init (tests, restarts) never leaves stale tables behind.
+      if (allocated(mie_store)) deallocate(mie_store)
+      if (allocated(mie_names_store)) deallocate(mie_names_store)
+      init_rc = 0_c_int
+      if (n_files <= 0) return
+
+      allocate(mie_store(n_files), mie_names_store(n_files))
+      do idx = 1, n_files
+         mie_names_store(idx) = c_name_to_fortran(type_names(:,idx))
+         mie_store(idx) = GOCART2G_Mie(c_path_to_fortran(file_paths(:,idx)), rc=local_rc)
+         if (local_rc /= CC_SUCCESS) then
+            ! Report the 1-based index of the failing table; the GOCART reader
+            ! already wrote the offending path to stderr.
+            init_rc = int(idx, c_int)
+            return
+         end if
+      end do
+   contains
+      function c_path_to_fortran(c_text) result(text)
+         character(kind=c_char), intent(in) :: c_text(512)
+         character(len=512) :: text
+         integer :: i
+         text = ''
+         do i = 1, 512
+            text(i:i) = c_text(i)
+         end do
+         text = trim(adjustl(text))
+      end function c_path_to_fortran
+      function c_name_to_fortran(c_text) result(text)
+         character(kind=c_char), intent(in) :: c_text(32)
+         character(len=32) :: text
+         integer :: i
+         text = ''
+         do i = 1, 32
+            text(i:i) = c_text(i)
+         end do
+         text = trim(adjustl(text))
+      end function c_name_to_fortran
+   end subroutine run_settling_mie_init
+
    subroutine run_settling_science_bridge(n_columns, n_levels, n_aerosols, n_total_species, &
       dt, scale_factor, swelling_rh_max, correction_maring, maring_dust_only, &
       airden, delp, pmid, rh, temperature, z_edge, &
       aerosol_species_names, species_names, species_is_dust, species_is_hydrophilic, radius, density, &
-      concentration, bridge_rc) &
+      concentration, simple_scheme, aerosol_mie_names, bridge_rc) &
       bind(C, name='run_settling_science_bridge')
       integer(c_int), value :: n_columns, n_levels, n_aerosols, n_total_species
       integer(c_int), value :: correction_maring, maring_dust_only
@@ -38,11 +102,14 @@ contains
       integer(c_int), intent(in) :: species_is_hydrophilic(n_aerosols)
       real(c_double), intent(in) :: radius(n_aerosols), density(n_aerosols)
       real(c_double), intent(inout) :: concentration(n_columns,n_levels,n_total_species)
+      integer(c_int), value :: simple_scheme
+      character(kind=c_char), intent(in) :: aerosol_mie_names(32,n_aerosols)
       integer(c_int), intent(out) :: bridge_rc
 
       type(SettlingSchemeGOCARTConfig) :: params
-      type(GOCART2G_Mie), allocatable :: mie_data(:)
+      type(GOCART2G_Mie), pointer :: mie_actual(:)
       character(len=32) :: aerosol_names(n_aerosols)
+      character(len=32) :: aerosol_mies(n_aerosols)
       integer :: target_species(n_aerosols)
       integer :: species_mie_map(n_aerosols)
       logical :: is_dust(n_aerosols)
@@ -73,19 +140,17 @@ contains
          end if
       end do
 
-      ! Scheme parameters for the metadata (non-Mie) path.  scale_factor is
-      ! retained for configuration compatibility but, exactly like upstream,
-      ! compute_gocart does not consume it on this path.
+      ! Scheme parameters.  scale_factor is retained for configuration
+      ! compatibility but, exactly like upstream, compute_gocart does not consume
+      ! it on either path.  swelling_rh_max applies to the metadata path only
+      ! (the scheme gates the clamp on .not. simple_scheme).
       params%scheme_name = 'gocart'
       params%scale_factor = real(scale_factor, fp)
-      params%simple_scheme = .false.
+      params%simple_scheme = (simple_scheme /= 0)
       params%swelling_rh_max = real(swelling_rh_max, fp)
       params%correction_maring = (correction_maring /= 0)
       params%maring_dust_only = (maring_dust_only /= 0)
 
-      ! Metadata path: no Mie tables (mirrors upstream simple_scheme=false).
-      allocate(mie_data(0))
-      species_mie_map = 0
       is_dust = (species_is_dust /= 0)
       is_hydrophilic = (species_is_hydrophilic /= 0)
       do species = 1, n_aerosols
@@ -93,6 +158,40 @@ contains
          species_radius(species) = real(radius(species), fp)
          species_density(species) = real(density(species), fp)
       end do
+
+      if (params%simple_scheme) then
+         ! Optics-table path: resolve each settling species' __mie_name against
+         ! the loaded table names, mirroring upstream chemstate_init_mie_data's
+         ! SpcMieMap construction (trimmed comparison, 1-based, 0 = unresolved).
+         if (.not. allocated(mie_store)) then
+            ! C++ validates this at init; defensive backstop so a mis-wired
+            ! caller can never reach Chem_SettlingSimple without tables.
+            bridge_rc = 2_c_int
+            return
+         end if
+         mie_actual => mie_store
+         do species = 1, n_aerosols
+            aerosol_mies(species) = c_name_to_fortran(aerosol_mie_names(:,species))
+            species_mie_map(species) = 0
+            if (len_trim(aerosol_mies(species)) == 0) cycle
+            do k = 1, size(mie_names_store)
+               if (trim(mie_names_store(k)) == trim(aerosol_mies(species))) then
+                  species_mie_map(species) = k
+                  exit
+               end if
+            end do
+         end do
+         ! Any settling species without a table aborts before advancing columns
+         ! (the scheme's own "Invalid Mie data mapping" guard is the last resort).
+         if (any(species_mie_map == 0)) then
+            bridge_rc = 2_c_int
+            return
+         end if
+      else
+         ! Metadata path: no Mie tables (mirrors upstream simple_scheme=false).
+         mie_actual => empty_mie
+         species_mie_map = 0
+      end if
 
       do column = 1, n_columns
          do k = 1, n_levels
@@ -120,7 +219,7 @@ contains
          ! whatever the scheme produced.
          call compute_gocart(n_levels, n_aerosols, params, &
             airden_1d, delp_1d, pmid_1d, rh_1d, t_1d, real(dt, fp), z_1d, &
-            aerosol_names, mie_data, species_mie_map, species_radius, species_density, &
+            aerosol_names, mie_actual, species_mie_map, species_radius, species_density, &
             is_dust, is_hydrophilic, conc_2d, tend_2d)
 
          do species = 1, n_aerosols

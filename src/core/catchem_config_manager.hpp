@@ -174,6 +174,18 @@ namespace catchem {
         std::map<std::string, EmissionFieldMapping> fields;
     };
 
+    /// @brief Aerosol optics (Mie) table inputs from the top-level "mie:" section.
+    ///
+    /// Mirrors the legacy upstream/develop configuration: "mie.directory" holds the
+    /// table directory and "mie.files" maps an aerosol type code (SS, DU, BC, ...) to
+    /// the NetCDF optics file supplying it.  Species bind to a type through their
+    /// "__mie_name" attribute.  "files" keeps the YAML declaration order so every rank
+    /// loads the same tables in the same sequence (determinism).
+    struct MieConfig {
+        std::string directory = "./";
+        std::vector<std::pair<std::string, std::string>> files;
+    };
+
     struct ConfigData {
         SimulationConfig simulation;
         RuntimeConfig runtime;
@@ -188,6 +200,7 @@ namespace catchem {
         std::vector<std::string> mechanism_capabilities;
         PhysicalValidationPolicy physical_validation_policy = PhysicalValidationPolicy::Reject;
         std::map<std::string, EmissionCategoryMapping> emission_mappings;
+        MieConfig mie;
     };
 
     class ConfigManager {

@@ -2,19 +2,37 @@
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
+#include <algorithm>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace catchem {
 
-    extern "C" void run_settling_science_bridge(int n_columns, int n_levels, int n_aerosols, int n_total_species,
-                                                double dt, double scale_factor, double swelling_rh_max,
-                                                int correction_maring, int maring_dust_only, double* airden,
-                                                double* delp, const double* pmid, double* rh, double* temperature,
-                                                double* z_edge, const char* aerosol_species_names,
-                                                const char* species_names, const int* species_is_dust,
-                                                const int* species_is_hydrophilic, const double* radius,
-                                                const double* density, double* concentration, int* bridge_rc);
+    extern "C" void run_settling_science_bridge(
+        int n_columns, int n_levels, int n_aerosols, int n_total_species, double dt, double scale_factor,
+        double swelling_rh_max, int correction_maring, int maring_dust_only, double* airden, double* delp,
+        const double* pmid, double* rh, double* temperature, double* z_edge, const char* aerosol_species_names,
+        const char* species_names, const int* species_is_dust, const int* species_is_hydrophilic, const double* radius,
+        const double* density, double* concentration, int simple_scheme, const char* aerosol_mie_names, int* bridge_rc);
+
+    // Loads the aerosol optics (Mie) tables named by the top-level "mie:" section
+    // into the Fortran bridge store.  type_names/file_paths are fixed-width,
+    // blank-padded character buffers packed contiguously (32 and 512 bytes per
+    // entry).  init_rc receives the 1-based index of the first file that failed
+    // to open, or 0 on success.  Idempotent: a second call replaces any
+    // previously loaded set.
+    extern "C" void run_settling_mie_init(int n_files, const char* type_names, const char* file_paths, int* init_rc);
+
+    namespace {
+        // Right-trim the blank padding of a fixed-width Fortran character buffer.
+        std::string trim_trailing_spaces(std::string text) {
+            text.erase(text.find_last_not_of(' ') + 1);
+            return text;
+        }
+    } // namespace
 
     ProcessContract SettlingProcess::get_contract() const {
         // The current GOCART implementation invokes a Fortran science bridge
@@ -66,22 +84,64 @@ namespace catchem {
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and reaches the settling kernel.
         // The metadata path corresponds to legacy simple_scheme: false.
-        // Mie-table settling remains intentionally unsupported by C++.
-        if (gocart_simple_scheme)
-            throw std::invalid_argument(
-                "Settling simple_scheme requires Mie tables and is unsupported by the C++ core");
-        Logger::debug(state.get(), "Settling scheme options",
-                      {{"scheme", active_scheme},
-                       {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
-                       {"gocart/correction_maring", gocart_correction_maring ? "true" : "false"},
-                       {"gocart/maring_dust_only", gocart_maring_dust_only ? "true" : "false"},
-                       {"gocart/simple_scheme", "false (species metadata)"},
-                       {"gocart/swelling", "per-species __hydrophilic (Gerber when true)"},
-                       {"gocart/swelling_rh_max", std::to_string(gocart_swelling_rh_max)}});
+        // simple_scheme: true restores the legacy optics-table path: the
+        // NetCDF Mie tables named by the top-level "mie:" section are loaded
+        // once here and the scheme selects Chem_SettlingSimple per species via
+        // each species' __mie_name (specs/012).
+        std::vector<std::string> mie_type_labels; // "<TYPE> -> <file>" for the log
+        if (gocart_simple_scheme) {
+            const auto& mie = config->data.mie;
+            if (mie.files.empty())
+                throw std::invalid_argument("Settling gocart/simple_scheme requires a non-empty 'mie.files' section "
+                                            "mapping aerosol types to optics tables");
+            const std::filesystem::path dir(mie.directory);
+            if (mie.directory != "./" && !std::filesystem::is_directory(dir))
+                throw std::invalid_argument("Settling optics directory is not a readable directory: '" + mie.directory +
+                                            "'");
+            std::vector<char> type_names, file_paths;
+            type_names.reserve(mie.files.size() * 32);
+            file_paths.reserve(mie.files.size() * 512);
+            for (const auto& [type, file] : mie.files) {
+                const std::filesystem::path joined = mie.directory == "./" ? std::filesystem::path(file) : dir / file;
+                std::error_code ec;
+                if (!std::filesystem::exists(joined, ec))
+                    throw std::invalid_argument("Settling optics table for aerosol type '" + type + "' not found at '" +
+                                                joined.string() + "'");
+                type_names.insert(type_names.end(), 32, ' ');
+                std::copy_n(type.begin(), std::min<size_t>(type.size(), 32), type_names.end() - 32);
+                file_paths.insert(file_paths.end(), 512, ' ');
+                const std::string path_str = joined.string();
+                std::copy_n(path_str.begin(), std::min<size_t>(path_str.size(), 511), file_paths.end() - 512);
+                mie_type_labels.push_back(type + " -> " + path_str);
+            }
+            int init_rc = 0;
+            run_settling_mie_init(static_cast<int>(mie.files.size()), type_names.data(), file_paths.data(), &init_rc);
+            if (init_rc != 0) {
+                const auto& failed = mie.files[static_cast<size_t>(init_rc) - 1];
+                throw std::runtime_error("Settling optics table load failed for file #" + std::to_string(init_rc) +
+                                         " ('" + failed.first + "': " + failed.second + ")");
+            }
+            mie_initialized = true;
+        }
+        Logger::debug(
+            state.get(), "Settling scheme options",
+            {{"scheme", active_scheme},
+             {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
+             {"gocart/correction_maring", gocart_correction_maring ? "true" : "false"},
+             {"gocart/maring_dust_only", gocart_maring_dust_only ? "true" : "false"},
+             {"gocart/simple_scheme", gocart_simple_scheme ? "true (optics tables)" : "false (species metadata)"},
+             {"gocart/swelling",
+              gocart_simple_scheme ? "optics-table rEff(rh) LUT" : "per-species __hydrophilic (Gerber when true)"},
+             {"gocart/swelling_rh_max", std::to_string(gocart_swelling_rh_max)},
+             {"gocart/optics_directory", gocart_simple_scheme ? config->data.mie.directory : "(unused)"},
+             {"gocart/optics_tables", gocart_simple_scheme ? std::to_string(mie_type_labels.size()) : "0"}});
+        for (const auto& label : mie_type_labels)
+            Logger::debug(state.get(), "Settling optics table", {{"binding", label}});
 
         int num_aerosols = state->chemistry().aerosol_indices.size();
         if (num_aerosols > 0) {
             aerosol_species_names.assign(static_cast<size_t>(num_aerosols) * 32, ' ');
+            aerosol_mie_names.assign(static_cast<size_t>(num_aerosols) * 32, ' ');
             host_radius_dry.assign(num_aerosols, 0.0);
             host_rhop_dry.assign(num_aerosols, 0.0);
             host_is_dust.assign(num_aerosols, 0);
@@ -102,11 +162,41 @@ namespace catchem {
                 // Per-species hygroscopicity drives wet-particle swelling: a
                 // hydrophilic aerosol grows with RH (Gerber), a hydrophobic one
                 // settles at its dry size.  Replaces the old global
-                // swelling_method knob.
+                // swelling_method knob.  Ignored on the optics-table path where
+                // the table itself encodes the size response.
                 host_is_hydrophilic[i] = state->chemistry().species_list[ispec].is_hydrophilic ? 1 : 0;
                 std::copy_n(state->chemistry().species_names_c_arr.data() + static_cast<size_t>(ispec) * 32, 32,
                             aerosol_species_names.data() + static_cast<size_t>(i) * 32);
+                const std::string& mie_name = state->chemistry().species_list[ispec].mie_name;
+                std::copy_n(mie_name.begin(), std::min<size_t>(mie_name.size(), 32),
+                            aerosol_mie_names.data() + static_cast<size_t>(i) * 32);
             }
+
+            if (gocart_simple_scheme) {
+                // Defensive C++-side pre-resolution so misconfiguration names the
+                // species at init instead of surfacing as the Fortran bridge_rc==2
+                // backstop at the first step (specs/012 FR-009).
+                for (int i = 0; i < num_aerosols; ++i) {
+                    const int ispec = state->chemistry().aerosol_indices[i];
+                    const std::string species_name = state->chemistry().species_list[ispec].short_name;
+                    const std::string trimmed =
+                        trim_trailing_spaces(std::string(aerosol_mie_names.data() + static_cast<size_t>(i) * 32, 32));
+                    if (trimmed.empty())
+                        throw std::invalid_argument("Settling simple_scheme requires __mie_name on species '" +
+                                                    species_name + "' but it is empty");
+                    bool resolved = false;
+                    for (const auto& [type, file] : config->data.mie.files)
+                        if (type == trimmed) {
+                            resolved = true;
+                            break;
+                        }
+                    if (!resolved)
+                        throw std::invalid_argument("Settling species '" + species_name + "' has __mie_name '" +
+                                                    trimmed + "' which matches no configured mie.files entry");
+                }
+            }
+        } else if (gocart_simple_scheme) {
+            throw std::invalid_argument("Settling simple_scheme is enabled but no aerosol species are configured");
         }
     }
 
@@ -150,14 +240,17 @@ namespace catchem {
                               state->chemistry().conc ? state->chemistry().conc->host_data() : nullptr);
 
         int bridge_rc = 0;
-        run_settling_science_bridge(state->column_count(), state->level_count(), num_aerosols, state->species_count(),
-                                    state->clock().timestep, gocart_scale_factor, gocart_swelling_rh_max,
-                                    gocart_correction_maring ? 1 : 0, gocart_maring_dust_only ? 1 : 0,
-                                    state->meteorology().AIRDEN->host_data(), delp, pmid,
-                                    state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
-                                    aerosol_species_names.data(), state->chemistry().species_names_c_arr.data(),
-                                    host_is_dust.data(), host_is_hydrophilic.data(), host_radius_dry.data(),
-                                    host_rhop_dry.data(), state->chemistry().conc->host_write(), &bridge_rc);
+        run_settling_science_bridge(
+            state->column_count(), state->level_count(), num_aerosols, state->species_count(), state->clock().timestep,
+            gocart_scale_factor, gocart_swelling_rh_max, gocart_correction_maring ? 1 : 0,
+            gocart_maring_dust_only ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp, pmid,
+            state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
+            aerosol_species_names.data(), state->chemistry().species_names_c_arr.data(), host_is_dust.data(),
+            host_is_hydrophilic.data(), host_radius_dry.data(), host_rhop_dry.data(),
+            state->chemistry().conc->host_write(), gocart_simple_scheme ? 1 : 0, aerosol_mie_names.data(), &bridge_rc);
+        if (bridge_rc == 2)
+            throw std::runtime_error(
+                "Settling optics-table mapping failed: a settling species did not resolve to a loaded Mie table");
         if (bridge_rc != 0)
             throw std::runtime_error("Settling science bridge failed with status " + std::to_string(bridge_rc));
         state->chemistry().conc->mark_host_modified();

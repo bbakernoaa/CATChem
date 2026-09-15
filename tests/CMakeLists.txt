@@ -439,6 +439,46 @@ add_process_unit_test(carbchem CATChem_process_carbchem)
 # must fail validation (settling scale_factor round-trip).
 add_process_unit_test(option_propagation CATChem_process_settling)
 
+# legacy optics-table (simple_scheme: true) settling path and the
+# top-level "mie:" configuration parsing.  Both read the generated
+# catchem_test_config.hpp (optics fixture directory), so the binary dir is
+# added to the include path explicitly.
+add_executable(test_catchem_settling_optics test_catchem_settling_optics.cpp)
+target_link_libraries(
+  test_catchem_settling_optics
+  PRIVATE CATChem_core_cpp CATChem_core CATChem_process_settling
+)
+target_include_directories(
+  test_catchem_settling_optics
+  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_target_properties(
+  test_catchem_settling_optics
+  PROPERTIES CXX_STANDARD 20 LINKER_LANGUAGE CXX
+)
+add_test(
+  NAME test_catchem_settling_optics
+  COMMAND test_catchem_settling_optics
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+catchem_label_tests("process;settling;optics" test_catchem_settling_optics)
+
+add_executable(test_catchem_config_mie test_catchem_config_mie.cpp)
+target_link_libraries(
+  test_catchem_config_mie
+  PRIVATE CATChem_core_cpp CATChem_core
+)
+target_include_directories(
+  test_catchem_config_mie
+  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_target_properties(
+  test_catchem_config_mie
+  PROPERTIES CXX_STANDARD 20 LINKER_LANGUAGE CXX
+)
+add_test(NAME test_catchem_config_mie COMMAND test_catchem_config_mie)
+catchem_label_tests("configuration" test_catchem_config_mie)
+
 add_executable(test_catchem_derived_met test_catchem_derived_met.cpp)
 target_link_libraries(
   test_catchem_derived_met
