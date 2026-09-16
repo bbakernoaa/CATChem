@@ -1,6 +1,7 @@
 #pragma once
 #include "catchem_process_interface.hpp"
 #include <functional>
+#include <string>
 #include <vector>
 
 namespace catchem {
@@ -38,6 +39,15 @@ namespace catchem {
         std::vector<char> aerosol_mie_names;
         // True once run_settling_mie_init has loaded the tables for this process.
         bool mie_initialized = false;
+
+        // Per-process scheme diagnostics (specs: process-diagnostics-parity).
+        // diagnostics_enabled mirrors processes/settling/diagnostics;
+        // diagnostic_species_id holds 1-based LOCAL positions within the
+        // aerosol subset the bridge gathers (species_mie_map order), matching
+        // the species_idx the scheme loops over.
+        bool diagnostics_enabled = false;
+        std::vector<int> diagnostic_species_id;
+        std::vector<std::string> diagnostic_species_names; // parallel to ids, for run() lookups
 
     public:
         SettlingProcess();

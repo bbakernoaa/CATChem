@@ -1,4 +1,5 @@
 #include "catchem_process_settling.hpp"
+#include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
@@ -16,7 +17,8 @@ namespace catchem {
         double swelling_rh_max, int correction_maring, int maring_dust_only, double* airden, double* delp,
         const double* pmid, double* rh, double* temperature, double* z_edge, const char* aerosol_species_names,
         const char* species_names, const int* species_is_dust, const int* species_is_hydrophilic, const double* radius,
-        const double* density, double* concentration, int simple_scheme, const char* aerosol_mie_names, int* bridge_rc);
+        const double* density, double* concentration, int simple_scheme, const char* aerosol_mie_names,
+        double* diag_velocity, double* diag_flux, const int* diagnostic_species_id, int n_diag_species, int* bridge_rc);
 
     // Loads the aerosol optics (Mie) tables named by the top-level "mie:" section
     // into the Fortran bridge store.  type_names/file_paths are fixed-width,
@@ -80,6 +82,8 @@ namespace catchem {
         if (gocart_swelling_rh_max > 1.0)
             throw std::invalid_argument(
                 "Settling gocart swelling_rh_max must be <= 1.0 (RH fraction), or <= 0 to disable");
+
+        diagnostics_enabled = configured->second.diagnostics;
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and reaches the settling kernel.
@@ -198,6 +202,48 @@ namespace catchem {
         } else if (gocart_simple_scheme) {
             throw std::invalid_argument("Settling simple_scheme is enabled but no aerosol species are configured");
         }
+
+        // --- Per-process diagnostics (parity with legacy) ------------------
+        // diagnostic_species_id indexes the aerosol subset (1..num_aerosols),
+        // which is the species_idx space compute_gocart iterates.
+        {
+            const auto& aerosol_idx = state->chemistry().aerosol_indices;
+            const auto& settings = configured->second;
+            std::vector<int> selected_local; // 1-based positions into aerosol subset
+            if (!settings.diag_species.empty()) {
+                for (const auto& name : settings.diag_species) {
+                    int found = -1;
+                    for (size_t a = 0; a < aerosol_idx.size(); ++a) {
+                        if (state->chemistry().species_list[aerosol_idx[a]].short_name == name) {
+                            found = static_cast<int>(a) + 1;
+                            break;
+                        }
+                    }
+                    if (found < 0)
+                        throw std::invalid_argument("Settling diag_species names a non-settling species: " + name);
+                    selected_local.push_back(found);
+                }
+            } else {
+                for (size_t a = 0; a < aerosol_idx.size(); ++a)
+                    selected_local.push_back(static_cast<int>(a) + 1);
+            }
+            diagnostic_species_id = selected_local;
+            diagnostic_species_names.clear();
+            for (int local : selected_local)
+                diagnostic_species_names.push_back(
+                    state->chemistry().species_list[aerosol_idx[static_cast<size_t>(local) - 1]].short_name);
+
+            if (diagnostics_enabled && state->diagnostic_manager() && !selected_local.empty()) {
+                const int ndiag = static_cast<int>(selected_local.size());
+                std::vector<int> dims_vel = {state->column_count(), state->level_count(), ndiag};
+                std::vector<int> dims_flux = {state->column_count(), ndiag};
+                state->diagnostic_manager()->register_field(
+                    "settling_velocity_per_species_per_level", "Settling velocity", "m/s", DiagType::FIELD_3D,
+                    dims_vel);
+                state->diagnostic_manager()->register_field("settling_flux_per_species", "Settling column flux",
+                                                            "kg/m2/s", DiagType::FIELD_2D, dims_flux);
+            }
+        }
     }
 
     void SettlingProcess::set_fortran_bridge_callback(std::function<void(void*)> cb) {
@@ -240,6 +286,24 @@ namespace catchem {
                               state->chemistry().conc ? state->chemistry().conc->host_data() : nullptr);
 
         int bridge_rc = 0;
+        double* diag_velocity = nullptr;
+        double* diag_flux = nullptr;
+        if (diagnostics_enabled && state->diagnostic_manager() && !diagnostic_species_id.empty()) {
+            diag_velocity =
+                static_cast<double*>(state->diagnostic_manager()->get_host_pointer(
+                    "settling_velocity_per_species_per_level"));
+            diag_flux =
+                static_cast<double*>(state->diagnostic_manager()->get_host_pointer("settling_flux_per_species"));
+        }
+        const int n_diag_species = diagnostics_enabled ? static_cast<int>(diagnostic_species_id.size()) : 0;
+        // The Fortran dummy argument is declared diagnostic_species_id(max(n_diag_species,1)),
+        // so the bridge always receives a size-1 intent(in) array even when the count is zero
+        // (it is never dereferenced in that case).  std::vector::data() of an empty vector may
+        // be nullptr, which would form a Fortran pointer to nothing; pass a valid dummy instead.
+        static const int no_diag_species = 0;
+        const int* diag_ids =
+            diagnostic_species_id.empty() ? &no_diag_species : diagnostic_species_id.data();
+
         run_settling_science_bridge(
             state->column_count(), state->level_count(), num_aerosols, state->species_count(), state->clock().timestep,
             gocart_scale_factor, gocart_swelling_rh_max, gocart_correction_maring ? 1 : 0,
@@ -247,7 +311,8 @@ namespace catchem {
             state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
             aerosol_species_names.data(), state->chemistry().species_names_c_arr.data(), host_is_dust.data(),
             host_is_hydrophilic.data(), host_radius_dry.data(), host_rhop_dry.data(),
-            state->chemistry().conc->host_write(), gocart_simple_scheme ? 1 : 0, aerosol_mie_names.data(), &bridge_rc);
+            state->chemistry().conc->host_write(), gocart_simple_scheme ? 1 : 0, aerosol_mie_names.data(),
+            diag_velocity, diag_flux, diag_ids, n_diag_species, &bridge_rc);
         if (bridge_rc == 2)
             throw std::runtime_error(
                 "Settling optics-table mapping failed: a settling species did not resolve to a loaded Mie table");
