@@ -2239,8 +2239,9 @@ contains
    !! index (col = i + (j-1)*nx) the science bridges use, so the [ncols, n]
    !! buffer reinterprets directly as (nx, ny[, nbin]) with no reshaping.
    !!
-   !! Gated by diagnostics/output/enabled (checked by the caller) and
-   !! diagnostics/output/process_diagnostics.
+   !! Gated by diagnostics/output/enabled (checked by the caller); every
+   !! registered field is written when runtime diagnostics are enabled,
+   !! matching the legacy Fortran core.
    !!
    !! \param cc_wrap CATChem wrapper containing model state and configuration
    !! \param process_name Name of the process ('all' selects every process)
@@ -2267,9 +2268,6 @@ contains
       logical :: is_dust_field, is_seasalt_field
 
       rc = CC_SUCCESS
-
-      ! Gate: per-process diagnostic output is opt-in.
-      if (.not. cc_wrap%catchem_model%is_process_diag_enabled()) return
 
       nx = cc_wrap%catchem_model%nx
       ny = cc_wrap%catchem_model%ny
