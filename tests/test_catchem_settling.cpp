@@ -188,6 +188,10 @@ namespace {
             assert(std::isfinite(vel[i]));
             assert(vel[i] >= 0.0); // GOCART clamps negative vsettle to zero
         }
+        bool any_positive = false;
+        for (int i = 0; i < n; ++i)
+            if (vel[i] > 0.0) { any_positive = true; break; }
+        assert(any_positive && "settling velocity diagnostics must be populated by the bridge");
         std::cout << "  PASS settling_diagnostics: fields present, velocity finite & >= 0" << std::endl;
     }
 
