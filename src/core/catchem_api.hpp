@@ -277,6 +277,12 @@ void catchem_diag_get_name_at(void* core_ptr, int index, char* name_out);
 int catchem_diag_get_name_at_checked(void* core_ptr, int index, char* name_out, int name_length);
 int catchem_diag_get_units_checked(void* core_ptr, const char* name, char* units_out, int units_length);
 int catchem_diag_get_description_checked(void* core_ptr, const char* name, char* desc_out, int desc_length);
+/// SemanticAxis ordinals per dimension (length == rank). axes_length must be >= rank.
+int catchem_diag_get_axes_checked(void* core_ptr, const char* name, int* axes_out, int axes_length);
+/// Label for slot `slot` (0-based) of the field's packed (Species/Category) dimension.
+/// Non-zero when the field has no packed dimension or `slot` is out of range.
+int catchem_diag_get_unpack_label_at_checked(void* core_ptr, const char* name, int slot, char* label_out,
+                                             int label_length);
 
 // YAML Species Metadata
 void catchem_state_load_species_config(void* state_ptr, const char* filename);

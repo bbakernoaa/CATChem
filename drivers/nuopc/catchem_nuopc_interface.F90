@@ -140,6 +140,30 @@ module catchem_nuopc_interface
          integer(c_int), value :: desc_length
       end function
 
+      ! Axes / unpack-label getters for the generic axes-driven writer. These
+      ! out-params are written ONLY on the success path, so they must be
+      ! intent(inout), not intent(out): intent(out) lets -O3 discard the
+      ! caller's pre-clear when the C side returns early on an error (FFI trap).
+      integer(c_int) function catchem_diag_get_axes_checked(core_ptr, name, axes_out, axes_length) &
+         bind(C, name="catchem_diag_get_axes_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), intent(inout) :: axes_out(*)
+         integer(c_int), value :: axes_length
+      end function
+
+      integer(c_int) function catchem_diag_get_unpack_label_at_checked(core_ptr, name, slot, label_out, &
+         label_length) &
+         bind(C, name="catchem_diag_get_unpack_label_at_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), value :: slot
+         character(kind=c_char), intent(inout) :: label_out(*)
+         integer(c_int), value :: label_length
+      end function
+
       subroutine catchem_diag_sync_to_host(core_ptr) &
          bind(C, name="catchem_diag_sync_to_host")
          import :: c_ptr

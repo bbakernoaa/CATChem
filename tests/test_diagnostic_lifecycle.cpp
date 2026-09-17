@@ -48,6 +48,43 @@ int main() {
         mismatch_rejected = true;
     }
     assert(mismatch_rejected);
+
+    // --- feature 013: unpack_labels contract (lenient subset) ---
+    const std::vector<int> bin_dims = {2, 3};
+    const std::vector<catchem::SemanticAxis> bin_axes = {catchem::SemanticAxis::Column,
+                                                         catchem::SemanticAxis::Category};
+    const std::vector<std::string> bin_labels = {"DUST1", "DUST2", "DUST3"};
+    manager->register_field_contract("per_bin", "per bin", "kg", catchem::DiagType::FIELD_2D, bin_dims,
+                                     catchem::DiagnosticPolicy::Instantaneous, 0.0, bin_axes, bin_labels);
+    assert(manager->get_axes("per_bin") == bin_axes);
+    assert(manager->get_unpack_labels("per_bin") == bin_labels);
+    // A field with no packed dimension carries no labels.
+    assert(manager->get_unpack_labels("instant").empty());
+    // INV-9: re-registration with the same contract but differing labels is rejected.
+    bool label_mismatch_rejected = false;
+    try {
+        manager->register_field_contract("per_bin", "per bin", "kg", catchem::DiagType::FIELD_2D, bin_dims,
+                                         catchem::DiagnosticPolicy::Instantaneous, 0.0, bin_axes,
+                                         {"DUST1", "DUST2", "WRONG"});
+    } catch (const std::invalid_argument&) {
+        label_mismatch_rejected = true;
+    }
+    assert(label_mismatch_rejected);
+    // INV-8: the leading axis of every process diagnostic must be Column.
+    bool non_column_rejected = false;
+    try {
+        manager->register_field_contract("bad_axis", "bad", "kg", catchem::DiagType::FIELD_2D, bin_dims,
+                                         catchem::DiagnosticPolicy::Instantaneous, 0.0,
+                                         {catchem::SemanticAxis::Level, catchem::SemanticAxis::Singleton});
+    } catch (const std::invalid_argument&) {
+        non_column_rejected = true;
+    }
+    assert(non_column_rejected);
+    // Determinism: get_registered_names() yields insertion order, not hash order.
+    const auto names = manager->get_registered_names();
+    assert(names.size() == 4);
+    assert(names[0] == "instant" && names[1] == "accumulated" && names[2] == "persistent" && names[3] == "per_bin");
+
     assert(catchem_core_destroy_checked(core_handle) == CATCHEM_SUCCESS);
     return 0;
 }

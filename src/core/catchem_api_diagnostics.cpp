@@ -299,4 +299,51 @@ int catchem_diag_get_description_checked(void* core_ptr, const char* name, char*
     copy_string_to_buffer(manager->get_field(name)->description, desc_out, desc_length);
     return CATCHEM_SUCCESS;
 }
+
+int catchem_diag_get_axes_checked(void* core_ptr, const char* name, int* axes_out, int axes_length) {
+    if (!name || !axes_out || axes_length <= 0)
+        return fail(catchem::BoundaryStatus::NullArgument, "diagnostic_get_axes", "name",
+                    "field name and a positive-length axes output are required");
+    catchem::AdmissionLease admission;
+    const int status = admit_handle(core_ptr, catchem::HandleType::Core, "diagnostic_get_axes", admission);
+    if (status != CATCHEM_SUCCESS)
+        return status;
+    auto manager = static_cast<catchem::Core*>(core_ptr)->get_diagnostic_manager();
+    if (!manager || !manager->has_field(name))
+        return fail(catchem::BoundaryStatus::MissingField, "diagnostic_get_axes", name, "field is not registered");
+    const auto& axes = manager->get_axes(name);
+    if (axes_length < static_cast<int>(axes.size()))
+        return fail(catchem::BoundaryStatus::ExtentMismatch, "diagnostic_get_axes", name,
+                    "axes output is shorter than the field rank");
+    std::fill(axes_out, axes_out + axes_length, 0);
+    for (std::size_t index = 0; index < axes.size(); ++index)
+        axes_out[index] = static_cast<int>(axes[index]);
+    return CATCHEM_SUCCESS;
+}
+
+int catchem_diag_get_unpack_label_at_checked(void* core_ptr, const char* name, int slot, char* label_out,
+                                             int label_length) {
+    if (label_out && label_length > 0)
+        label_out[0] = '\0';
+    if (!name || !label_out || label_length <= 0)
+        return fail(catchem::BoundaryStatus::NullArgument, "diagnostic_get_unpack_label_at", "name",
+                    "field name and a positive-length label output are required");
+    catchem::AdmissionLease admission;
+    const int status = admit_handle(core_ptr, catchem::HandleType::Core, "diagnostic_get_unpack_label_at", admission);
+    if (status != CATCHEM_SUCCESS)
+        return status;
+    auto manager = static_cast<catchem::Core*>(core_ptr)->get_diagnostic_manager();
+    if (!manager || !manager->has_field(name))
+        return fail(catchem::BoundaryStatus::MissingField, "diagnostic_get_unpack_label_at", name,
+                    "field is not registered");
+    const auto& labels = manager->get_unpack_labels(name);
+    if (labels.empty())
+        return fail(catchem::BoundaryStatus::InvalidState, "diagnostic_get_unpack_label_at", name,
+                    "field has no packed dimension to unpack");
+    if (slot < 0 || slot >= static_cast<int>(labels.size()))
+        return fail(catchem::BoundaryStatus::InvalidIndex, "diagnostic_get_unpack_label_at", name,
+                    "label slot is outside the packed dimension");
+    copy_string_to_buffer(labels[static_cast<std::size_t>(slot)], label_out, label_length);
+    return CATCHEM_SUCCESS;
+}
 }

@@ -9,9 +9,10 @@ namespace catchem {
 
     DiagnosticField::DiagnosticField(const std::string& name_val, const std::string& desc_val,
                                      const std::string& units_val, DiagType type_val, const std::vector<int>& dims,
-                                     DiagnosticPolicy policy, double reset, std::vector<SemanticAxis> semantic_axes)
+                                     DiagnosticPolicy policy, double reset, std::vector<SemanticAxis> semantic_axes,
+                                     std::vector<std::string> labels)
         : name(name_val), description(desc_val), units(units_val), type(type_val), dimensions(dims),
-          axes(std::move(semantic_axes)), reset_policy(policy), reset_value(reset) {
+          axes(std::move(semantic_axes)), unpack_labels(std::move(labels)), reset_policy(policy), reset_value(reset) {
         is_gpu_target = !std::is_same_v<HostSpace, DeviceSpace>;
 
         if (type == DiagType::FIELD_2D) {
@@ -107,9 +108,10 @@ namespace catchem {
 
     DiagnosticField::DiagnosticField(const std::string& name_val, const std::string& desc_val,
                                      const std::string& units_val, DiagType type_val, const std::vector<int>& dims,
-                                     DiagnosticPolicy policy, double reset, std::vector<SemanticAxis> semantic_axes)
+                                     DiagnosticPolicy policy, double reset, std::vector<SemanticAxis> semantic_axes,
+                                     std::vector<std::string> labels)
         : name(name_val), description(desc_val), units(units_val), type(type_val), dimensions(dims),
-          axes(std::move(semantic_axes)), reset_policy(policy), reset_value(reset) {
+          axes(std::move(semantic_axes)), unpack_labels(std::move(labels)), reset_policy(policy), reset_value(reset) {
         is_gpu_target = false;
 
         if (type == DiagType::FIELD_2D) {
@@ -195,21 +197,29 @@ namespace catchem {
     void DiagnosticManager::register_field_contract(const std::string& name, const std::string& desc,
                                                     const std::string& units, DiagType type,
                                                     const std::vector<int>& dims, DiagnosticPolicy policy,
-                                                    double reset_value, const std::vector<SemanticAxis>& axes) {
+                                                    double reset_value, const std::vector<SemanticAxis>& axes,
+                                                    const std::vector<std::string>& unpack_labels) {
         if (name.empty() || desc.empty() || units.empty() || dims.empty() || dims.size() != axes.size() ||
             std::any_of(dims.begin(), dims.end(), [](int d) { return d <= 0; }))
             throw std::invalid_argument("Invalid diagnostic contract: " + name);
+        // INV-8: every process diagnostic keeps columns as its leading axis; the
+        // axes-driven writer relies on this to map axis 1 onto the gridded (nx, ny).
+        if (axes.front() != SemanticAxis::Column)
+            throw std::invalid_argument("Invalid diagnostic contract (axis 0 must be Column): " + name);
         auto existing = fields.find(name);
         if (existing != fields.end()) {
             const auto& field = *existing->second;
             if (field.type != type || field.dimensions != dims || field.units != units || field.description != desc ||
-                field.axes != axes || field.reset_policy != policy || field.reset_value != reset_value)
+                field.axes != axes || field.reset_policy != policy || field.reset_value != reset_value ||
+                field.unpack_labels != unpack_labels)
                 throw std::invalid_argument("Incompatible diagnostic re-registration: " + name);
             return;
         }
-        auto field = std::make_shared<DiagnosticField>(name, desc, units, type, dims, policy, reset_value, axes);
+        auto field =
+            std::make_shared<DiagnosticField>(name, desc, units, type, dims, policy, reset_value, axes, unpack_labels);
         field->registration_generation = generation_;
         fields[name] = std::move(field);
+        registration_order_.push_back(name);
     }
 
     bool DiagnosticManager::has_field(const std::string& name) const {
@@ -254,11 +264,24 @@ namespace catchem {
     }
 
     std::vector<std::string> DiagnosticManager::get_registered_names() const {
-        std::vector<std::string> names;
-        for (const auto& [name, field] : fields) {
-            names.push_back(name);
-        }
-        return names;
+        // Return insertion order, not unordered_map order: the axes-driven diagnostic
+        // writer iterates this to emit NetCDF variables, and output must be
+        // deterministic (copilot-instructions §8).
+        return registration_order_;
+    }
+
+    const std::vector<SemanticAxis>& DiagnosticManager::get_axes(const std::string& name) const {
+        auto existing = fields.find(name);
+        if (existing == fields.end())
+            throw std::invalid_argument("Field not found: " + name);
+        return existing->second->axes;
+    }
+
+    const std::vector<std::string>& DiagnosticManager::get_unpack_labels(const std::string& name) const {
+        auto existing = fields.find(name);
+        if (existing == fields.end())
+            throw std::invalid_argument("Field not found: " + name);
+        return existing->second->unpack_labels;
     }
 
     void DiagnosticManager::mark_host_modified(const std::string& name) {

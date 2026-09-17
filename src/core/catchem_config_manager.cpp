@@ -614,6 +614,13 @@ namespace catchem {
                     data.diagnostics.output.compress_lev = value_or<int>(output["compress_lev"], 0);
                     data.diagnostics.output.process_diagnostics = value_or<bool>(output["process_diagnostics"], false);
                     data.diagnostics.output.diag_list = string_vector_or_empty(output["diag_list"]);
+                    if (output["attributes"] && output["attributes"].IsMap()) {
+                        for (const auto& attr : output["attributes"]) {
+                            if (attr.second)
+                                data.diagnostics.output.attributes[attr.first.as<std::string>()] =
+                                    attr.second.as<std::string>();
+                        }
+                    }
                 }
                 if (diagnostics["collection"]) {
                     const YAML::Node collection = diagnostics["collection"];

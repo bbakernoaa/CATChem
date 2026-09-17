@@ -65,6 +65,10 @@ namespace catchem {
         int compress_lev = 0;
         bool process_diagnostics = false;
         std::vector<std::string> diag_list;
+        /// Run-level NetCDF global attributes (institution, references, ...).
+        /// Written to every diagnostic file; user entries override core defaults
+        /// on key collision (spec FR-011).
+        std::map<std::string, std::string> attributes;
     };
 
     /// @brief Diagnostic collection settings from YAML.
