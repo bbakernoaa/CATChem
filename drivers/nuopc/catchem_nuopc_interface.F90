@@ -452,6 +452,7 @@ module catchem_nuopc_interface
       ! Time slice tracking for NetCDF output
       integer :: current_time_slice = 0
       logical :: pm_diag_registered = .false.  !< Track PM diagnostic registration per-instance
+      logical :: diag_list_warned = .false.    !< diag_list unmatched-selector warning emitted once per run
    end type cc_wrap_type
 
    type CATChem_InternalState
@@ -2304,6 +2305,11 @@ contains
       character(len=128) :: var_name
       character(len=32) :: units_str
       character(len=256) :: desc_str
+      character(len=128), allocatable :: selectors(:)
+      logical, allocatable :: sel_matched(:)
+      character(len=4096) :: warn_msg
+      integer :: ns, s
+      logical :: selected
       type(c_ptr) :: raw_ptr
       real(fp), pointer :: view_3d(:,:,:) => null()
       real(fp), pointer :: view_4d(:,:,:,:) => null()
@@ -2318,6 +2324,23 @@ contains
       ! before reading raw pointers (no-op in host-only builds).
       call catchem_diag_sync_to_host(cc_wrap%catchem_model%cpp_core_ptr)
 
+      ! diagnostics.output.diag_list selects which variables reach the file
+      ! (FR-009).  An empty list means "everything".  Matching operates on
+      ! the output variable name: an entry equals the name, or the name
+      ! starts with entry_'_' so a parent selector covers its unpacked
+      ! children.  Reloaded per write so a re-initialised model is never
+      ! filtered by a stale selector list.
+      ns = cc_wrap%catchem_model%get_diag_species_count()
+      ! Guard against a previous early-exit write leaving the arrays allocated.
+      if (allocated(selectors)) deallocate(selectors)
+      if (allocated(sel_matched)) deallocate(sel_matched)
+      allocate(selectors(max(ns, 1)))
+      allocate(sel_matched(max(ns, 1)))
+      selectors = ''
+      sel_matched = .false.
+      do s = 1, ns
+         call cc_wrap%catchem_model%get_diag_species_at(s, selectors(s))
+      end do
       c_status = catchem_diag_get_count_checked(cc_wrap%catchem_model%cpp_core_ptr, c_count)
       if (c_status /= 0_c_int) then
          rc = CC_FAILURE
@@ -2422,24 +2445,27 @@ contains
          end select
 
          if (.not. packed) then
-            if (int(rank) == 2 .and. int(axes(2)) == AXIS_SINGLETON) then
-               ! Per-column total: reinterpret [ncols,1] as (nx,ny) 2D output.
-               call c_f_pointer(raw_ptr, view_3d, [nx, ny, 1])
-               call write_diagnostic_field(cc_wrap, trim(field_name), DIAG_REAL_2D, 0.0_fp, &
-                  array_2d_ptr=view_3d(:,:,1), description=trim(desc_str), &
-                  units=trim(units_str), filename=filename, rc=rc)
-            else
-               ! Per-level field: reinterpret [ncols,nlev] as (nx,ny,nlev) so
-               ! the vertical dimension is never truncated (FR-003).
-               call c_f_pointer(raw_ptr, view_3d, [nx, ny, int(dims(2))])
-               call write_diagnostic_field(cc_wrap, trim(field_name), DIAG_REAL_3D, 0.0_fp, &
-                  array_3d_ptr=view_3d, description=trim(desc_str), &
-                  units=trim(units_str), filename=filename, rc=rc)
-            end if
-            nullify(view_3d)
-            if (rc /= CC_SUCCESS) then
-               write(*,'(A,A)') 'Warning: Failed to write process diagnostic: ', trim(field_name)
-               rc = CC_SUCCESS
+            call diag_selector_select(selectors, sel_matched, ns, trim(field_name), selected)
+            if (selected) then
+               if (int(rank) == 2 .and. int(axes(2)) == AXIS_SINGLETON) then
+                  ! Per-column total: reinterpret [ncols,1] as (nx,ny) 2D output.
+                  call c_f_pointer(raw_ptr, view_3d, [nx, ny, 1])
+                  call write_diagnostic_field(cc_wrap, trim(field_name), DIAG_REAL_2D, 0.0_fp, &
+                     array_2d_ptr=view_3d(:,:,1), description=trim(desc_str), &
+                     units=trim(units_str), filename=filename, rc=rc)
+               else
+                  ! Per-level field: reinterpret [ncols,nlev] as (nx,ny,nlev) so
+                  ! the vertical dimension is never truncated (FR-003).
+                  call c_f_pointer(raw_ptr, view_3d, [nx, ny, int(dims(2))])
+                  call write_diagnostic_field(cc_wrap, trim(field_name), DIAG_REAL_3D, 0.0_fp, &
+                     array_3d_ptr=view_3d, description=trim(desc_str), &
+                     units=trim(units_str), filename=filename, rc=rc)
+               end if
+               nullify(view_3d)
+               if (rc /= CC_SUCCESS) then
+                  write(*,'(A,A)') 'Warning: Failed to write process diagnostic: ', trim(field_name)
+                  rc = CC_SUCCESS
+               end if
             end if
          else
             ! Unpacked: one variable per slot named <field>_<label>.  A slot
@@ -2462,6 +2488,8 @@ contains
                end if
                call catchem_c_string_to_fortran(c_label, label_str)
                var_name = trim(field_name) // '_' // trim(label_str)
+               call diag_selector_select(selectors, sel_matched, ns, trim(var_name), selected)
+               if (.not. selected) cycle
                if (int(rank) == 2) then
                   call write_diagnostic_field(cc_wrap, trim(var_name), DIAG_REAL_2D, 0.0_fp, &
                      array_2d_ptr=view_3d(:,:,slot), description=trim(desc_str), &
@@ -2481,7 +2509,62 @@ contains
          end if
       end do
 
+      ! FR-009: every selector that matched nothing is reported once,
+      ! aggregated into a single warning.  Never fatal, never silent.
+      if (ns > 0 .and. .not. cc_wrap%diag_list_warned) then
+         warn_msg = ''
+         do s = 1, ns
+            if (.not. sel_matched(s)) then
+               if (len_trim(warn_msg) > 0) warn_msg = trim(warn_msg) // ', '
+               warn_msg = trim(warn_msg) // trim(selectors(s))
+            end if
+         end do
+         if (len_trim(warn_msg) > 0) then
+            write(*,'(A,A)') 'Warning: diag_list selector(s) matched no diagnostic field: ', &
+               trim(warn_msg)
+         end if
+         cc_wrap%diag_list_warned = .true.
+      end if
+
+      deallocate(selectors, sel_matched)
+
    end subroutine write_process_diagnostics
+
+   !> \brief Test an output variable name against the diag_list selectors.
+   !!
+   !! An entry matches when it equals the name or the name starts with
+   !! entry_'_' (data-model §6.1), so a parent selector covers every
+   !! unpacked <field>_<label> child while a full child name selects just
+   !! that child.  Matching a selector marks it as used for the
+   !! aggregated unmatched-selector warning.  With an empty selector list
+   !! everything matches (FR-009: empty list = everything).
+   !!
+   !! \param selectors  Selector strings (diag_list)
+   !! \param matched    Per-selector hit flags, updated on a match
+   !! \param ns         Number of valid selector entries
+   !! \param var_name   Output variable name to test
+   !! \param selected   .true. when the variable must be written
+   subroutine diag_selector_select(selectors, matched, ns, var_name, selected)
+      character(len=*), intent(in) :: selectors(:)
+      logical, intent(inout) :: matched(:)
+      integer, intent(in) :: ns
+      character(len=*), intent(in) :: var_name
+      logical, intent(out) :: selected
+      integer :: s
+
+      selected = .true.
+      if (ns == 0) return
+      selected = .false.
+      do s = 1, ns
+         if (trim(selectors(s)) == trim(var_name)) then
+            matched(s) = .true.
+            selected = .true.
+         else if (index(trim(var_name) // '_', trim(selectors(s)) // '_') == 1) then
+            matched(s) = .true.
+            selected = .true.
+         end if
+      end do
+   end subroutine diag_selector_select
 
    !> \brief Write individual diagnostic field to NetCDF
    !!

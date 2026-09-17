@@ -869,6 +869,7 @@ if(CATCHEM_BUILD_NUOPC)
   file(
     COPY
       ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_diag_output_config.yml
+      ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_diag_narrow_config.yml
       ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_species.yml
       ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_emission.yml
     DESTINATION ${CMAKE_CURRENT_BINARY_DIR}

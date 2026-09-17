@@ -64,11 +64,7 @@ program test_nuopc_diag_output
    integer, parameter :: nx = 3, ny = 2, nz = 4
    integer, parameter :: ncols = nx * ny
 
-   type(cc_wrap_type) :: cc_wrap
-   type(ESMF_Grid) :: grid
-   type(ESMF_Time) :: currTime
-   integer :: rc, nfail
-   character(len=256) :: filename
+   integer :: nfail, rc
    character(len=64) :: msg
 
    nfail = 0
@@ -77,41 +73,16 @@ program test_nuopc_diag_output
       defaultlogfilename="test_nuopc_diag_output.log", rc=rc)
    call check(rc, "ESMF_Initialize")
 
-   ! 1. Initialize the model with the all-process diagnostic config.  Each
-   !    process init() registers its diagnostics in the C++ DiagnosticManager.
-   call cc_wrap%catchem_model%initialize('CATChem_diag_output_config.yml', nx, ny, nz, rc=rc)
-   if (rc /= 0) then
-      print *, 'FAIL: model initialize rc=', rc
-      error stop 1
-   end if
-   if (.not. cc_wrap%catchem_model%is_diag_enabled()) error stop 'diagnostics not enabled in config'
+   ! Case A: empty diag_list -> every registered field is written (US1/US2).
+   call run_case('CATChem_diag_output_config.yml', 'diag_out.nc', nfail)
+   print *, 'PASS: process-diagnostic writer contract satisfied (US1 + US2)'
 
-   ! 2. Build the grid + AQMIO I/O component the writer needs.  Field creation
-   !    inside write_diagnostic_field is grid-only (no tile arrays), so a plain
-   !    single-tile grid is sufficient.
-   grid = ESMF_GridCreateNoPeriDim(maxIndex=(/nx, ny/), rc=rc)
-   call check(rc, "GridCreate")
-   cc_wrap%grid = grid
-   cc_wrap%iocomp = AQMIO_Create(grid, rc=rc)
-   if (.not. ESMF_GridCompIsCreated(cc_wrap%iocomp)) error stop 'AQMIO_Create failed'
-   cc_wrap%compress_lev = 0
-   cc_wrap%current_time_slice = 0
-   call ESMF_TimeSet(currTime, yy=2024, mm=5, dd=1, h=0, m=0, s=0, rc=rc)
-   call check(rc, "TimeSet")
+   ! Case B: narrowing diag_list (FR-009 / T022) -> only the selected parent
+   ! and its unpacked children survive; everything else is absent.  The
+   ! unmatched selector 'no_such_field' is reported on stdout by the writer.
+   call run_case_narrow('CATChem_diag_narrow_config.yml', 'diag_narrow.nc', nfail)
+   print *, 'PASS: diag_list volume filter satisfied (US3)'
 
-   ! 3. Create the time axis then write every registered process diagnostic.
-   filename = 'diag_out.nc'
-   call update_time_variable(cc_wrap, filename, currTime, cc_wrap%current_time_slice, rc)
-   call check(rc, "update_time_variable")
-   call write_process_diagnostics(cc_wrap, 'all', filename, rc)
-   call check(rc, "write_process_diagnostics")
-
-   ! 4. Reopen the file and assert the contract (AQMIO_Close flushed it).
-   call verify_output(filename, cc_wrap%catchem_model%cpp_core_ptr, nfail)
-
-   call AQMIO_Destroy(cc_wrap%iocomp, rc=rc)
-   call ESMF_GridDestroy(grid, rc=rc)
-   call cc_wrap%catchem_model%finalize(rc)
    call ESMF_Finalize(endflag=ESMF_END_KEEPMPI)
 
    if (nfail > 0) then
@@ -119,9 +90,112 @@ program test_nuopc_diag_output
       print *, trim(msg)
       error stop 1
    end if
-   print *, 'PASS: process-diagnostic writer contract satisfied (US1 + US2)'
 
 contains
+
+   !> Drive one full model lifecycle and write the process diagnostics.
+   subroutine run_case(config, outname, nfail)
+      character(len=*), intent(in) :: config, outname
+      integer, intent(inout) :: nfail
+      type(cc_wrap_type) :: cc_wrap
+      type(ESMF_Grid) :: grid
+      type(ESMF_Time) :: currTime
+      integer :: rc
+
+      ! 1. Initialize the model with the all-process diagnostic config.  Each
+      !    process init() registers its diagnostics in the C++ DiagnosticManager.
+      call cc_wrap%catchem_model%initialize(config, nx, ny, nz, rc=rc)
+      if (rc /= 0) then
+         print *, 'FAIL: model initialize rc=', rc
+         error stop 1
+      end if
+      if (.not. cc_wrap%catchem_model%is_diag_enabled()) error stop 'diagnostics not enabled in config'
+
+      ! 2. Build the grid + AQMIO I/O component the writer needs.  Field creation
+      !    inside write_diagnostic_field is grid-only (no tile arrays), so a plain
+      !    single-tile grid is sufficient.
+      grid = ESMF_GridCreateNoPeriDim(maxIndex=(/nx, ny/), rc=rc)
+      call check(rc, "GridCreate")
+      cc_wrap%grid = grid
+      cc_wrap%iocomp = AQMIO_Create(grid, rc=rc)
+      if (.not. ESMF_GridCompIsCreated(cc_wrap%iocomp)) error stop 'AQMIO_Create failed'
+      cc_wrap%compress_lev = 0
+      cc_wrap%current_time_slice = 0
+      call ESMF_TimeSet(currTime, yy=2024, mm=5, dd=1, h=0, m=0, s=0, rc=rc)
+      call check(rc, "TimeSet")
+
+      ! 3. Create the time axis then write every registered process diagnostic.
+      call update_time_variable(cc_wrap, outname, currTime, cc_wrap%current_time_slice, rc)
+      call check(rc, "update_time_variable")
+      call write_process_diagnostics(cc_wrap, 'all', outname, rc)
+      call check(rc, "write_process_diagnostics")
+
+      ! 4. Reopen the file and assert the contract (AQMIO_Close flushed it).
+      call verify_output(outname, cc_wrap%catchem_model%cpp_core_ptr, nfail)
+
+      call AQMIO_Destroy(cc_wrap%iocomp, rc=rc)
+      call ESMF_GridDestroy(grid, rc=rc)
+      call cc_wrap%catchem_model%finalize(rc)
+   end subroutine run_case
+
+   !> Drive a narrowing-diag_list run and assert only the selected variables
+   !! survive (US3 / T022).  The config selects dust_emission_total, the
+   !! settling_flux_per_species parent (covering every unpacked child), and a
+   !! no_such_field entry that must produce an unmatched-selector warning.
+   subroutine run_case_narrow(config, outname, nfail)
+      character(len=*), intent(in) :: config, outname
+      integer, intent(inout) :: nfail
+      type(cc_wrap_type) :: cc_wrap
+      type(ESMF_Grid) :: grid
+      type(ESMF_Time) :: currTime
+      integer :: rc
+      integer :: ncid, status, v
+
+      call cc_wrap%catchem_model%initialize(config, nx, ny, nz, rc=rc)
+      if (rc /= 0) then
+         print *, 'FAIL: narrow model initialize rc=', rc
+         error stop 1
+      end if
+      grid = ESMF_GridCreateNoPeriDim(maxIndex=(/nx, ny/), rc=rc)
+      call check(rc, "GridCreate (narrow)")
+      cc_wrap%grid = grid
+      cc_wrap%iocomp = AQMIO_Create(grid, rc=rc)
+      if (.not. ESMF_GridCompIsCreated(cc_wrap%iocomp)) error stop 'AQMIO_Create failed (narrow)'
+      cc_wrap%compress_lev = 0
+      cc_wrap%current_time_slice = 0
+      call ESMF_TimeSet(currTime, yy=2024, mm=5, dd=1, h=0, m=0, s=0, rc=rc)
+      call check(rc, "TimeSet (narrow)")
+      call update_time_variable(cc_wrap, outname, currTime, cc_wrap%current_time_slice, rc)
+      call check(rc, "update_time_variable (narrow)")
+      call write_process_diagnostics(cc_wrap, 'all', outname, rc)
+      call check(rc, "write_process_diagnostics (narrow)")
+
+      status = nf90_open(trim(outname), nf90_nowrite, ncid)
+      if (status /= nf90_noerr) then
+         nfail = nfail + 1
+         print *, 'FAIL: cannot reopen narrow file: ', trim(nf90_strerror(status))
+         return
+      end if
+
+      print *, 'US3: diag_list narrows written variables'
+      ! Selected singleton total survives.
+      call expect(find_var(ncid, 'dust_emission_total') >= 0, 'narrow: dust_emission_total present')
+      ! Selected parent covers its unpacked children (settling_flux_per_species_<label>).
+      v = find_var(ncid, 'settling_flux_per_species_so4')
+      call expect(v >= 0, 'narrow: settling_flux_per_species child present')
+      ! Everything not named by a selector must be absent (SC-007).
+      call expect(find_var(ncid, 'dust_emission_bin_dust1') == -1, 'narrow: unselected dust bin absent')
+      call expect(find_var(ncid, 'seasalt_mass_emission_total') == -1, 'narrow: unselected seasalt absent')
+      call expect(find_var(ncid, 'drydep_con_per_species_so2') == -1, 'narrow: unselected drydep absent')
+      call expect(find_var(ncid, 'wetdep_mass_so2') == -1, 'narrow: unselected wetdep absent')
+      call expect(find_var(ncid, 'PSO4_from_gaseous_SO2_per_level') == -1, 'narrow: unselected so4chem absent')
+      call expect(find_var(ncid, 'carbchem_prod_mass_oc1') == -1, 'narrow: unselected carbchem absent')
+
+      status = nf90_close(ncid)
+      call AQMIO_Destroy(cc_wrap%iocomp, rc=rc)
+      call ESMF_GridDestroy(grid, rc=rc)
+      call cc_wrap%catchem_model%finalize(rc)
+   end subroutine run_case_narrow
 
    subroutine check(status, context)
       integer, intent(in) :: status
