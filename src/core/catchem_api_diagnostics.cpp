@@ -70,9 +70,16 @@ int catchem_diag_register_contract_checked(void* core_ptr, const char* name, con
         if (policy < 0 || policy > static_cast<int>(catchem::DiagnosticPolicy::Persistent))
             return CATCHEM_INVALID_STATE;
         const auto type = rank == 2 ? catchem::DiagType::FIELD_2D : catchem::DiagType::FIELD_3D;
+        // This C entry point carries no per-slot label argument, so it cannot
+        // satisfy the INV-3..7 unpacking contract for a packed (Species or
+        // Category) axis.  Register it without the strict label checks; the
+        // axes-driven writer still fails loud (FR-008) at output time if such
+        // a field ever needs to unpack.  Process diagnostics that DO unpack
+        // register through the C++ DiagnosticManager::register_field_contract
+        // API with labels, which keeps the strict validation.
         static_cast<catchem::Core*>(core_ptr)->get_diagnostic_manager()->register_field_contract(
             name, desc, units, type, dimensions, static_cast<catchem::DiagnosticPolicy>(policy), reset_value,
-            semantic_axes);
+            semantic_axes, {}, false);
         return CATCHEM_SUCCESS;
     } catch (const std::invalid_argument&) {
         return CATCHEM_EXTENT_MISMATCH;
