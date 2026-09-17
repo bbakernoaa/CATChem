@@ -1009,22 +1009,6 @@ contains
       if (allocated(field_config%import_fields)) deallocate(field_config%import_fields)
       if (allocated(field_config%export_fields)) deallocate(field_config%export_fields)
 
-      ! ! Initialize CF input system
-      ! call cf_input_init('catchem_input_config.yml', grid, errflg)
-      ! if (errflg /= ESMF_SUCCESS) then
-      !   errmsg = 'Error initializing CF input system'
-      !   errflg = CC_FAILURE
-      !   return
-      ! end if
-
-      ! ! Initialize NetCDF output system
-      ! call output_diagnostics_init('catchem_output_config.yml', grid, errflg)
-      ! if (errflg /= ESMF_SUCCESS) then
-      !   errmsg = 'Error initializing NetCDF output system'
-      !   errflg = CC_FAILURE
-      !   return
-      ! end if
-
    end subroutine catchem_nuopc_init
 
    !> Get process-local CATChem wrapper (guaranteed thread/process safe)
@@ -2692,9 +2676,9 @@ contains
          return
       end select
 
-      ! TODO: Add NetCDF attributes for description and units
-      ! This would require extending AQMIO or using NetCDF directly
-      ! For now, we rely on the working AQMIO functionality
+      ! Run-level provenance (description/units are per-variable ESMF metadata;
+      ! the global attributes live in write_global_attributes ->
+      ! AQMIO_WriteGlobalAttrs, feature 013 FR-011).
 
       ! Clean up
       if (ESMF_FieldIsCreated(esmf_field)) then
