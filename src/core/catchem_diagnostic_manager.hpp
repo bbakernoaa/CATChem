@@ -19,7 +19,7 @@ namespace catchem {
         void register_field_contract(const std::string& name, const std::string& desc, const std::string& units,
                                      DiagType type, const std::vector<int>& dims, DiagnosticPolicy policy,
                                      double reset_value, const std::vector<SemanticAxis>& axes,
-                                     const std::vector<std::string>& unpack_labels = {});
+                                     const std::vector<std::string>& unpack_labels = {}, bool strict_labels = true);
 
         bool has_field(const std::string& name) const;
         std::shared_ptr<DiagnosticField> get_field(const std::string& name);

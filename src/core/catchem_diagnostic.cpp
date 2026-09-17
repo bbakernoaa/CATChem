@@ -191,14 +191,18 @@ namespace catchem {
             axes.push_back(dims[1] == 1 ? SemanticAxis::Singleton : SemanticAxis::Level);
         if (dims.size() >= 3)
             axes.push_back(SemanticAxis::Species);
-        register_field_contract(name, desc, units, type, dims, DiagnosticPolicy::Instantaneous, 0.0, axes);
+        // The legacy shim cannot supply per-slot labels for the Species axis it
+        // infers, so it registers without the strict unpacking contract; the
+        // axes-driven writer still fails loud (FR-008) if such a field is ever
+        // asked to unpack.  Explicit register_field_contract callers opt in.
+        register_field_contract(name, desc, units, type, dims, DiagnosticPolicy::Instantaneous, 0.0, axes, {}, false);
     }
 
     void DiagnosticManager::register_field_contract(const std::string& name, const std::string& desc,
                                                     const std::string& units, DiagType type,
                                                     const std::vector<int>& dims, DiagnosticPolicy policy,
                                                     double reset_value, const std::vector<SemanticAxis>& axes,
-                                                    const std::vector<std::string>& unpack_labels) {
+                                                    const std::vector<std::string>& unpack_labels, bool strict_labels) {
         if (name.empty() || desc.empty() || units.empty() || dims.empty() || dims.size() != axes.size() ||
             std::any_of(dims.begin(), dims.end(), [](int d) { return d <= 0; }))
             throw std::invalid_argument("Invalid diagnostic contract: " + name);
@@ -206,7 +210,11 @@ namespace catchem {
         // axes-driven writer relies on this to map axis 1 onto the gridded (nx, ny).
         if (axes.front() != SemanticAxis::Column)
             throw std::invalid_argument("Invalid diagnostic contract (axis 0 must be Column): " + name);
-        // INV-3: the writer unpacks exactly one packed axis; two are ambiguous.
+        // INV-3..7 are the unpacking contract: they apply to fields registered
+        // through the explicit contract API.  The legacy register_field shim
+        // (strict_labels=false) infers a Species axis it cannot label, so the
+        // packed-label checks are skipped there; the writer enforces the
+        // fail-loud rule (FR-008) at output time instead.
         int packed_rank = -1;
         int packed_count = 0;
         for (size_t d = 0; d < axes.size(); ++d) {
@@ -215,14 +223,14 @@ namespace catchem {
                 packed_rank = static_cast<int>(d);
             }
         }
-        if (packed_count > 1)
+        if (strict_labels && packed_count > 1)
             throw std::invalid_argument("Invalid diagnostic contract (more than one packed axis): " + name);
         // INV-4: a packed axis must carry exactly one label per slot -- the
         // writer refuses to invent a name (FR-008, "never a silent column_1").
-        if (packed_count == 1 && unpack_labels.size() != static_cast<size_t>(dims[packed_rank]))
+        if (strict_labels && packed_count == 1 && unpack_labels.size() != static_cast<size_t>(dims[packed_rank]))
             throw std::invalid_argument("Invalid diagnostic contract (label count != packed extent): " + name);
         // INV-5: labels without a packed axis to attach them to are a contract bug.
-        if (packed_count == 0 && !unpack_labels.empty())
+        if (strict_labels && packed_count == 0 && !unpack_labels.empty())
             throw std::invalid_argument("Invalid diagnostic contract (labels without packed axis): " + name);
         for (size_t l = 0; l < unpack_labels.size(); ++l) {
             const std::string& label = unpack_labels[l];
