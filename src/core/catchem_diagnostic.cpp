@@ -206,6 +206,42 @@ namespace catchem {
         // axes-driven writer relies on this to map axis 1 onto the gridded (nx, ny).
         if (axes.front() != SemanticAxis::Column)
             throw std::invalid_argument("Invalid diagnostic contract (axis 0 must be Column): " + name);
+        // INV-3: the writer unpacks exactly one packed axis; two are ambiguous.
+        int packed_rank = -1;
+        int packed_count = 0;
+        for (size_t d = 0; d < axes.size(); ++d) {
+            if (axes[d] == SemanticAxis::Species || axes[d] == SemanticAxis::Category) {
+                ++packed_count;
+                packed_rank = static_cast<int>(d);
+            }
+        }
+        if (packed_count > 1)
+            throw std::invalid_argument("Invalid diagnostic contract (more than one packed axis): " + name);
+        // INV-4: a packed axis must carry exactly one label per slot -- the
+        // writer refuses to invent a name (FR-008, "never a silent column_1").
+        if (packed_count == 1 && unpack_labels.size() != static_cast<size_t>(dims[packed_rank]))
+            throw std::invalid_argument("Invalid diagnostic contract (label count != packed extent): " + name);
+        // INV-5: labels without a packed axis to attach them to are a contract bug.
+        if (packed_count == 0 && !unpack_labels.empty())
+            throw std::invalid_argument("Invalid diagnostic contract (labels without packed axis): " + name);
+        for (size_t l = 0; l < unpack_labels.size(); ++l) {
+            const std::string& label = unpack_labels[l];
+            // INV-6: labels become NetCDF variable-name suffixes; keep them
+            // [A-Za-z_][A-Za-z0-9_]* so the composed name is always valid.
+            const bool head_ok = !label.empty() && ((label[0] >= 'a' && label[0] <= 'z') ||
+                                                    (label[0] >= 'A' && label[0] <= 'Z') || label[0] == '_');
+            const bool tail_ok = std::all_of(label.begin() + (head_ok ? 1 : 0), label.end(), [](char c) {
+                return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+            });
+            if (!head_ok || !tail_ok)
+                throw std::invalid_argument("Invalid diagnostic contract (label not NetCDF-safe: '" + label +
+                                            "'): " + name);
+            // INV-7: duplicate labels would unpack to the same variable name.
+            for (size_t k = 0; k < l; ++k)
+                if (unpack_labels[k] == label)
+                    throw std::invalid_argument("Invalid diagnostic contract (duplicate label '" + label +
+                                                "'): " + name);
+        }
         auto existing = fields.find(name);
         if (existing != fields.end()) {
             const auto& field = *existing->second;

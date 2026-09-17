@@ -841,4 +841,42 @@ if(CATCHEM_BUILD_NUOPC)
   # test run waiting indefinitely in a NUOPC phase.
   set_tests_properties(nuopc_contract_valid PROPERTIES TIMEOUT 30)
   catchem_label_tests("integration;contract;boundary" nuopc_contract_valid)
+
+  # Feature 013: generic process-diagnostic writer round-trip.  This links the
+  # NUOPC cap directly (not the self-contained cc_nuopc archive) so the build
+  # graph does not duplicate the drivers/nuopc Fortran modules; the cap already
+  # propagates ESMF/NetCDF/MPI usage requirements, and its module directory is
+  # the same include/ the cap writes into.
+  add_executable(test_nuopc_diag_output test_nuopc_diag_output.f90)
+  target_link_libraries(
+    test_nuopc_diag_output
+    PRIVATE NUOPC_CATChem_cap CATChem CATChem_core MPI::MPI_Fortran MPI::MPI_CXX
+  )
+  set_target_properties(
+    test_nuopc_diag_output
+    PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+      LINKER_LANGUAGE Fortran
+  )
+  target_include_directories(
+    test_nuopc_diag_output
+    PRIVATE
+      ${CMAKE_BINARY_DIR}/include
+      $<TARGET_PROPERTY:NUOPC_CATChem_cap,Fortran_MODULE_DIRECTORY>
+  )
+  # Stage the all-process diagnostic config and the species/emission inventories
+  # it references into the test's working directory.
+  file(
+    COPY
+      ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_diag_output_config.yml
+      ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_species.yml
+      ${CMAKE_CURRENT_SOURCE_DIR}/CATChem_emission.yml
+    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+  )
+  add_test(
+    NAME test_nuopc_diag_output
+    COMMAND test_nuopc_diag_output
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  )
+  catchem_label_tests("integration;diagnostics" test_nuopc_diag_output)
 endif()

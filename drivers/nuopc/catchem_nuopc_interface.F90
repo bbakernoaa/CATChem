@@ -44,6 +44,11 @@ module catchem_nuopc_interface
    implicit none
 
    integer, parameter :: DIAG_REAL_SCALAR = 0, DIAG_REAL_1D = 1, DIAG_REAL_2D = 2, DIAG_REAL_3D = 3
+   ! Ordinals of catchem::SemanticAxis, mirrored so the axes-driven writer can
+   ! dispatch on axis meaning instead of array shape.  Keep in lockstep with
+   ! src/core/catchem_field_contract.hpp:24.
+   integer, parameter :: AXIS_COLUMN = 0, AXIS_LEVEL = 1, AXIS_INTERFACE = 2, &
+      AXIS_SOILLAYER = 3, AXIS_SPECIES = 4, AXIS_CATEGORY = 5, AXIS_SINGLETON = 6
    integer, parameter :: TRACER_HOST_OWNED = 0, TRACER_CHEMICAL = 1, TRACER_DIAGNOSTIC = 2
 
    interface
@@ -349,6 +354,8 @@ module catchem_nuopc_interface
    public :: get_n_import_fields, get_import_field_info  ! Safe field_config access
    public :: get_n_export_fields, get_export_field_info  ! Safe field_config access
    public :: update_pm_diagnostics  ! Exposed for the NUOPC transform test harness
+   public :: write_process_diagnostics  ! Exposed for the diagnostic-output test harness (feature 013)
+   public :: update_time_variable  ! Exposed for the diagnostic-output test harness (feature 013)
    public :: TRACER_HOST_OWNED, TRACER_CHEMICAL, TRACER_DIAGNOSTIC  ! Tracer-map contract values for the test harness
    public :: catchem_nuopc_get_physical_validation_report
 
@@ -2249,23 +2256,33 @@ contains
 
    end subroutine catchem_diagnostics_write
 
-   !> \brief Write diagnostics for a specific process
+   !> \brief Write every registered process diagnostic to the NetCDF file
    !!
-   !! Discovers the fields the C++ process layer registered in the
-   !! DiagnosticManager and writes the dust_ and seasalt_ prefixed ones to
-   !! the NetCDF diagnostic file.  Per-column fields (registered shape
-   !! [ncols, 1]) are written as 2D (nx, ny) variables; per-bin fields
-   !! (shape [ncols, nbin]) are written as a single 3D (nx, ny, nbin)
-   !! variable whose third axis follows the mechanism's dust/seasalt bin
-   !! order (the bin species names are appended to the description).
+   !! Generic axes-driven writer (feature 013).  Discovers all fields the C++
+   !! process layer registered in the DiagnosticManager and writes each one
+   !! according to what its axes MEAN, never according to its name prefix or
+   !! storage rank (spec FR-002):
+   !!
+   !!   {Column, Singleton}               -> one 2D (nx, ny) variable
+   !!   {Column, Level}                   -> one 3D (nx, ny, nlev) variable
+   !!   {Column, Species|Category}        -> one 2D variable per slot,
+   !!                                         named <field>_<label>
+   !!   {Column, Level, Species|Category} -> one 3D variable per slot,
+   !!                                         named <field>_<label>
+   !!
+   !! Packed (Species/Category) dimensions are UNPACKED into named variables
+   !! and the compact parent is not written (spec A-004).  Labels come from
+   !! the registration contract, which is built from the same resolved
+   !! species/bin list the scheme iterates (FR-006); a packed field without a
+   !! complete label set is a hard error naming the field (FR-008), never a
+   !! silent column_N or a silent drop.
    !!
    !! The diagnostic storage is column-major with the same flattened column
-   !! index (col = i + (j-1)*nx) the science bridges use, so the [ncols, n]
-   !! buffer reinterprets directly as (nx, ny[, nbin]) with no reshaping.
+   !! index (col = i + (j-1)*nx) the science bridges use, so the [ncols, ...]
+   !! buffer reinterprets directly as (nx, ny, ...) with no reshaping, and a
+   !! slot slice is a contiguous rank-3 view.
    !!
-   !! Gated by diagnostics/output/enabled (checked by the caller); every
-   !! registered field is written when runtime diagnostics are enabled,
-   !! matching the legacy Fortran core.
+   !! Gated by diagnostics/output/enabled (checked by the caller).
    !!
    !! \param cc_wrap CATChem wrapper containing model state and configuration
    !! \param process_name Name of the process ('all' selects every process)
@@ -2279,17 +2296,18 @@ contains
 
       ! Local variables
       integer(c_int) :: c_status, c_count, i, rank
-      integer(c_int) :: dims(3), n_dust, n_seasalt, n_species
-      integer :: nx, ny, k
-      character(kind=c_char) :: c_name(64), c_species_name(64)
-      character(kind=c_char) :: c_units(32), c_desc(256)
-      character(len=64) :: field_name, species_name
+      integer(c_int) :: dims(3), axes(3)
+      integer :: nx, ny, slot, nslot
+      character(kind=c_char) :: c_name(64)
+      character(kind=c_char) :: c_units(32), c_desc(256), c_label(64)
+      character(len=64) :: field_name, label_str
+      character(len=128) :: var_name
       character(len=32) :: units_str
-      character(len=256) :: desc_str, bin_list
+      character(len=256) :: desc_str
       type(c_ptr) :: raw_ptr
-      real(fp), pointer :: ptr_2d(:,:) => null()
-      real(fp), pointer :: ptr_3d(:,:,:) => null()
-      logical :: is_dust_field, is_seasalt_field
+      real(fp), pointer :: view_3d(:,:,:) => null()
+      real(fp), pointer :: view_4d(:,:,:,:) => null()
+      logical :: packed
 
       rc = CC_SUCCESS
 
@@ -2306,59 +2324,39 @@ contains
          return
       end if
 
-      ! Bin counts used to validate per-bin field extents, from the loaded
-      ! species mechanism metadata.
-      n_dust = 0
-      n_seasalt = 0
-      n_species = 0
-      c_status = catchem_state_get_species_count_checked(cc_wrap%catchem_model%state_mgr_ptr, n_species)
-      if (c_status == 0_c_int) then
-         do i = 1, n_species
-            if (catchem_state_is_species_dust(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int)) /= 0) then
-               n_dust = n_dust + 1
-            end if
-            if (catchem_state_is_species_seasalt(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int)) /= 0) then
-               n_seasalt = n_seasalt + 1
-            end if
-         end do
-      end if
-
       do i = 0, c_count - 1
          c_status = catchem_diag_get_name_at_checked(cc_wrap%catchem_model%cpp_core_ptr, &
             int(i, c_int), c_name, 64_c_int)
          if (c_status /= 0_c_int) cycle
          call catchem_c_string_to_fortran(c_name, field_name)
 
-         is_dust_field = (index(field_name, 'dust_') == 1)
-         is_seasalt_field = (index(field_name, 'seasalt_') == 1)
-         if (.not. (is_dust_field .or. is_seasalt_field)) cycle
          if (trim(process_name) /= 'all') then
-            if (.not. ((trim(process_name) == 'dust' .and. is_dust_field) .or. &
-               (trim(process_name) == 'seasalt' .and. is_seasalt_field))) cycle
+            if (index(field_name, trim(process_name) // '_') /= 1) cycle
          end if
 
          rank = 0
          c_status = catchem_diag_get_rank_checked(cc_wrap%catchem_model%cpp_core_ptr, &
             trim(field_name) // c_null_char, rank)
-         if (c_status /= 0_c_int .or. rank /= 2_c_int) cycle
+         if (c_status /= 0_c_int) cycle
 
          dims = 0
          c_status = catchem_diag_get_dims_checked(cc_wrap%catchem_model%cpp_core_ptr, &
             trim(field_name) // c_null_char, dims, 3_c_int)
          if (c_status /= 0_c_int) cycle
-         ! Process diagnostics are flattened over columns: [ncols, 1] totals
-         ! or [ncols, nbin] per-bin arrays.  Anything else (e.g. a 3D field
-         ! a host registered under the same prefix) is not ours to write.
-         if (dims(1) /= nx * ny .or. dims(2) < 1) then
+
+         axes = -1
+         c_status = catchem_diag_get_axes_checked(cc_wrap%catchem_model%cpp_core_ptr, &
+            trim(field_name) // c_null_char, axes, 3_c_int)
+         if (c_status /= 0_c_int) then
+            write(*,'(A,A)') 'ERROR: Cannot read the axis contract for diagnostic: ', trim(field_name)
+            rc = CC_FAILURE
+            return
+         end if
+
+         ! Process diagnostics are flattened over this PE's columns; a field
+         ! whose leading extent is not nx*ny cannot be mapped onto the grid.
+         if (axes(1) /= AXIS_COLUMN .or. dims(1) /= nx * ny) then
             write(*,'(A,A)') 'Warning: Skipping process diagnostic with unexpected shape: ', trim(field_name)
-            cycle
-         end if
-         if (is_dust_field .and. dims(2) > 1 .and. dims(2) /= n_dust) then
-            write(*,'(A,A)') 'Warning: Skipping process diagnostic, bin count mismatch: ', trim(field_name)
-            cycle
-         end if
-         if (is_seasalt_field .and. dims(2) > 1 .and. dims(2) /= n_seasalt) then
-            write(*,'(A,A)') 'Warning: Skipping process diagnostic, bin count mismatch: ', trim(field_name)
             cycle
          end if
 
@@ -2373,52 +2371,113 @@ contains
 
          raw_ptr = c_null_ptr
          c_status = catchem_diag_get_pointer_checked(cc_wrap%catchem_model%cpp_core_ptr, &
-            trim(field_name) // c_null_char, 2_c_int, dims, raw_ptr)
+            trim(field_name) // c_null_char, rank, dims, raw_ptr)
          if (c_status /= 0_c_int .or. .not. c_associated(raw_ptr)) then
             write(*,'(A,A)') 'Warning: Could not map process diagnostic storage: ', trim(field_name)
             cycle
          end if
 
-         if (dims(2) == 1) then
-            ! Per-column field: reinterpret [ncols,1] as (nx,ny) 2D output.
-            call c_f_pointer(raw_ptr, ptr_2d, [nx, ny])
-            call write_diagnostic_field(cc_wrap, trim(field_name), DIAG_REAL_2D, 0.0_fp, &
-               array_2d_ptr=ptr_2d, description=trim(desc_str), &
-               units=trim(units_str), filename=filename, rc=rc)
-            nullify(ptr_2d)
-         else
-            ! Per-bin field: reinterpret [ncols,nbin] as (nx,ny,nbin) 3D
-            ! output.  The third axis follows mechanism declaration order, so
-            ! list the bin species names in the description for consumers.
-            bin_list = ''
-            do k = 1, n_species
-               c_status = catchem_state_get_species_name_at_checked( &
-                  cc_wrap%catchem_model%state_mgr_ptr, int(k, c_int), c_species_name, 64_c_int)
-               if (c_status /= 0_c_int) cycle
-               call catchem_c_string_to_fortran(c_species_name, species_name)
-               if (is_dust_field) then
-                  if (catchem_state_is_species_dust(cc_wrap%catchem_model%state_mgr_ptr, &
-                     int(k, c_int)) == 0) cycle
-               else
-                  if (catchem_state_is_species_seasalt(cc_wrap%catchem_model%state_mgr_ptr, &
-                     int(k, c_int)) == 0) cycle
+         ! Classify the trailing axis: a Species/Category axis is a packed
+         ! dimension and unpacks to one named variable per slot.
+         packed = .false.
+         nslot = 1
+         select case (int(rank))
+         case (2)
+            select case (int(axes(2)))
+            case (AXIS_SINGLETON)
+               if (dims(2) /= 1) then
+                  write(*,'(A,A)') 'ERROR: Singleton-axis diagnostic without extent 1: ', trim(field_name)
+                  rc = CC_FAILURE
+                  return
                end if
-               if (len_trim(bin_list) > 0) bin_list = trim(bin_list) // ','
-               bin_list = trim(bin_list) // trim(species_name)
-            end do
-            if (len_trim(bin_list) > 0) then
-               desc_str = trim(desc_str) // ' [bins: ' // trim(bin_list) // ']'
+            case (AXIS_LEVEL)
+               ! Written whole as 3D: the level axis stays intact (FR-003).
+            case (AXIS_SPECIES, AXIS_CATEGORY)
+               packed = .true.
+               nslot = int(dims(2))
+            case default
+               write(*,'(A,A)') 'ERROR: Unsupported second axis on diagnostic: ', trim(field_name)
+               rc = CC_FAILURE
+               return
+            end select
+         case (3)
+            if (int(axes(2)) /= AXIS_LEVEL) then
+               write(*,'(A,A)') 'ERROR: Unsupported second axis on diagnostic: ', trim(field_name)
+               rc = CC_FAILURE
+               return
             end if
-            call c_f_pointer(raw_ptr, ptr_3d, [nx, ny, int(dims(2))])
-            call write_diagnostic_field(cc_wrap, trim(field_name), DIAG_REAL_3D, 0.0_fp, &
-               array_3d_ptr=ptr_3d, description=trim(desc_str), &
-               units=trim(units_str), filename=filename, rc=rc)
-            nullify(ptr_3d)
-         end if
+            select case (int(axes(3)))
+            case (AXIS_SPECIES, AXIS_CATEGORY)
+               packed = .true.
+               nslot = int(dims(3))
+            case default
+               write(*,'(A,A)') 'ERROR: Unsupported third axis on diagnostic: ', trim(field_name)
+               rc = CC_FAILURE
+               return
+            end select
+         case default
+            write(*,'(A,A)') 'ERROR: Unsupported rank on diagnostic: ', trim(field_name)
+            rc = CC_FAILURE
+            return
+         end select
 
-         if (rc /= CC_SUCCESS) then
-            write(*,'(A,A)') 'Warning: Failed to write process diagnostic: ', trim(field_name)
-            rc = CC_SUCCESS
+         if (.not. packed) then
+            if (int(rank) == 2 .and. int(axes(2)) == AXIS_SINGLETON) then
+               ! Per-column total: reinterpret [ncols,1] as (nx,ny) 2D output.
+               call c_f_pointer(raw_ptr, view_3d, [nx, ny, 1])
+               call write_diagnostic_field(cc_wrap, trim(field_name), DIAG_REAL_2D, 0.0_fp, &
+                  array_2d_ptr=view_3d(:,:,1), description=trim(desc_str), &
+                  units=trim(units_str), filename=filename, rc=rc)
+            else
+               ! Per-level field: reinterpret [ncols,nlev] as (nx,ny,nlev) so
+               ! the vertical dimension is never truncated (FR-003).
+               call c_f_pointer(raw_ptr, view_3d, [nx, ny, int(dims(2))])
+               call write_diagnostic_field(cc_wrap, trim(field_name), DIAG_REAL_3D, 0.0_fp, &
+                  array_3d_ptr=view_3d, description=trim(desc_str), &
+                  units=trim(units_str), filename=filename, rc=rc)
+            end if
+            nullify(view_3d)
+            if (rc /= CC_SUCCESS) then
+               write(*,'(A,A)') 'Warning: Failed to write process diagnostic: ', trim(field_name)
+               rc = CC_SUCCESS
+            end if
+         else
+            ! Unpacked: one variable per slot named <field>_<label>.  A slot
+            ! without a label is a contract violation -> fail loudly (FR-008).
+            if (int(rank) == 2) then
+               call c_f_pointer(raw_ptr, view_3d, [nx, ny, nslot])
+            else
+               call c_f_pointer(raw_ptr, view_4d, [nx, ny, int(dims(2)), nslot])
+            end if
+            do slot = 1, nslot
+               c_label = ' '
+               c_status = catchem_diag_get_unpack_label_at_checked( &
+                  cc_wrap%catchem_model%cpp_core_ptr, trim(field_name) // c_null_char, &
+                  int(slot - 1, c_int), c_label, 64_c_int)
+               if (c_status /= 0_c_int) then
+                  write(*,'(A,I0,A,A)') 'ERROR: Packed diagnostic slot ', slot - 1, &
+                     ' has no label for field: ', trim(field_name)
+                  rc = CC_FAILURE
+                  return
+               end if
+               call catchem_c_string_to_fortran(c_label, label_str)
+               var_name = trim(field_name) // '_' // trim(label_str)
+               if (int(rank) == 2) then
+                  call write_diagnostic_field(cc_wrap, trim(var_name), DIAG_REAL_2D, 0.0_fp, &
+                     array_2d_ptr=view_3d(:,:,slot), description=trim(desc_str), &
+                     units=trim(units_str), filename=filename, rc=rc)
+               else
+                  call write_diagnostic_field(cc_wrap, trim(var_name), DIAG_REAL_3D, 0.0_fp, &
+                     array_3d_ptr=view_4d(:,:,:,slot), description=trim(desc_str), &
+                     units=trim(units_str), filename=filename, rc=rc)
+               end if
+               if (rc /= CC_SUCCESS) then
+                  write(*,'(A,A)') 'Warning: Failed to write process diagnostic: ', trim(var_name)
+                  rc = CC_SUCCESS
+               end if
+            end do
+            nullify(view_3d)
+            nullify(view_4d)
          end if
       end do
 
@@ -2445,8 +2504,8 @@ contains
       integer, intent(in) :: data_type
       real(fp), intent(in) :: scalar_value
       real(fp), pointer, optional, intent(in) :: array_1d_ptr(:)
-      real(fp), pointer, optional, intent(in) :: array_2d_ptr(:,:)
-      real(fp), pointer, optional, intent(in) :: array_3d_ptr(:,:,:)
+      real(fp), optional, intent(in) :: array_2d_ptr(:,:)
+      real(fp), optional, intent(in) :: array_3d_ptr(:,:,:)
       character(len=*), intent(in) :: description
       character(len=*), intent(in) :: units
       character(len=*), intent(in) :: filename
@@ -2477,10 +2536,6 @@ contains
             rc = CC_FAILURE
             return
          end if
-         if (.not. associated(array_2d_ptr)) then
-            rc = CC_FAILURE
-            return
-         end if
          esmf_field = ESMF_FieldCreate(cc_wrap%grid, &
             name=trim(field_name), &
             typekind=ESMF_TYPEKIND_R4, &
@@ -2508,10 +2563,6 @@ contains
 
        case (DIAG_REAL_3D)
          if (.not. present(array_3d_ptr)) then
-            rc = CC_FAILURE
-            return
-         end if
-         if (.not. associated(array_3d_ptr)) then
             rc = CC_FAILURE
             return
          end if

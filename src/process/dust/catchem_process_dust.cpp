@@ -194,25 +194,41 @@ namespace catchem {
             return;
 
         // 4. Register C++ Diagnostic fields (registering 1D fields as 2D with second dimension of 1).
-        // Per-bin fields use a compact [ncols, n_diag] layout so the NUOPC
-        // driver can emit them as a single 3D (nx, ny, nbin) variable; the
-        // science bridge already writes exactly that column-major shape.
+        // Per-bin fields use a compact [ncols, n_diag] layout with a Category
+        // axis and per-slot labels; the NUOPC driver unpacks them into one
+        // named 2D variable per bin (feature 013).  The science bridge already
+        // writes exactly that column-major shape.
         const int n_diag = static_cast<int>(diagnostic_species_id.size());
         std::vector<int> dims_1d_as_2d = {state->column_count(), 1};
         std::vector<int> dims_bins = {state->column_count(), n_diag};
 
+        // Per-bin labels: diagnostic_species_id holds LOCAL bin positions (1-based)
+        // into the canonical resolved_dust_bins order run() feeds the bridge, so
+        // slot i's label is the short_name of that bin — never a global catalog
+        // index (index-space rule, FR-006).
+        std::vector<std::string> dust_bin_labels;
+        dust_bin_labels.reserve(dust_global_indices.size());
+        for (const int local : diagnostic_species_id)
+            dust_bin_labels.push_back(
+                state->chemistry().species_list[dust_global_indices[static_cast<size_t>(local) - 1]].short_name);
+        const std::vector<SemanticAxis> axes_bin = {SemanticAxis::Column, SemanticAxis::Category};
+
         state->diagnostic_manager()->register_field("dust_emission_total", "Total Dust Emission", "kg/m2/s",
                                                     DiagType::FIELD_2D, dims_1d_as_2d);
-        state->diagnostic_manager()->register_field("dust_emission_bin", "Dust Emission Per Bin", "kg/m2/s",
-                                                    DiagType::FIELD_2D, dims_bins);
+        state->diagnostic_manager()->register_field_contract("dust_emission_bin", "Dust Emission Per Bin", "kg/m2/s",
+                                                             DiagType::FIELD_2D, dims_bins,
+                                                             DiagnosticPolicy::Instantaneous, 0.0, axes_bin,
+                                                             dust_bin_labels);
         state->diagnostic_manager()->register_field("dust_horizontal_flux", "Dust Horizontal Flux", "kg/m/s",
                                                     DiagType::FIELD_2D, dims_1d_as_2d);
         state->diagnostic_manager()->register_field("dust_moisture_correction", "Dust Moisture Correction", "unitless",
                                                     DiagType::FIELD_2D, dims_1d_as_2d);
         state->diagnostic_manager()->register_field("dust_effective_threshold", "Dust Effective Threshold", "m/s",
                                                     DiagType::FIELD_2D, dims_1d_as_2d);
-        state->diagnostic_manager()->register_field("dust_utar_threshold", "Dust Ustar Threshold Per Bin", "m/s",
-                                                    DiagType::FIELD_2D, dims_bins);
+        state->diagnostic_manager()->register_field_contract("dust_utar_threshold", "Dust Ustar Threshold Per Bin",
+                                                             "m/s", DiagType::FIELD_2D, dims_bins,
+                                                             DiagnosticPolicy::Instantaneous, 0.0, axes_bin,
+                                                             dust_bin_labels);
     }
 
     void DustProcess::run(std::shared_ptr<StateManager> state) {

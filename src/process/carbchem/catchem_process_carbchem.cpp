@@ -87,17 +87,38 @@ namespace catchem {
         // scheme scatters each species into its diag_idx slot, so packed
         // [ncol, nz, ndiag] / [ncol, ndiag] layouts match the bridge shape.
         const int n_diag = static_cast<int>(diagnostic_species_id.size());
-        std::vector<int> dims_3d = {state->column_count(), state->level_count(), n_diag};
-        std::vector<int> dims_2d = {state->column_count(), n_diag};
+        // A mechanism may configure none of the default carbon species; with an
+        // empty packed axis there is nothing to register (matches the seasalt/
+        // settling guards).
+        if (n_diag > 0) {
+            std::vector<int> dims_3d = {state->column_count(), state->level_count(), n_diag};
+            std::vector<int> dims_2d = {state->column_count(), n_diag};
 
-        state->diagnostic_manager()->register_field("carbchem_prod_mass", "Carbon Chemistry Production Mass", "kg/kg",
-                                                    DiagType::FIELD_3D, dims_3d);
-        state->diagnostic_manager()->register_field("carbchem_loss_flux", "Carbon Chemistry Loss Flux", "kg/m2/s",
-                                                    DiagType::FIELD_2D, dims_2d);
-        state->diagnostic_manager()->register_field("carbchem_phobic_mass", "Carbon Chemistry Phobic to Philic Mass",
-                                                    "kg/kg", DiagType::FIELD_3D, dims_3d);
-        state->diagnostic_manager()->register_field("carbchem_phobic_flux", "Carbon Chemistry Phobic to Philic Flux",
-                                                    "kg/m2/s", DiagType::FIELD_2D, dims_2d);
+            // Packed-axis labels: diagnostic_species_id holds GLOBAL 1-based
+            // catalog positions (the space the GOCART scheme matches), so slot
+            // i's label is that species' short_name (FR-006).  The NUOPC driver
+            // unpacks each field into one named variable per species (feature 013).
+            std::vector<std::string> carbon_labels;
+            carbon_labels.reserve(diagnostic_species_id.size());
+            for (const int gid : diagnostic_species_id)
+                carbon_labels.push_back(state->chemistry().species_list[static_cast<size_t>(gid) - 1].short_name);
+            const std::vector<SemanticAxis> axes_3d = {SemanticAxis::Column, SemanticAxis::Level,
+                                                       SemanticAxis::Species};
+            const std::vector<SemanticAxis> axes_2d = {SemanticAxis::Column, SemanticAxis::Species};
+
+            state->diagnostic_manager()->register_field_contract(
+                "carbchem_prod_mass", "Carbon Chemistry Production Mass", "kg/kg", DiagType::FIELD_3D, dims_3d,
+                DiagnosticPolicy::Instantaneous, 0.0, axes_3d, carbon_labels);
+            state->diagnostic_manager()->register_field_contract(
+                "carbchem_loss_flux", "Carbon Chemistry Loss Flux", "kg/m2/s", DiagType::FIELD_2D, dims_2d,
+                DiagnosticPolicy::Instantaneous, 0.0, axes_2d, carbon_labels);
+            state->diagnostic_manager()->register_field_contract(
+                "carbchem_phobic_mass", "Carbon Chemistry Phobic to Philic Mass", "kg/kg", DiagType::FIELD_3D, dims_3d,
+                DiagnosticPolicy::Instantaneous, 0.0, axes_3d, carbon_labels);
+            state->diagnostic_manager()->register_field_contract(
+                "carbchem_phobic_flux", "Carbon Chemistry Phobic to Philic Flux", "kg/m2/s", DiagType::FIELD_2D,
+                dims_2d, DiagnosticPolicy::Instantaneous, 0.0, axes_2d, carbon_labels);
+        }
     }
 
     void CarbChemProcess::run(std::shared_ptr<StateManager> state) {

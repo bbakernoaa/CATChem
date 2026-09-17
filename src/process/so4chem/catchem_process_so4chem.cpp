@@ -125,17 +125,24 @@ namespace catchem {
         if (!diagnostics_enabled)
             return;
 
-        // 3. Register diagnostics
+        // 3. Register diagnostics.  Axes are explicit so the writer never
+        // shape-guesses: a single-level column would otherwise mis-resolve a
+        // _per_level field as a singleton (feature 013).
         if (state->diagnostic_manager()) {
             std::vector<int> dims_2d = {state->column_count(), state->level_count()};
             std::vector<int> dims_1d = {state->column_count(), 1};
+            const std::vector<SemanticAxis> axes_level = {SemanticAxis::Column, SemanticAxis::Level};
+            const std::vector<SemanticAxis> axes_single = {SemanticAxis::Column, SemanticAxis::Singleton};
 
-            state->diagnostic_manager()->register_field("PSO4_from_gaseous_SO2_per_level", "PSO4 gas source", "kg/kg/s",
-                                                        DiagType::FIELD_2D, dims_2d);
-            state->diagnostic_manager()->register_field("PSO4_from_aqueous_SO2_per_level", "PSO4 aq source", "kg/kg/s",
-                                                        DiagType::FIELD_2D, dims_2d);
-            state->diagnostic_manager()->register_field("DMS_emission_flux", "DMS emission surface flux", "kg/m2/s",
-                                                        DiagType::FIELD_2D, dims_1d);
+            state->diagnostic_manager()->register_field_contract("PSO4_from_gaseous_SO2_per_level", "PSO4 gas source",
+                                                                 "kg/kg/s", DiagType::FIELD_2D, dims_2d,
+                                                                 DiagnosticPolicy::Instantaneous, 0.0, axes_level);
+            state->diagnostic_manager()->register_field_contract("PSO4_from_aqueous_SO2_per_level", "PSO4 aq source",
+                                                                 "kg/kg/s", DiagType::FIELD_2D, dims_2d,
+                                                                 DiagnosticPolicy::Instantaneous, 0.0, axes_level);
+            state->diagnostic_manager()->register_field_contract("DMS_emission_flux", "DMS emission surface flux",
+                                                                 "kg/m2/s", DiagType::FIELD_2D, dims_1d,
+                                                                 DiagnosticPolicy::Instantaneous, 0.0, axes_single);
 
             // One Production_rate_<sp> field per selected species (names
             // unchanged from the legacy per-species convention).  run() fills
@@ -143,8 +150,9 @@ namespace catchem {
             for (const int global_index : diagnostic_species_id) {
                 const auto& meta = state->chemistry().species_list[static_cast<std::size_t>(global_index - 1)];
                 std::string diag_name = "Production_rate_" + meta.short_name;
-                state->diagnostic_manager()->register_field(diag_name, "Production rate " + meta.short_name,
-                                                            "kg/kg/s", DiagType::FIELD_2D, dims_2d);
+                state->diagnostic_manager()->register_field_contract(
+                    diag_name, "Production rate " + meta.short_name, "kg/kg/s", DiagType::FIELD_2D, dims_2d,
+                    DiagnosticPolicy::Instantaneous, 0.0, axes_level);
             }
         }
     }

@@ -150,18 +150,31 @@ namespace catchem {
             state->diagnostic_manager()->register_field("seasalt_number_emission_total", "Total Number Emission",
                                                         "#/m2/s", DiagType::FIELD_2D, dims_1d);
 
-            // Per-bin emissions register as one compact [ncols, n_diag]
-            // field each, so the NUOPC driver can write a single 3D
-            // (nx, ny, nbin) variable instead of one field per size bin.
+            // Per-bin emissions register as one compact [ncols, n_diag] field
+            // each with a Category axis and per-slot labels; the NUOPC driver
+            // unpacks them into one named 2D variable per size bin (feature 013).
             // n_diag is the (possibly subsetted) diagnostic bin count;
             // column-major layout matches the bridge's [n_cols, n_diag_species].
             const int n_diag = static_cast<int>(diagnostic_species_id.size());
             if (n_diag > 0) {
                 std::vector<int> dims_bins = {state->column_count(), n_diag};
-                state->diagnostic_manager()->register_field("seasalt_mass_emission_bins", "Mass Emission Per Bin",
-                                                            "kg/m2/s", DiagType::FIELD_2D, dims_bins);
-                state->diagnostic_manager()->register_field("seasalt_number_emission_bins", "Number Emission Per Bin",
-                                                            "#/m2/s", DiagType::FIELD_2D, dims_bins);
+                // diagnostic_species_id holds LOCAL bin positions (1-based) into
+                // the canonical resolved_seasalt_bins order run() feeds the
+                // bridge, so slot i's label is that bin's short_name (FR-006).
+                std::vector<std::string> ss_bin_labels;
+                ss_bin_labels.reserve(ss_global_indices.size());
+                for (const int local : diagnostic_species_id)
+                    ss_bin_labels.push_back(
+                        state->chemistry().species_list[ss_global_indices[static_cast<size_t>(local) - 1]].short_name);
+                const std::vector<SemanticAxis> axes_bin = {SemanticAxis::Column, SemanticAxis::Category};
+                state->diagnostic_manager()->register_field_contract("seasalt_mass_emission_bins", "Mass Emission Per Bin",
+                                                                    "kg/m2/s", DiagType::FIELD_2D, dims_bins,
+                                                                    DiagnosticPolicy::Instantaneous, 0.0, axes_bin,
+                                                                    ss_bin_labels);
+                state->diagnostic_manager()->register_field_contract("seasalt_number_emission_bins", "Number Emission Per Bin",
+                                                                    "#/m2/s", DiagType::FIELD_2D, dims_bins,
+                                                                    DiagnosticPolicy::Instantaneous, 0.0, axes_bin,
+                                                                    ss_bin_labels);
             }
         }
     }

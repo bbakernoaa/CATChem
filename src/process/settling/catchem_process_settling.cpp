@@ -237,11 +237,20 @@ namespace catchem {
                 const int ndiag = static_cast<int>(selected_local.size());
                 std::vector<int> dims_vel = {state->column_count(), state->level_count(), ndiag};
                 std::vector<int> dims_flux = {state->column_count(), ndiag};
-                state->diagnostic_manager()->register_field(
-                    "settling_velocity_per_species_per_level", "Settling velocity", "m/s", DiagType::FIELD_3D,
-                    dims_vel);
-                state->diagnostic_manager()->register_field("settling_flux_per_species", "Settling column flux",
-                                                            "kg/m2/s", DiagType::FIELD_2D, dims_flux);
+                // diagnostic_species_names is the packed-axis label list, built in
+                // the same aerosol-subset order the scheme iterates (FR-006); the
+                // NUOPC driver unpacks each field into one named variable per
+                // species (feature 013).
+                const std::vector<SemanticAxis> axes_vel = {SemanticAxis::Column, SemanticAxis::Level,
+                                                            SemanticAxis::Species};
+                const std::vector<SemanticAxis> axes_flux = {SemanticAxis::Column, SemanticAxis::Species};
+                state->diagnostic_manager()->register_field_contract(
+                    "settling_velocity_per_species_per_level", "Settling velocity", "m/s", DiagType::FIELD_3D, dims_vel,
+                    DiagnosticPolicy::Instantaneous, 0.0, axes_vel, diagnostic_species_names);
+                state->diagnostic_manager()->register_field_contract("settling_flux_per_species", "Settling column flux",
+                                                                    "kg/m2/s", DiagType::FIELD_2D, dims_flux,
+                                                                    DiagnosticPolicy::Instantaneous, 0.0, axes_flux,
+                                                                    diagnostic_species_names);
             }
         }
     }
