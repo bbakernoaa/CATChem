@@ -37,7 +37,7 @@ module catchem_nuopc_interface
    use catchem_bridge_error, only: ErrorManagerType
    use catchem_nuopc_emis_data_mod, only: ExtEmisDataType, ExtEmisFieldType  ! External emissions data types
    use aqmio, only: AQMIO_Create, AQMIO_Destroy, AQMIO_Write, AQMIO_Close, AQMIO_Write1D, AQMIO_FMT_NETCDF, &
-      AQMIO_LatlonInit, AQMIO_LatlonCleanup
+      AQMIO_WriteGlobalAttrs, AQMIO_LatlonInit, AQMIO_LatlonCleanup
    use catchem_latlon_output_mod, only: latlon_diag_set_time, latlon_diag_is_init
    use catchem_nuopc_emis_mod
 
@@ -355,6 +355,7 @@ module catchem_nuopc_interface
    public :: get_n_export_fields, get_export_field_info  ! Safe field_config access
    public :: update_pm_diagnostics  ! Exposed for the NUOPC transform test harness
    public :: write_process_diagnostics  ! Exposed for the diagnostic-output test harness (feature 013)
+   public :: write_global_attributes    ! Exposed for the diagnostic-output test harness (feature 013)
    public :: update_time_variable  ! Exposed for the diagnostic-output test harness (feature 013)
    public :: TRACER_HOST_OWNED, TRACER_CHEMICAL, TRACER_DIAGNOSTIC  ! Tracer-map contract values for the test harness
    public :: catchem_nuopc_get_physical_validation_report
@@ -2228,6 +2229,14 @@ contains
       call update_time_variable(cc_wrap, filename, time_on_file, cc_wrap%current_time_slice, rc)
       if (rc /= CC_SUCCESS) return
 
+      ! Stamp run-level provenance (version/commit/config + CF defaults +
+      ! diagnostics.output.attributes) onto the file just created (FR-011).
+      call write_global_attributes(cc_wrap, filename, rc)
+      if (rc /= CC_SUCCESS) then
+         write(*,'(A)') 'Warning: Failed to write diagnostic global attributes.'
+         rc = CC_SUCCESS
+      end if
+
       !write extemission fields if needed
       call catchem_emis_write_diagnostics(cc_wrap%ext_emis, cc_wrap%current_time_slice, cc_wrap%iocomp, cc_wrap%grid, filename, rc)
       if (rc /= CC_SUCCESS) then
@@ -3240,6 +3249,111 @@ contains
       end if
 
    end subroutine update_time_variable
+
+   !> \brief Write run-level provenance as NetCDF global attributes.
+   !!
+   !! Core provenance (build version, git commit, config identity) plus the
+   !! CF provenance defaults required by FR-011 are written first; entries
+   !! from diagnostics.output.attributes are appended afterwards so a user
+   !! key overrides a core key on collision (contract C-10, §6.2).  The
+   !! attributes are applied through AQMIO_WriteGlobalAttrs because global
+   !! attributes must be set in define mode, which AQMIO owns (research D7);
+   !! the driver never calls nf90_create/nf90_redef directly.
+   !!
+   !! Must be called after the file exists (update_time_variable creates it).
+   !! Multi-tile runs mirror update_time_variable's per-tile file naming.
+   !!
+   !! \param cc_wrap CATChem wrapper containing model state and configuration
+   !! \param filename NetCDF filename just created/updated
+   !! \param rc Return code
+   subroutine write_global_attributes(cc_wrap, filename, rc)
+      type(cc_wrap_type), intent(inout) :: cc_wrap
+      character(len=*), intent(in) :: filename
+      integer, intent(out) :: rc
+
+      integer, parameter :: max_attrs = 64
+      character(len=128) :: names(max_attrs)
+      character(len=512) :: values(max_attrs)
+      character(len=64) :: version_str, commit_str
+      character(len=512) :: config_str, attr_key, attr_val
+      character(len=256) :: tileFilename
+      character(len=16) :: tileSuffix
+      type(ESMF_Grid) :: grid
+      type(ESMF_VM) :: vm
+      integer :: n, na, i, tile, tileCount, dotpos, localPet
+
+      rc = CC_SUCCESS
+
+      n = 0
+      ! --- core provenance, written first so user keys can override ---
+      call cc_wrap%catchem_model%get_build_version(version_str)
+      call cc_wrap%catchem_model%get_build_commit(commit_str)
+      call cc_wrap%catchem_model%get_config_file_path(config_str)
+      n = n + 1; names(n) = 'catchem_core_version'; values(n) = trim(version_str)
+      n = n + 1; names(n) = 'catchem_core_commit';  values(n) = trim(commit_str)
+      n = n + 1; names(n) = 'config_file';          values(n) = trim(config_str)
+      ! --- FR-011 defaults for the CF provenance block ---
+      n = n + 1; names(n) = 'institution'; values(n) = 'UFS Community'
+      n = n + 1; names(n) = 'source';      values(n) = 'CATChem'
+      n = n + 1; names(n) = 'references';  values(n) = 'https://github.com/UFS-Community/CATChem'
+      n = n + 1; names(n) = 'Conventions'; values(n) = 'CF-1.11'
+
+      ! --- user attributes from diagnostics.output.attributes (C-10) ---
+      na = cc_wrap%catchem_model%get_output_attribute_count()
+      do i = 1, na
+         if (n >= max_attrs) then
+            write(*,'(A,I0,A)') 'Warning: global attributes truncated at ', max_attrs, &
+               ' entries; remaining diagnostics.output.attributes ignored.'
+            exit
+         end if
+         call cc_wrap%catchem_model%get_output_attribute_at(i, attr_key, attr_val)
+         n = n + 1
+         names(n) = trim(attr_key)
+         values(n) = trim(attr_val)
+      end do
+
+      ! Determine tile count to match AQMIO's per-tile file naming, exactly as
+      ! update_time_variable does for the time axis.
+      call ESMF_GridCompGet(cc_wrap%iocomp, grid=grid, vm=vm, rc=rc)
+      if (rc /= ESMF_SUCCESS) then
+         rc = CC_FAILURE
+         return
+      end if
+      call ESMF_GridGet(grid, tileCount=tileCount, rc=rc)
+      if (rc /= ESMF_SUCCESS) then
+         rc = CC_FAILURE
+         return
+      end if
+
+      if (tileCount > 1 .and. index(filename, '<tile>') == 0) then
+         do tile = 1, tileCount
+            write(tileSuffix, '(".tile",I0)') tile
+            dotpos = index(filename, '.', back=.true.)
+            if (dotpos > 1) then
+               tileFilename = filename(1:dotpos-1) // trim(tileSuffix) // trim(filename(dotpos:))
+            else
+               tileFilename = trim(filename) // trim(tileSuffix)
+            end if
+            call AQMIO_WriteGlobalAttrs(tileFilename, names, values, n, rc=rc)
+            if (rc /= ESMF_SUCCESS) then
+               rc = CC_FAILURE
+               return
+            end if
+         end do
+      else
+         ! Single tile: only PET 0 owns the file (mirrors AQMIO_Write1D).
+         call ESMF_VMGet(vm, localPet=localPet, rc=rc)
+         if (rc == ESMF_SUCCESS .and. localPet == 0) then
+            call AQMIO_WriteGlobalAttrs(filename, names, values, n, rc=rc)
+            if (rc /= ESMF_SUCCESS) then
+               rc = CC_FAILURE
+               return
+            end if
+         end if
+         rc = CC_SUCCESS
+      end if
+
+   end subroutine write_global_attributes
 
    !> \brief Initialize output timing
    !!

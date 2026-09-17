@@ -164,6 +164,16 @@ int catchem_config_get_diag_enabled(void* core_ptr);
 int catchem_config_get_process_diagnostics_enabled(void* core_ptr);
 int catchem_config_get_diag_species_count(void* core_ptr);
 void catchem_config_get_diag_species_at(void* core_ptr, int index, char* buffer, int max_len);
+/// diagnostics.output.attributes (feature 013, FR-011): run-level NetCDF global
+/// attributes.  Iteration order is the map's key order, so it is deterministic.
+int catchem_config_get_output_attribute_count(void* core_ptr);
+void catchem_config_get_output_attribute_key_at(void* core_ptr, int index, char* buffer, int max_len);
+void catchem_config_get_output_attribute_value_at(void* core_ptr, int index, char* buffer, int max_len);
+/// Path of the YAML the configuration was loaded from ("" before load).
+void catchem_config_get_config_file_path(void* core_ptr, char* buffer, int max_len);
+/// Build provenance baked in at configure time (feature 013, FR-011).
+void catchem_get_build_version(char* buffer, int max_len);
+void catchem_get_build_commit(char* buffer, int max_len);
 int catchem_config_get_process_active(void* core_ptr, const char* process_name);
 int catchem_config_has_emission_mapping(void* core_ptr);
 int catchem_config_get_emission_category_count(void* core_ptr);

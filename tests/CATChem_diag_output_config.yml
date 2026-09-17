@@ -43,6 +43,9 @@ diagnostics:
     compress_lev: 0 #compress NC file; 0 for no compression, 1-9 for increasing levels of compression (and run time)
     process_diagnostics: true #write per-process diagnostic variables (dust/seasalt emissions, fluxes, thresholds)
     diag_list: []  #empty list = every registered field is written (FR-009)
+    attributes:  #run-level NetCDF global attributes (FR-011); 'institution' overrides the core default
+      institution: "Test Lab"
+      title: "feature 013 diagnostic output test"
   collection:
     enabled: true
     buffer_size: 1000

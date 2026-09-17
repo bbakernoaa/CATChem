@@ -20,7 +20,8 @@ program test_nuopc_diag_output
    use ESMF
    use netcdf
    use aqmio, only: AQMIO_Create, AQMIO_Destroy
-   use catchem_nuopc_interface, only: cc_wrap_type, write_process_diagnostics, update_time_variable
+   use catchem_nuopc_interface, only: cc_wrap_type, write_process_diagnostics, update_time_variable, &
+      write_global_attributes
    use catchem_bridge_precision, only: fp
 
    implicit none
@@ -124,9 +125,12 @@ contains
       call ESMF_TimeSet(currTime, yy=2024, mm=5, dd=1, h=0, m=0, s=0, rc=rc)
       call check(rc, "TimeSet")
 
-      ! 3. Create the time axis then write every registered process diagnostic.
+      ! 3. Create the time axis, stamp provenance globals, then write every
+      !    registered process diagnostic.
       call update_time_variable(cc_wrap, outname, currTime, cc_wrap%current_time_slice, rc)
       call check(rc, "update_time_variable")
+      call write_global_attributes(cc_wrap, outname, rc)
+      call check(rc, "write_global_attributes")
       call write_process_diagnostics(cc_wrap, 'all', outname, rc)
       call check(rc, "write_process_diagnostics")
 
@@ -273,6 +277,28 @@ contains
       end if
    end subroutine expect
 
+   !> True when the file carries a string global attribute of this name.
+   function global_present(ncid, name) result(present_att)
+      integer, intent(in) :: ncid
+      character(len=*), intent(in) :: name
+      logical :: present_att
+      character(len=512) :: buf
+      present_att = (nf90_get_att(ncid, NF90_GLOBAL, trim(name), buf) == nf90_noerr)
+   end function global_present
+
+   !> True when a string global attribute exists and equals the expected value.
+   function global_equals(ncid, name, expected) result(ok)
+      integer, intent(in) :: ncid
+      character(len=*), intent(in) :: name, expected
+      logical :: ok
+      integer :: status
+      character(len=512) :: buf
+      status = nf90_get_att(ncid, NF90_GLOBAL, trim(name), buf)
+      ok = (status == nf90_noerr) .and. (trim(buf) == trim(expected))
+      if (status /= nf90_noerr) print *, '  global lookup failed: ', trim(name), &
+         trim(nf90_strerror(status))
+   end function global_equals
+
    subroutine verify_output(fname, core_ptr, nfail)
       character(len=*), intent(in) :: fname
       type(c_ptr), intent(in) :: core_ptr
@@ -328,6 +354,18 @@ contains
       call value_matches_host(ncid, core_ptr, 'dust_emission_bin', 'dust1', 'dust_emission_bin_dust1')
       call value_matches_host(ncid, core_ptr, 'seasalt_mass_emission_bins', 'seas1', &
          'seasalt_mass_emission_bins_seas1')
+
+      ! --- US4 (T024): run-level provenance global attributes (FR-011, C-10) ---
+      print *, 'US4: global provenance attributes'
+      call expect(global_equals(ncid, 'institution', 'Test Lab'), &
+         'user attribute overrides core default: institution')
+      call expect(global_equals(ncid, 'references', &
+         'https://github.com/UFS-Community/CATChem'), 'references core default present')
+      call expect(global_present(ncid, 'catchem_core_version'), 'catchem_core_version present')
+      call expect(global_present(ncid, 'catchem_core_commit'), 'catchem_core_commit present')
+      call expect(global_present(ncid, 'config_file'), 'config_file present')
+      call expect(global_equals(ncid, 'title', 'feature 013 diagnostic output test'), &
+         'user-only attribute present: title')
 
       status = nf90_close(ncid)
    end subroutine verify_output
