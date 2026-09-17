@@ -16,6 +16,17 @@
   at init naming the offending item, with no silent fallback to the metadata path.
   Numerically certified against the `upstream/develop` Fortran oracle to
   single-precision round-off (max abs 1.03e-18, 1 step; 1.97e-17, 24 steps).
+- **diagnostics**: per-process scheme diagnostics now match the legacy Fortran
+  core across settling, dust, seasalt, carbchem, and so4chem. Each process
+  honors an optional `processes/<name>/diag_species:` subset (default = the
+  process's own runtime-resolved species set; unknown names fail at init), and
+  registered fields are written to `catchem_diag*.nc` whenever runtime
+  diagnostics are enabled — `diagnostics.output/process_diagnostics` is now a
+  deprecated no-op retained only for configuration compatibility. This closes
+  silent-wrong-diagnostic bugs: dust/seasalt per-bin ids now live in the local
+  bin space the schemes search, carbchem no longer registers the whole catalog,
+  and so4chem writes each `Production_rate_<sp>` from its own slot instead of
+  duplicating the first into every species.
 
 ### Fixes
 
