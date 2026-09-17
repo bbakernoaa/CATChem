@@ -16,7 +16,8 @@
 !! A field whose packed axis carries no label must fail loudly (FR-007/008); the
 !! C++ invariant tests (test_diagnostic_lifecycle) cover that path directly.
 program test_nuopc_diag_output
-   use iso_c_binding, only: c_ptr, c_char, c_int, c_null_char, c_null_ptr, c_associated, c_f_pointer
+   use iso_c_binding, only: c_ptr, c_char, c_int, c_double, c_int64_t, c_null_char, &
+      c_null_ptr, c_associated, c_f_pointer
    use ESMF
    use netcdf
    use aqmio, only: AQMIO_Create, AQMIO_Destroy
@@ -60,6 +61,20 @@ program test_nuopc_diag_output
          character(kind=c_char), intent(in) :: name(*)
          integer(c_int), intent(out) :: rank_out
       end function
+      integer(c_int) function catchem_state_get_species_count_checked(state_ptr, count_out) &
+         bind(C, name="catchem_state_get_species_count_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), intent(out) :: count_out
+      end function
+      integer(c_int) function catchem_state_get_species_conc_pointer_checked(state_ptr, species_index, &
+         dim1, dim2, ptr_out) &
+         bind(C, name="catchem_state_get_species_conc_pointer_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: species_index, dim1, dim2
+         type(c_ptr), intent(out) :: ptr_out
+      end function
    end interface
 
    integer, parameter :: nx = 3, ny = 2, nz = 4
@@ -101,6 +116,7 @@ contains
       type(cc_wrap_type) :: cc_wrap
       type(ESMF_Grid) :: grid
       type(ESMF_Time) :: currTime
+      real(c_double), target, allocatable :: conc_buf(:,:,:)
       integer :: rc
 
       ! 1. Initialize the model with the all-process diagnostic config.  Each
@@ -131,7 +147,14 @@ contains
       call check(rc, "update_time_variable")
       call write_global_attributes(cc_wrap, outname, rc)
       call check(rc, "write_global_attributes")
-      call write_process_diagnostics(cc_wrap, 'all', outname, rc)
+
+      ! SC-005 (T029): the writer runs strictly after the science step and must
+      ! never perturb tracer concentrations.  Bind a deterministic concentration
+      ! buffer, snapshot it bitwise, run the writer (producing the file that
+      ! verify_output inspects), snapshot again, and assert bit-for-bit equality.
+      ! This is the realizable form of the on/off ncdiff in this environment
+      ! (the standalone app needs external ExtData).
+      call science_unchanged_by_writer(cc_wrap, outname, conc_buf, nfail, rc)
       call check(rc, "write_process_diagnostics")
 
       ! 4. Reopen the file and assert the contract (AQMIO_Close flushed it).
@@ -141,6 +164,97 @@ contains
       call ESMF_GridDestroy(grid, rc=rc)
       call cc_wrap%catchem_model%finalize(rc)
    end subroutine run_case
+
+   !> SC-005 guard (T029): bind a deterministic tracer-concentration buffer,
+   !! snapshot it bitwise, run the diagnostic writer, snapshot again, and
+   !! assert bit-for-bit equality.  The writer must be pure output: it reads
+   !! host pointers only and runs after the science step, so any perturbation
+   !! of concentrations is a defect.  (The literal run-on/off ncdiff needs the
+   !! standalone app with external ExtData inputs; this is the equivalent
+   !! in-process guarantee.)
+   !! The buffer is owned by the caller so it stays alive until the model is
+   !! finalized (the C++ view over it is unmanaged and non-owning).
+   subroutine science_unchanged_by_writer(cc_wrap, outname, conc_buf, nfail, rc)
+      type(cc_wrap_type), intent(inout) :: cc_wrap
+      character(len=*), intent(in) :: outname
+      real(c_double), target, allocatable, intent(inout) :: conc_buf(:,:,:)
+      integer, intent(inout) :: nfail
+      integer, intent(out) :: rc
+      integer(c_int) :: c_status, c_count
+      integer :: ncols, nlev, total, i, j, v
+      integer(c_int64_t), allocatable :: snap_before(:), snap_after(:)
+
+      ncols = nx * ny
+      nlev = nz
+
+      ! The unified-chemistry buffer is species-major blocks, matching the
+      ! Fortran (column, level, species) layout the C++ getter slices with
+      ! conc + (species-1)*ncols*nlev.  Query the registered species count
+      ! first so the buffer's third extent is exact (a mismatch is rejected by
+      ! the extent-checked bind path).
+      c_status = catchem_state_get_species_count_checked(cc_wrap%catchem_model%state_mgr_ptr, c_count)
+      if (c_status /= 0_c_int .or. c_count <= 0) then
+         print *, 'FAIL: species count status=', int(c_status), ' count=', int(c_count)
+         nfail = nfail + 1
+         rc = 1
+         return
+      end if
+
+      allocate(conc_buf(ncols, nlev, int(c_count)))
+      do v = 1, int(c_count)
+         do j = 1, nlev
+            do i = 1, ncols
+               conc_buf(i, j, v) = 1.0d0 + 0.5d0*real(i, c_double) &
+                  - 0.25d0*real(j, c_double) + 3.0d0*real(v, c_double)
+            end do
+         end do
+      end do
+      call cc_wrap%catchem_model%bind_unified_chemistry(conc_buf, rc)
+      if (rc /= 0) then
+         print *, 'FAIL: bind_unified_chemistry rc=', rc
+         nfail = nfail + 1
+         return
+      end if
+
+      total = ncols * nlev * int(c_count)
+      allocate(snap_before(total), snap_after(total))
+
+      call snapshot_concentrations(cc_wrap, c_count, ncols, nlev, snap_before)
+      call write_process_diagnostics(cc_wrap, 'all', outname, rc)
+      call snapshot_concentrations(cc_wrap, c_count, ncols, nlev, snap_after)
+
+      call expect(all(snap_before == snap_after), &
+         'SC-005: writer left tracer concentrations bit-identical')
+
+      deallocate(snap_before, snap_after)
+   end subroutine science_unchanged_by_writer
+
+   !> Copy every species' [ncols,nlev] concentration block, bitwise, into snap.
+   subroutine snapshot_concentrations(cc_wrap, c_count, ncols, nlev, snap)
+      type(cc_wrap_type), intent(in) :: cc_wrap
+      integer(c_int), intent(in) :: c_count
+      integer, intent(in) :: ncols, nlev
+      integer(c_int64_t), intent(out) :: snap(:)
+      integer(c_int) :: c_status, v
+      integer :: base, block_size
+      type(c_ptr) :: raw_ptr
+      real(c_double), pointer :: sp(:,:) => null()
+
+      block_size = ncols * nlev
+      do v = 1, c_count
+         raw_ptr = c_null_ptr
+         c_status = catchem_state_get_species_conc_pointer_checked( &
+            cc_wrap%catchem_model%state_mgr_ptr, v, int(ncols, c_int), int(nlev, c_int), raw_ptr)
+         if (c_status /= 0_c_int .or. .not. c_associated(raw_ptr)) then
+            call expect(.false., 'concentration pointer available for every species')
+            return
+         end if
+         call c_f_pointer(raw_ptr, sp, [ncols, nlev])
+         base = (int(v) - 1) * block_size
+         snap(base + 1 : base + block_size) = transfer(sp, snap(base + 1 : base + block_size))
+         nullify(sp)
+      end do
+   end subroutine snapshot_concentrations
 
    !> Drive a narrowing-diag_list run and assert only the selected variables
    !! survive (US3 / T022).  The config selects dust_emission_total, the
