@@ -1102,8 +1102,10 @@ contains
    end function model_is_diag_enabled
 
    !> \brief True when diagnostics.output/process_diagnostics is enabled in the
-   !! runtime YAML.  Gates the per-process diagnostic variables (dust/seasalt
-   !! emissions, fluxes, thresholds) written by the NUOPC driver.
+   !! runtime YAML.  DEPRECATED: the NUOPC driver no longer consults this key
+   !! -- per-process diagnostics are written whenever they are registered and
+   !! runtime diagnostics are enabled (parity with the legacy Fortran core).
+   !! The accessor is retained only so existing configs keep parsing.
    function model_is_process_diag_enabled(this) result(enabled)
       class(CATChem_Model), intent(in) :: this
       logical :: enabled
