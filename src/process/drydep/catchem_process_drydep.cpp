@@ -68,7 +68,7 @@ namespace catchem {
         state->derive_salinity();
         state->derive_landuse_categories();
         state->derive_obk();
-        state->derive_surface_cloud_fraction();
+        state->derive_column_cloud_fraction();
         state->derive_suncosmid();
     }
 
