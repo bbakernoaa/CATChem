@@ -1284,9 +1284,11 @@ contains
 
       type(ExtEmisFieldType), pointer :: src_field
       character(len=64) :: resolved_field, resolved_category
-      character(len=256) :: resolved_source_file
       real(c_double) :: map_scale, category_scale
-      integer :: i, j
+#ifdef CATCHEM_TRACE_NUOPC
+      character(len=256) :: resolved_source_file
+      integer :: i
+#endif
 
       rc = CC_SUCCESS
 
@@ -2565,10 +2567,12 @@ contains
 
    !> \brief Test an output variable name against the diag_list selectors.
    !!
-   !! An entry matches when it equals the name or the name starts with
-   !! entry_'_' (data-model §6.1), so a parent selector covers every
-   !! unpacked <field>_<label> child while a full child name selects just
-   !! that child.  Matching a selector marks it as used for the
+   !! An entry matches when it equals the name, the name starts with
+   !! entry_'_' (a parent selector), or the name ends with '_'//entry
+   !! (a species/slot selector).  The latter preserves the documented
+   !! species-list behavior for unpacked process diagnostics, e.g. `so2`
+   !! selects `drydep_con_per_species_so2`, `drydep_velocity_per_species_so2`,
+   !! and `wetdep_*_so2`.  Matching a selector marks it as used for the
    !! aggregated unmatched-selector warning.  With an empty selector list
    !! everything matches (FR-009: empty list = everything).
    !!
@@ -2583,7 +2587,7 @@ contains
       integer, intent(in) :: ns
       character(len=*), intent(in) :: var_name
       logical, intent(out) :: selected
-      integer :: s
+      integer :: s, selector_len, var_len
 
       selected = .true.
       if (ns == 0) return
@@ -2595,6 +2599,19 @@ contains
          else if (index(trim(var_name) // '_', trim(selectors(s)) // '_') == 1) then
             matched(s) = .true.
             selected = .true.
+         else
+            ! diagnostics.output.diag_list is also a species selector in
+            ! the shipped configurations.  Packed process fields are
+            ! unpacked as <field>_<species>, so match the terminal token
+            ! without allowing a partial token match.
+            selector_len = len_trim(selectors(s))
+            var_len = len_trim(var_name)
+            if (selector_len > 0 .and. var_len > selector_len + 1) then
+               if (var_name(var_len - selector_len:var_len) == '_' // trim(selectors(s))) then
+                  matched(s) = .true.
+                  selected = .true.
+               end if
+            end if
          end if
       end do
    end subroutine diag_selector_select

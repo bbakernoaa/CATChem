@@ -258,8 +258,10 @@ contains
 
    !> Drive a narrowing-diag_list run and assert only the selected variables
    !! survive (US3 / T022).  The config selects dust_emission_total, the
-   !! settling_flux_per_species parent (covering every unpacked child), and a
-   !! no_such_field entry that must produce an unmatched-selector warning.
+   !! settling_flux_per_species parent (covering every unpacked child), the
+   !! so2 species suffix (covering all unpacked process diagnostics for that
+   !! species), and a no_such_field entry that must produce an unmatched-
+   !! selector warning.
    subroutine run_case_narrow(config, outname, nfail)
       character(len=*), intent(in) :: config, outname
       integer, intent(inout) :: nfail
@@ -301,11 +303,18 @@ contains
       ! Selected parent covers its unpacked children (settling_flux_per_species_<label>).
       v = find_var(ncid, 'settling_flux_per_species_so4')
       call expect(v >= 0, 'narrow: settling_flux_per_species child present')
+      ! A species selector covers every packed process child with that suffix.
+      call expect(find_var(ncid, 'drydep_con_per_species_so2') >= 0, &
+         'narrow: drydep concentration for so2 present')
+      call expect(find_var(ncid, 'drydep_velocity_per_species_so2') >= 0, &
+         'narrow: drydep velocity for so2 present')
+      call expect(find_var(ncid, 'wetdep_mass_so2') >= 0, 'narrow: wetdep mass for so2 present')
+      call expect(find_var(ncid, 'wetdep_flux_so2') >= 0, 'narrow: wetdep flux for so2 present')
       ! Everything not named by a selector must be absent (SC-007).
       call expect(find_var(ncid, 'dust_emission_bin_dust1') == -1, 'narrow: unselected dust bin absent')
       call expect(find_var(ncid, 'seasalt_mass_emission_total') == -1, 'narrow: unselected seasalt absent')
-      call expect(find_var(ncid, 'drydep_con_per_species_so2') == -1, 'narrow: unselected drydep absent')
-      call expect(find_var(ncid, 'wetdep_mass_so2') == -1, 'narrow: unselected wetdep absent')
+      call expect(find_var(ncid, 'drydep_con_per_species_so4') == -1, 'narrow: unselected drydep species absent')
+      call expect(find_var(ncid, 'wetdep_mass_so4') == -1, 'narrow: unselected wetdep species absent')
       call expect(find_var(ncid, 'PSO4_from_gaseous_SO2_per_level') == -1, 'narrow: unselected so4chem absent')
       call expect(find_var(ncid, 'carbchem_prod_mass_oc1') == -1, 'narrow: unselected carbchem absent')
 
