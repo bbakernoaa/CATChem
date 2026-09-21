@@ -72,7 +72,9 @@ def stage(run_dir: Path, source_root: Path, columns: int, levels: int, optics_di
     if replaced != 1:
         raise RuntimeError("could not isolate the test1 process phase to settling")
     # Enable the optics-table (Mie) branch of the GOCART settling scheme.
-    text, replaced = re.subn(r"(simple_scheme: )false", r"\1true", text, count=1)
+    # The checked-in Default config now ships this baseline itself, so accept
+    # either current value and force the simple path idempotently.
+    text, replaced = re.subn(r"(simple_scheme: )\w+", r"\1true", text, count=1)
     if replaced != 1:
         raise RuntimeError("could not enable simple_scheme in the staged configuration")
     # Point mie/directory at the shared optics directory (trailing slash required

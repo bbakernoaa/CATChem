@@ -1205,20 +1205,24 @@ contains
    !! This removes any hardcoded field-name alias from the binding code -- the
    !! config alone decides which field (dust.sep, fengsha.PC/albedo_drag, ...)
    !! supplies each MET_* target.
-   function resolve_emission_field_for_target(cc_wrap, target_name) result(field_out)
+   function resolve_emission_field_for_target(cc_wrap, target_name, map_scale, category_scale) result(field_out)
 
       type(cc_wrap_type), intent(inout) :: cc_wrap
       character(len=*), intent(in) :: target_name
+      real(c_double), intent(out) :: map_scale
+      real(c_double), intent(out) :: category_scale
       character(len=64) :: field_out
 
       type(c_ptr) :: core_ptr
       character(len=64) :: category_name, field_name, mapped_species
       integer(c_int) :: n_categories, n_fields, n_maps
-      integer :: icat, ifield, imap
+      integer :: icat, ifield, imap, jcat
       real(c_double) :: scale_factor
       integer(c_int) :: species_index
 
       field_out = ''
+      map_scale = 1.0_c_double
+      category_scale = 1.0_c_double
       core_ptr = cc_wrap%catchem_model%cpp_core_ptr
       if (.not. c_associated(core_ptr)) return
       if (catchem_config_has_emission_mapping(core_ptr) == 0_c_int) return
@@ -1241,6 +1245,13 @@ contains
                call trim_at_null(mapped_species)
                if (trim(mapped_species) == trim(target_name)) then
                   field_out = trim(field_name)
+                  map_scale = scale_factor
+                  do jcat = 1, cc_wrap%ext_emis%n_categories
+                     if (trim(cc_wrap%ext_emis%categories(jcat)%category_name) == trim(category_name)) then
+                        category_scale = real(cc_wrap%ext_emis%categories(jcat)%global_scale, c_double)
+                        exit
+                     end if
+                  end do
                   return
                end if
             end do
@@ -1270,6 +1281,7 @@ contains
 
       type(ExtEmisFieldType), pointer :: src_field
       character(len=64) :: resolved_field
+      real(c_double) :: map_scale, category_scale
 
       rc = CC_SUCCESS
 
@@ -1279,13 +1291,14 @@ contains
       ! mapping entirely in configuration (dust.sep -> MET_SSM,
       ! fengsha.PC/albedo_drag -> MET_RDRAG, ...), with no hardcoded field-name
       ! aliases in code and no substring/fuzzy matching.
-      resolved_field = resolve_emission_field_for_target(cc_wrap, target_name)
+      resolved_field = resolve_emission_field_for_target(cc_wrap, target_name, map_scale, category_scale)
 
       src_field => null()
       if (len_trim(resolved_field) > 0) &
          src_field => cc_wrap%ext_emis%find_emission_field(trim(resolved_field))
       if (associated(src_field)) then
-         call bind_static_field_data(cc_wrap, src_field, met_name, met_buffer, scale, rc)
+         call bind_static_field_data(cc_wrap, src_field, met_name, met_buffer, &
+            scale * map_scale * category_scale * real(cc_wrap%ext_emis%global_scale, c_double), rc)
          return
       end if
 
@@ -1326,16 +1339,13 @@ contains
 
       rc = CC_SUCCESS
 
-      if (allocated(src_field%interp_data_t1)) then
-         nx = size(src_field%interp_data_t1, 1)
-         ny = size(src_field%interp_data_t1, 2)
-         if (size(src_field%interp_data_t1, 3) < 1 .or. size(src_field%interp_data_t1, 4) < 1) return
-         if (.not. allocated(met_buffer) .or. size(met_buffer, 1) /= nx .or. size(met_buffer, 2) /= ny) then
-            if (allocated(met_buffer)) deallocate(met_buffer)
-            allocate(met_buffer(nx, ny))
-         end if
-         met_buffer = real(src_field%interp_data_t1(:,:,1,1), c_double) * scale
-      else if (allocated(src_field%emission_data)) then
+      ! emission_data is the canonical current field.  For temporally
+      ! interpolated categories catchem_emis_blend_time has already combined
+      ! interp_data_t1/interp_data_t2 into emission_data before this routine
+      ! runs.  Reading interp_data_t1 here would feed the old bracket into the
+      ! process while AQMIO diagnostics (and the legacy metstate path) report
+      ! the blended field.
+      if (allocated(src_field%emission_data)) then
          nx = size(src_field%emission_data, 1)
          ny = size(src_field%emission_data, 2)
          if (size(src_field%emission_data, 3) < 1 .or. size(src_field%emission_data, 4) < 1) return
