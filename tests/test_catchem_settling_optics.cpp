@@ -100,7 +100,7 @@ namespace {
             << "    gocart:\n"
             << "      scale_factor: 1.0\n"
             << "      simple_scheme: " << (simple_scheme ? "true" : "false") << "\n"
-            << "      swelling_rh_max: 0.95\n"
+            << "      swelling_method: 1\n"
             << "      correction_maring: false\n"
             << "      maring_dust_only: true\n";
         out.close();

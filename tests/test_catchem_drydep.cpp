@@ -77,6 +77,7 @@ namespace {
             auto& proc = runtime_config->data.processes["drydep"];
             proc.activate = true;
             proc.diagnostics = true;
+            proc.diag_species.clear(); // Match the user's [] configuration: all drydep-enabled species.
             proc.set_settings_node(settings);
         }
         state->attach_config_manager(runtime_config);
@@ -218,15 +219,28 @@ int main(int argc, char* argv[]) {
             bool all_finite = true;
             std::size_t nan_count = 0;
             if (diag && diag->has_field("drydep_velocity_per_species")) {
+                const auto& dims = diag->get_field("drydep_velocity_per_species")->dimensions;
                 const double* vel =
                     static_cast<const double*>(diag->get_host_read_pointer("drydep_velocity_per_species"));
-                const std::size_t n = static_cast<std::size_t>(fix.n_cols) * fix.n_species;
+                check(dims.size() == 2 && dims[0] == fix.n_cols && dims[1] > 0,
+                      "drydep velocity diagnostic has packed column/species dimensions");
+                const std::size_t n = static_cast<std::size_t>(dims[0]) * static_cast<std::size_t>(dims[1]);
+                double max_velocity = 0.0;
                 for (std::size_t i = 0; i < n; ++i) {
                     if (!std::isfinite(vel[i])) {
                         all_finite = false;
                         ++nan_count;
                     }
+                    max_velocity = std::max(max_velocity, vel[i]);
                 }
+                check(max_velocity >= 1.0e-4, "deposition velocity diagnostic is populated with the GOCART floor");
+                std::cout << "  drydep velocity max = " << max_velocity << " m/s\n";
+                std::cout << "  drydep velocity slots:";
+                const auto& labels = diag->get_unpack_labels("drydep_velocity_per_species");
+                for (int slot = 0; slot < dims[1]; ++slot)
+                    std::cout << " " << labels[static_cast<std::size_t>(slot)] << "="
+                              << vel[static_cast<std::size_t>(slot) * dims[0]];
+                std::cout << "\n";
             }
             check(all_finite, "all deposition velocities finite (no NaN from z-slot mixup)");
             if (!all_finite)
