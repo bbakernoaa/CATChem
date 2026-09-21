@@ -1287,7 +1287,7 @@ contains
       real(c_double) :: map_scale, category_scale
 #ifdef CATCHEM_TRACE_NUOPC
       character(len=256) :: resolved_source_file
-      integer :: i
+      integer :: i, j
 #endif
 
       rc = CC_SUCCESS
@@ -1688,10 +1688,13 @@ contains
       !local vars
       real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
       integer :: met_index, v_cc, v, found_index, expected_levels, expected_tracers, localrc
+      integer :: bc1_host_index, bc1_catchem_index
       integer(c_int) :: catchem_status, species_count
       logical :: tracer_shape_valid
       type(ESMF_Info) :: field_info
       character(len=64) :: observed_units
+      real(ESMF_KIND_R8) :: bc1_raw_min, bc1_raw_max, bc1_raw_sum
+      real(ESMF_KIND_R8) :: bc1_mapped_min, bc1_mapped_max, bc1_mapped_sum
 
       ! `required` is carried in the signature for the import loop but the
       ! missing-field policy is enforced by the caller; reference it so the
@@ -1960,6 +1963,41 @@ contains
             rc = ESMF_FAILURE
             return
          end if
+
+#ifdef CATCHEM_TRACE_NUOPC
+         ! BC1 is the direct source of PhobicToPhilic_flux_bc1.  Report the
+         ! exact host slot and mapped state values before any CATChem process
+         ! executes.  This separates tracer exchange/unit conversion errors
+         ! from the carbon science kernel and from diagnostic output packing.
+         bc1_host_index = 0
+         bc1_catchem_index = 0
+         do v = 1, min(size(fptr4d, 4), size(cc_wrap%tracer_map%names))
+            if (lowercase(trim(cc_wrap%tracer_map%names(v))) == 'bc1') then
+               bc1_host_index = v
+               bc1_catchem_index = cc_wrap%tracer_map%nuopc_to_cc(v)
+               exit
+            end if
+         end do
+         if (bc1_host_index > 0 .and. bc1_catchem_index > 0 .and. bc1_catchem_index <= v_cc) then
+            bc1_raw_min = minval(fptr4d(:,:,:,bc1_host_index))
+            bc1_raw_max = maxval(fptr4d(:,:,:,bc1_host_index))
+            bc1_raw_sum = sum(fptr4d(:,:,:,bc1_host_index))
+            bc1_mapped_min = minval(cc_wrap%chem_buf_4d(:,:,:,bc1_catchem_index))
+            bc1_mapped_max = maxval(cc_wrap%chem_buf_4d(:,:,:,bc1_catchem_index))
+            bc1_mapped_sum = sum(cc_wrap%chem_buf_4d(:,:,:,bc1_catchem_index))
+            write(*,'(A,I0,A,I0,A,A,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4)') &
+               '[CATCHEM TRACE] BC1 import host_slot=', bc1_host_index, &
+               ' catchem_index=', bc1_catchem_index, ' units=', trim(cc_wrap%tracer_map%units(bc1_host_index)), &
+               ' factor=', cc_wrap%tracer_map%host_to_catchem(bc1_host_index), &
+               ' raw_min=', bc1_raw_min, ' raw_max=', bc1_raw_max, ' raw_sum=', bc1_raw_sum, &
+               ' mapped_min=', bc1_mapped_min, ' mapped_max=', bc1_mapped_max, ' mapped_sum=', bc1_mapped_sum
+            call flush(6)
+         else
+            write(*,'(A,I0,A,I0)') '[CATCHEM TRACE] BC1 import mapping missing host_slot=', bc1_host_index, &
+               ' catchem_index=', bc1_catchem_index
+            call flush(6)
+         end if
+#endif
 
          ! Direct pointer mapping to C++ core StateManager via persistent contiguous buffer
          call cc_wrap%catchem_model%bind_unified_chemistry(cc_wrap%chem_buf_4d, rc)

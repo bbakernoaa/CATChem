@@ -1705,6 +1705,16 @@ contains
                end do
             end do
 
+#ifdef CATCHEM_TRACE_NUOPC
+            if (emis_lower(trim(mapped_species_name)) == 'bc1') then
+               write(*,'(A,A,A,A,A,ES12.4,A,ES12.4,A,ES12.4)') &
+                  '[CATCHEM TRACE] BC1 after emission category=', trim(category_name), &
+                  ' field=', trim(field_name), ' min=', minval(f_conc), &
+                  ' max=', maxval(f_conc), ' sum=', sum(f_conc)
+               call flush(6)
+            end if
+#endif
+
          end do
       end do
 
