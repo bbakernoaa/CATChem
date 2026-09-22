@@ -1688,13 +1688,17 @@ contains
       !local vars
       real(ESMF_KIND_R8), pointer :: fptr4d(:,:,:,:), fptr3d(:,:,:), fptr2d(:,:)
       integer :: met_index, v_cc, v, found_index, expected_levels, expected_tracers, localrc
+#ifdef CATCHEM_TRACE_NUOPC
       integer :: bc1_host_index, bc1_catchem_index
+#endif
       integer(c_int) :: catchem_status, species_count
       logical :: tracer_shape_valid
       type(ESMF_Info) :: field_info
       character(len=64) :: observed_units
+#ifdef CATCHEM_TRACE_NUOPC
       real(ESMF_KIND_R8) :: bc1_raw_min, bc1_raw_max, bc1_raw_sum
       real(ESMF_KIND_R8) :: bc1_mapped_min, bc1_mapped_max, bc1_mapped_sum
+#endif
 
       ! `required` is carried in the signature for the import loop but the
       ! missing-field policy is enforced by the caller; reference it so the
@@ -2686,7 +2690,7 @@ contains
       type(ESMF_Info) :: info
       real(ESMF_KIND_R4), pointer :: field_data_2d(:,:) => null()
       real(ESMF_KIND_R4), pointer :: field_data_3d(:,:,:) => null()
-      integer :: i, j, k, time_slice
+      integer :: time_slice
 
       ! Only the 2D/3D array kinds are written today; the scalar and 1D inputs
       ! are part of the generic writer signature and intentionally unused.
@@ -2724,11 +2728,11 @@ contains
          !set values
          call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=rc)
          if (rc /= ESMF_SUCCESS) return
-         do j = 1, size(array_2d_ptr, 2)
-            do i = 1, size(array_2d_ptr, 1)
-               field_data_2d(i, j) = real(array_2d_ptr(i, j), ESMF_KIND_R4)
-            end do
-         end do
+         ! The ESMF field pointer may carry DE-local/global lower bounds that
+         ! are not one.  Intrinsic assignment copies by array position and is
+         ! therefore safe for every decomposition; explicit 1-based indexing
+         ! can leave gaps or address the wrong part of a distributed field.
+         field_data_2d(:,:) = real(array_2d_ptr(:,:), ESMF_KIND_R4)
          call AQMIO_Write(cc_wrap%iocomp, (/esmf_field/), timeSlice=time_slice, compressLev=cc_wrap%compress_lev, &
             fileName=trim(filename), iofmt=AQMIO_FMT_NETCDF, rc=rc)
 
@@ -2756,13 +2760,9 @@ contains
          !set values
          call ESMF_FieldGet(esmf_field, farrayPtr=field_data_3d, rc=rc)
          if (rc /= ESMF_SUCCESS) return
-         do k = 1, size(array_3d_ptr, 3)
-            do j = 1, size(array_3d_ptr, 2)
-               do i = 1, size(array_3d_ptr, 1)
-                  field_data_3d(i, j, k) = real(array_3d_ptr(i, j, k), ESMF_KIND_R4)
-               end do
-            end do
-         end do
+         ! See the 2-D case above: preserve the ESMF DE bounds and copy by
+         ! position rather than assuming local horizontal bounds start at one.
+         field_data_3d(:,:,:) = real(array_3d_ptr(:,:,:), ESMF_KIND_R4)
          call AQMIO_Write(cc_wrap%iocomp, (/esmf_field/), timeSlice=time_slice, compressLev=cc_wrap%compress_lev, &
             fileName=trim(filename), iofmt=AQMIO_FMT_NETCDF, rc=rc)
 
