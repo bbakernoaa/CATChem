@@ -11,7 +11,7 @@
 !     happens inside the scheme);
 !   - radius is passed in µm (µm -> m conversion happens inside the scheme).
 module SettlingScienceBridge_Mod
-   use iso_c_binding, only: c_int, c_double, c_char, c_ptr, c_f_pointer
+   use iso_c_binding, only: c_int, c_double, c_char, c_ptr, c_f_pointer, c_null_char
    use catchem_bridge_precision, only: fp
    use catchem_bridge_error, only: CC_SUCCESS
    use GOCART2G_MieMod, only: GOCART2G_Mie
@@ -33,6 +33,85 @@ module SettlingScienceBridge_Mod
    ! path, preserving today's "no tables" behavior.
    type(GOCART2G_Mie), target, save :: empty_mie(0)
 contains
+   ! Compute the legacy biomass-burning AOT limiter from the shared optics
+   ! cache.  The source flux is read-only and each mapped target calls this
+   ! independently, preventing mapping-order attenuation.
+   subroutine run_emission_mie_factor(n_columns, n_levels, mie_name_c, emission_flux, rh, &
+      scale_factor, dt, factor, limiter_rc) bind(C, name='run_emission_mie_factor')
+      integer(c_int), value :: n_columns, n_levels
+      character(kind=c_char), intent(in) :: mie_name_c(64)
+      real(c_double), intent(in) :: emission_flux(n_columns,n_levels)
+      real(c_double), intent(in) :: rh(n_columns,n_levels)
+      real(c_double), value :: scale_factor, dt
+      real(c_double), intent(out) :: factor(n_columns)
+      integer(c_int), intent(out) :: limiter_rc
+
+      real, allocatable :: q_mass(:,:,:), rh_query(:,:,:), tau(:,:,:)
+      real(c_double) :: extinction, cutoff
+      character(len=64) :: mie_name
+      integer :: table_index, column, level, bin, query_rc
+
+      factor = 1.0_c_double
+      limiter_rc = 0_c_int
+      if (.not. allocated(mie_store) .or. .not. allocated(mie_names_store)) then
+         limiter_rc = 2_c_int
+         return
+      end if
+
+      mie_name = c_name64_to_fortran(mie_name_c)
+      table_index = 0
+      do bin = 1, size(mie_names_store)
+         if (trim(mie_names_store(bin)) == trim(mie_name)) then
+            table_index = bin
+            exit
+         end if
+      end do
+      if (table_index == 0) then
+         limiter_rc = 2_c_int
+         return
+      end if
+
+      cutoff = dt / 86400.0_c_double * 30.0_c_double
+      if (cutoff <= 0.0_c_double) then
+         limiter_rc = 1_c_int
+         return
+      end if
+
+      allocate(q_mass(1,1,n_levels), rh_query(1,1,n_levels), tau(1,1,n_levels))
+      do column = 1, n_columns
+         do level = 1, n_levels
+            q_mass(1,1,level) = real(emission_flux(column,level) * scale_factor * dt)
+            rh_query(1,1,level) = real(min(max(rh(column,level), 0.0_c_double), 0.99_c_double))
+         end do
+         extinction = 0.0_c_double
+         do bin = 1, min(2, mie_store(table_index)%nbin)
+            tau = 0.0
+            call mie_store(table_index)%Query(550.0e-9, bin, q_mass, rh_query, tau=tau, rc=query_rc)
+            if (query_rc /= CC_SUCCESS) then
+               limiter_rc = 3_c_int
+               deallocate(q_mass, rh_query, tau)
+               return
+            end if
+            extinction = extinction + sum(real(tau, c_double))
+         end do
+         if (extinction > cutoff) factor(column) = cutoff / extinction
+         factor(column) = min(1.0_c_double, max(0.0_c_double, factor(column)))
+      end do
+      deallocate(q_mass, rh_query, tau)
+   contains
+      function c_name64_to_fortran(c_name) result(name)
+         character(kind=c_char), intent(in) :: c_name(64)
+         character(len=64) :: name
+         integer :: i
+         name = ''
+         do i = 1, 64
+            if (c_name(i) == c_null_char) exit
+            name(i:i) = c_name(i)
+         end do
+         name = trim(adjustl(name))
+      end function c_name64_to_fortran
+   end subroutine run_emission_mie_factor
+
    subroutine run_settling_mie_init(n_files, type_names, file_paths, init_rc) &
       bind(C, name='run_settling_mie_init')
       integer(c_int), value :: n_files

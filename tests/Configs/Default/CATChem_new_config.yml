@@ -268,7 +268,7 @@ processes:
       diagnostics: true
       diag_list: [bc_aviation]
     point: #not used for now
-      activate: true
+      activate: false
       scale_factor: 1.0
       topfraction: -1.0
       source_file: "INPUT/PT.nc"

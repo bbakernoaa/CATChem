@@ -12,6 +12,7 @@
 #include "catchem_test_config.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -21,6 +22,8 @@
 
 extern "C" {
 void catchem_register_settling_cpp();
+void run_emission_mie_factor(int n_columns, int n_levels, const char* mie_name, const double* emission_flux,
+                             const double* rh, double scale_factor, double dt, double* factor, int* limiter_rc);
 }
 
 namespace {
@@ -169,6 +172,29 @@ int main(int argc, char* argv[]) {
             std::string message;
             try {
                 settling->init(state);
+
+                // The fire limiter reuses the same loaded optics cache.  A
+                // deliberately large OC source must be bounded without
+                // modifying the shared source array.
+                std::vector<double> fire_flux(static_cast<std::size_t>(fix.n_cols) * fix.n_levels, 1.0e-3);
+                const auto fire_flux_before = fire_flux;
+                std::vector<double> fire_factor(fix.n_cols, 1.0);
+                char oc_mie_name[64] = {};
+                std::strncpy(oc_mie_name, "OC", sizeof(oc_mie_name) - 1);
+                int limiter_rc = -1;
+                run_emission_mie_factor(fix.n_cols, fix.n_levels, oc_mie_name, fire_flux.data(), fix.RH.data(),
+                                         0.9, 3600.0, fire_factor.data(), &limiter_rc);
+                check(limiter_rc == 0, "fire limiter resolves configured OC optics table");
+                check(fire_flux == fire_flux_before, "fire limiter leaves shared source immutable");
+                bool factors_bounded = true;
+                bool attenuated = false;
+                for (double factor : fire_factor) {
+                    factors_bounded = factors_bounded && std::isfinite(factor) && factor >= 0.0 && factor <= 1.0;
+                    attenuated = attenuated || factor < 1.0;
+                }
+                check(factors_bounded, "fire limiter factors are finite and bounded");
+                check(attenuated, "large OC fire source is attenuated by legacy AOT cap");
+
                 settling->run(state);
             } catch (const std::exception& error) {
                 ran = false;

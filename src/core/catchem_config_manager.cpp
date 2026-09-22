@@ -877,6 +877,34 @@ namespace catchem {
                 add("process", "run_phases/processes", "unknown process name: " + process,
                     "use a registered CATChem process");
         }
+
+        // External-emission initialization is mapping-driven.  If an enabled
+        // runtime category has no entry in the emission mapping file, it would
+        // otherwise disappear silently: no source fields are created, read, or
+        // applied.  Validate the relationship generically here so every sector
+        // (including user-defined sectors) obeys the same contract.
+        auto validate_emission_categories = [&](const YAML::Node& processes_node, const std::string& prefix) {
+            if (!processes_node || !processes_node.IsMap())
+                return;
+            const YAML::Node extemis = processes_node["extemis"];
+            if (!extemis || !extemis.IsMap() || !value_or<bool>(extemis["activate"], true))
+                return;
+            for (const auto& entry : extemis) {
+                const std::string category_name = entry.first.as<std::string>();
+                const YAML::Node category = entry.second;
+                if (!category.IsMap() || !category["activate"] || !value_or<bool>(category["activate"], false))
+                    continue;
+                if (data.emission_mappings.find(category_name) == data.emission_mappings.end()) {
+                    add("emissions", prefix + "/extemis/" + category_name,
+                        "active emission sector has no mapping entry: " + category_name,
+                        "add a top-level '" + category_name + "' mapping to the configured emission mapping file",
+                        ValidationSeverity::Warning);
+                }
+            }
+        };
+        validate_emission_categories(root_node["processes"], "processes");
+        validate_emission_categories(root_node["process"], "process");
+
         for (const auto& [category_name, category] : data.emission_mappings) {
             for (const auto& [field_name, field] : category.fields) {
                 const std::string base = "emissions/" + category_name + "/" + field_name;
