@@ -344,14 +344,14 @@ contains
    end function find_var
 
    !> Number of dimensions of a variable.
-   function var_ndims(ncid, varid) result(nd)
+   function var_ndims(ncid, varid) result(n_dims)
       integer, intent(in) :: ncid, varid
-      integer :: nd
+      integer :: n_dims
       integer :: status
-      nd = -1
+      n_dims = -1
       if (varid < 0) return
-      status = nf90_inquire_variable(ncid, varid, ndims=nd)
-      if (status /= nf90_noerr) nd = -1
+      status = nf90_inquire_variable(ncid, varid, ndims=n_dims)
+      if (status /= nf90_noerr) n_dims = -1
    end function var_ndims
 
    !> True when the variable carries a dimension named `dimname` (AQMIO orders
@@ -361,16 +361,16 @@ contains
       integer, intent(in) :: ncid, varid
       character(len=*), intent(in) :: dimname
       logical :: present_dim
-      integer :: nd, dimids(8), did, status, k
+      integer :: n_dims, dimids(8), did, status, k
       present_dim = .false.
       if (varid < 0) return
-      nd = var_ndims(ncid, varid)
-      if (nd <= 0) return
+      n_dims = var_ndims(ncid, varid)
+      if (n_dims <= 0) return
       status = nf90_inq_dimid(ncid, trim(dimname), did)
       if (status /= nf90_noerr) return
-      status = nf90_inquire_variable(ncid, varid, dimids=dimids(1:nd))
+      status = nf90_inquire_variable(ncid, varid, dimids=dimids(1:n_dims))
       if (status /= nf90_noerr) return
-      do k = 1, nd
+      do k = 1, n_dims
          if (dimids(k) == did) then
             present_dim = .true.
             return
@@ -426,7 +426,7 @@ contains
       character(len=*), intent(in) :: fname
       type(c_ptr), intent(in) :: core_ptr
       integer, intent(inout) :: nfail
-      integer :: ncid, status, v, nd
+      integer :: ncid, status, v, n_dims
 
       status = nf90_open(trim(fname), nf90_nowrite, ncid)
       if (status /= nf90_noerr) then
@@ -450,8 +450,8 @@ contains
       ! A {Column,Level} field must carry the 'lev' dimension at full extent;
       ! the pre-fix writer forced rank-2 and dropped the vertical entirely.
       v = find_var(ncid, 'PSO4_from_gaseous_SO2_per_level')
-      nd = var_ndims(ncid, v)
-      call expect(nd >= 3, 'so4chem level field is rank>=3')
+      n_dims = var_ndims(ncid, v)
+      call expect(n_dims >= 3, 'so4chem level field is rank>=3')
       call expect(var_has_dim(ncid, v, 'lev'), 'so4chem level field carries lev dimension')
       call expect(dim_len(ncid, 'lev') >= nz, 'so4chem level field keeps vertical extent')
 
