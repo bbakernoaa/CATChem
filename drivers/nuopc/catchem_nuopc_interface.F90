@@ -487,7 +487,11 @@ contains
       character(len=*), intent(in) :: unit
       character(len=128) :: normalized
       normalized = trim(adjustl(lowercase(unit)))
-      is_ppm_unit = normalized == 'ppm'
+      ! UFS/NUOPC metadata uses both ``ppm`` and ``ppmv`` for gas-volume
+      ! mixing ratios.  They are the same CATChem-native unit; accepting both
+      ! prevents the import path from silently treating a valid gas tracer as
+      ! an unsupported unit.
+      is_ppm_unit = normalized == 'ppm' .or. normalized == 'ppmv'
    end function is_ppm_unit
 
    pure logical function is_micro_mass_mixing_ratio_unit(unit)

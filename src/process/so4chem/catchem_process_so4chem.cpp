@@ -3,6 +3,7 @@
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
+#include <algorithm>
 #include <array>
 #include <iostream>
 
@@ -207,7 +208,8 @@ namespace catchem {
         // SulfateChemDriver uses thermal roughness in its resistance term.
         // NUOPC provides momentum roughness (Z0), but not necessarily thermal
         // roughness (Z0H). Preserve an explicitly supplied Z0H; otherwise use
-        // the legacy host coupling approximation Z0H = 0.1 * Z0.
+        // the UFS/GOCART convention after NUOPC has converted Z0 from cm to m:
+        // Z0H = 0.01 * raw Z0 = Z0 in the already-converted CATChem state.
         const double* z0h_ptr = state->read_field<2>("Z0H");
         std::vector<double> z0h_from_z0;
         if (!z0h_ptr) {
@@ -222,6 +224,34 @@ namespace catchem {
         // 3. Chemical and Tendency Views
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("SO4chem", "CHEM_CONC", conc_ptr);
+
+#ifdef CATCHEM_TRACE_NUOPC
+        // This is deliberately immediately before the science bridge.  It
+        // reports the exact post-AQMIO/post-emission values consumed by
+        // GOCART, including the concentration units used by SO4chem.  A
+        // mismatch here is an exchange/units problem; a match here with a
+        // divergent production rate isolates the issue to the kernel/met.
+        const auto& chemistry_for_trace = state->chemistry();
+        const auto trace_species = [&](const char* name) {
+            if (!chemistry_for_trace.mechanism || !chemistry_for_trace.mechanism->contains(name))
+                return;
+            const auto index = chemistry_for_trace.mechanism->index_of(name);
+            const auto* values =
+                conc_ptr + static_cast<std::size_t>(index) * state->column_count() * state->level_count();
+            const auto count = static_cast<std::size_t>(state->column_count()) * state->level_count();
+            auto [lo, hi] = std::minmax_element(values, values + count);
+            Logger::debug(state.get(), "SO4chem pre-bridge concentration",
+                          {{"species", name}, {"min", std::to_string(*lo)}, {"max", std::to_string(*hi)}});
+        };
+        trace_species("dms");
+        trace_species("so2");
+        trace_species("so4");
+        trace_species("msa");
+        trace_species("h2o2");
+        trace_species("oh");
+        trace_species("no3");
+        trace_species("dms_in");
+#endif
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->column_count() * state->level_count() * state->species_count(), 0.0);
