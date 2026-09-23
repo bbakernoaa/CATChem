@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
         std::vector<double> hflux(n_cols, 10.0);
         std::vector<double> pblh(n_cols, 1000.0);
         std::vector<double> ustar(n_cols, 0.3);
-        std::vector<double> u10m(n_cols, 3.0), v10m(n_cols, 1.0), lwi(n_cols, 1.0), z0h(n_cols, 0.001);
+        std::vector<double> u10m(n_cols, 3.0), v10m(n_cols, 1.0), lwi(n_cols, 1.0), z0(n_cols, 0.01);
         std::vector<double> temperature(n_cols * n_levels, 280.0);
         std::vector<double> airden(n_cols * n_levels, 1.2);
         std::vector<double> pmid(n_cols * n_levels, 100000.0);
@@ -71,7 +71,8 @@ int main(int argc, char* argv[]) {
         state->bind_met_field_2d("U10M", u10m.data());
         state->bind_met_field_2d("V10M", v10m.data());
         state->bind_met_field_2d("LWI", lwi.data());
-        state->bind_met_field_2d("Z0H", z0h.data());
+        // NUOPC supplies Z0 but not Z0H. SO4chem must derive Z0H = 0.1 * Z0.
+        state->bind_met_field_2d("Z0", z0.data());
         state->bind_met_field_3d("T", temperature.data());
         state->bind_met_field_3d("AIRDEN", airden.data());
         state->bind_met_field_3d("AIRDEN_DRY", airden.data());

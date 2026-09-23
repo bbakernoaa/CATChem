@@ -21,17 +21,18 @@ void run_so4chem_science_bridge(int n_cols, int n_levels, int n_species, double 
 namespace catchem {
 
     ProcessContract SO4chemProcess::get_contract() const {
-        return make_contract(get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
-                                          host_field_interface("PEDGE", "Pa"), host_field_interface("Z", "m"),
-                                          host_field_3d("DELP", "Pa"), host_field_3d("AIRDEN", "kg/m3"),
-                                          host_field_3d("CLDF", "1"), host_field_2d("HFLUX", "W/m2"),
-                                          host_field_2d("LAT", "degrees", FieldRequirement::Required,
-                                                        AccessIntent::Read, PersistencePolicy::Persistent),
-                                          host_field_2d("LON", "degrees", FieldRequirement::Required,
-                                                        AccessIntent::Read, PersistencePolicy::Persistent),
-                                          host_field_2d("PBLH", "m"), host_field_2d("USTAR", "m/s"),
-                                          host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s"),
-                                          host_field_2d("LWI", "1"), host_field_2d("Z0H", "m"), host_concentration()});
+        return make_contract(
+            get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
+                         host_field_interface("Z", "m"), host_field_3d("DELP", "Pa"), host_field_3d("AIRDEN", "kg/m3"),
+                         host_field_3d("CLDF", "1"), host_field_2d("HFLUX", "W/m2"),
+                         host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                                       PersistencePolicy::Persistent),
+                         host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                                       PersistencePolicy::Persistent),
+                         host_field_2d("PBLH", "m"), host_field_2d("USTAR", "m/s"), host_field_2d("U10M", "m/s"),
+                         host_field_2d("V10M", "m/s"), host_field_2d("LWI", "1"),
+                         host_field_2d("Z0H", "m", FieldRequirement::Optional),
+                         host_field_2d("Z0", "m", FieldRequirement::Optional), host_concentration()});
     }
 
     SO4chemProcess::SO4chemProcess() : active_scheme("gocart"), diagnostics_enabled(true) {}
@@ -204,10 +205,19 @@ namespace catchem {
         require_field_pointer("SO4chem", "V10M", v10m_ptr);
 
         // SulfateChemDriver uses thermal roughness in its resistance term.
-        // Preserve the legacy ProcessSO4chemInterface contract: Z0H, not
-        // momentum roughness Z0, is passed to the science bridge.
+        // NUOPC provides momentum roughness (Z0), but not necessarily thermal
+        // roughness (Z0H). Preserve an explicitly supplied Z0H; otherwise use
+        // the legacy host coupling approximation Z0H = 0.1 * Z0.
         const double* z0h_ptr = state->read_field<2>("Z0H");
-        require_field_pointer("SO4chem", "Z0H", z0h_ptr);
+        std::vector<double> z0h_from_z0;
+        if (!z0h_ptr) {
+            const double* z0_ptr = state->read_field<2>("Z0");
+            require_field_pointer("SO4chem", "Z0 (required when Z0H is unavailable)", z0_ptr);
+            z0h_from_z0.resize(state->column_count());
+            for (int col = 0; col < state->column_count(); ++col)
+                z0h_from_z0[col] = 0.1 * z0_ptr[col];
+            z0h_ptr = z0h_from_z0.data();
+        }
 
         // 3. Chemical and Tendency Views
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
