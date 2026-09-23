@@ -63,9 +63,8 @@ namespace catchem {
         Logger::debug(state.get(), "SO4Chem scheme options",
                       {{"scheme", active_scheme}, {"gocart/update_so2", gocart_update_so2 ? "true" : "false"}});
 
-        // Preserve the unit contract of ProcessSO4chemInterface_Mod and
-        // SO4chemScheme_GOCART_Mod: gases are carried in ppmv, while SO4 and
-        // MSA are aerosol mass in ug/kg.  The science scheme has fixed
+        // Preserve the upstream GOCART unit contract: DMS and SO4 are aerosol
+        // mass in ug/kg, while SO2 and MSA are carried in ppmv.  The science scheme has fixed
         // conversions for these four species, so accepting a different phase
         // classification would silently corrupt source strengths and lifetimes.
         struct SpeciesUnitContract {
@@ -73,7 +72,7 @@ namespace catchem {
             bool is_gas;
         };
         constexpr std::array<SpeciesUnitContract, 4> unit_contract = {
-            {{"dms", true}, {"so2", true}, {"so4", false}, {"msa", false}}};
+            {{"dms", false}, {"so2", true}, {"so4", false}, {"msa", true}}};
         const auto& chemistry = state->chemistry();
         if (!chemistry.mechanism)
             throw std::invalid_argument("SO4Chem requires a loaded species mechanism");
