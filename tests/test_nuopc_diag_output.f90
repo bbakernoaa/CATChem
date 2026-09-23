@@ -442,6 +442,7 @@ contains
       call expect(find_var(ncid, 'drydep_con_per_species_so2') >= 0, 'drydep unpacked present')
       call expect(find_var(ncid, 'wetdep_mass_so2') >= 0, 'wetdep per-species present')
       call expect(find_var(ncid, 'PSO4_from_gaseous_SO2_per_level') >= 0, 'so4chem level field present')
+      call expect(find_var(ncid, 'PSO4_from_aqueous_SO2_per_level') >= 0, 'so4chem aqueous level field present')
       call expect(find_var(ncid, 'carbchem_prod_mass_oc1') >= 0, 'carbchem unpacked present')
       call expect(find_var(ncid, 'settling_flux_per_species_so4') >= 0, 'settling unpacked present')
 

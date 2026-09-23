@@ -31,7 +31,7 @@ namespace catchem {
                                                         AccessIntent::Read, PersistencePolicy::Persistent),
                                           host_field_2d("PBLH", "m"), host_field_2d("USTAR", "m/s"),
                                           host_field_2d("U10M", "m/s"), host_field_2d("V10M", "m/s"),
-                                          host_field_2d("LWI", "1"), host_field_2d("Z0", "m"), host_concentration()});
+                                          host_field_2d("LWI", "1"), host_field_2d("Z0H", "m"), host_concentration()});
     }
 
     SO4chemProcess::SO4chemProcess() : active_scheme("gocart"), diagnostics_enabled(true) {}
@@ -204,8 +204,11 @@ namespace catchem {
         require_field_pointer("SO4chem", "U10M", u10m_ptr);
         require_field_pointer("SO4chem", "V10M", v10m_ptr);
 
-        const double* z0_ptr = state->read_field<2>("Z0");
-        require_field_pointer("SO4chem", "Z0", z0_ptr);
+        // SulfateChemDriver uses thermal roughness in its resistance term.
+        // Preserve the legacy ProcessSO4chemInterface contract: Z0H, not
+        // momentum roughness Z0, is passed to the science bridge.
+        const double* z0h_ptr = state->read_field<2>("Z0H");
+        require_field_pointer("SO4chem", "Z0H", z0h_ptr);
 
         // 3. Chemical and Tendency Views
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
@@ -242,7 +245,7 @@ namespace catchem {
             diagnostics_enabled ? 1 : 0, gocart_update_so2 ? 1 : 0, state->clock().year, state->clock().month,
             state->clock().day, state->clock().hour, state->clock().minute, state->clock().second, airden_ptr, cldf_ptr,
             delp_ptr, pmid_ptr, t_ptr, z_ptr, hflux_ptr, lat_ptr, lon_ptr, lwi.data(), pblh_ptr, u10m_ptr, ustar_ptr,
-            v10m_ptr, const_cast<double*>(z0_ptr), mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
+            v10m_ptr, const_cast<double*>(z0h_ptr), mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
             mock_tendency.data(), firsttime.data(), nymd_last.data(), nhms_last_recycle.data(),
             xh2o2_init.data(), pso4_g_so2.data(), pso4_aq_so2.data(), pso2_dms.data(), dms_flux.data(),
             diag_prod_rate.data(), diag_ids, n_diag_species);
@@ -250,10 +253,10 @@ namespace catchem {
         // 6. Map persistent column diagnostics straight to registered C++ Diagnostics Views
         if (state->diagnostic_manager() && diagnostics_enabled) {
             double* diag_pso4_g =
-                (double*)state->diagnostic_manager()->get_host_pointer("PSO4_from_gaseous_SO2_per_level");
+                (double*)state->diagnostic_manager()->get_host_write_pointer("PSO4_from_gaseous_SO2_per_level");
             double* diag_pso4_aq =
-                (double*)state->diagnostic_manager()->get_host_pointer("PSO4_from_aqueous_SO2_per_level");
-            double* diag_dms_flux = (double*)state->diagnostic_manager()->get_host_pointer("DMS_emission_flux");
+                (double*)state->diagnostic_manager()->get_host_write_pointer("PSO4_from_aqueous_SO2_per_level");
+            double* diag_dms_flux = (double*)state->diagnostic_manager()->get_host_write_pointer("DMS_emission_flux");
 
             if (diag_pso4_g)
                 std::copy(pso4_g_so2.begin(), pso4_g_so2.end(), diag_pso4_g);
@@ -267,7 +270,7 @@ namespace catchem {
             for (int d = 0; d < n_diag_species; ++d) {
                 const auto& meta = state->chemistry().species_list[static_cast<std::size_t>(diagnostic_species_id[d]) - 1];
                 std::string diag_name = "Production_rate_" + meta.short_name;
-                double* diag_prod = (double*)state->diagnostic_manager()->get_host_pointer(diag_name);
+                double* diag_prod = (double*)state->diagnostic_manager()->get_host_write_pointer(diag_name);
                 if (diag_prod)
                     std::copy(diag_prod_rate.begin() + static_cast<std::ptrdiff_t>(d) * slab,
                               diag_prod_rate.begin() + static_cast<std::ptrdiff_t>(d + 1) * slab, diag_prod);
