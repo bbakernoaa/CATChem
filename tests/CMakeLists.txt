@@ -17,7 +17,8 @@ configure_file(
 set(
   CATCHEM_SETTLING_OPTICS_FIXTURE_DIR
   "${CMAKE_SOURCE_DIR}/specs/tmp"
-  CACHE PATH "Directory containing external settling optics NetCDF fixtures"
+  CACHE PATH
+  "Directory containing external settling optics NetCDF fixtures"
 )
 set(
   _catchem_settling_optics_fixture_files
@@ -44,8 +45,8 @@ endforeach()
 if(NOT CATCHEM_HAVE_SETTLING_OPTICS_FIXTURES)
   message(
     STATUS
-      "Settling optics fixture tests disabled: provide complete NetCDF tables in "
-      "${CATCHEM_SETTLING_OPTICS_FIXTURE_DIR} to enable them."
+    "Settling optics fixture tests disabled: provide complete NetCDF tables in "
+    "${CATCHEM_SETTLING_OPTICS_FIXTURE_DIR} to enable them."
   )
 endif()
 
@@ -650,7 +651,15 @@ if(PYTHON_EXECUTABLE)
   # C++ equivalents of the legacy per-process integration tests.  Each case
   # enters through the C++ core, binds the shared MET/species fixture, and
   # runs exactly one process from the Default configuration.
-  set(_catchem_cpp_integration_processes seasalt dust carbchem drydep so4chem wetdep)
+  set(
+    _catchem_cpp_integration_processes
+    seasalt
+    dust
+    carbchem
+    drydep
+    so4chem
+    wetdep
+  )
   if(CATCHEM_HAVE_SETTLING_OPTICS_FIXTURES)
     list(APPEND _catchem_cpp_integration_processes settling)
   endif()
