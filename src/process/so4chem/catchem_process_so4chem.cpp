@@ -215,7 +215,7 @@ namespace catchem {
             require_field_pointer("SO4chem", "Z0 (required when Z0H is unavailable)", z0_ptr);
             z0h_from_z0.resize(state->column_count());
             for (int col = 0; col < state->column_count(); ++col)
-                z0h_from_z0[col] = 0.1 * z0_ptr[col];
+                z0h_from_z0[col] = 0.01 * z0_ptr[col];
             z0h_ptr = z0h_from_z0.data();
         }
 
