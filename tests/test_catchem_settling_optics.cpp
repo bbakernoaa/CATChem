@@ -60,14 +60,13 @@ namespace {
     };
 
     std::size_t flat(const Fixture& fix, int column, int level, int species) {
-        return static_cast<size_t>(species) * fix.n_levels * fix.n_cols +
-               static_cast<size_t>(level) * fix.n_cols + column;
+        return static_cast<size_t>(species) * fix.n_levels * fix.n_cols + static_cast<size_t>(level) * fix.n_cols +
+               column;
     }
 
     std::string find_species_file() {
         const std::string rel = "Configs/Default/CATChem_species.yml";
-        for (const std::string& candidate :
-             {rel, "tests/" + rel, "../tests/" + rel, "../../tests/" + rel})
+        for (const std::string& candidate : {rel, "tests/" + rel, "../tests/" + rel, "../../tests/" + rel})
             if (std::ifstream(candidate).good())
                 return candidate;
         return "";
@@ -182,8 +181,8 @@ int main(int argc, char* argv[]) {
                 char oc_mie_name[64] = {};
                 std::strncpy(oc_mie_name, "OC", sizeof(oc_mie_name) - 1);
                 int limiter_rc = -1;
-                run_emission_mie_factor(fix.n_cols, fix.n_levels, oc_mie_name, fire_flux.data(), fix.RH.data(),
-                                         0.9, 3600.0, fire_factor.data(), &limiter_rc);
+                run_emission_mie_factor(fix.n_cols, fix.n_levels, oc_mie_name, fire_flux.data(), fix.RH.data(), 0.9,
+                                        3600.0, fire_factor.data(), &limiter_rc);
                 check(limiter_rc == 0, "fire limiter resolves configured OC optics table");
                 check(fire_flux == fire_flux_before, "fire limiter leaves shared source immutable");
                 bool factors_bounded = true;
@@ -231,8 +230,7 @@ int main(int argc, char* argv[]) {
                     // through the layer stack (conservation, not just decay).
                     double bottom_gain = 0.0;
                     for (int c = 0; c < fix.n_cols; ++c)
-                        bottom_gain += fix.conc[flat(fix, c, 0, dust)] -
-                                       before[flat(fix, c, 0, dust)];
+                        bottom_gain += fix.conc[flat(fix, c, 0, dust)] - before[flat(fix, c, 0, dust)];
                     check(bottom_gain > 0.0, "dust4 accumulates at the bottom from downward transfer");
                 }
             }
@@ -352,8 +350,7 @@ int main(int argc, char* argv[]) {
                 named_species = what.find("so4") != std::string::npos; // SU-bearing species
                 named_mie = what.find("SU") != std::string::npos;
             }
-            check(named_species && named_mie,
-                  "unmatched __mie_name aborts init naming the species and its type");
+            check(named_species && named_mie, "unmatched __mie_name aborts init naming the species and its type");
         }
 
         std::cout << (failures == 0 ? "SUCCESS: all settling optics-table assertions passed.\n"

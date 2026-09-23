@@ -31,7 +31,7 @@ namespace catchem {
         std::vector<char> aerosol_species_names;
         std::vector<double> host_radius_dry; // micrometres, as configured
         std::vector<double> host_rhop_dry;
-        std::vector<int> host_is_dust;        // 0/1 per settling species
+        std::vector<int> host_is_dust; // 0/1 per settling species
         // Per settling species' __mie_name (32-byte fixed width, same packing as
         // aerosol_species_names).  The Fortran bridge maps these to loaded table
         // indices; empty means unresolved and aborts initialization on the optics path.

@@ -2482,40 +2482,40 @@ contains
          packed = .false.
          nslot = 1
          select case (int(rank))
-         case (2)
+          case (2)
             select case (int(axes(2)))
-            case (AXIS_SINGLETON)
+             case (AXIS_SINGLETON)
                if (dims(2) /= 1) then
                   write(*,'(A,A)') 'ERROR: Singleton-axis diagnostic without extent 1: ', trim(field_name)
                   rc = CC_FAILURE
                   return
                end if
-            case (AXIS_LEVEL)
+             case (AXIS_LEVEL)
                ! Written whole as 3D: the level axis stays intact (FR-003).
-            case (AXIS_SPECIES, AXIS_CATEGORY)
+             case (AXIS_SPECIES, AXIS_CATEGORY)
                packed = .true.
                nslot = int(dims(2))
-            case default
+             case default
                write(*,'(A,A)') 'ERROR: Unsupported second axis on diagnostic: ', trim(field_name)
                rc = CC_FAILURE
                return
             end select
-         case (3)
+          case (3)
             if (int(axes(2)) /= AXIS_LEVEL) then
                write(*,'(A,A)') 'ERROR: Unsupported second axis on diagnostic: ', trim(field_name)
                rc = CC_FAILURE
                return
             end if
             select case (int(axes(3)))
-            case (AXIS_SPECIES, AXIS_CATEGORY)
+             case (AXIS_SPECIES, AXIS_CATEGORY)
                packed = .true.
                nslot = int(dims(3))
-            case default
+             case default
                write(*,'(A,A)') 'ERROR: Unsupported third axis on diagnostic: ', trim(field_name)
                rc = CC_FAILURE
                return
             end select
-         case default
+          case default
             write(*,'(A,A)') 'ERROR: Unsupported rank on diagnostic: ', trim(field_name)
             rc = CC_FAILURE
             return

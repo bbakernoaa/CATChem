@@ -1747,7 +1747,7 @@ contains
                            dqa = emission_flux(i,j,k) * scale_factor / AVO * AIRMW / f_airden(i,j,k) * 1.e3_c_double
                          case ('mol/mol', 'MOL/MOL')
                            dqa = emission_flux(i,j,k) * scale_factor * 1.e6_c_double
-                        case ('kg/m2/s', 'KG/M2/S')
+                         case ('kg/m2/s', 'KG/M2/S')
                            if (1.01_fp * emission_flux(i,j,k) / category%global_scale / global_scale > EMIS_ACCEPT) cycle
                            dqa = emission_flux(i,j,k) * scale_factor * dt * g0 / f_delp(i,j,k) * converter
                          case default

@@ -67,9 +67,9 @@ int main(int argc, char* argv[]) {
         for (int species = 0; species < n_species; ++species)
             for (int level = 0; level < n_levels; ++level)
                 for (int column = 0; column < n_cols; ++column)
-                    concentration(column, level, species) =
-                        1.0 + 0.1 * static_cast<double>(species) + 0.01 * static_cast<double>(level) +
-                        0.001 * static_cast<double>(column);
+                    concentration(column, level, species) = 1.0 + 0.1 * static_cast<double>(species) +
+                                                            0.01 * static_cast<double>(level) +
+                                                            0.001 * static_cast<double>(column);
         const std::vector<double> initial_concentration = chem_conc;
 
         auto carbchem = catchem::ProcessRegistry::get_instance().create("carbchem");
@@ -92,8 +92,7 @@ int main(int argc, char* argv[]) {
             assert(manager->get_field("carbchem_loss_flux")->dimensions == std::vector<int>({n_cols, n_diag}));
             assert(manager->get_field("carbchem_phobic_mass")->dimensions ==
                    std::vector<int>({n_cols, n_levels, n_diag}));
-            assert(manager->get_field("carbchem_phobic_flux")->dimensions ==
-                   std::vector<int>({n_cols, n_diag}));
+            assert(manager->get_field("carbchem_phobic_flux")->dimensions == std::vector<int>({n_cols, n_diag}));
             assert(manager->get_unpack_labels("carbchem_phobic_flux") == configured_diag_species);
             std::cout << "  PASS configured diagnostic set: fields and labels follow diag_species" << std::endl;
         }
@@ -149,21 +148,22 @@ int main(int argc, char* argv[]) {
                     double expected_flux = 0.0;
                     bool slot_transferred = false;
                     for (int level = 0; level < n_levels; ++level) {
-                        const std::size_t mass_index = static_cast<std::size_t>(column) +
-                                                       static_cast<std::size_t>(n_cols) *
-                                                           (static_cast<std::size_t>(level) +
-                                                            static_cast<std::size_t>(n_levels) * slot);
+                        const std::size_t mass_index =
+                            static_cast<std::size_t>(column) +
+                            static_cast<std::size_t>(n_cols) *
+                                (static_cast<std::size_t>(level) + static_cast<std::size_t>(n_levels) * slot);
                         const double transferred_mass = mass[mass_index];
                         assert(std::isfinite(transferred_mass));
                         assert(transferred_mass >= 0.0);
-                        expected_flux += transferred_mass * delp[static_cast<std::size_t>(column) +
-                                                                 static_cast<std::size_t>(n_cols) * level] /
-                                         gravity / state->clock().timestep;
+                        expected_flux +=
+                            transferred_mass *
+                            delp[static_cast<std::size_t>(column) + static_cast<std::size_t>(n_cols) * level] /
+                            gravity / state->clock().timestep;
 
-                        const std::size_t concentration_index = static_cast<std::size_t>(column) +
-                                                                static_cast<std::size_t>(n_cols) *
-                                                                    (static_cast<std::size_t>(level) +
-                                                                     static_cast<std::size_t>(n_levels) * species);
+                        const std::size_t concentration_index =
+                            static_cast<std::size_t>(column) +
+                            static_cast<std::size_t>(n_cols) *
+                                (static_cast<std::size_t>(level) + static_cast<std::size_t>(n_levels) * species);
                         const double concentration_change =
                             std::abs(chem_conc[concentration_index] - initial_concentration[concentration_index]) *
                             1.0e-9;

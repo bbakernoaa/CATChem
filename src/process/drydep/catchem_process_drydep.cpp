@@ -269,8 +269,8 @@ namespace catchem {
             // accessor so the diagnostic manager records the host as the
             // current copy; a read accessor can leave a stale device copy in
             // control and cause the NUOPC exporter to see zeros later.
-            diag_con = static_cast<double*>(
-                state->diagnostic_manager()->get_host_write_pointer("drydep_con_per_species"));
+            diag_con =
+                static_cast<double*>(state->diagnostic_manager()->get_host_write_pointer("drydep_con_per_species"));
             diag_vel = static_cast<double*>(
                 state->diagnostic_manager()->get_host_write_pointer("drydep_velocity_per_species"));
         }

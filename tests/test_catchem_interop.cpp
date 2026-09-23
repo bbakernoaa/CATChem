@@ -799,8 +799,7 @@ int main(int argc, char* argv[]) {
 
             for (int level = 0; level <= n_levels; ++level)
                 for (int col = 0; col < n_cols; ++col)
-                    mock_z[static_cast<std::size_t>(col) + static_cast<std::size_t>(n_cols) * level] =
-                        100.0 * level;
+                    mock_z[static_cast<std::size_t>(col) + static_cast<std::size_t>(n_cols) * level] = 100.0 * level;
 
             std::vector<double> mock_chem_state(n_cols * n_levels * n_species, 1.0);
 
@@ -832,8 +831,7 @@ int main(int argc, char* argv[]) {
             catchem_core_run_timestep(core, 3600.0);
 
             double* diag_gas_source = (double*)catchem_diag_get_pointer(core, "PSO4_from_gaseous_SO2_per_level");
-            double* diag_aqueous_source =
-                (double*)catchem_diag_get_pointer(core, "PSO4_from_aqueous_SO2_per_level");
+            double* diag_aqueous_source = (double*)catchem_diag_get_pointer(core, "PSO4_from_aqueous_SO2_per_level");
             assert(diag_gas_source != nullptr);
             assert(diag_aqueous_source != nullptr);
 

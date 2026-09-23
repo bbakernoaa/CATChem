@@ -16,8 +16,7 @@ namespace catchem {
         int n_columns, int n_levels, int n_aerosols, int n_total_species, double dt, double scale_factor,
         int swelling_method, int correction_maring, int maring_dust_only, const double* airden, const double* delp,
         const double* pmid, const double* rh, const double* temperature, const double* z_edge,
-        const char* aerosol_species_names,
-        const char* species_names, const int* species_is_dust, const double* radius,
+        const char* aerosol_species_names, const char* species_names, const int* species_is_dust, const double* radius,
         const double* density, double* concentration, int simple_scheme, const char* aerosol_mie_names,
         double* diag_velocity, double* diag_flux, const int* diagnostic_species_id, int n_diag_species, int* bridge_rc);
 
@@ -239,10 +238,9 @@ namespace catchem {
                 state->diagnostic_manager()->register_field_contract(
                     "settling_velocity_per_species_per_level", "Settling velocity", "m/s", DiagType::FIELD_3D, dims_vel,
                     DiagnosticPolicy::Instantaneous, 0.0, axes_vel, diagnostic_species_names);
-                state->diagnostic_manager()->register_field_contract("settling_flux_per_species", "Settling column flux",
-                                                                    "kg/m2/s", DiagType::FIELD_2D, dims_flux,
-                                                                    DiagnosticPolicy::Instantaneous, 0.0, axes_flux,
-                                                                    diagnostic_species_names);
+                state->diagnostic_manager()->register_field_contract(
+                    "settling_flux_per_species", "Settling column flux", "kg/m2/s", DiagType::FIELD_2D, dims_flux,
+                    DiagnosticPolicy::Instantaneous, 0.0, axes_flux, diagnostic_species_names);
             }
         }
     }
@@ -290,9 +288,8 @@ namespace catchem {
         double* diag_velocity = nullptr;
         double* diag_flux = nullptr;
         if (diagnostics_enabled && state->diagnostic_manager() && !diagnostic_species_id.empty()) {
-            diag_velocity =
-                static_cast<double*>(state->diagnostic_manager()->get_host_pointer(
-                    "settling_velocity_per_species_per_level"));
+            diag_velocity = static_cast<double*>(
+                state->diagnostic_manager()->get_host_pointer("settling_velocity_per_species_per_level"));
             diag_flux =
                 static_cast<double*>(state->diagnostic_manager()->get_host_pointer("settling_flux_per_species"));
         }
@@ -302,8 +299,7 @@ namespace catchem {
         // (it is never dereferenced in that case).  std::vector::data() of an empty vector may
         // be nullptr, which would form a Fortran pointer to nothing; pass a valid dummy instead.
         static const int no_diag_species = 0;
-        const int* diag_ids =
-            diagnostic_species_id.empty() ? &no_diag_species : diagnostic_species_id.data();
+        const int* diag_ids = diagnostic_species_id.empty() ? &no_diag_species : diagnostic_species_id.data();
 
         run_settling_science_bridge(
             state->column_count(), state->level_count(), num_aerosols, state->species_count(), state->clock().timestep,
@@ -311,9 +307,9 @@ namespace catchem {
             gocart_maring_dust_only ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp, pmid,
             state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
             aerosol_species_names.data(), state->chemistry().species_names_c_arr.data(), host_is_dust.data(),
-            host_radius_dry.data(), host_rhop_dry.data(),
-            state->chemistry().conc->host_write(), gocart_simple_scheme ? 1 : 0, aerosol_mie_names.data(),
-            diag_velocity, diag_flux, diag_ids, n_diag_species, &bridge_rc);
+            host_radius_dry.data(), host_rhop_dry.data(), state->chemistry().conc->host_write(),
+            gocart_simple_scheme ? 1 : 0, aerosol_mie_names.data(), diag_velocity, diag_flux, diag_ids, n_diag_species,
+            &bridge_rc);
         if (bridge_rc == 2)
             throw std::runtime_error(
                 "Settling optics-table mapping failed: a settling species did not resolve to a loaded Mie table");

@@ -13,9 +13,9 @@ void run_so4chem_science_bridge(int n_cols, int n_levels, int n_species, double 
                                 double* z_edges, double* hflux, double* lat, double* lon, int* lwi, double* pblh,
                                 double* u10m, double* ustar, double* v10m, double* z0h, double* species_mw_g,
                                 const char* species_names, double* conc, double* tendency, int* c_firsttime,
-                                int* c_nymd_last, int* c_nhms_last_recycle, double* c_xh2o2_init,
-                                double* c_pso4_g_so2, double* c_pso4_aq_so2, double* c_pso2_dms, double* c_dms_flux,
-                                double* c_diag_prod_rate, const int* diagnostic_species_id, int n_diag_species);
+                                int* c_nymd_last, int* c_nhms_last_recycle, double* c_xh2o2_init, double* c_pso4_g_so2,
+                                double* c_pso4_aq_so2, double* c_pso2_dms, double* c_dms_flux, double* c_diag_prod_rate,
+                                const int* diagnostic_species_id, int n_diag_species);
 }
 
 namespace catchem {
@@ -109,8 +109,7 @@ namespace catchem {
         // run() (mirrors dust/seasalt/carbchem).
         diagnostic_species_id.clear();
         {
-            const std::vector<std::string> default_sulfur = {"dms", "so2", "so4", "msa", "h2o2", "oh", "no3",
-                                                             "dms_in"};
+            const std::vector<std::string> default_sulfur = {"dms", "so2", "so4", "msa", "h2o2", "oh", "no3", "dms_in"};
             const auto& requested = settings.diag_species.empty() ? default_sulfur : settings.diag_species;
             for (const auto& species_name : requested) {
                 if (!chemistry.mechanism->contains(species_name)) {
@@ -150,9 +149,9 @@ namespace catchem {
             for (const int global_index : diagnostic_species_id) {
                 const auto& meta = state->chemistry().species_list[static_cast<std::size_t>(global_index - 1)];
                 std::string diag_name = "Production_rate_" + meta.short_name;
-                state->diagnostic_manager()->register_field_contract(
-                    diag_name, "Production rate " + meta.short_name, "kg/kg/s", DiagType::FIELD_2D, dims_2d,
-                    DiagnosticPolicy::Instantaneous, 0.0, axes_level);
+                state->diagnostic_manager()->register_field_contract(diag_name, "Production rate " + meta.short_name,
+                                                                     "kg/kg/s", DiagType::FIELD_2D, dims_2d,
+                                                                     DiagnosticPolicy::Instantaneous, 0.0, axes_level);
             }
         }
     }
@@ -245,8 +244,8 @@ namespace catchem {
             diagnostics_enabled ? 1 : 0, gocart_update_so2 ? 1 : 0, state->clock().year, state->clock().month,
             state->clock().day, state->clock().hour, state->clock().minute, state->clock().second, airden_ptr, cldf_ptr,
             delp_ptr, pmid_ptr, t_ptr, z_ptr, hflux_ptr, lat_ptr, lon_ptr, lwi.data(), pblh_ptr, u10m_ptr, ustar_ptr,
-            v10m_ptr, const_cast<double*>(z0h_ptr), mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
-            mock_tendency.data(), firsttime.data(), nymd_last.data(), nhms_last_recycle.data(),
+            v10m_ptr, const_cast<double*>(z0h_ptr), mw_g.data(), state->chemistry().species_names_c_arr.data(),
+            conc_ptr, mock_tendency.data(), firsttime.data(), nymd_last.data(), nhms_last_recycle.data(),
             xh2o2_init.data(), pso4_g_so2.data(), pso4_aq_so2.data(), pso2_dms.data(), dms_flux.data(),
             diag_prod_rate.data(), diag_ids, n_diag_species);
 
@@ -268,7 +267,8 @@ namespace catchem {
             // Scatter each packed slot into its own Production_rate_<sp> field
             // (field names unchanged from the legacy per-species convention).
             for (int d = 0; d < n_diag_species; ++d) {
-                const auto& meta = state->chemistry().species_list[static_cast<std::size_t>(diagnostic_species_id[d]) - 1];
+                const auto& meta =
+                    state->chemistry().species_list[static_cast<std::size_t>(diagnostic_species_id[d]) - 1];
                 std::string diag_name = "Production_rate_" + meta.short_name;
                 double* diag_prod = (double*)state->diagnostic_manager()->get_host_write_pointer(diag_name);
                 if (diag_prod)

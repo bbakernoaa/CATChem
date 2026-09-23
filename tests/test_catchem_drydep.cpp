@@ -287,19 +287,21 @@ int main(int argc, char* argv[]) {
                     const double* deposited =
                         static_cast<const double*>(diag->get_host_read_pointer("drydep_con_per_species"));
                     for (int col = 0; col < fix.n_cols; ++col) {
-                        const std::size_t chemistry_index = static_cast<std::size_t>(col) +
+                        const std::size_t chemistry_index =
+                            static_cast<std::size_t>(col) +
                             static_cast<std::size_t>(fix.n_cols) * fix.n_levels * so2_species;
-                        const double applied_loss = initial_so2[static_cast<std::size_t>(col)] -
-                                                    fix.chem_conc[chemistry_index];
-                        const double reported_loss = deposited[static_cast<std::size_t>(col) +
-                                                               static_cast<std::size_t>(fix.n_cols) * slot];
+                        const double applied_loss =
+                            initial_so2[static_cast<std::size_t>(col)] - fix.chem_conc[chemistry_index];
+                        const double reported_loss =
+                            deposited[static_cast<std::size_t>(col) + static_cast<std::size_t>(fix.n_cols) * slot];
                         const double tolerance = std::max(1.0e-20, std::abs(applied_loss) * 1.0e-5);
-                        diagnostic_matches_loss = diagnostic_matches_loss &&
-                            std::abs(reported_loss - applied_loss) <= tolerance;
+                        diagnostic_matches_loss =
+                            diagnostic_matches_loss && std::abs(reported_loss - applied_loss) <= tolerance;
                     }
                     // The deliberately increasing input makes the diagnostic
                     // extrema a stride/layout assertion as well as a value check.
-                    diagnostic_matches_loss = diagnostic_matches_loss &&
+                    diagnostic_matches_loss =
+                        diagnostic_matches_loss &&
                         deposited[static_cast<std::size_t>(slot) * fix.n_cols] <
                             deposited[static_cast<std::size_t>(slot) * fix.n_cols + fix.n_cols - 1];
                 }
