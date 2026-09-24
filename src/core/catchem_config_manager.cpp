@@ -734,6 +734,9 @@ namespace catchem {
             species.is_advected = get_bool(species_node, "is_advected", true);
             species.is_drydep = get_bool(species_node, "is_drydep", false);
             species.is_wetdep = get_bool(species_node, "is_wetdep", false);
+            species.is_drydep = get_bool(species_node, "do_drydep", species.is_drydep);
+            species.is_wetdep = get_bool(species_node, "do_wetdep", species.is_wetdep);
+            species.do_settling = get_bool(species_node, "do_settling", species.is_aerosol);
             species.is_photolysis = get_bool(species_node, "is_photolysis", false);
             species.is_gocart_aero = get_bool(species_node, "is_gocart_aero", false);
             species.is_dust = get_bool(species_node, "is_dust", false);

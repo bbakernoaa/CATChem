@@ -140,7 +140,7 @@ namespace catchem {
         for (const auto& label : mie_type_labels)
             Logger::debug(state.get(), "Settling optics table", {{"binding", label}});
 
-        int num_aerosols = state->chemistry().aerosol_indices.size();
+        int num_aerosols = state->chemistry().settling_indices.size();
         if (num_aerosols > 0) {
             aerosol_species_names.assign(static_cast<size_t>(num_aerosols) * 32, ' ');
             aerosol_mie_names.assign(static_cast<size_t>(num_aerosols) * 32, ' ');
@@ -149,7 +149,7 @@ namespace catchem {
             host_is_dust.assign(num_aerosols, 0);
 
             for (int i = 0; i < num_aerosols; ++i) {
-                int ispec = state->chemistry().aerosol_indices[i];
+                int ispec = state->chemistry().settling_indices[i];
                 double r_val = state->chemistry().species_list[ispec].radius;
                 double d_val = state->chemistry().species_list[ispec].density;
                 if (!(r_val > 0.0 && d_val > 0.0))
@@ -172,7 +172,7 @@ namespace catchem {
                 // species at init instead of surfacing as the Fortran bridge_rc==2
                 // backstop at the first step (specs/012 FR-009).
                 for (int i = 0; i < num_aerosols; ++i) {
-                    const int ispec = state->chemistry().aerosol_indices[i];
+                    const int ispec = state->chemistry().settling_indices[i];
                     const std::string species_name = state->chemistry().species_list[ispec].short_name;
                     const std::string trimmed =
                         trim_trailing_spaces(std::string(aerosol_mie_names.data() + static_cast<size_t>(i) * 32, 32));
@@ -198,7 +198,7 @@ namespace catchem {
         // diagnostic_species_id indexes the aerosol subset (1..num_aerosols),
         // which is the species_idx space compute_gocart iterates.
         {
-            const auto& aerosol_idx = state->chemistry().aerosol_indices;
+            const auto& aerosol_idx = state->chemistry().settling_indices;
             const auto& settings = configured->second;
             std::vector<int> selected_local; // 1-based positions into aerosol subset
             if (!settings.diag_species.empty()) {
@@ -264,7 +264,7 @@ namespace catchem {
         // host-provided fields while supplying only absent prerequisites.
         prepare_inputs(state);
 
-        int num_aerosols = state->chemistry().aerosol_indices.size();
+        int num_aerosols = state->chemistry().settling_indices.size();
         if (num_aerosols == 0) {
             Logger::info(state.get(), "Settling skipped: no aerosol species registered", {});
             return;
