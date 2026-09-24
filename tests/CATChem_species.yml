@@ -71,10 +71,9 @@
 - name: dms
   __description: Dimethyl sulfide
   molecular weight [kg mol-1]: 62.13e-3
-  __radius: 0.0
-  __is_gas: true
+  __radius: 8.7e-2
   __is_dust: false
-  __is_aerosol: false
+  __is_aerosol: true
   __is_drydep: false
   __henry_k0: 0.48
   __henry_cr: 3100.0
@@ -85,21 +84,8 @@
   __radius: 8.7e-2
 - name: msa
   __description: methanesulphonic acid
-  __is_aerosol: true
-  __is_drydep: true
-  __is_wetdep: true
+  __is_gas: true
   molecular weight [kg mol-1]: 96.10e-3
-  __radius: 0.35
-  __density: 1700.0
-  __dd_f0: 0.0
-  __dd_hstar: 0.0
-  __dd_DvzAerSnow: 0.03
-  __dd_DvzMinVal_snow: 0.01
-  __dd_DvzMinVal_land: 0.01
-  __lower_radius: 0.1
-  __upper_radius: 1.0
-  __wd_rainouteff: [1.0, 0.0, 1.0]
-  __mie_name: SU
 - name: bc1
   __description: BC1
   __is_aerosol: true

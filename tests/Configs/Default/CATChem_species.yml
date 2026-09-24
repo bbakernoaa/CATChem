@@ -71,10 +71,9 @@
 - name: dms
   __description: Dimethyl sulfide
   molecular weight [kg mol-1]: 62.13e-3
-  __radius: 0.0
-  __is_gas: true   #gocart treat it as a gas without dry and wet deposition
+  __radius: 8.7e-2
   __is_dust: false
-  __is_aerosol: false
+  __is_aerosol: true
   __is_drydep: false
   __henry_k0: 0.48
   __henry_cr: 3100.0
@@ -86,32 +85,8 @@
   __radius: 8.7e-2
 - name: msa
   __description: methanesulphonic acid
-  # The GOCART SO4 chemistry interface carries MSA with aerosol mass units
-  # (ug/kg), alongside SO4.  It must remain an aerosol through the CATChem
-  # import/export and deposition paths.
-  __is_aerosol: true
-  __is_drydep: true
-  __is_wetdep: true
+  __is_gas: true
   molecular weight [kg mol-1]: 96.10e-3
-  # Parity A/B baseline: the legacy placeholder radius was 0.0, which sits
-  # below the wetdep washout fine/coarse threshold (0.05 um) and selects the
-  # fine-aerosol washout formula (near-zero below-cloud loss).  The new core
-  # rejects any aerosol with non-positive radius, so 0.01 is used instead --
-  # it reproduces the legacy fine-branch behavior exactly (the magnitude is
-  # only ever compared against the threshold) while satisfying validation.
-  # Density 1700 replaces the legacy 0.0 placeholder for the same reason; on
-  # the optics-table settling path both values are unused.
-  __radius: 0.01
-  __density: 1700.0
-  __dd_f0: 0.0
-  __dd_hstar: 0.0
-  __dd_DvzAerSnow: 0.03
-  __dd_DvzMinVal_snow: 0.01
-  __dd_DvzMinVal_land: 0.01
-  __lower_radius: 0.1
-  __upper_radius: 1.0
-  __wd_rainouteff: [1.0, 0.0, 1.0]
-  __mie_name: SU
 - name: bc1
   __description: BC1
   __is_aerosol: true
