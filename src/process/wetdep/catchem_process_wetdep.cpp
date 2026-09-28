@@ -10,11 +10,11 @@ void run_wetdep_science_bridge(int n_cols, int n_levels, int n_species, double d
                                double jacob_scale_factor, double jacob_radius_threshold, int jacob_so4_gocart_resusp,
                                double jacob_so4_washout_eff, double* airden_dry, double* mairden, double* pedge,
                                double* pfilsan, double* pfllsan, double* reevapls, double* t_air, bool* is_aerosol,
-                               bool* is_wetdep, double* henry_cr, double* henry_k0, double* henry_pKa, double* wd_retfactor,
-                               bool* wd_LiqAndGas, double* wd_convfacI2G, double* wd_rainouteff, double* wd_reevap_frac,
-                               double* radius, double* mw_g, const char* species_names, double* conc, double* tendency,
-                               double* diag_mass, double* diag_flux, const int* diagnostic_species_id,
-                               int n_diag_species);
+                               bool* is_wetdep, double* henry_cr, double* henry_k0, double* henry_pKa,
+                               double* wd_retfactor, bool* wd_LiqAndGas, double* wd_convfacI2G, double* wd_rainouteff,
+                               double* wd_reevap_frac, double* radius, double* mw_g, const char* species_names,
+                               double* conc, double* tendency, double* diag_mass, double* diag_flux,
+                               const int* diagnostic_species_id, int n_diag_species);
 }
 
 namespace catchem {
@@ -197,9 +197,9 @@ namespace catchem {
             jacob_so4_washout_eff, airden_dry_ptr, airden_ptr, pedge_ptr, pfilsan_ptr, pfllsan_ptr, reevapls_ptr, t_ptr,
             (bool*)is_aerosol.data(), (bool*)is_wetdep.data(), henry_cr.data(), henry_k0.data(), henry_pKa.data(),
             wd_retfactor.data(), (bool*)wd_LiqAndGas.data(), wd_convfacI2G.data(), wd_rainouteff.data_handle(),
-            wd_reevap_frac.data(),
-            radius.data(), mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(),
-            diag_mass_bin.data(), diag_flux_bin.data(), diagnostic_species_id.data(), diagnostic_species_id.size());
+            wd_reevap_frac.data(), radius.data(), mw_g.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
+            mock_tendency.data(), diag_mass_bin.data(), diag_flux_bin.data(), diagnostic_species_id.data(),
+            diagnostic_species_id.size());
 
         // 5. Map 3D diagnostics back to the individually registered fields.
         // The JACOB scheme stores each selected species at its position
