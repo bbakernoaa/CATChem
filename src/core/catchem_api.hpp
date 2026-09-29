@@ -146,6 +146,15 @@ int catchem_core_get_timestep_outcome(void* core_ptr, int* status, long long* ti
 /** @brief Registers and attaches an active physics process handler. */
 void catchem_core_add_process_by_name(void* core_ptr, const char* name);
 
+/**
+ * @brief Checked variant: returns the boundary status instead of propagating a
+ *        fatal as a C++ exception across the C link. A Fortran caller that has
+ *        no exception handler must use this form so a process-fatal is routed
+ *        through the coordinated all-rank abort path rather than terminating
+ *        one rank abruptly.
+ */
+int catchem_core_add_process_by_name_checked(void* core_ptr, const char* name);
+
 /** @brief Returns the number of active physics processes scheduled on the Core. */
 int catchem_core_get_num_processes(void* core_ptr);
 int catchem_core_get_num_processes_checked(void* core_ptr, int* count_out);

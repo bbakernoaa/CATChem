@@ -166,3 +166,71 @@ if(CATCHEM_BUILD_MUSICA)
     endif()
   endif()
 endif()
+
+#
+# MKPP multiphase chemistry (optional, controlled by CATCHEM_BUILD_MKPP)
+#
+
+if(CATCHEM_BUILD_MKPP)
+  # KokkosKernels is a hard requirement when MKPP is active.
+  # Find it HERE, before add_subdirectory(mkpp), so MKPP's own unpinned
+  # FetchContent fallback for kokkos-kernels never fires and the version stays
+  # governed by CATChem's toolchain rather than MKPP's default tag. The find is
+  # QUIET: on failure the message below names both remedies -- pointing
+  # KokkosKernels_DIR/CMAKE_PREFIX_PATH at an install, or disabling MKPP --
+  # and never lets the configure reach a compiler.
+  find_package(KokkosKernels QUIET)
+  if(NOT KokkosKernels_FOUND)
+    message(
+      FATAL_ERROR
+      "CATCHEM_BUILD_MKPP=ON requires KokkosKernels, which was not found. "
+      "KokkosKernels is a hard requirement when the MKPP process is active "
+      "(the generated solver's batched kernels are built on it); this build "
+      "cannot proceed to compilation without it. Point CMake at an install "
+      "with -DKokkosKernels_DIR=<path>/lib/cmake/KokkosKernels (or add it to "
+      "CMAKE_PREFIX_PATH), or configure with -DCATCHEM_BUILD_MKPP=OFF."
+    )
+  endif()
+
+  # Set MKPP's build options before adding the subdirectory. These must be
+  # CACHE ... FORCE: MKPP declares each with option(), which reads the cache,
+  # so a plain set() would be overridden by that option() call. CATChem pins
+  # the batched-KokkosKernels path on and everything that pulls extra fetched
+  # dependencies (adjoint, solver comparison, MICM compare) or MKPP's own
+  # googletest suite off. CATChem gates its tests behind CATCHEM_BUILD_TESTING,
+  # so MKPP's BUILD_TESTING is independent and forced OFF here.
+  set(MKPP_ENABLE_KOKKOS_KERNELS ON CACHE BOOL "" FORCE)
+  set(MKPP_ENABLE_ADJOINT OFF CACHE BOOL "" FORCE)
+  set(MKPP_ENABLE_SOLVER_COMPARISON OFF CACHE BOOL "" FORCE)
+  set(MKPP_ENABLE_MICM_COMPARE OFF CACHE BOOL "" FORCE)
+  set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+
+  # MKPP's inner find_package(Kokkos) calls are guarded (see the notes in
+  # src/external/mkpp/CMakeLists.txt): with the Kokkos targets already created
+  # by the CATCHEM_ENABLE_KOKKOS block above -- whether system-found or
+  # FetchContent-built -- MKPP adopts them instead of re-resolving against a
+  # different on-disk installation. KokkosKernels' exported config is likewise
+  # self-guarding, so MKPP's QUIET re-find returns early.
+  add_subdirectory(mkpp)
+
+  # mkpp_host and the generated solver headers are third-party code: re-export
+  # their include directories as SYSTEM so CATChem's Debug warning-as-error gate
+  # never fires on findings inside generated code. Alias targets
+  # cannot carry properties, so resolve to the real target first, mirroring the
+  # MUSICA loop above.
+  foreach(_dep mkpp_host MKPP::mkpp_host)
+    if(TARGET ${_dep})
+      get_target_property(_dep_real ${_dep} ALIASED_TARGET)
+      if(NOT _dep_real)
+        set(_dep_real ${_dep})
+      endif()
+      set_property(
+        TARGET ${_dep_real}
+        APPEND
+        PROPERTY
+          INTERFACE_SYSTEM_INCLUDE_DIRECTORIES
+            $<TARGET_PROPERTY:${_dep_real},INTERFACE_INCLUDE_DIRECTORIES>
+      )
+    endif()
+  endforeach()
+endif()

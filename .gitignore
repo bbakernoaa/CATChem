@@ -199,6 +199,7 @@ docs/superpowers/specs/
 # Parity-runner scratch outputs (regenerated locally, never committed)
 parity_out/
 parity_*/
+tests/mkppchem_parity_work/
 
 # PyCharm
 #  JetBrains specific template is maintainted in a separate JetBrains.gitignore that can

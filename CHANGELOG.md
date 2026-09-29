@@ -6,6 +6,61 @@
 
 ### Features
 
+- **mkppchem**: vendor MKPP as a pinned git submodule at `src/external/mkpp`
+  (SHA `2d26cd8dfee4212db205e29efe79ff7fc9686746`, no moving `branch` key),
+  opt-in via `CATCHEM_BUILD_MKPP` (default `OFF`; requires
+  `CATCHEM_ENABLE_KOKKOS=ON`, Kokkos >= 5.1.1, and a C++23-capable compiler).
+  Strictly additive — the default build is byte-identical to before.
+  - New `mkppchem` chemistry process: runs an MKPP ahead-of-time-generated
+    mechanism inside the CATChem core, one cell-launch per timestep over the
+    mapped tracer set. Mechanism selection is configuration-driven
+    (`processes/mkppchem/mechanism:`, default `gocart`, uncompiled or
+    provenance-mismatched names fail at init naming the offender); runtime
+    facts (species, reactions, photolysis, equilibrium inputs) come from a
+    single aggregated generated meta header (one `Facts` struct per mechanism,
+    plus a generated definition table and solver registry, so adding a
+    mechanism needs no hand-written C++) that CI verifies against the
+    OpenAtmos definition and the compiled artifact. Cloud water is derived
+    from grid-mean condensate when the host does not supply it; photolysis
+    rates couple to the `photolysis` process diagnostics
+    (`photolysis_rate_<label>`), with an explicit smoke mode for isolated
+    testing. The Rosenbrock adaptive-ramp seed is runtime-tunable via
+    `processes/mkppchem/initial_step_seed` -- a larger seed takes fewer
+    mandatory substeps per host step (faster) at slightly lower accuracy --
+    without recompiling the generated artifact; unset keeps the seed baked into
+    the artifact, and a configured value on an artifact predating the runtime
+    seed member fails at init rather than being silently ignored. Validated
+    against `carbchem`+`so4chem` for the carbon species
+    (`BC1`/`BC2`/`OC1`/`OC2`). For the aqueous sulfur pathway (`SO2`/`SO4`) the
+    cloud-water gate is verified by a candidate-only gate-activation check
+    (`--cloudy-sulfur`: the `SO2 -> SO4` transfer switches on with cloud liquid
+    water and conserves sulfur 1:1); a pointwise in-cloud match against
+    `so4chem` is not asserted because the two schemes parameterize sulfate
+    formation differently. See
+    `docs/processes/mkppchem/index.md` and
+    `docs/user-guide/mkpp-platform-support.md`.
+  - Upstream MKPP gained cloud-liquid-water gated reactions (a third
+    `EquilibriumInput` + a smooth sigmoid on the gated flux), driving the
+    GOCART aqueous `SO2 + H2O2 -> SO4` pathway. The fix and the regenerated
+    artifact are committed on MKPP branch `feat/cloud-gated-equilibrium` and the
+    artifact rebuilds byte-for-byte from the mechanism source; the submodule
+    gitlink re-pin to that SHA is pending the upstream push.
+  - MKPP upstream follow-ups filed from this integration:
+    (1) merge the cloud-gated mechanism source and regenerated artifact from
+    `feat/cloud-gated-equilibrium` into MKPP `develop` and push, so the CATChem
+    submodule gitlink can re-pin to a fetchable SHA (the artifact itself is
+    confirmed to rebuild byte-for-byte from the mechanism source); (2) return a
+    convergence status from `integrate` (or cap adaptive iterations) so the host
+    can report true non-convergence instead of inferring it from bad output;
+    (3) emit a machine-readable definition provenance identity into the generated
+    header, replacing CATChem's structural count/name-set proxy check; (4) emit
+    photolysis labels as data rather than a comment, removing the
+    definition-order dependency; (5) consider a per-cell
+    `HostExecutionParams` variant carrying views so the host can use
+    `MechanismRegistry::execute` instead of owning the launch; (6) confirm
+    whether `cxx_std_23` is genuinely required — the `requires` expressions in
+    `dispatcher.hpp` and the generated `if constexpr` patterns are C++20, so
+    relaxing to 20 would shrink the platform risk surface considerably.
 - **settling**: implement the legacy `simple_scheme: true` optics-table path in
   the C++ core. A top-level `mie:` section (`directory` + type→file `files` map)
   loads GOCART2G NetCDF Mie tables once at init, and each aerosol species binds
@@ -61,6 +116,17 @@
   `upstream/develop` Fortran snapshots at rtol 1e-6 / atol 1e-10.
 - Added `tests/test_catchem_index_contract.cpp` verifying the import-to-core
   column-major slotting for 3-D and interface fields.
+- Added the `mkppchem` test suite (label `mkppchem`): unit tests for unit
+  conversion, dry-air molar density, species mapping, cloud-water derivation,
+  mechanism selection/provenance, and every failure path (message content
+  asserted, not just the throw); property tests for sulfur conservation and
+  non-negativity/finiteness over randomized input; an isolated-column smoke
+  test and a coupled photolysis integration test; and
+  `tests/run_mkppchem_parity.py`, which drives the carbon-species parity
+  comparison against `carbchem`+`so4chem` plus the determinism gates (repeat
+  byte-identity, column decomposition, failure-message stability) and the
+  zero-copy backend check. Negative configure cases (Kokkos off, Kokkos too
+  old, KokkosKernels absent) run under `test_build_options`.
 
 ## v2.1.0-rc.2 (2026-09-10)
 

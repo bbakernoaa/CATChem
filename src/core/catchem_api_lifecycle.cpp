@@ -211,11 +211,37 @@ int catchem_core_get_timestep_outcome(void* core_ptr, int* status, long long* ti
 }
 
 void catchem_core_add_process_by_name(void* core_ptr, const char* name) {
-    register_builtin_processes();
-    auto* core = static_cast<catchem::Core*>(core_ptr);
-    auto process = catchem::ProcessRegistry::get_instance().create(name);
-    process->init(core->get_state_manager());
-    core->add_process(process);
+    (void)catchem_core_add_process_by_name_checked(core_ptr, name);
+}
+
+int catchem_core_add_process_by_name_checked(void* core_ptr, const char* name) {
+    catchem::clear_boundary_error();
+    if (!name)
+        return fail(catchem::BoundaryStatus::NullArgument, "core_add_process_by_name", "name",
+                    "process name is required");
+    catchem::AdmissionLease admission;
+    const int handle_status = admit_handle(core_ptr, catchem::HandleType::Core, "core_add_process_by_name", admission);
+    if (handle_status != CATCHEM_SUCCESS)
+        return handle_status;
+    // A fatal raised while creating or initializing the process must be
+    // reported through the boundary status, never propagated as a C++
+    // exception across the C link: the Fortran callers have no handler, so an
+    // escaping throw would terminate that rank abruptly (std::terminate) while
+    // its peers wait in a collective it will never reach. Reporting a status
+    // lets the driver route the failure through its coordinated, all-rank
+    // abort path instead.
+    try {
+        register_builtin_processes();
+        auto* core = static_cast<catchem::Core*>(core_ptr);
+        auto process = catchem::ProcessRegistry::get_instance().create(name);
+        process->init(core->get_state_manager());
+        core->add_process(process);
+        return CATCHEM_SUCCESS;
+    } catch (const std::exception& error) {
+        return fail(catchem::BoundaryStatus::InvalidState, "core_add_process_by_name", name, error.what());
+    } catch (...) {
+        return fail(catchem::BoundaryStatus::InternalError, "core_add_process_by_name", name, "unknown exception");
+    }
 }
 
 int catchem_core_get_num_processes(void* core_ptr) {

@@ -1,0 +1,90 @@
+### CATChem_mkppchem_config.yml: mkppchem smoke / parity run configuration.
+###
+### GENERATED companion to CATChem_mkppchem_species.yml. Both are derived from
+### the OpenAtmos definition at parm/config/openatmos/gocart/mechanism.yaml (the
+### single source of truth); the species file is produced by
+### tools/openatmos/generate_catchem_species.py and must never be hand-edited.
+###
+### Purpose: exercise the mkppchem process in place of the so4chem + carbchem
+### pair (independent test). Build with CATCHEM_BUILD_MKPP=ON (which in turn
+### requires CATCHEM_ENABLE_KOKKOS=ON, Kokkos >= 5.1.1, KokkosKernels, and a
+### C++23-capable compiler). This config is a SMOKE/PARITY harness input, not a
+### full-physics run: transport/deposition/emission processes are off so the
+### comparison isolates the chemistry tendency.
+###
+### NOTE: Add quotes around nitrogen oxide ('NO'), because YAML parsers will
+### confuse this with a negative "no" value.
+
+#============================================================================
+# Simulation settings
+#============================================================================
+simulation:
+  name: mkppchem_smoke
+  start_date: 20240501 0000
+  end_date: 20240501 0100
+  # The species configuration is the generated one; it carries all 26 species
+  # the gocart mechanism advances, including the six CATChem does not carry in
+  # the default config (HNO3, NH3, NH4a, NO3an1-3).
+  species_filename: ./Configs/Mkpp/CATChem_mkppchem_species.yml
+  verbose:
+    activate: true
+
+#============================================================================
+# Grid settings  (single-column smoke; the parity harness overrides as needed)
+#============================================================================
+grid:
+  number_of_levels: 64
+  number_of_soil_layers: 4
+
+#============================================================================
+# Timesteps settings
+#============================================================================
+timesteps:
+  transport_timestep_in_s: 10
+  chemistry_timestep_in_s: 60
+
+#============================================================================
+# RunPhase settings: mkppchem replaces so4chem + carbchem. Listing mkppchem
+# together with either of those is a fatal configuration error --
+# they advance the same species.
+#============================================================================
+run_phases:
+  test1:
+    description: "MKPP chemistry smoke phase"
+    processes:
+      - mkppchem
+
+#============================================================================
+# Settings for CATChem processes
+#============================================================================
+processes:
+  mkppchem:
+    activate: true
+    # The compiled mechanism to solve. Must be a mechanism built into this
+    # binary (CATCHEM_MKPP_MECHANISMS); the default selection is logged.
+    mechanism: "gocart"
+    # The OpenAtmos definition this run is paired with. The runtime does NOT
+    # parse it (definition facts are baked into the generated metadata header at
+    # build time); this path is recorded for the init log and provenance, and
+    # must exist. The CI verifier (tools/openatmos/verify_mechanism_provenance.py)
+    # is what proves this definition still matches the compiled artifact.
+    definition_file: "parm/config/openatmos/gocart/mechanism.yaml"
+    diagnostics: true
+    # Empty diag_species => publish tendencies for every advanced species.
+    diag_species: []
+    # Cloud liquid water source for the gated SO2 + H2O2 -> SO4 pathway:
+    #   auto       - probe for a host field, else derive from CLDF/T/PMID/QV
+    #   host_field - require cloud_liquid_water/host_field to name a met field
+    #   derived    - always use the documented derivation
+    cloud_liquid_water:
+      mode: auto
+      # host_field: CLDLIQ   # uncomment when mode is host_field
+    # photolysis_smoke_mode forces the definition's host J-value constants
+    # instead of coupling to the photolysis process. This smoke/parity phase
+    # schedules mkppchem alone, and the mechanism declares a photolysis
+    # reaction, so the coupling contract requires smoke mode: without
+    # it, and without a photolysis process, the run is fatal rather than
+    # silently solving with zero J-rates. The coupled path is exercised by the
+    # coupled column test. When true it logs a prominent warning and is for
+    # isolated mechanism testing only.
+    photolysis_smoke_mode: true

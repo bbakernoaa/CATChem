@@ -18,3 +18,7 @@ if(CATCHEM_BUILD_MUSICA)
   add_subdirectory(photolysis)
   add_subdirectory(gaschem)
 endif()
+
+if(CATCHEM_BUILD_MKPP)
+  add_subdirectory(mkppchem)
+endif()

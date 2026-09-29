@@ -29,6 +29,7 @@ namespace catchem {
         static constexpr std::string_view SeaSalt = "seasalt";
         static constexpr std::string_view CarbChem = "carbchem";
         static constexpr std::string_view SO4Chem = "so4chem";
+        static constexpr std::string_view MkppChem = "mkppchem";
     };
 
     struct MechanismRequirement {
@@ -122,6 +123,35 @@ namespace catchem {
                 FieldRequirement::Required,
                 access,
                 ExecutionSpaceIntent::Host};
+    }
+
+    // Device-intent named constructors. Every existing constructor above
+    // hardcodes ExecutionSpaceIntent::Host; a process that operates directly on
+    // the state's device-resident memory (e.g. the MKPP solver, which launches a
+    // per-cell Kokkos kernel over the concentration field) must declare Device
+    // intent so the execution plan does not force a host synchronization that
+    // the zero-copy path is built to avoid. These are additive overloads: no
+    // existing constructor and no existing process contract changes.
+    inline FieldAccessContract device_field_3d(std::string name, std::string units,
+                                               FieldRequirement requirement = FieldRequirement::Required,
+                                               AccessIntent access = AccessIntent::Read) {
+        return {std::move(name),
+                std::move(units),
+                {SemanticAxis::Column, SemanticAxis::Level, SemanticAxis::Singleton},
+                PersistencePolicy::Timestep,
+                requirement,
+                access,
+                ExecutionSpaceIntent::Device};
+    }
+
+    inline FieldAccessContract device_concentration(AccessIntent access = AccessIntent::ReadWrite) {
+        return {"CONCENTRATION",
+                "mol/mol",
+                {SemanticAxis::Column, SemanticAxis::Level, SemanticAxis::Species},
+                PersistencePolicy::Persistent,
+                FieldRequirement::Required,
+                access,
+                ExecutionSpaceIntent::Device};
     }
 
     // Named constructor for ProcessContract. Members are assigned individually,

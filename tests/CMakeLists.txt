@@ -789,6 +789,113 @@ if(CATCHEM_BUILD_MUSICA)
   add_test(NAME test_catchem_gaschem COMMAND test_catchem_gaschem)
 endif()
 
+if(CATCHEM_BUILD_MKPP)
+  # mkppchem unit tests: registration, field contract (Device intent), and the
+  # settings validator. These need the compiled mechanism and the Kokkos-backed
+  # core, so they build only when CATCHEM_BUILD_MKPP=ON. The process library
+  # carries the generated mechanism translation units and MKPP's SYSTEM include
+  # dirs transitively through its PUBLIC link.
+  add_executable(test_catchem_mkppchem_units
+    test_catchem_mkppchem_units.cpp
+    ${PROJECT_SOURCE_DIR}/src/process/mkppchem/catchem_mkpp_mechanism_parse.cpp
+  )
+  target_link_libraries(
+    test_catchem_mkppchem_units
+    PRIVATE
+      CATChem_core_cpp
+      CATChem_core
+      CATChem_process_seasalt
+      CATChem_process_dust
+      CATChem_process_carbchem
+      CATChem_process_settling
+      CATChem_process_drydep
+      CATChem_process_so4chem
+      CATChem_process_wetdep
+      catchem_process_mkppchem
+      yaml-cpp::yaml-cpp
+  )
+  target_include_directories(test_catchem_mkppchem_units PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  set_target_properties(test_catchem_mkppchem_units PROPERTIES LINKER_LANGUAGE CXX)
+  add_test(NAME test_catchem_mkppchem_units COMMAND test_catchem_mkppchem_units)
+  catchem_label_tests("unit;cpp;mkppchem;configuration" test_catchem_mkppchem_units)
+
+  # Column smoke test: one chemistry timestep through the full per-cell solve
+  # sequence against the real compiled gocart artifact, with physical and
+  # sulfur-conservation post-conditions. Needs the Kokkos-backed core and the
+  # generated mechanism, so it builds only under CATCHEM_BUILD_MKPP=ON.
+  add_executable(test_catchem_mkppchem test_catchem_mkppchem.cpp)
+  target_link_libraries(
+    test_catchem_mkppchem
+    PRIVATE CATChem_core_cpp CATChem_core catchem_process_mkppchem
+  )
+  target_include_directories(test_catchem_mkppchem PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  set_target_properties(test_catchem_mkppchem PROPERTIES LINKER_LANGUAGE CXX)
+  # The coupled photolysis scenarios need the photolysis
+  # process, which is MUSICA-only; they compile out in a MUSICA-off build.
+  if(CATCHEM_BUILD_MUSICA)
+    target_link_libraries(test_catchem_mkppchem PRIVATE catchem_process_photolysis)
+    target_compile_definitions(test_catchem_mkppchem PRIVATE CATCHEM_HAVE_PHOTOLYSIS=1)
+    # Separate ctest invocations: the prebuilt MUSICA library aborts on a
+    # fourth TUV-x instance in one process, so the coupled and smoke scenario
+    # groups run in their own processes.
+    add_test(NAME test_catchem_mkppchem_coupled COMMAND test_catchem_mkppchem coupled)
+    add_test(NAME test_catchem_mkppchem_smoke COMMAND test_catchem_mkppchem smoke)
+    catchem_label_tests("column;cpp;mkppchem;photolysis" test_catchem_mkppchem_coupled)
+    catchem_label_tests("column;cpp;mkppchem;photolysis" test_catchem_mkppchem_smoke)
+  endif()
+  add_test(NAME test_catchem_mkppchem COMMAND test_catchem_mkppchem)
+  catchem_label_tests("column;cpp;mkppchem;solver" test_catchem_mkppchem)
+
+  # Property-based invariant suite:
+  # randomized physically-plausible input through the staging bridge + solve,
+  # asserting finiteness, non-negativity, sulfur conservation, and tendency
+  # consistency, with deliberately corrupt cells to prove the pre-solve check
+  # flags exactly those. Fixed seed, so a failure is reproducible.
+  add_executable(test_catchem_mkppchem_properties test_catchem_mkppchem_properties.cpp)
+  target_link_libraries(
+    test_catchem_mkppchem_properties
+    PRIVATE CATChem_core_cpp CATChem_core catchem_process_mkppchem
+  )
+  set_target_properties(test_catchem_mkppchem_properties PROPERTIES LINKER_LANGUAGE CXX)
+  add_test(NAME test_catchem_mkppchem_properties COMMAND test_catchem_mkppchem_properties)
+  catchem_label_tests("unit;cpp;mkppchem;property" test_catchem_mkppchem_properties)
+
+  # Snapshot runner for the process-vs-process carbon parity gate.
+  # Unlike default_parity_candidate_runner it reads the species inventory from
+  # the bound state, so the same executable serves both parity sides: the
+  # 22-species carbchem+so4chem baseline and the 26-species mkppchem
+  # candidate.  It is intentionally not a normal CTest on its own; the
+  # run_mkppchem_parity.py harness drives it twice and compares the snapshots.
+  add_executable(mkppchem_parity_runner mkppchem_parity_runner.cpp)
+  target_link_libraries(
+    mkppchem_parity_runner
+    PRIVATE
+      CATChem_core_cpp
+      CATChem_process_seasalt
+      CATChem_process_dust
+      CATChem_process_carbchem
+      CATChem_process_settling
+      CATChem_process_drydep
+      CATChem_process_so4chem
+      CATChem_process_wetdep
+      catchem_process_mkppchem
+  )
+  set_target_properties(mkppchem_parity_runner PROPERTIES LINKER_LANGUAGE CXX)
+
+  if(PYTHON_EXECUTABLE)
+    add_test(
+      NAME test_mkppchem_carbon_parity
+      COMMAND
+        ${PYTHON_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/run_mkppchem_parity.py
+        --runner $<TARGET_FILE:mkppchem_parity_runner>
+        --source-root ${CMAKE_SOURCE_DIR}
+        --workdir ${CMAKE_CURRENT_BINARY_DIR}/mkppchem_parity_work
+    )
+    catchem_label_tests("parity;cpp;mkppchem;integration" test_mkppchem_carbon_parity)
+  endif()
+endif()
+
 add_executable(test_catchem_gaschem_units test_catchem_gaschem_units.cpp)
 add_test(NAME test_catchem_gaschem_units COMMAND test_catchem_gaschem_units)
 

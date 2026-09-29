@@ -659,6 +659,14 @@ namespace catchem {
                     }
                 }
             }
+            // Hand every process block a pointer to the resolved run so a
+            // registered settings validator can inspect the whole
+            // configuration (e.g. a process-order conflict against the
+            // active list). The map is not rehashed after this point in the
+            // load, and ConfigData outlives the ProcessConfig entries it
+            // holds, so the back-pointer stays valid for the run.
+            for (auto& [name, process_config] : data.processes)
+                process_config.run_context = &data;
             is_loaded = true;
         } catch (const std::exception& e) {
             std::cerr << "Error loading configuration file " << filename << ": " << e.what() << std::endl;
@@ -870,8 +878,14 @@ namespace catchem {
                     "remove or rename the duplicate");
         }
 
-        const std::set<std::string> known_processes = {"carbchem",   "drydep",  "dust",     "extemis", "gaschem",
-                                                       "photolysis", "seasalt", "settling", "so4chem", "wetdep"};
+        // Opt-in processes (gaschem, photolysis, mkppchem) are listed here even
+        // when their libraries are not built: config validation only checks the
+        // name, and a schedule naming an uncompiled process fails loudly later
+        // at registry creation with a clearer "not registered" error.
+        const std::set<std::string> known_processes
+            = {"carbchem",   "drydep",    "dust",      "extemis",  "gaschem",
+               "mkppchem",   "photolysis", "seasalt",  "settling", "so4chem",
+               "wetdep"};
         for (const auto& process : data.active_processes) {
             if (known_processes.find(process) == known_processes.end())
                 add("process", "run_phases/processes", "unknown process name: " + process,

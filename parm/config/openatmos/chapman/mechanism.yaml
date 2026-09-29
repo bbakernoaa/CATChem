@@ -1,0 +1,94 @@
+# OpenAtmos Chapman-cycle mechanism definition (YAML source of truth).
+# The stratospheric-ozone test mechanism shipped compiled in the MKPP
+# submodule (src/external/mkpp/mechanisms/openatmos/chapman/mechanism.json),
+# re-authored here in the OpenAtmos YAML form and pinned by its
+# legacy_source_sha256 metadata. The catchem: block carries the CATChem species
+# metadata the generator needs; the MKPP compiler ignores it.
+description: Standard Chapman Cycle mechanism
+metadata:
+  legacy_source: chapman.yaml
+  legacy_source_sha256: 2ac5b1f9f442f64a3bb7246a04a46f17b0a64746a040c69241a40cf98ba4decc
+  migration: legacy-mkpp-yaml-to-openatmos-v1
+  mkpp_mechanism_id: chapman
+  photolysis_host_forcing_expressions:
+    j_chapman.yaml_0000: 1e-05
+    j_chapman.yaml_0002: '0.001'
+name: ChapmanCycle
+phases:
+- name: gas
+reactions:
+- gas phase: gas
+  name: j_chapman.yaml_0000
+  products:
+  - coefficient: 2.0
+    species name: O
+  reactants:
+  - coefficient: 1.0
+    species name: O2
+  scaling factor: 1.0
+  type: PHOTOLYSIS
+- A: 6.0e-34
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: O3
+  - coefficient: 1.0
+    species name: M
+  reactants:
+  - coefficient: 1.0
+    species name: O
+  - coefficient: 1.0
+    species name: O2
+  - coefficient: 1.0
+    species name: M
+  type: ARRHENIUS
+- gas phase: gas
+  name: j_chapman.yaml_0002
+  products:
+  - coefficient: 1.0
+    species name: O
+  - coefficient: 1.0
+    species name: O2
+  reactants:
+  - coefficient: 1.0
+    species name: O3
+  scaling factor: 1.0
+  type: PHOTOLYSIS
+- A: 8.0e-12
+  gas phase: gas
+  products:
+  - coefficient: 2.0
+    species name: O2
+  reactants:
+  - coefficient: 1.0
+    species name: O
+  - coefficient: 1.0
+    species name: O3
+  type: ARRHENIUS
+species:
+- name: O
+- name: O2
+- name: O3
+- name: M
+catchem:
+  O:
+    is_gas: true
+    is_advected: false
+    molecular weight [kg mol-1]: 0.015999
+    long_name: atomic oxygen
+  O2:
+    is_gas: true
+    is_advected: false
+    molecular weight [kg mol-1]: 0.0319988
+    long_name: molecular oxygen
+  O3:
+    is_gas: true
+    is_advected: false
+    molecular weight [kg mol-1]: 0.0479982
+    long_name: ozone
+    is_photolysis: true
+  M:
+    is_gas: true
+    is_advected: false
+    molecular weight [kg mol-1]: 0.0289644
+    long_name: third body (N2/O2 bath gas)

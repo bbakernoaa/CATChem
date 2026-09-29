@@ -6,3 +6,6 @@
 	path = src/external/musica
 	url = https://github.com/NCAR/musica.git
 	branch = main
+[submodule "src/external/mkpp"]
+	path = src/external/mkpp
+	url = https://github.com/noaa-emc/mkpp

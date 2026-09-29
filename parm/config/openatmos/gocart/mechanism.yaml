@@ -1,0 +1,855 @@
+# OpenAtmos GOCART mechanism definition (YAML source of truth).
+# Migrated from mechanism.json (itself a derived artifact of the
+# legacy gocart.yaml via legacy-mkpp-yaml-to-openatmos-v1).
+# Regenerate the compiled artifact from THIS file.
+description: GOCART mechanism focusing strictly on chemistry and phase-transfer kinetics.
+metadata:
+  legacy_source: gocart.yaml
+  legacy_source_sha256: c56e24ab0a2c275897b0c4d64ff8bbd5c1eea5bb073bff582479f3e602951252
+  migration: legacy-mkpp-yaml-to-openatmos-v1
+  mkpp_mechanism_id: gocart
+  photolysis_host_forcing_expressions:
+    jh2o2: 1e-05
+name: GOCART_Mechanism
+phases:
+- name: gas
+reactions:
+- A: 1.2e-11
+  C: -260.0
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO2
+  reactants:
+  - coefficient: 1.0
+    species name: DMS
+  - coefficient: 1.0
+    species name: OH
+  type: ARRHENIUS
+- A: 1.9e-13
+  C: -520.0
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO2
+  reactants:
+  - coefficient: 1.0
+    species name: DMS
+  - coefficient: 1.0
+    species name: NO3
+  type: ARRHENIUS
+- A: 3.3e-12
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: OH
+  type: ARRHENIUS
+- activation_trigger: meteo.cloud_liquid_water > 1.0e-6
+  gamma: 0.01
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: H2O2
+  type: HETEROGENEOUS
+- A: 5.0e-06
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: BC2
+  reactants:
+  - coefficient: 1.0
+    species name: BC1
+  type: ARRHENIUS
+- A: 5.0e-06
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: OC2
+  reactants:
+  - coefficient: 1.0
+    species name: OC1
+  type: ARRHENIUS
+- gas phase: gas
+  name: jh2o2
+  products:
+  - coefficient: 2.0
+    species name: OH
+  reactants:
+  - coefficient: 1.0
+    species name: H2O2
+  scaling factor: 1.0
+  type: PHOTOLYSIS
+- gamma: 0.0001
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  - coefficient: 1.0
+    species name: DUST1
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: DUST1
+  type: HETEROGENEOUS
+- gamma: 0.0001
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  - coefficient: 1.0
+    species name: DUST2
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: DUST2
+  type: HETEROGENEOUS
+- gamma: 0.0001
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  - coefficient: 1.0
+    species name: DUST3
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: DUST3
+  type: HETEROGENEOUS
+- gamma: 0.0001
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  - coefficient: 1.0
+    species name: DUST4
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: DUST4
+  type: HETEROGENEOUS
+- gamma: 0.0001
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  - coefficient: 1.0
+    species name: DUST5
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: DUST5
+  type: HETEROGENEOUS
+- gamma: 0.001
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  - coefficient: 1.0
+    species name: SEAS1
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: SEAS1
+  type: HETEROGENEOUS
+- gamma: 0.001
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  - coefficient: 1.0
+    species name: SEAS2
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: SEAS2
+  type: HETEROGENEOUS
+- gamma: 0.001
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  - coefficient: 1.0
+    species name: SEAS3
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: SEAS3
+  type: HETEROGENEOUS
+- gamma: 0.001
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  - coefficient: 1.0
+    species name: SEAS4
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: SEAS4
+  type: HETEROGENEOUS
+- gamma: 0.001
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: SO4
+  - coefficient: 1.0
+    species name: SEAS5
+  reactants:
+  - coefficient: 1.0
+    species name: SO2
+  - coefficient: 1.0
+    species name: SEAS5
+  type: HETEROGENEOUS
+- gamma: 0.1
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: NO3an1
+  - coefficient: 1.0
+    species name: DUST1
+  reactants:
+  - coefficient: 1.0
+    species name: HNO3
+  - coefficient: 1.0
+    species name: DUST1
+  type: HETEROGENEOUS
+- gamma: 0.1
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: NO3an2
+  - coefficient: 1.0
+    species name: DUST2
+  reactants:
+  - coefficient: 1.0
+    species name: HNO3
+  - coefficient: 1.0
+    species name: DUST2
+  type: HETEROGENEOUS
+- gamma: 0.1
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: NO3an3
+  - coefficient: 1.0
+    species name: DUST3
+  reactants:
+  - coefficient: 1.0
+    species name: HNO3
+  - coefficient: 1.0
+    species name: DUST3
+  type: HETEROGENEOUS
+- gamma: 0.1
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: NO3an1
+  - coefficient: 1.0
+    species name: DUST4
+  reactants:
+  - coefficient: 1.0
+    species name: HNO3
+  - coefficient: 1.0
+    species name: DUST4
+  type: HETEROGENEOUS
+- gamma: 0.1
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: NO3an2
+  - coefficient: 1.0
+    species name: DUST5
+  reactants:
+  - coefficient: 1.0
+    species name: HNO3
+  - coefficient: 1.0
+    species name: DUST5
+  type: HETEROGENEOUS
+- gamma: 0.1
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: NO3an3
+  - coefficient: 1.0
+    species name: SEAS1
+  reactants:
+  - coefficient: 1.0
+    species name: HNO3
+  - coefficient: 1.0
+    species name: SEAS1
+  type: HETEROGENEOUS
+- gamma: 0.1
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: NO3an1
+  - coefficient: 1.0
+    species name: SEAS2
+  reactants:
+  - coefficient: 1.0
+    species name: HNO3
+  - coefficient: 1.0
+    species name: SEAS2
+  type: HETEROGENEOUS
+- gamma: 0.1
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: NO3an2
+  - coefficient: 1.0
+    species name: SEAS3
+  reactants:
+  - coefficient: 1.0
+    species name: HNO3
+  - coefficient: 1.0
+    species name: SEAS3
+  type: HETEROGENEOUS
+- gamma: 0.1
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: NO3an3
+  - coefficient: 1.0
+    species name: SEAS4
+  reactants:
+  - coefficient: 1.0
+    species name: HNO3
+  - coefficient: 1.0
+    species name: SEAS4
+  type: HETEROGENEOUS
+- gamma: 0.1
+  gas phase: gas
+  products:
+  - coefficient: 1.0
+    species name: NO3an1
+  - coefficient: 1.0
+    species name: SEAS5
+  reactants:
+  - coefficient: 1.0
+    species name: HNO3
+  - coefficient: 1.0
+    species name: SEAS5
+  type: HETEROGENEOUS
+- equilibrium_constants:
+    Kp_NH42SO4:
+      A: 1.817e-25
+      Tref: 298.15
+      dH: -160000.0
+    Kp_NH4HSO4:
+      A: 0.01086
+      Tref: 298.15
+      dH: -40000.0
+    Kp_NH4NO3:
+      A: 4.39e-17
+      Tref: 298.15
+      dH: -74735.0
+  gas phase: gas
+  products: []
+  reactants: []
+  regime_blending: sigmoid
+  system: NH4_NO3_SO4
+  total_species:
+    oxidized_nitrogen:
+      aerosol:
+      - NO3an1
+      - NO3an2
+      - NO3an3
+      gas: HNO3
+    reduced_nitrogen:
+      aerosol:
+      - NH4a
+      gas: NH3
+    sulfate:
+      aerosol:
+      - SO4
+      gas: SO2
+  transition_width: 0.05
+  type: EQUILIBRIUM
+species:
+- name: OH
+- name: NO3
+- name: H2O2
+- name: DMS
+- name: SO2
+- name: SO4
+- name: BC1
+- name: BC2
+- name: OC1
+- name: OC2
+- name: DUST1
+- name: DUST2
+- name: DUST3
+- name: DUST4
+- name: DUST5
+- name: SEAS1
+- name: SEAS2
+- name: SEAS3
+- name: SEAS4
+- name: SEAS5
+- name: HNO3
+- name: NH3
+- name: NH4a
+- name: NO3an1
+- name: NO3an2
+- name: NO3an3
+
+# CATChem species metadata (single source of truth for the generated species
+# configuration). This namespaced block is deliberately inert to the MKPP
+# compiler -- its parser reads only the OpenAtmos keys -- and is consumed by
+# tools/openatmos/generate_catchem_species.py to emit the runtime species
+# configuration, so no hand-maintained duplicate species list exists anywhere.
+# Every species the mechanism advances must appear here with full
+# metadata; aerosol bins carry positive radius/density and ordered bin edges so
+# the deposition validators accept them.
+catchem:
+  OH:
+    is_gas: true
+    is_advected: false
+    molecular weight [kg mol-1]: 0.01701
+  NO3:
+    is_gas: true
+    is_photolysis: true
+    is_advected: false
+    molecular weight [kg mol-1]: 0.06201
+  H2O2:
+    is_gas: true
+    is_drydep: false
+    is_wetdep: true
+    is_advected: false
+    dd_f0: 1.0
+    dd_hstar: 50000000.0
+    molecular weight [kg mol-1]: 0.03402
+    viscosity: 0.0
+    henry_k0: 83000.0
+    henry_cr: 7400.0
+    wd_retfactor: 0.05
+    wd_LiqAndGas: true
+    wd_convfacI2G: 0.436564
+  DMS:
+    molecular weight [kg mol-1]: 0.06213
+    radius: 0.0
+    is_gas: true
+    is_dust: false
+    is_aerosol: false
+    is_drydep: false
+    henry_k0: 0.48
+    henry_cr: 3100.0
+    mie_name: SU
+  SO2:
+    is_gas: true
+    is_drydep: true
+    is_wetdep: true
+    dd_f0: 0.0
+    dd_hstar: 100000.0
+    molecular weight [kg mol-1]: 0.06404
+    dd_DvzAerSnow: 0.03
+    dd_DvzMinVal_snow: 0.2
+    dd_DvzMinVal_land: 0.3
+    viscosity: 0.0
+    henry_k0: 1.22
+    henry_cr: 3100.0
+    wd_retfactor: 0.05
+    wd_LiqAndGas: true
+    wd_convfacI2G: 0.617395
+    wd_rainouteff:
+    - 1.0
+    - 0.0
+    - 1.0
+    wd_reevap_frac: 1.0
+  SO4:
+    is_aerosol: true
+    is_drydep: true
+    is_wetdep: true
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.09606
+    radius: 0.35
+    density: 1700.0
+    dd_DvzAerSnow: 0.03
+    dd_DvzMinVal_snow: 0.01
+    dd_DvzMinVal_land: 0.01
+    lower_radius: 0.1
+    upper_radius: 1.0
+    wd_rainouteff:
+    - 1.0
+    - 0.0
+    - 1.0
+    wd_reevap_frac: 1.0
+    mie_name: SU
+  BC1:
+    is_aerosol: true
+    is_drydep: true
+    is_wetdep: true
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.01201
+    radius: 0.35
+    density: 1800.0
+    dd_DvzAerSnow: 0.03
+    lower_radius: 0.1
+    upper_radius: 1.0
+    is_hydrophilic: false
+    wd_rainouteff:
+    - 0.0
+    - 0.0
+    - 0.0
+    t_chem_loss: -1.0
+    mie_name: BC
+  BC2:
+    is_aerosol: true
+    is_drydep: true
+    is_wetdep: true
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.01201
+    radius: 0.35
+    density: 1800.0
+    dd_DvzAerSnow: 0.03
+    lower_radius: 0.1
+    upper_radius: 1.0
+    is_hydrophilic: true
+    wd_rainouteff:
+    - 1.0
+    - 1.0
+    - 1.0
+    t_chem_loss: -1.0
+    mie_name: BC
+  OC1:
+    is_aerosol: true
+    is_drydep: true
+    is_wetdep: true
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.01201
+    radius: 0.35
+    density: 1800.0
+    dd_DvzAerSnow: 0.03
+    lower_radius: 0.1
+    upper_radius: 1.0
+    is_hydrophilic: false
+    wd_rainouteff:
+    - 0.0
+    - 0.0
+    - 0.0
+    t_chem_loss: -1.0
+    mie_name: OC
+  OC2:
+    is_aerosol: true
+    is_drydep: true
+    is_wetdep: true
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.01201
+    radius: 0.35
+    density: 1800.0
+    dd_DvzAerSnow: 0.03
+    lower_radius: 0.1
+    upper_radius: 1.0
+    is_hydrophilic: true
+    wd_rainouteff:
+    - 1.0
+    - 1.0
+    - 1.0
+    t_chem_loss: -1.0
+    mie_name: OC
+  DUST1:
+    long_name: dust1
+    lower_radius: 0.1
+    upper_radius: 1.0
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.029
+    radius: 0.73
+    density: 2500.0
+    is_dust: true
+    is_aerosol: true
+    is_hydrophilic: false
+    is_drydep: true
+    is_wetdep: true
+    wd_rainouteff:
+    - 0.8
+    - 0.8
+    - 0.8
+    mie_name: DU
+  DUST2:
+    long_name: dust2
+    lower_radius: 1.0
+    upper_radius: 1.8
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.029
+    radius: 1.4
+    density: 2650.0
+    is_dust: true
+    is_aerosol: true
+    is_hydrophilic: false
+    is_drydep: true
+    is_wetdep: true
+    wd_rainouteff:
+    - 0.8
+    - 0.8
+    - 0.8
+    mie_name: DU
+  DUST3:
+    long_name: dust3
+    lower_radius: 1.8
+    upper_radius: 3.0
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.029
+    radius: 2.4
+    density: 2650.0
+    is_dust: true
+    is_aerosol: true
+    is_hydrophilic: false
+    is_drydep: true
+    is_wetdep: true
+    wd_rainouteff:
+    - 0.8
+    - 0.8
+    - 0.8
+    mie_name: DU
+  DUST4:
+    long_name: dust4
+    lower_radius: 3.0
+    upper_radius: 6.0
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.029
+    radius: 4.5
+    density: 2650.0
+    is_dust: true
+    is_aerosol: true
+    is_hydrophilic: false
+    is_drydep: true
+    is_wetdep: true
+    wd_rainouteff:
+    - 1.0
+    - 1.0
+    - 1.0
+    mie_name: DU
+  DUST5:
+    long_name: dust5
+    lower_radius: 6.0
+    upper_radius: 10.0
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.029
+    radius: 8.0
+    density: 2650.0
+    is_dust: true
+    is_aerosol: true
+    is_hydrophilic: false
+    is_drydep: true
+    is_wetdep: true
+    wd_rainouteff:
+    - 1.0
+    - 1.0
+    - 1.0
+    mie_name: DU
+  SEAS1:
+    long_name: seas1
+    lower_radius: 0.03
+    upper_radius: 0.1
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.0314
+    radius: 0.079
+    density: 2200.0
+    is_seasalt: true
+    is_aerosol: true
+    is_drydep: true
+    is_wetdep: true
+    wd_rainouteff:
+    - 1.0
+    - 1.0
+    - 1.0
+    mie_name: SS
+  SEAS2:
+    long_name: seas2
+    lower_radius: 0.1
+    upper_radius: 0.5
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.0314
+    radius: 0.316
+    density: 2200.0
+    is_seasalt: true
+    is_aerosol: true
+    is_drydep: true
+    is_wetdep: true
+    wd_rainouteff:
+    - 1.0
+    - 1.0
+    - 1.0
+    mie_name: SS
+  SEAS3:
+    long_name: seas3
+    lower_radius: 0.5
+    upper_radius: 1.5
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.0314
+    radius: 1.119
+    density: 2200.0
+    is_seasalt: true
+    is_aerosol: true
+    is_drydep: true
+    is_wetdep: true
+    wd_rainouteff:
+    - 1.0
+    - 1.0
+    - 1.0
+    mie_name: SS
+  SEAS4:
+    long_name: seas4
+    lower_radius: 1.5
+    upper_radius: 5.0
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.0314
+    radius: 2.818
+    density: 2200.0
+    is_seasalt: true
+    is_aerosol: true
+    is_drydep: true
+    is_wetdep: true
+    wd_rainouteff:
+    - 1.0
+    - 1.0
+    - 1.0
+    mie_name: SS
+  SEAS5:
+    long_name: seas5
+    lower_radius: 5.0
+    upper_radius: 10.0
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    molecular weight [kg mol-1]: 0.0314
+    radius: 7.772
+    density: 2200.0
+    is_seasalt: true
+    is_aerosol: true
+    is_drydep: true
+    is_wetdep: true
+    wd_rainouteff:
+    - 1.0
+    - 1.0
+    - 1.0
+    mie_name: SS
+  HNO3:
+    is_gas: true
+    molecular weight [kg mol-1]: 0.06301
+    henry_k0: 210000.0
+    henry_cr: 8200.0
+    dd_f0: 0.15
+    dd_hstar: 20000.0
+    wd_retfactor: 0.1
+    wd_LiqAndGas: true
+    wd_convfacI2G: 0.0617395
+    wd_rainouteff:
+    - 1.0
+    - 0.0
+    - 1.0
+  NH3:
+    is_gas: true
+    molecular weight [kg mol-1]: 0.01703
+    henry_k0: 59.0
+    henry_cr: 4100.0
+    henry_pKa: 9.25
+    dd_f0: 0.0
+    dd_hstar: 100000.0
+    wd_retfactor: 0.1
+    wd_LiqAndGas: true
+    wd_convfacI2G: 0.0617395
+    wd_rainouteff:
+    - 1.0
+    - 0.0
+    - 1.0
+  NH4a:
+    is_aerosol: true
+    molecular weight [kg mol-1]: 0.01804
+    radius: 0.35
+    density: 1700.0
+    lower_radius: 0.1
+    upper_radius: 1.0
+    mie_name: NI
+    is_hydrophilic: true
+    is_drydep: true
+    is_wetdep: true
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    wd_rainouteff:
+    - 1.0
+    - 0.0
+    - 1.0
+  NO3an1:
+    is_aerosol: true
+    molecular weight [kg mol-1]: 0.062
+    radius: 0.35
+    density: 1700.0
+    lower_radius: 0.1
+    upper_radius: 1.0
+    mie_name: NI
+    is_hydrophilic: true
+    is_drydep: true
+    is_wetdep: true
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    wd_rainouteff:
+    - 1.0
+    - 0.0
+    - 1.0
+  NO3an2:
+    is_aerosol: true
+    molecular weight [kg mol-1]: 0.062
+    radius: 1.8
+    density: 1800.0
+    lower_radius: 1.0
+    upper_radius: 5.0
+    mie_name: NI
+    is_hydrophilic: true
+    is_drydep: true
+    is_wetdep: true
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    wd_rainouteff:
+    - 1.0
+    - 0.0
+    - 1.0
+  NO3an3:
+    is_aerosol: true
+    molecular weight [kg mol-1]: 0.062
+    radius: 7.5
+    density: 1900.0
+    lower_radius: 5.0
+    upper_radius: 10.0
+    mie_name: NI
+    is_hydrophilic: true
+    is_drydep: true
+    is_wetdep: true
+    dd_f0: 0.0
+    dd_hstar: 0.0
+    wd_rainouteff:
+    - 1.0
+    - 0.0
+    - 1.0

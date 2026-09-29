@@ -16,6 +16,7 @@ Under the modernized C++ core, processes are implemented as native C++ classes e
 Processes that convert species through chemical or physical mechanisms:
 - **[GasChem](gaschem/index.md)** - Gas-phase chemistry utilizing NCAR's C++ MICM solver via the musica library.
 - **[Photolysis](photolysis/index.md)** - Photolysis rates determination utilizing NCAR's C++ TUV-x engine.
+- **[MkppChem](mkppchem/index.md)** - Opt-in multiphase chemistry with generated MKPP solver kernels (alternative to the so4chem + carbchem pair).
 - **Particle settling** - Gravitational settling with Cunningham slip correction and Sutherland viscosity.
 - Aerosol chemistry, coagulation, and phase transitions.
 
@@ -37,6 +38,7 @@ Removal processes that remove species from the atmosphere:
 
 - **[GasChem](gaschem/index.md)** - C++ native Gas-phase chemistry process (MICM)
 - **[Photolysis](photolysis/index.md)** - C++ native Photolysis rate calculation process (TUV-x)
+- **[MkppChem](mkppchem/index.md)** - C++ native MKPP-generated multiphase chemistry process (opt-in, Kokkos required)
 - **[SeaSalt](seasalt/index.md)** - SeaSalt atmospheric process
 - **[Dust](dust/index.md)** - Dust atmospheric process
 - **[TestProcess](testprocess/index.md)** - Emission process (sources)

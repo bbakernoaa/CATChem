@@ -23,6 +23,7 @@ namespace catchem {
         std::shared_ptr<InteropField<double, 3>> AIRDEN;     // Wet air density [kg/m³]
         std::shared_ptr<InteropField<double, 3>> AIRDEN_DRY; // Dry air density [kg/m³]
         std::shared_ptr<InteropField<double, 3>> BXHEIGHT;   // Layer thickness height [m]
+        std::shared_ptr<InteropField<double, 3>> CLDLIQ;     // Cloud liquid water content [kg/kg]
 
         std::shared_ptr<InteropField<double, 2>> PS;    // Surface pressure [Pa]
         std::shared_ptr<InteropField<double, 2>> TS;    // Surface temperature [K]
@@ -135,6 +136,8 @@ namespace catchem {
                 AIRDEN_DRY = field;
             } else if (upper_name == "BXHEIGHT" || upper_name == "DZ" || upper_name == "DELZ")
                 BXHEIGHT = field;
+            else if (upper_name == "CLDLIQ" || upper_name == "CLOUD_LIQUID_WATER" || upper_name == "QLI")
+                CLDLIQ = field;
         }
 
         void register_fields() {

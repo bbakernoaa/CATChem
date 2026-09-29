@@ -212,6 +212,16 @@ cmake .. \
     -DCMAKE_Fortran_FLAGS="-O3 -fast"
 ```
 
+## MKPP Chemistry Process (opt-in)
+
+`CATCHEM_BUILD_MKPP=ON` adds the generated `mkppchem` process and raises the
+build requirements: Kokkos >= 5.1.1, KokkosKernels, and a C++23-capable
+compiler, all enforced with configure-time `FATAL_ERROR` messages that name the
+missing dependency and the remedy. The default `OFF` build is unchanged. Load
+the `catchem_mkpp` module after the platform module, and see
+[MKPP Platform Support](mkpp-platform-support.md) for the per-platform
+verification matrix.
+
 ## Platform-Specific Notes
 
 ### HPC Systems

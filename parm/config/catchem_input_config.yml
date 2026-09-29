@@ -406,3 +406,49 @@ performance:
   # Threading
   use_openmp: true                   # Use OpenMP for regridding
   max_threads: 4                     # Maximum OpenMP threads
+
+# Process configuration (opt-in). Uncomment the `processes:` block below to
+# activate a process in the run schedule. Process settings are probed under
+# both `processes/<name>/` and `process/<name>/`.
+#
+# mkppchem is the MKPP multiphase chemistry process (opt-in alternative to
+# so4chem + carbchem). It requires a build with CATCHEM_BUILD_MKPP=ON, which
+# in turn requires CATCHEM_ENABLE_KOKKOS=ON, Kokkos >= 5.1.1, KokkosKernels,
+# and a C++23-capable compiler; a mis-provisioned environment fails at
+# configure time, not mid-run. The species configuration MUST be generated
+# from the same OpenAtmos definition the selected mechanism was compiled from
+# (see tools/openatmos/generate_catchem_species.py); any divergence between
+# the configured definition_file and the compiled mechanism is a fatal init
+# error -- the runtime never parses the YAML it points at.
+#
+# processes:
+#   mkppchem:
+#     activate: true
+#     mechanism: "gocart"        # any mechanism compiled into the build;
+#                                # the default build compiles gocart and chapman.
+#                                # An uncompiled name is fatal, naming the
+#                                # request and the available list.
+#     definition_file: "parm/config/openatmos/gocart/mechanism.yaml"
+#     # initial_step_seed: 0.1   # optional runtime override of the generated
+#                                # artifact's adaptive-ramp seed: the first
+#                                # internal substep is dt * seed. A larger seed
+#                                # takes fewer mandatory substeps per host step
+#                                # (faster) at slightly lower accuracy. Unset
+#                                # keeps the seed baked into the compiled
+#                                # artifact -- no recompile to tune. Must be a
+#                                # finite positive fraction; anything else is a
+#                                # fatal init error naming the value.
+#     diagnostics: true
+#     diag_species: []           # empty = every species the mechanism advances
+#     photolysis_smoke_mode: false  # isolated-mechanism testing ONLY: applies
+#                                   # the definition's host-forcing constants
+#                                   # instead of computed J-values. Mutually
+#                                   # exclusive with a scheduled photolysis
+#                                   # process; logs a prominent warning.
+#     cloud_liquid_water:
+#       mode: auto               # auto | host_field | derived
+#                                # auto: use a host field (CLDLIQ,
+#                                # CLOUD_LIQUID_WATER, QLI) if present, else
+#                                # derive from CLDF/QV/T/PMID. The origin is
+#                                # always logged at init.
+#       # host_field: QLI        # required when mode is host_field

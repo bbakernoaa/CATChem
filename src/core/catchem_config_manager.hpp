@@ -8,6 +8,8 @@
 
 namespace catchem {
 
+    struct ConfigData;
+
     enum class ValidationSeverity { Warning, Error };
 
     struct ValidationIssue {
@@ -94,6 +96,16 @@ namespace catchem {
         bool diagnostics = false;
         std::string scheme;
         std::vector<std::string> diag_species;
+
+        /// Back-pointer to the resolved configuration this block belongs to,
+        /// set by ConfigManager at the end of load_from_file(). A registered
+        /// settings validator receives it through the ProcessConfig it is
+        /// handed, so a process-level check can inspect the whole run (for
+        /// example, a process-order conflict against the active list) without
+        /// reaching for the global singleton. Null for a ProcessConfig built
+        /// directly (unit tests, programmatic settings), where no run context
+        /// is available.
+        const ConfigData* run_context = nullptr;
 
         void set_settings_node(const YAML::Node& node) { settings_node = node; }
 
