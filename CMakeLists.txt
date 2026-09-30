@@ -117,10 +117,11 @@ if(CATCHEM_BUILD_MKPP OR CATCHEM_BUILD_EXAERO)
   if(NOT CATCHEM_COMPILER_SUPPORTS_CXX23)
     message(
       FATAL_ERROR
-      "CATCHEM_BUILD_MKPP=ON / CATCHEM_BUILD_EXAERO=ON requires a C++23-capable "
-      "compiler, but ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION} "
-      "does not accept -std=c++23 (MKPP's mkpp_host and the exaero aerosol "
-      "library both declare cxx_std_23)."
+      "This build requires a C++23-capable compiler, but "
+      "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION} does not "
+      "accept -std=c++23. CATCHEM_BUILD_MKPP and CATCHEM_BUILD_EXAERO both "
+      "consume libraries declaring cxx_std_23 (MKPP's mkpp_host, the exaero "
+      "aerosol library)."
     )
   endif()
   set(CMAKE_CXX_STANDARD 23)
