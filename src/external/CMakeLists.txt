@@ -307,4 +307,22 @@ if(CATCHEM_BUILD_EXAERO)
       )
     endif()
   endforeach()
+
+  # Thin C++ lifecycle/gather helper that lets a process own one exaero
+  # package handle and read the derived-diagnostics slab without pulling
+  # Kokkos or mdspan into the process layer.  Linking 'exaero' PUBLIC
+  # propagates its include dirs (already SYSTEM above), its Kokkos runtime
+  # dependency, and -- through the target's PUBLIC Fortran module directory
+  # -- the compiled exaero_interface.mod, so a scheme that links this target
+  # can 'use exaero_interface' with no extra wiring.
+  add_library(
+    catchem_exaero_bridge
+    STATIC
+    exaero_bridge/catchem_exaero_bridge.cpp
+  )
+  target_include_directories(
+    catchem_exaero_bridge
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/exaero_bridge>
+  )
+  target_link_libraries(catchem_exaero_bridge PUBLIC exaero)
 endif()

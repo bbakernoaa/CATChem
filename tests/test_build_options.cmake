@@ -51,13 +51,15 @@ endfunction()
 function(catchem_make_fake_kokkos dir version)
   file(REMOVE_RECURSE "${dir}")
   file(
-    WRITE "${dir}/KokkosConfig.cmake"
+    WRITE
+    "${dir}/KokkosConfig.cmake"
     "set(Kokkos_FOUND TRUE)\nset(Kokkos_VERSION \"${version}\")\n"
   )
   # Standard version-file contract: compatible only when the package version
   # meets the requested one, so a 5.1.1 request rejects 4.2.0 and accepts 5.9.9.
   file(
-    WRITE "${dir}/KokkosConfigVersion.cmake"
+    WRITE
+    "${dir}/KokkosConfigVersion.cmake"
     "set(PACKAGE_VERSION \"${version}\")\nif(PACKAGE_VERSION VERSION_LESS PACKAGE_FIND_VERSION)\n  set(PACKAGE_VERSION_COMPATIBLE FALSE)\nelse()\n  set(PACKAGE_VERSION_COMPATIBLE TRUE)\n  if(PACKAGE_VERSION VERSION_EQUAL PACKAGE_FIND_VERSION)\n    set(PACKAGE_VERSION_EXACT TRUE)\n  endif()\nendif()\n"
   )
 endfunction()
@@ -119,6 +121,46 @@ catchem_expect_configure_fatal(
   -DCATCHEM_COMPILER_SUPPORTS_CXX23=FALSE
 )
 
+# exaero on, Kokkos-backed core off: fatal, mirroring the MKPP guard. The
+# aerosol library is Kokkos-backed, so the same enablement precondition holds.
+catchem_expect_configure_fatal(
+  exaero-kokkos-off
+  "CATCHEM_BUILD_EXAERO=ON requires CATCHEM_ENABLE_KOKKOS=ON"
+  -DCATCHEM_BUILD_EXAERO=ON
+  -DCATCHEM_ENABLE_KOKKOS=OFF
+)
+
+# exaero on, C++23 unsupported: the aerosol library declares cxx_std_23, so
+# the shared capability guard rejects it. Pre-seed the probe FALSE through the
+# documented capability-override seam (as the MKPP case does) so the guard's
+# rejection logic is asserted on any host.
+catchem_expect_configure_fatal(
+  exaero-cxx23-unsupported
+  "requires a C\\+\\+23-capable compiler"
+  -DCATCHEM_BUILD_EXAERO=ON
+  -DCATCHEM_ENABLE_KOKKOS=ON
+  -DCATCHEM_COMPILER_SUPPORTS_CXX23=FALSE
+)
+
+# exaero on, Kokkos too old: the shared >= 5.1.1 floor rejects it by name.
+# Reuse the fabricated-too-old config (4.2.0) that fails the versioned find;
+# the unversioned retry succeeds and the guard must reject rather than fetch a
+# different version. System prefix search paths are ignored so a newer real
+# Kokkos cannot mask the fabricated install.
+catchem_expect_configure_fatal(
+  exaero-kokkos-old
+  "requires Kokkos >= 5\\.1\\.1"
+  -DCATCHEM_BUILD_EXAERO=ON
+  -DCATCHEM_ENABLE_KOKKOS=ON
+  -DKokkos_DIR=${CATCHEM_BINARY_ROOT}/fake-kokkos-old
+  "-DCMAKE_SYSTEM_PREFIX_PATH="
+  "-DCMAKE_IGNORE_PREFIX_PATH=/opt/homebrew;/usr/local"
+  -DCMAKE_DISABLE_FIND_PACKAGE_KokkosKernels=ON
+)
+
+# OFF no-regression (structural) is asserted after the canonical configure
+# below, reusing that tree.
+
 execute_process(
   COMMAND
     ${CMAKE_COMMAND} -S "${CATCHEM_SOURCE_DIR}" -B
@@ -131,6 +173,91 @@ execute_process(
 )
 if(NOT canonical_result EQUAL 0)
   message(FATAL_ERROR "Canonical options failed: ${canonical_error}")
+endif()
+
+# OFF no-regression (structural): the utility gate defaults OFF, so the gated
+# add_subdirectory never runs and the generated tree carries no exaero library
+# or bridge target -- zero new dependency in a default configuration, proven
+# structurally rather than only through the ctest baseline.
+if(EXISTS "${CATCHEM_BINARY_ROOT}/canonical/src/external/exaero-build")
+  message(
+    FATAL_ERROR
+    "gate-OFF build tree contains an exaero-build directory (the utility "
+    "must be inert when CATCHEM_BUILD_EXAERO is unset)"
+  )
+endif()
+if(
+  EXISTS
+    "${CATCHEM_BINARY_ROOT}/canonical/src/external/CMakeFiles/catchem_exaero_bridge.dir"
+)
+  message(
+    FATAL_ERROR
+    "gate-OFF build tree contains the catchem_exaero_bridge target directory"
+  )
+endif()
+
+# ON exposure (only when the LIVE build enabling this test has the utility
+# gate on): the generated tree must carry the exaero library and the bridge
+# target, and the bridge's compile flags must show exaero's include dirs and
+# the Fortran module directory arriving as SYSTEM includes (-isystem).  A
+# scheme linking the bridge therefore sees exaero_interface.mod and the public
+# headers with the warning-as-error gate suppressed, which is the contract the
+# process integration depends on.  This is the same tree the smoke test links,
+# so the assertion covers the real configured-and-generated state.
+if(CATCHEM_EXAERO_GATE AND CATCHEM_LIVE_BINARY_DIR)
+  set(_exaero_live "${CATCHEM_LIVE_BINARY_DIR}")
+  if(
+    NOT
+      EXISTS
+        "${_exaero_live}/src/external/exaero-build/src/CMakeFiles/exaero.dir"
+  )
+    message(
+      FATAL_ERROR
+      "gate-ON build tree lacks the exaero library target directory"
+    )
+  endif()
+  if(
+    NOT
+      EXISTS "${_exaero_live}/src/external/CMakeFiles/catchem_exaero_bridge.dir"
+  )
+    message(
+      FATAL_ERROR
+      "gate-ON build tree lacks the catchem_exaero_bridge target directory"
+    )
+  endif()
+  set(
+    _bridge_flags
+    "${_exaero_live}/src/external/CMakeFiles/catchem_exaero_bridge.dir/flags.make"
+  )
+  if(NOT EXISTS "${_bridge_flags}")
+    message(
+      FATAL_ERROR
+      "gate-ON build tree lacks the bridge compile flags (${_bridge_flags})"
+    )
+  endif()
+  file(READ "${_bridge_flags}" _bridge_flags_text)
+  string(FIND "${_bridge_flags_text}" "-isystem" _isystem_pos)
+  if(_isystem_pos EQUAL -1)
+    message(
+      FATAL_ERROR
+      "bridge compile flags carry no -isystem entries: exaero includes are "
+      "not re-exported as SYSTEM"
+    )
+  endif()
+  string(
+    REGEX MATCH
+    "-isystem [^ ]*fortran_modules"
+    _module_isystem
+    "${_bridge_flags_text}"
+  )
+  if(_module_isystem STREQUAL "")
+    message(
+      FATAL_ERROR
+      "bridge compile flags do not receive the exaero Fortran module "
+      "directory as a SYSTEM include: schemes could not 'use "
+      "exaero_interface' through the bridge"
+    )
+  endif()
 endif()
 
 execute_process(

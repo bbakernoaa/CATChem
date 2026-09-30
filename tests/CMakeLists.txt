@@ -390,7 +390,9 @@ add_test(
   NAME test_build_options
   COMMAND
     ${CMAKE_COMMAND} -DCATCHEM_SOURCE_DIR=${PROJECT_SOURCE_DIR}
-    -DCATCHEM_BINARY_ROOT=${CMAKE_CURRENT_BINARY_DIR}/build-option-tests -P
+    -DCATCHEM_BINARY_ROOT=${CMAKE_CURRENT_BINARY_DIR}/build-option-tests
+    -DCATCHEM_EXAERO_GATE=${CATCHEM_BUILD_EXAERO}
+    -DCATCHEM_LIVE_BINARY_DIR=${CMAKE_BINARY_DIR} -P
     ${CMAKE_CURRENT_SOURCE_DIR}/test_build_options.cmake
 )
 catchem_label_tests("configuration;build" test_build_options)
@@ -795,7 +797,8 @@ if(CATCHEM_BUILD_MKPP)
   # core, so they build only when CATCHEM_BUILD_MKPP=ON. The process library
   # carries the generated mechanism translation units and MKPP's SYSTEM include
   # dirs transitively through its PUBLIC link.
-  add_executable(test_catchem_mkppchem_units
+  add_executable(
+    test_catchem_mkppchem_units
     test_catchem_mkppchem_units.cpp
     ${PROJECT_SOURCE_DIR}/src/process/mkppchem/catchem_mkpp_mechanism_parse.cpp
   )
@@ -814,8 +817,14 @@ if(CATCHEM_BUILD_MKPP)
       catchem_process_mkppchem
       yaml-cpp::yaml-cpp
   )
-  target_include_directories(test_catchem_mkppchem_units PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-  set_target_properties(test_catchem_mkppchem_units PROPERTIES LINKER_LANGUAGE CXX)
+  target_include_directories(
+    test_catchem_mkppchem_units
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
+  )
+  set_target_properties(
+    test_catchem_mkppchem_units
+    PROPERTIES LINKER_LANGUAGE CXX
+  )
   add_test(NAME test_catchem_mkppchem_units COMMAND test_catchem_mkppchem_units)
   catchem_label_tests("unit;cpp;mkppchem;configuration" test_catchem_mkppchem_units)
 
@@ -828,18 +837,33 @@ if(CATCHEM_BUILD_MKPP)
     test_catchem_mkppchem
     PRIVATE CATChem_core_cpp CATChem_core catchem_process_mkppchem
   )
-  target_include_directories(test_catchem_mkppchem PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_include_directories(
+    test_catchem_mkppchem
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
+  )
   set_target_properties(test_catchem_mkppchem PROPERTIES LINKER_LANGUAGE CXX)
   # The coupled photolysis scenarios need the photolysis
   # process, which is MUSICA-only; they compile out in a MUSICA-off build.
   if(CATCHEM_BUILD_MUSICA)
-    target_link_libraries(test_catchem_mkppchem PRIVATE catchem_process_photolysis)
-    target_compile_definitions(test_catchem_mkppchem PRIVATE CATCHEM_HAVE_PHOTOLYSIS=1)
+    target_link_libraries(
+      test_catchem_mkppchem
+      PRIVATE catchem_process_photolysis
+    )
+    target_compile_definitions(
+      test_catchem_mkppchem
+      PRIVATE CATCHEM_HAVE_PHOTOLYSIS=1
+    )
     # Separate ctest invocations: the prebuilt MUSICA library aborts on a
     # fourth TUV-x instance in one process, so the coupled and smoke scenario
     # groups run in their own processes.
-    add_test(NAME test_catchem_mkppchem_coupled COMMAND test_catchem_mkppchem coupled)
-    add_test(NAME test_catchem_mkppchem_smoke COMMAND test_catchem_mkppchem smoke)
+    add_test(
+      NAME test_catchem_mkppchem_coupled
+      COMMAND test_catchem_mkppchem coupled
+    )
+    add_test(
+      NAME test_catchem_mkppchem_smoke
+      COMMAND test_catchem_mkppchem smoke
+    )
     catchem_label_tests("column;cpp;mkppchem;photolysis" test_catchem_mkppchem_coupled)
     catchem_label_tests("column;cpp;mkppchem;photolysis" test_catchem_mkppchem_smoke)
   endif()
@@ -851,13 +875,22 @@ if(CATCHEM_BUILD_MKPP)
   # asserting finiteness, non-negativity, sulfur conservation, and tendency
   # consistency, with deliberately corrupt cells to prove the pre-solve check
   # flags exactly those. Fixed seed, so a failure is reproducible.
-  add_executable(test_catchem_mkppchem_properties test_catchem_mkppchem_properties.cpp)
+  add_executable(
+    test_catchem_mkppchem_properties
+    test_catchem_mkppchem_properties.cpp
+  )
   target_link_libraries(
     test_catchem_mkppchem_properties
     PRIVATE CATChem_core_cpp CATChem_core catchem_process_mkppchem
   )
-  set_target_properties(test_catchem_mkppchem_properties PROPERTIES LINKER_LANGUAGE CXX)
-  add_test(NAME test_catchem_mkppchem_properties COMMAND test_catchem_mkppchem_properties)
+  set_target_properties(
+    test_catchem_mkppchem_properties
+    PROPERTIES LINKER_LANGUAGE CXX
+  )
+  add_test(
+    NAME test_catchem_mkppchem_properties
+    COMMAND test_catchem_mkppchem_properties
+  )
   catchem_label_tests("unit;cpp;mkppchem;property" test_catchem_mkppchem_properties)
 
   # Snapshot runner for the process-vs-process carbon parity gate.
@@ -886,14 +919,28 @@ if(CATCHEM_BUILD_MKPP)
     add_test(
       NAME test_mkppchem_carbon_parity
       COMMAND
-        ${PYTHON_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/run_mkppchem_parity.py
-        --runner $<TARGET_FILE:mkppchem_parity_runner>
-        --source-root ${CMAKE_SOURCE_DIR}
-        --workdir ${CMAKE_CURRENT_BINARY_DIR}/mkppchem_parity_work
+        ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/run_mkppchem_parity.py
+        --runner $<TARGET_FILE:mkppchem_parity_runner> --source-root
+        ${CMAKE_SOURCE_DIR} --workdir
+        ${CMAKE_CURRENT_BINARY_DIR}/mkppchem_parity_work
     )
     catchem_label_tests("parity;cpp;mkppchem;integration" test_mkppchem_carbon_parity)
   endif()
+endif()
+
+# exaero aerosol-utility smoke test: drives the bridge through the full
+# create/initialize/compute/read path and checks slot 6 against the analytic
+# Stokes value.  Builds only when the utility is enabled; the bridge target
+# carries exaero's SYSTEM includes and Kokkos usage requirements transitively.
+if(CATCHEM_BUILD_EXAERO)
+  add_executable(test_catchem_exaero_smoke test_catchem_exaero_smoke.cpp)
+  target_link_libraries(test_catchem_exaero_smoke PRIVATE catchem_exaero_bridge)
+  set_target_properties(
+    test_catchem_exaero_smoke
+    PROPERTIES LINKER_LANGUAGE CXX
+  )
+  add_test(NAME test_catchem_exaero_smoke COMMAND test_catchem_exaero_smoke)
+  catchem_label_tests("unit;cpp;exaero" test_catchem_exaero_smoke)
 endif()
 
 add_executable(test_catchem_gaschem_units test_catchem_gaschem_units.cpp)
