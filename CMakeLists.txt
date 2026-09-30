@@ -79,12 +79,33 @@ if(CATCHEM_BUILD_MKPP AND NOT CATCHEM_ENABLE_KOKKOS)
   )
 endif()
 
+# Option to expose the exaero aerosol utility to CATChem processes (defaults
+# to OFF, living in the MKPP dependency tree).  Strictly opt-in and
+# supplementary: a build with this OFF has no new dependency on Kokkos
+# version, C++23, Python3/netCDF4/numpy, or the exaero sources, and every
+# process keeps its existing science path.
+option(CATCHEM_BUILD_EXAERO "Build with the exaero aerosol utility" OFF)
+
+# The exaero aerosol library is Kokkos-backed, so it rides the same core
+# requirement as MKPP and MUSICA.
+if(CATCHEM_BUILD_EXAERO AND NOT CATCHEM_ENABLE_KOKKOS)
+  message(
+    FATAL_ERROR
+    "CATCHEM_BUILD_EXAERO=ON requires CATCHEM_ENABLE_KOKKOS=ON (the exaero "
+    "aerosol library is built on the Kokkos-backed C++ core). Enable Kokkos "
+    "with -DCATCHEM_ENABLE_KOKKOS=ON, or configure with "
+    "-DCATCHEM_BUILD_EXAERO=OFF."
+  )
+endif()
+
 # C++ standard: C++17 everywhere except MUSICA builds — the mdspan data
 # layer and the C++ core need only 17, and 17 has broader support on the
 # UFS HPC toolchains; MUSICA requires C++20; MKPP's mkpp_host interface
 # target declares cxx_std_23, so an MKPP build requires C++23 and must fail
 # at configure time (not mid-compile) on a toolchain that cannot meet it.
-if(CATCHEM_BUILD_MKPP)
+# exaero likewise builds at C++23 (its top-level sets CXX_STANDARD 23 with
+# REQUIRED), so the exaero gate raises the same floor.
+if(CATCHEM_BUILD_MKPP OR CATCHEM_BUILD_EXAERO)
   include(CheckCXXCompilerFlag)
   # The probe result is cache-persisted, and may be pre-seeded to exercise the
   # rejection path on a host whose compiler DOES accept -std=c++23 (the
@@ -96,9 +117,10 @@ if(CATCHEM_BUILD_MKPP)
   if(NOT CATCHEM_COMPILER_SUPPORTS_CXX23)
     message(
       FATAL_ERROR
-      "CATCHEM_BUILD_MKPP=ON requires a C++23-capable compiler, but "
-      "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION} does not accept "
-      "-std=c++23 (MKPP's mkpp_host interface target declares cxx_std_23)."
+      "CATCHEM_BUILD_MKPP=ON / CATCHEM_BUILD_EXAERO=ON requires a C++23-capable "
+      "compiler, but ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION} "
+      "does not accept -std=c++23 (MKPP's mkpp_host and the exaero aerosol "
+      "library both declare cxx_std_23)."
     )
   endif()
   set(CMAKE_CXX_STANDARD 23)
@@ -136,8 +158,13 @@ if(CATCHEM_ENABLE_KOKKOS)
   )
 
   # MKPP requires Kokkos >= 5.1.1. Raise the floor so an older system install
-  # does not silently satisfy the versioned find below.
-  if(CATCHEM_BUILD_MKPP AND CATCHEM_KOKKOS_MIN_VERSION VERSION_LESS "5.1.1")
+  # does not silently satisfy the versioned find below.  exaero's aerosol
+  # library carries the same floor (it is developed and tested against the
+  # pinned Kokkos release MKPP uses).
+  if(
+    (CATCHEM_BUILD_MKPP OR CATCHEM_BUILD_EXAERO)
+    AND CATCHEM_KOKKOS_MIN_VERSION VERSION_LESS "5.1.1"
+  )
     set(CATCHEM_KOKKOS_MIN_VERSION "5.1.1")
   endif()
 
@@ -150,16 +177,18 @@ if(CATCHEM_ENABLE_KOKKOS)
   # confirms it or, when nothing is installed, allows the fetch.
   find_package(Kokkos QUIET)
   if(
-    CATCHEM_BUILD_MKPP
+    (CATCHEM_BUILD_MKPP OR CATCHEM_BUILD_EXAERO)
     AND Kokkos_FOUND
     AND Kokkos_VERSION VERSION_LESS CATCHEM_KOKKOS_MIN_VERSION
   )
     message(
       FATAL_ERROR
-      "CATCHEM_BUILD_MKPP=ON requires Kokkos >= ${CATCHEM_KOKKOS_MIN_VERSION}, "
-      "but the Kokkos installation that was found is version ${Kokkos_VERSION}. "
-      "The MKPP process cannot be built without it. Point Kokkos_ROOT/Kokkos_DIR "
-      "at a conforming install, or configure with -DCATCHEM_BUILD_MKPP=OFF."
+      "CATCHEM_BUILD_MKPP=ON / CATCHEM_BUILD_EXAERO=ON requires Kokkos >= "
+      "${CATCHEM_KOKKOS_MIN_VERSION}, but the Kokkos installation that was "
+      "found is version ${Kokkos_VERSION}. The MKPP and exaero processes "
+      "cannot be built without it. Point Kokkos_ROOT/Kokkos_DIR at a "
+      "conforming install, or configure with -DCATCHEM_BUILD_MKPP=OFF "
+      "-DCATCHEM_BUILD_EXAERO=OFF."
     )
   endif()
 

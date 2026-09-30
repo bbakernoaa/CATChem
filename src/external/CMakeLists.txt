@@ -234,3 +234,77 @@ if(CATCHEM_BUILD_MKPP)
     endif()
   endforeach()
 endif()
+
+#
+# exaero aerosol utility (optional, controlled by CATCHEM_BUILD_EXAERO)
+#
+
+if(CATCHEM_BUILD_EXAERO)
+  # exaero lives in the MKPP dependency tree (src/external/mkpp/src/exaero)
+  # and is consumed through it, never re-vendored.  MKPP's own build graph
+  # does not add this subdirectory, so there is no double-add regardless of
+  # CATCHEM_BUILD_MKPP.  CACHE ... FORCE: exaero declares each knob with
+  # option(), which reads the cache, so a plain set() would be overridden.
+  # The chemistry driver stays OFF (its inputs are not restored upstream),
+  # and exaero's standalone test runners stay OFF -- CATChem gates its own
+  # tests behind CATCHEM_BUILD_TESTING and re-runs the ABI surface the
+  # exaero suite already certifies upstream.
+  set(EXAERO_BUILD_CHEMISTRY OFF CACHE BOOL "" FORCE)
+  set(EXAERO_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+
+  # exaero's build graph bakes the pinned GEOSmie optics tables into a C++
+  # header through a Python generator (numpy + netCDF4) whenever the
+  # committed artifact is older than its inputs.  Locate the interpreter here
+  # -- exaero's own REQUIRED find then adopts it -- and probe the two import
+  # prerequisites at configure time so the failure names the missing package
+  # instead of surfacing mid-build.
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  execute_process(
+    COMMAND ${Python3_EXECUTABLE} -c "import netCDF4, numpy"
+    RESULT_VARIABLE _exaero_py_probe
+    ERROR_QUIET
+    OUTPUT_QUIET
+  )
+  if(NOT _exaero_py_probe EQUAL 0)
+    message(
+      FATAL_ERROR
+      "CATCHEM_BUILD_EXAERO=ON requires the Python packages netCDF4 and "
+      "numpy (the exaero build-time MIE-table generator), but "
+      "${Python3_EXECUTABLE} cannot import them. Install them into that "
+      "interpreter (e.g. ${Python3_EXECUTABLE} -m pip install netCDF4 "
+      "numpy), point CMake at a conforming interpreter with "
+      "-DPython3_EXECUTABLE=<path>, or configure with "
+      "-DCATCHEM_BUILD_EXAERO=OFF."
+    )
+  endif()
+
+  # The parent scope already created the Kokkos targets (the
+  # CATCHEM_ENABLE_KOKKOS block in the top-level CMakeLists runs before this
+  # file is added) and the yaml-cpp target above, so exaero's guarded
+  # find_package(Kokkos) adopts the existing targets and its
+  # find_package(yaml-cpp REQUIRED) resolves against the vendored copy.
+  add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/mkpp/src/exaero
+    ${CMAKE_CURRENT_BINARY_DIR}/exaero-build
+  )
+
+  # exaero is third-party code: re-export its include directories as SYSTEM so
+  # CATChem's Debug warning-as-error gate never fires on findings inside the
+  # headers.  Alias targets cannot carry properties, so resolve to the real
+  # target first, mirroring the MUSICA/MKPP loops above.
+  foreach(_dep exaero)
+    if(TARGET ${_dep})
+      get_target_property(_dep_real ${_dep} ALIASED_TARGET)
+      if(NOT _dep_real)
+        set(_dep_real ${_dep})
+      endif()
+      set_property(
+        TARGET ${_dep_real}
+        APPEND
+        PROPERTY
+          INTERFACE_SYSTEM_INCLUDE_DIRECTORIES
+            $<TARGET_PROPERTY:${_dep_real},INTERFACE_INCLUDE_DIRECTORIES>
+      )
+    endif()
+  endforeach()
+endif()
