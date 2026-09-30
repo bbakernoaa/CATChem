@@ -487,7 +487,11 @@ contains
       character(len=*), intent(in) :: unit
       character(len=128) :: normalized
       normalized = trim(adjustl(lowercase(unit)))
-      is_ppm_unit = normalized == 'ppm'
+      ! UFS/NUOPC metadata uses both ``ppm`` and ``ppmv`` for gas-volume
+      ! mixing ratios.  They are the same CATChem-native unit; accepting both
+      ! prevents the import path from silently treating a valid gas tracer as
+      ! an unsupported unit.
+      is_ppm_unit = normalized == 'ppm' .or. normalized == 'ppmv'
    end function is_ppm_unit
 
    pure logical function is_micro_mass_mixing_ratio_unit(unit)
@@ -3341,6 +3345,9 @@ contains
    !!
    !! Must be called after the file exists (update_time_variable creates it).
    !! Multi-tile runs mirror update_time_variable's per-tile file naming.
+   !! Every PET enters this routine, but AQMIO_WriteGlobalAttrs restricts the
+   !! define-mode writes to the root PET; the trailing barrier keeps the other
+   !! PETs out of the field writers until the root PET has closed the files.
    !!
    !! \param cc_wrap CATChem wrapper containing model state and configuration
    !! \param filename NetCDF filename just created/updated
@@ -3359,7 +3366,8 @@ contains
       character(len=16) :: tileSuffix
       type(ESMF_Grid) :: grid
       type(ESMF_VM) :: vm
-      integer :: n, na, i, tile, tileCount, dotpos, localPet
+      integer :: n, na, i, tile, tileCount, dotpos, localrc
+      logical :: failed
 
       rc = CC_SUCCESS
 
@@ -3404,6 +3412,10 @@ contains
          return
       end if
 
+      ! AQMIO_WriteGlobalAttrs resolves file ownership against the IOComp VM
+      ! and returns immediately on every non-root PET, so this loop is safe to
+      ! run on all PETs.  The per-tile guard must not be duplicated here.
+      failed = .false.
       if (tileCount > 1 .and. index(filename, '<tile>') == 0) then
          do tile = 1, tileCount
             write(tileSuffix, '(".tile",I0)') tile
@@ -3413,24 +3425,31 @@ contains
             else
                tileFilename = trim(filename) // trim(tileSuffix)
             end if
-            call AQMIO_WriteGlobalAttrs(tileFilename, names, values, n, rc=rc)
-            if (rc /= ESMF_SUCCESS) then
-               rc = CC_FAILURE
-               return
-            end if
+            call AQMIO_WriteGlobalAttrs(tileFilename, names, values, n, rc=localrc, &
+               iocomp=cc_wrap%iocomp)
+            if (localrc /= ESMF_SUCCESS) failed = .true.
          end do
       else
-         ! Single tile: only PET 0 owns the file (mirrors AQMIO_Write1D).
-         call ESMF_VMGet(vm, localPet=localPet, rc=rc)
-         if (rc == ESMF_SUCCESS .and. localPet == 0) then
-            call AQMIO_WriteGlobalAttrs(filename, names, values, n, rc=rc)
-            if (rc /= ESMF_SUCCESS) then
-               rc = CC_FAILURE
-               return
-            end if
-         end if
-         rc = CC_SUCCESS
+         call AQMIO_WriteGlobalAttrs(filename, names, values, n, rc=localrc, &
+            iocomp=cc_wrap%iocomp)
+         if (localrc /= ESMF_SUCCESS) failed = .true.
       end if
+
+      ! The root PET stamps attributes while the other PETs skip straight to
+      ! here; they must not open the same files to write field data until the
+      ! root PET has left define mode and closed them.
+      call ESMF_VMBarrier(vm, rc=rc)
+      if (rc /= ESMF_SUCCESS) then
+         rc = CC_FAILURE
+         return
+      end if
+
+      if (failed) then
+         rc = CC_FAILURE
+         return
+      end if
+
+      rc = CC_SUCCESS
 
    end subroutine write_global_attributes
 
