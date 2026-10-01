@@ -162,6 +162,13 @@ namespace {
         double radius_dry_m;
         double density_dry;
         bool hydrophobic; // curve returns the dry particle at every fixture point
+        // Peak wet/dry size ratio over the fixture's usable points, and the
+        // matching wet/dry density ratio at that point.  Both are 1 for a
+        // hydrophobic curve; the radius ratio is the hygroscopic growth factor
+        // and quantifies how much larger (and therefore faster-settling) the
+        // engine makes the particle relative to the dry Fortran baseline.
+        double swell_ratio_max = 1.0;
+        double density_ratio_at_swell = 1.0;
     };
 
     // Run one settling scheme to completion and return the resulting
@@ -261,6 +268,11 @@ int main() {
                         any_ok = true;
                         if (radius_wet[p] != info.radius_dry_m || density_wet[p] != info.density_dry)
                             all_dry = false;
+                        const double ratio = radius_wet[p] / info.radius_dry_m;
+                        if (ratio > info.swell_ratio_max) {
+                            info.swell_ratio_max = ratio;
+                            info.density_ratio_at_swell = density_wet[p] / info.density_dry;
+                        }
                     }
                     // A curve-bound species is hydrophobic only if it has a
                     // usable point AND every usable point is the dry particle.
@@ -277,7 +289,8 @@ int main() {
                 std::cout << "  classify: " << info.short_name << " [mie " << info.mie_name << "] "
                           << (info.hydrophobic ? "hydrophobic (matches baseline)"
                                                : (curve_ok ? "hygroscopic (settles faster)" : "no curve (matches)"))
-                          << '\n';
+                          << "  peak growth factor " << info.swell_ratio_max << "  (wet/dry density "
+                          << info.density_ratio_at_swell << ")\n";
             }
         }
         handle.release();
@@ -329,6 +342,20 @@ int main() {
                 check(finite && non_negative, "hygroscopic '" + info.short_name + "' output finite & non-negative");
                 if (max_rel > 1.0e-6)
                     ++n_hygro_differ;
+                // Report the physical magnitude of the divergence.  In the
+                // small-particle (Stokes) regime the fall speed scales with
+                // density times the square of the diameter, so the swollen
+                // particle settles growth-factor^2 x (wet/dry density) times
+                // faster than the dry Fortran baseline.  This is the settled
+                // fraction per unit time the engine gains over the baseline;
+                // the pointwise concentration difference below then reflects
+                // how much of that speed-up had time to move mass in one step.
+                const double vsettle_ratio = info.swell_ratio_max * info.swell_ratio_max * info.density_ratio_at_swell;
+                std::cout << "  settling diff: " << info.short_name << " growth factor " << info.swell_ratio_max
+                          << ", wet/dry density " << info.density_ratio_at_swell << " -> fall speed " << vsettle_ratio
+                          << "x the dry baseline; max pointwise rel " << max_rel
+                          << (max_rel > 1.0e-6 ? " (differs)" : " (unchanged: fine bin, little motion in one step)")
+                          << '\n';
             }
         }
 
