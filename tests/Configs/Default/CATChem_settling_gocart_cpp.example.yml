@@ -1,0 +1,42 @@
+# Gate-ON example: native C++ GOCART settling engine (scheme: gocart_cpp)
+#
+# This is an ANNOTATED FRAGMENT, not a stand-alone loadable configuration.
+# It shows the exact edits that switch the settling process from the default
+# Fortran `gocart` scheme to the native C++ port that draws wet particle size
+# from the exaero aerosol library.  Drop the `settling:` block below over the
+# matching block in a full CATChem configuration (e.g. Default/CATChem_new_config.yml).
+#
+# Build requirement: the native engine compiles only when the aerosol utility
+# is enabled, so configure with -DCATCHEM_BUILD_EXAERO=ON (which also requires
+# -DCATCHEM_ENABLE_KOKKOS=ON).  In a build without it, selecting this scheme is
+# a fatal init() error that names the build gate -- there is never a silent
+# fallback to the Fortran path.
+#
+# Default-stays-inert guarantee: the default scheme is `gocart` (Fortran), and
+# nothing in this file changes any process that does not opt in.  Only the
+# settling process that sets `scheme: gocart_cpp` consumes the library.
+#
+# Keys (all flat, directly under the process -- not a nested `exaero:` map):
+#   scheme          : gocart_cpp  (native engine; species-metadata branch only)
+#   exaero_config   : path to the exaero species YAML that defines the package
+#   gocart/*        : the same tuning options the Fortran scheme accepts, EXCEPT
+#                     simple_scheme, which must be false (the optics-table branch
+#                     is Fortran-only; gocart_cpp rejects simple_scheme: true)
+processes:
+  settling:
+    activate: true
+    diagnostics: true
+    scheme: 'gocart_cpp'
+    # The exaero species configuration.  Each settling species is resolved into
+    # this package by its __mie_name (the canonical aerosol type label: DU, SS,
+    # SU, BC, OC, ...), which is also the key exaero's baked microphysical
+    # curves are indexed by.  A species whose __mie_name is absent here aborts
+    # init() naming the config; it is never treated as a curve-less fallback.
+    exaero_config: 'Configs/exaero/settling_species.yml'
+    gocart:
+      scale_factor: 1.0
+      simple_scheme: false     # native engine implements the metadata branch only
+      swelling_method: 1       # 1 Fitzgerald 1975; 2 Gerber 1985 -- the fallback
+                               # sizing for any species exaero has no curve for
+      correction_maring: false
+      maring_dust_only: true

@@ -9,6 +9,7 @@ set(
   SettlingCommon_Mod.F90
   SettlingScienceBridge.F90
   catchem_process_settling.cpp
+  settling_gocart_kernels.cpp
 )
 
 # Define settling scheme sources
@@ -24,6 +25,15 @@ add_library(${_lib} ${SETTLING_ALL_SOURCES})
 # Link with required libraries (CATChem_core_cpp carries the Kokkos or
 # standalone-mdspan usage requirements for the C++ sources)
 target_link_libraries(${_lib} PUBLIC CATChem_core CATChem_core_cpp)
+
+# Native C++ GOCART settling engine (scheme "gocart_cpp"): when the aerosol
+# utility is enabled, the settling library links the exaero bridge and gains
+# the guard definition that compiles the engine code paths.  With the gate off
+# the file compiles unchanged and the scheme is rejected at initialization.
+if(CATCHEM_BUILD_EXAERO)
+  target_link_libraries(${_lib} PRIVATE catchem_exaero_bridge)
+  target_compile_definitions(${_lib} PRIVATE CATCHEM_HAVE_EXAERO)
+endif()
 
 # Set module directory
 set_target_properties(

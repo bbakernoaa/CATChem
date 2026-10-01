@@ -38,6 +38,10 @@ namespace catchem {
         // library include.  Asserted equal to the library constant in the .cpp.
         inline constexpr int kDiagnosticSlots = 11;
 
+        // Total microphysical attribute slots queried per (cell, level) point.
+        // Mirrors exaero's microphysical NUM_ATTRIBUTES; asserted equal in the .cpp.
+        inline constexpr int kMicrophysicalSlots = 9;
+
         // Map a configuration diagnostic name to its exaero slot code.  Names are the
         // lower-snake_case forms used in process configuration (for example
         // "gravitational_settling_velocity", "number_concentration").  Returns -1 for
@@ -92,6 +96,39 @@ namespace catchem {
             // slab is present or the indices are out of range, so a missing compute
             // surfaces as a non-finite value rather than a stale or zero reading.
             double diagnostic(int slot, int cell, int level) const;
+
+            // Per-point availability codes of an exaero attribute query, mirrored
+            // from the library's AttributeStatus enum so consumers do not need the
+            // library include.  A value is usable when attribute_value_ok() is true;
+            // the other codes say why a value is absent (no curve for the species,
+            // category deselected) and must not be read as zero.
+            static constexpr int kAttributeAvailable = 0;
+            static constexpr int kAttributeAvailableFile = 1;
+            static constexpr int kAttributeInterpolated = 2;
+            static constexpr int kAttributeNotActivated = 3;
+            static constexpr int kAttributeNotInSource = 4;
+            static constexpr int kAttributeAvailableConfig = 5;
+
+            // True when an attribute query status carries a usable value.
+            static bool attribute_value_ok(int status);
+
+            // Size one species' wet particle over a (cell, level) block,
+            // anchored on the CALLER's dry particle: the library resolves its
+            // curve's hygroscopic growth factor at each point's relative
+            // humidity and applies it to 'radius_dry'/'density_dry', so a
+            // growth of exactly 1 returns the dry particle bit-for-bit.  The
+            // met fields other than 'relative_humidity' are not needed; the
+            // RH array is column-major (cell, level), the same flat layout a
+            // Fortran-consumer host keeps its state in.  The outputs are sized
+            // num_cells*num_levels in that order; 'status_out' carries the
+            // per-point availability code above (points without a usable
+            // value leave radius/density at 0 and must fall back to another
+            // sizing source).  Returns false and fills 'error' only when the
+            // library call itself failed.
+            bool compute_wet_sizing(int num_cells, int num_levels, const double* relative_humidity, double radius_dry,
+                                    double density_dry, int species_index, std::vector<double>& radius_wet_out,
+                                    std::vector<double>& density_wet_out, std::vector<int>& status_out,
+                                    std::string& error);
 
             // The opaque exaero handle for a Fortran scheme that calls the compute
             // directly through the exaero_interface module.  Null before

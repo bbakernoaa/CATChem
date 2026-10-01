@@ -1,6 +1,7 @@
 #pragma once
 #include "catchem_process_interface.hpp"
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -48,8 +49,35 @@ namespace catchem {
         std::vector<int> diagnostic_species_id;
         std::vector<std::string> diagnostic_species_names; // parallel to ids, for run() lookups
 
+        // Native C++ GOCART settling engine (scheme "gocart_cpp").  When this
+        // scheme is selected the process runs the ported settling science in
+        // C++ and takes the wet particle radius/density from the aerosol
+        // library, so the Fortran science bridge is never invoked.  The
+        // library-facing state lives behind a pimpl defined in the
+        // translation unit, keeping the installed headers free of the
+        // dependency; selecting the scheme in a build without that support is
+        // a fatal configuration error caught during initialization.
+        bool use_cpp_engine = false;
+        struct CppEngine;
+        std::unique_ptr<CppEngine> cpp_engine;
+#ifdef CATCHEM_HAVE_EXAERO
+        // Bring up the aerosol package for the C++ engine: initialize the
+        // Kokkos runtime, load the configured species YAML, and resolve every
+        // settling species to a package index (fail-fast on any unresolved
+        // species).  Called from init() only when the C++ engine is selected.
+        void init_cpp_engine(std::shared_ptr<StateManager> state, const std::string& config_path);
+
+        // Run the ported settling science for one step over the whole grid
+        // block, reading the environment/state fields and writing tendencies
+        // plus the per-species diagnostics.  Called from run() when the C++
+        // engine is selected.
+        void run_cpp_engine(std::shared_ptr<StateManager> state);
+#endif
+
     public:
         SettlingProcess();
+        /// Out-of-line so the pimpl type is complete at the destruction point.
+        ~SettlingProcess() override;
         std::string get_name() const override { return "settling"; }
         ProcessContract get_contract() const override;
         void prepare_inputs(std::shared_ptr<StateManager> state) override;

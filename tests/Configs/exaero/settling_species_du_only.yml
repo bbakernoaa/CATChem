@@ -1,0 +1,13 @@
+# Deliberate incomplete aerosol configuration used by the fail-fast test:
+# only dust is described, so any other settling species' __mie_name must be
+# reported as undefined during initialization (never a silent fallback).
+species:
+  - name: "DU"
+    dry_density: 2600.0
+    molecular_weight: 100.0
+    dry_particle_diameter: 2.0e-6
+    hygroscopicity: 0.1
+    lognormal_sigma: 1.5
+    lognormal_dg: 1.0e-6
+    refractive_index_real: 1.55
+    refractive_index_imag: 0.002

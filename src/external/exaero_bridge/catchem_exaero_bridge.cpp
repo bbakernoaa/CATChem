@@ -7,6 +7,7 @@
 #include "catchem_exaero_bridge.hpp"
 
 #include <exaero/AerosolIndices.hpp>
+#include <exaero/AttributeQuery.hpp>
 #include <exaero/Environment.hpp>
 #include <exaero/IAerosolPackage_C.h>
 
@@ -21,6 +22,8 @@
 
 static_assert(exaero::diagnostic_indices::NUM_DIAGNOSTICS == catchem::exaero_util::kDiagnosticSlots,
               "bridge slab extent disagrees with the exaero diagnostic ABI");
+static_assert(exaero::microphysical_indices::NUM_ATTRIBUTES == catchem::exaero_util::kMicrophysicalSlots,
+              "bridge attribute extent disagrees with the exaero microphysical ABI");
 
 namespace catchem {
     namespace exaero_util {
@@ -200,6 +203,65 @@ namespace catchem {
             // Column-major (cell, level, slot): cell varies fastest.
             return slab_[static_cast<std::size_t>(slot) * slab_levels_ * slab_cells_ +
                          static_cast<std::size_t>(level) * slab_cells_ + static_cast<std::size_t>(cell)];
+        }
+
+        bool ExaeroPackageHandle::attribute_value_ok(int status) {
+            switch (status) {
+            case kAttributeAvailable:
+            case kAttributeAvailableFile:
+            case kAttributeInterpolated:
+            case kAttributeAvailableConfig:
+                return true;
+            default:
+                return false;
+            }
+        }
+
+        bool ExaeroPackageHandle::compute_wet_sizing(int num_cells, int num_levels, const double* relative_humidity,
+                                                     double radius_dry, double density_dry, int species_index,
+                                                     std::vector<double>& radius_wet_out,
+                                                     std::vector<double>& density_wet_out,
+                                                     std::vector<int>& status_out, std::string& error) {
+            error.clear();
+            if (package_ == nullptr) {
+                error = "exaero bridge: wet sizing requested before the package was initialized";
+                return false;
+            }
+            if (num_cells <= 0 || num_levels <= 0) {
+                error = "exaero bridge: non-positive grid extent";
+                return false;
+            }
+            if (relative_humidity == nullptr) {
+                error = "exaero bridge: null relative-humidity field";
+                return false;
+            }
+            if (species_index < 0) {
+                error = "exaero bridge: negative species index";
+                return false;
+            }
+            if (!(radius_dry > 0.0) || !(density_dry > 0.0)) {
+                error = "exaero bridge: non-positive dry particle sizing";
+                return false;
+            }
+            const std::size_t points = static_cast<std::size_t>(num_cells) * num_levels;
+            radius_wet_out.assign(points, 0.0);
+            density_wet_out.assign(points, 0.0);
+            status_out.assign(points, kAttributeNotInSource);
+            char errmsg[kErrmsgSize] = {0};
+            int errflg = 1;
+            // The library resolves the curve growth factor per point and anchors
+            // the mixing on the caller's dry particle; a species with no curve
+            // reports NotInSource and leaves radius/density at zero.
+            exaero_compute_wet_sizing(package_, static_cast<int>(points), relative_humidity, species_index, radius_dry,
+                                      density_dry, radius_wet_out.data(), density_wet_out.data(), status_out.data(),
+                                      errmsg, &errflg);
+            if (errflg != 0) {
+                error = std::string("exaero bridge: wet sizing compute failed: ") + errmsg;
+                return false;
+            }
+            // Fence before host reads, matching the diagnostics path.
+            exaero::fence_environment();
+            return true;
         }
 
         void ExaeroPackageHandle::release() {

@@ -474,6 +474,14 @@ add_process_unit_test(dust CATChem_process_dust)
 add_process_unit_test(drydep CATChem_process_drydep)
 add_process_unit_test(wetdep CATChem_process_wetdep)
 add_process_unit_test(settling CATChem_process_settling)
+
+# The shared settling test asserts the native-engine scheme fails fast.  When
+# the aerosol utility is not built, the abort must additionally name the build
+# gate as the remedy; this flag lets that specific check compile only in the
+# configuration where it is true.
+if(NOT CATCHEM_BUILD_EXAERO)
+  target_compile_definitions(test_catchem_settling PRIVATE CATCHEM_SETTLING_GATE_OFF)
+endif()
 add_process_unit_test(so4chem CATChem_process_so4chem)
 add_process_unit_test(carbchem CATChem_process_carbchem)
 
@@ -506,6 +514,25 @@ if(CATCHEM_HAVE_SETTLING_OPTICS_FIXTURES)
   )
   catchem_label_tests("process;settling;optics" test_catchem_settling_optics)
 endif()
+
+# Pure C++ GOCART settling kernels (the bridge-free settling engine).  These
+# are gate-independent science units compiled directly into the test so they
+# run in every configuration, including builds without the aerosol library.
+add_executable(
+  test_settling_gocart_kernels
+  test_settling_gocart_kernels.cpp
+  ${PROJECT_SOURCE_DIR}/src/process/settling/settling_gocart_kernels.cpp
+)
+target_include_directories(
+  test_settling_gocart_kernels
+  PRIVATE ${PROJECT_SOURCE_DIR}/src/process/settling
+)
+add_test(
+  NAME test_settling_gocart_kernels
+  COMMAND test_settling_gocart_kernels
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+catchem_label_tests("unit;cpp;settling" test_settling_gocart_kernels)
 
 add_executable(test_catchem_config_mie test_catchem_config_mie.cpp)
 target_link_libraries(
@@ -941,6 +968,27 @@ if(CATCHEM_BUILD_EXAERO)
   )
   add_test(NAME test_catchem_exaero_smoke COMMAND test_catchem_exaero_smoke)
   catchem_label_tests("unit;cpp;exaero" test_catchem_exaero_smoke)
+
+  # Gate-ON native-engine settling parity (scheme "gocart_cpp").  A standalone
+  # executable because the engine owns a reference-counted Kokkos runtime that
+  # a suite main() already driving Kokkos::initialize/finalize cannot share.
+  # Links the settling library (the compiled engine) and the bridge (for the
+  # direct wet-sizing classification query).
+  add_executable(test_catchem_settling_cpp test_catchem_settling_cpp.cpp)
+  target_link_libraries(
+    test_catchem_settling_cpp
+    PRIVATE CATChem_core_cpp CATChem_core CATChem_process_settling catchem_exaero_bridge
+  )
+  set_target_properties(
+    test_catchem_settling_cpp
+    PROPERTIES CXX_STANDARD 20 LINKER_LANGUAGE CXX
+  )
+  add_test(
+    NAME test_catchem_settling_cpp
+    COMMAND test_catchem_settling_cpp
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  )
+  catchem_label_tests("parity;cpp;exaero;settling" test_catchem_settling_cpp)
 endif()
 
 add_executable(test_catchem_gaschem_units test_catchem_gaschem_units.cpp)

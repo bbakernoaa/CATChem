@@ -127,6 +127,105 @@ int main() {
     handle.release();
     ok &= check(!handle.valid(), "handle invalid after release");
 
+    // ---------------------------------------------------------------------
+    // Per-species caller-anchored wet sizing (the surface the C++ settling
+    // port uses).  The library resolves its curve's growth factor at each
+    // point's RH and applies it to the CALLER's dry particle.  A species
+    // bound to a hydrophobic curve (DU, growth 1) must return the dry
+    // particle bit-for-bit -- the parity guarantee against the Fortran
+    // baseline.  A species bound to a hygroscopic curve (SeaSalt -> SS) must
+    // swell (wet radius > dry, wet density diluted toward water while
+    // conserving the dry-plus-condensate mass).  A species with no curve
+    // (Smoke) must report an unavailable status and leave the outputs at
+    // zero so the caller falls back to its own swelling parameterization
+    // rather than reading a silent 0 as physical.
+    // ---------------------------------------------------------------------
+    const char* kTwoSpeciesYaml = R"YAML(
+species:
+  - name: "DU"
+    dry_density: 2600.0
+    molecular_weight: 100.0
+    dry_particle_diameter: 2.0e-6
+    hygroscopicity: 0.1
+    lognormal_sigma: 1.5
+    lognormal_dg: 1.0e-6
+    refractive_index_real: 1.55
+    refractive_index_imag: 0.002
+  - name: "SeaSalt"
+    dry_density: 2200.0
+    molecular_weight: 58.44
+    dry_particle_diameter: 0.2e-6
+    hygroscopicity: 0.5
+    lognormal_sigma: 2.0
+    lognormal_dg: 0.15e-6
+    refractive_index_real: 1.43
+    refractive_index_imag: 1.0e-8
+    mie_table:
+      source: "SS"
+  - name: "Smoke"
+    dry_density: 1000.0
+    molecular_weight: 100.0
+    dry_particle_diameter: 2.0e-6
+    hygroscopicity: 0.0
+    lognormal_sigma: 1.5
+    lognormal_dg: 2.0e-6
+    refractive_index_real: 1.55
+    refractive_index_imag: 0.002
+)YAML";
+
+    ExaeroPackageHandle sizing;
+    ok &= check(sizing.initialize_from_yaml(kTwoSpeciesYaml, error), "sizing package init: " + error);
+    const int du_index = sizing.species_index("DU");
+    const int ss_index = sizing.species_index("SeaSalt");
+    const int smoke_index = sizing.species_index("Smoke");
+    ok &= check(du_index >= 0, "DU resolves to a species index");
+    ok &= check(ss_index >= 0, "SeaSalt resolves to a species index");
+    ok &= check(smoke_index >= 0, "Smoke resolves to a species index");
+
+    const double radius_dry = 1.0e-7;  // [m]
+    const double density_dry = 2600.0; // [kg m^-3]
+    std::vector<double> radius_out, density_out;
+    std::vector<int> status_out;
+
+    // Hydrophobic DU: growth 1 at every stored RH, so the anchored sizing is
+    // the caller's dry particle, exactly.
+    ok &= check(sizing.compute_wet_sizing(n_cells, n_levels, relative_humidity.data(), radius_dry, density_dry,
+                                          du_index, radius_out, density_out, status_out, error),
+                "compute_wet_sizing(DU): " + error);
+    ok &= check(radius_out.size() == static_cast<std::size_t>(n_cells * n_levels), "DU radius output sized");
+    ok &= check(ExaeroPackageHandle::attribute_value_ok(status_out[0]), "DU wet sizing is available");
+    ok &= check(radius_out[0] == radius_dry, "hydrophobic DU keeps the dry radius bit-for-bit");
+    ok &= check(density_out[0] == density_dry, "hydrophobic DU keeps the dry density bit-for-bit");
+
+    // Hygroscopic SeaSalt: the curve swells the caller's particle; wet radius
+    // grows, wet density dilutes toward water, and dry-plus-condensate mass is
+    // conserved (the physical invariant behind the volume-weighted mixing).
+    ok &= check(sizing.compute_wet_sizing(n_cells, n_levels, relative_humidity.data(), radius_dry, density_dry,
+                                          ss_index, radius_out, density_out, status_out, error),
+                "compute_wet_sizing(SeaSalt): " + error);
+    ok &= check(ExaeroPackageHandle::attribute_value_ok(status_out[0]), "SeaSalt wet sizing is available");
+    ok &= check(std::isfinite(radius_out[0]) && radius_out[0] > radius_dry, "SeaSalt swells the wet radius");
+    ok &= check(density_out[0] < density_dry && density_out[0] > 1000.0, "SeaSalt density dilutes toward water");
+    {
+        const double dry_vol = (4.0 / 3.0) * M_PI * radius_dry * radius_dry * radius_dry;
+        const double wet_vol = (4.0 / 3.0) * M_PI * radius_out[0] * radius_out[0] * radius_out[0];
+        const double mass_wet = density_out[0] * wet_vol;
+        const double mass_parts = density_dry * dry_vol + 1000.0 * (wet_vol - dry_vol);
+        ok &= check(std::abs(mass_wet - mass_parts) <= 1.0e-9 * std::abs(mass_parts),
+                    "SeaSalt wet sizing conserves dry-plus-condensate mass");
+    }
+
+    // A curve-less species reports an unavailable status and leaves the value
+    // at the zero the bridge initialized it to (never a fabricated number).
+    ok &= check(sizing.compute_wet_sizing(n_cells, n_levels, relative_humidity.data(), radius_dry, density_dry,
+                                          smoke_index, radius_out, density_out, status_out, error),
+                "compute_wet_sizing(Smoke): " + error);
+    ok &= check(!ExaeroPackageHandle::attribute_value_ok(status_out[0]), "Smoke wet sizing is unavailable");
+    ok &= check(status_out[0] == ExaeroPackageHandle::kAttributeNotInSource, "Smoke status is NotInSource");
+    ok &= check(radius_out[0] == 0.0 && density_out[0] == 0.0, "unavailable sizing leaves zeros");
+
+    sizing.release();
+
     ExaeroPackageHandle::finalize_environment();
 
     if (!ok) {

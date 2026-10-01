@@ -347,6 +347,49 @@ int main(int argc, char* argv[]) {
         test_settling_diagnostics();
         test_settling_diag_off_matches();
 
+        // --- Native-engine scheme selection fails fast ----------------------
+        // Selecting the native C++ engine (scheme "gocart_cpp") must abort
+        // init() with a named remedy rather than silently falling back to the
+        // Fortran path.  The message always opens by naming the scheme, so the
+        // base assertion holds in every build; in a build without the aerosol
+        // library the remedy additionally names the build gate.
+        {
+            Fixture fix;
+            auto core = std::make_shared<catchem::Core>(fix.n_cols, fix.n_levels, fix.n_species);
+            auto state = bind_state(core, fix, FieldFlag::F_ALL);
+            auto config = std::make_shared<catchem::ConfigManager>();
+            config->load_from_file("CATChem_new_config.yml");
+            YAML::Node gocart;
+            gocart["scale_factor"] = 1.0;
+            gocart["simple_scheme"] = false;
+            gocart["swelling_method"] = 1;
+            gocart["correction_maring"] = false;
+            gocart["maring_dust_only"] = true;
+            YAML::Node settings;
+            settings["gocart"] = gocart;
+            auto& proc = config->data.processes["settling"];
+            proc.activate = true;
+            proc.scheme = "gocart_cpp";
+            proc.set_settings_node(settings);
+            state->attach_config_manager(config);
+
+            std::string message;
+            bool aborted = false;
+            try {
+                auto settling = catchem::ProcessRegistry::get_instance().create("settling");
+                settling->init(state);
+            } catch (const std::exception& error) {
+                aborted = true;
+                message = error.what();
+            }
+            check(aborted && message.find("Settling scheme 'gocart_cpp' requires") != std::string::npos,
+                  "gocart_cpp aborts init() with a named remedy (never a silent fallback)");
+#ifdef CATCHEM_SETTLING_GATE_OFF
+            check(message.find("reconfigure with -DCATCHEM_BUILD_EXAERO=ON") != std::string::npos,
+                  "gate-OFF build names the aerosol-library build gate as the remedy");
+#endif
+        }
+
         std::cout << (failures == 0 ? "SUCCESS: all settling assertions passed.\n"
                                     : "FAILURE: " + std::to_string(failures) + " settling assertion(s) failed.\n");
     }
