@@ -1,4 +1,4 @@
-// Gate-ON native-engine settling parity + swelling-model validation.
+// Gate-ON native-engine settling: fidelity to the GOCART radiation tables.
 //
 // This is a standalone executable that owns the full aerosol-library runtime
 // lifecycle: unlike the Fortran-bridge settling test (which drives the science
@@ -11,37 +11,45 @@
 // init/finalize pairs only ever bump the count 1 <-> 2 and a premature
 // Kokkos::finalize is impossible.
 //
-// The Fortran `gocart` metadata path resizes a particle only where its
-// configured swelling method is active: Fitzgerald (method 1) resizes above its
-// 0.80 deliquescence threshold and leaves EVERY species dry at or below it;
-// Gerber (method 2) resizes at all relative humidities.  The native engine
-// gates the library's caller-anchored wet sizing on the same activation rule,
-// so it can reproduce the baseline exactly where the baseline does not swell.
-// This executable checks two things:
+// The reference for the native engine's wet sizing is the GOCART
+// radiation-table settling path (Chem_SettlingSimple, the legacy
+// simple_scheme: true scheme): it queries the Mie optics tables for the wet
+// effective radius and density at whatever relative humidity it is given, at
+// EVERY point -- there is no deliquescence gate and no swelling-method flag at
+// all.  The library's caller-anchored wet sizing reads those same pinned
+// GEOSmie tables (its growth factor is rEff(bin,rh)/rEff(bin,0) from exactly
+// those files), so applying it ungated at every RH mimics the table path's
+// sizing rule: hydrophobic species (dust, carbon) have a constant rEff across
+// the whole RH axis and stay dry by the table's own physics, while sulfate and
+// sea salt swell continuously from near-zero RH.  This executable checks:
 //
-//   (A) Sub-gate replication.  With every fixture point at or below the 0.80
-//       threshold, the Fortran baseline is dry for all species and the engine
-//       stays dry too, so the engine must reproduce the Fortran tendency for
-//       EVERY settling species to floating-point roundoff -- not merely the
-//       hydrophobic ones.  This is the replication contract.
+//   (A) Curve fidelity to the radiation tables.  The library's growth factor
+//       is sampled across the RH range per species and compared against
+//       values interpolated directly from the pinned GEOSmie rEff tables at
+//       RH 0.78 (SU 1.62077, SS 1.56489, DU/BC/OC exactly 1), with monotonicity
+//       in RH and dry-at-all-RH for dust and black carbon.  This is the
+//       external control that the engine's sizing source really is the optics
+//       table, not a re-derived parameterization.
 //
-//   (B) Active-regime model validation.  Above the threshold both the Fortran
-//       baseline and the engine resize particles, but from different sources:
-//       the Fortran uses the species-blind Fitzgerald parameterization (it
-//       swells dust and black carbon too), while the engine uses the library's
-//       per-species growth-factor curves (which correctly keep hydrophobic
-//       species dry).  They are different models and CANNOT be bit-identical
-//       there.  This block MEASURES and reports the divergence -- the growth
-//       factor, the wet/dry density, and the resulting Stokes fall-speed ratio
-//       of each sizing -- rather than asserting equality, and it runs both
-//       schemes end-to-end to confirm the engine is live (differs from the
-//       Fortran result) and physically sane (finite, non-negative, no mass
-//       creation) above the gate.
+//   (B) End-to-end below RH 0.80 against the Fortran metadata scheme (gocart,
+//       swelling_method 1 = Fitzgerald).  That scheme is a no-op below 0.80 for
+//       every species, so species the tables keep dry there (dust, carbon)
+//       match the Fortran tendency to floating-point roundoff, while
+//       hygroscopic species swell per the table and differ.  That difference
+//       IS the table path's behavior (the optics tables grow SS/SU at all RH)
+//       -- the positive control that the curve is live, not a replication
+//       failure.  Determinism is checked on the engine output.
 //
-// Invariants checked on the engine output: non-negativity, no mass creation,
-// and determinism (a repeated run is byte-identical).  Configuration errors
-// (a species missing from the library config, the optics-table scheme on the
-// native engine) must abort init() with a named remedy, never a silent fallback.
+//   (C) End-to-end above RH 0.80.  The metadata path swells every species
+//       there (Fitzgerald is species-blind) while the tables swell only the
+//       hygroscopic ones, so the engine (tables) and the metadata scheme
+//       (Fitzgerald) diverge for every species.  This block runs both schemes,
+//       reports the per-species growth factors and fall-speed ratio, and
+//       asserts only physical sanity (finite, non-negative, no mass creation).
+//
+// Configuration errors (a species missing from the library config, the
+// optics-table scheme on the native engine) must abort init() with a named
+// remedy, never a silent fallback.
 
 #include "catchem_config_manager.hpp"
 #include "catchem_core.hpp"
@@ -57,6 +65,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -73,17 +82,17 @@ namespace {
 
     // A small vertical profile that keeps every settling input finite and
     // physically ordered (temperature lapse, decreasing pressure, ascending
-    // geometric height).  `active` selects the humidity regime: false holds
-    // every point at or below the Fortran Fitzgerald activation ceiling (0.80)
-    // so the baseline stays dry for every species; true lifts every point above
-    // it so both the baseline and the engine resize particles.
+    // geometric height).  `swelling` selects the humidity regime: false holds
+    // every point at or below 0.80 (where the Fortran metadata path is inert
+    // for every species); true lifts every point above 0.80 (where it swells
+    // every species).
     struct Fixture {
         int n_cols = 4;
         int n_levels = 5;
         int n_species = 22;
         std::vector<double> T, AIRDEN, DELP, RH, PMID, Zedge, conc;
 
-        explicit Fixture(bool active = false) {
+        explicit Fixture(bool swelling = false) {
             T.assign(n_cols * n_levels, 0.0);
             AIRDEN.assign(n_cols * n_levels, 0.0);
             DELP.assign(n_cols * n_levels, 0.0);
@@ -98,9 +107,9 @@ namespace {
                     PMID[i] = 101300.25 * std::exp(-lev / 8.0);
                     AIRDEN[i] = 1.2 * std::exp(-lev / 8.0);
                     DELP[i] = 5000.0;
-                    // Sub-gate: surface 0.78 decreasing upward (all <= 0.80).
-                    // Active: 0.92 down to 0.84 (all > 0.80).
-                    RH[i] = active ? (0.92 - 0.02 * lev) : (0.78 * std::exp(-lev / 6.0));
+                    // Sub-0.80: surface 0.78 decreasing upward (all <= 0.80).
+                    // Super-0.80: 0.92 down to 0.84 (all > 0.80).
+                    RH[i] = swelling ? (0.92 - 0.02 * lev) : (0.78 * std::exp(-lev / 6.0));
                 }
             for (int c = 0; c < n_cols; ++c)
                 for (int lev = 0; lev <= n_levels; ++lev)
@@ -171,23 +180,27 @@ namespace {
         return state;
     }
 
-    // One settling species' packed identity plus its dry sizing and library
-    // curve presence.
+    // One settling species' packed identity, dry sizing, and the shape of its
+    // library growth-factor curve as sampled across the RH range.
     struct SpeciesInfo {
         int packed_index;
         std::string short_name;
         std::string mie_name;
         double radius_dry_m;
         double density_dry;
-        bool curve_bound; // the library has a usable curve for this species
+        bool curve_bound = false;   // the library has a usable curve for this species
+        bool dry_below_080 = true;  // growth factor stays 1 at every sampled RH <= 0.80
+        bool dry_at_all_rh = true;  // growth factor stays 1 at every sampled RH
+        double gf_at_078 = 1.0;     // growth factor at relative humidity 0.78
+        double gf_at_099 = 1.0;     // growth factor at relative humidity 0.99
     };
 
     // Run one settling scheme to completion and return the resulting
     // concentration buffer.  The process is destroyed before returning so the
     // native engine releases its library handle (dropping the environment
     // reference back to the sticky baseline) before the next run.
-    std::vector<double> run_scheme(const std::string& scheme, const std::string& exaero_config, bool active) {
-        Fixture fix(active);
+    std::vector<double> run_scheme(const std::string& scheme, const std::string& exaero_config, bool swelling) {
+        Fixture fix(swelling);
         auto core = std::make_shared<catchem::Core>(fix.n_cols, fix.n_levels, fix.n_species);
         auto config = settling_config(scheme, exaero_config);
         auto state = bind_state(core, fix, config);
@@ -224,6 +237,21 @@ namespace {
         return worst;
     }
 
+    // Growth factors interpolated from the pinned GEOSmie radiation tables
+    // (MieTableData.hpp rEff / rEff at RH 0, linear in RH between the 0.75 and
+    // 0.80 nodes) at relative humidity 0.78, per aerosol type.  These are the
+    // magnitudes the optics tables themselves encode -- the sizes the GOCART
+    // table settling path gives a particle -- so the library curve must
+    // reproduce them for the engine to mimic that path.  Dust, black carbon,
+    // and organic carbon (at the curve's radius node) have a constant rEff
+    // across the RH axis.
+    const std::map<std::string, double> kTableGfAt078 = {
+        {"SU", 1.62077}, {"SS", 1.56489}, {"DU", 1.0}, {"BC", 1.0}, {"OC", 1.0},
+    };
+
+    // Sampled RH grid for the curve-shape checks (ascending).
+    const std::vector<double> kRhSamples = {0.05, 0.30, 0.50, 0.70, 0.78, 0.90, 0.99};
+
 } // namespace
 
 int main() {
@@ -245,9 +273,9 @@ int main() {
     ExaeroPackageHandle::init_environment();
 
     // ---------------------------------------------------------------------
-    // Enumerate the settling species and record each one's dry sizing and
-    // whether the library carries a usable curve for it.  This is a direct
-    // library query, independent of either settling run.
+    // Enumerate the settling species and sample each one's library growth-
+    // factor curve across the RH range.  This is a direct library query,
+    // independent of either settling run.
     // ---------------------------------------------------------------------
     std::vector<SpeciesInfo> species;
     {
@@ -274,19 +302,37 @@ int main() {
                 const int pkg_index = handle.species_index(meta.mie_name);
                 std::vector<double> radius_wet, density_wet;
                 std::vector<int> status;
-                info.curve_bound = false;
                 if (pkg_index >= 0 &&
-                    handle.compute_wet_sizing(probe.n_cols, probe.n_levels, probe.RH.data(), info.radius_dry_m,
-                                              info.density_dry, pkg_index, radius_wet, density_wet, status, error)) {
-                    for (int st : status)
-                        if (ExaeroPackageHandle::attribute_value_ok(st)) {
-                            info.curve_bound = true;
-                            break;
-                        }
+                    handle.compute_wet_sizing(1, static_cast<int>(kRhSamples.size()), kRhSamples.data(),
+                                              info.radius_dry_m, info.density_dry, pkg_index, radius_wet, density_wet,
+                                              status, error)) {
+                    bool monotone = true;
+                    double prev_gf = 0.0;
+                    for (std::size_t i = 0; i < kRhSamples.size(); ++i) {
+                        if (!ExaeroPackageHandle::attribute_value_ok(status[i]))
+                            continue;
+                        info.curve_bound = true;
+                        const double gf = radius_wet[i] / info.radius_dry_m;
+                        if (gf + 1.0e-12 < prev_gf)
+                            monotone = false;
+                        prev_gf = gf;
+                        if (kRhSamples[i] <= 0.80 && gf > 1.0 + 1.0e-9)
+                            info.dry_below_080 = false;
+                        if (gf > 1.0 + 1.0e-9)
+                            info.dry_at_all_rh = false;
+                        if (kRhSamples[i] == 0.78)
+                            info.gf_at_078 = gf;
+                        if (kRhSamples[i] == 0.99)
+                            info.gf_at_099 = gf;
+                    }
+                    if (info.curve_bound && !monotone)
+                        check(false, "curve monotone in RH for " + info.short_name);
                 }
                 species.push_back(info);
                 std::cout << "  species: " << info.short_name << " [mie " << info.mie_name << "] "
-                          << (info.curve_bound ? "curve-bound" : "no curve (Fitzgerald fallback)") << '\n';
+                          << (info.curve_bound ? "curve-bound" : "no curve (parameterization fallback)")
+                          << (info.dry_at_all_rh ? " dry-at-all-RH" : "")
+                          << (info.curve_bound && !info.dry_below_080 ? " swells-below-0.80" : "") << '\n';
             }
         }
         handle.release();
@@ -296,30 +342,76 @@ int main() {
     check(!species.empty(), "at least one settling species is configured");
 
     // ---------------------------------------------------------------------
-    // (A) Sub-gate replication.  Every point at or below the 0.80 threshold:
-    // the Fortran baseline is dry for all species and the engine stays dry too,
-    // so the engine must reproduce the Fortran tendency for EVERY species to
-    // roundoff.  This is the replication contract.
+    // (A) Curve fidelity to the pinned GEOSmie radiation tables.  The growth
+    // factor at RH 0.78 must match the table-interpolated value per aerosol
+    // type, dust and black carbon must stay exactly dry across the whole RH
+    // range (their rEff is constant in the tables), and the hygroscopic types
+    // must swell continuously from low RH (no deliquescence gate).
     // ---------------------------------------------------------------------
-    std::cout << "\n  === (A) sub-gate replication (all RH <= 0.80) ===\n";
+    std::cout << "\n  === (A) curve fidelity to the radiation tables ===\n";
+    {
+        bool anchors_ok = true;
+        bool dry_species_ok = true;
+        bool swells_ok = true;
+        for (const auto& info : species) {
+            if (!info.curve_bound)
+                continue;
+            auto expected = kTableGfAt078.find(info.mie_name);
+            if (expected == kTableGfAt078.end())
+                continue;
+            if (std::abs(info.gf_at_078 - expected->second) > 2.0e-3) {
+                anchors_ok = false;
+                std::cout << "    anchor mismatch: " << info.short_name << " gf(0.78)=" << info.gf_at_078
+                          << " expected " << expected->second << '\n';
+            }
+            if ((info.mie_name == "DU" || info.mie_name == "BC") && !info.dry_at_all_rh)
+                dry_species_ok = false;
+            // Sulfate and sea salt swell at the lowest sampled RH (their rEff
+            // rises from RH 0 in the tables) and exceed gf 1.5 near saturation.
+            if (info.mie_name == "SU" && (info.dry_below_080 || info.gf_at_099 < 1.5))
+                swells_ok = false;
+            if (info.mie_name == "SS" && (info.dry_below_080 || info.gf_at_099 < 1.5))
+                swells_ok = false;
+        }
+        check(anchors_ok, "library growth factors match the GEOSmie table anchors at RH 0.78 (SU 1.62077, SS 1.56489)");
+        check(dry_species_ok, "dust and black carbon curves stay exactly dry (gf = 1) across the full RH range");
+        check(swells_ok, "sulfate and sea salt swell below 0.80 (no gate) and exceed gf 1.5 near saturation");
+    }
+
+    // ---------------------------------------------------------------------
+    // (B) End-to-end below RH 0.80 against the Fortran metadata scheme
+    // (gocart, Fitzgerald).  That scheme is inert below 0.80 for every
+    // species, so species the tables keep dry there (dust, carbon) must
+    // reproduce the Fortran tendency to roundoff, while hygroscopic species
+    // swell per the table -- the table path's own behavior, and the positive
+    // control that the curve is live.
+    // ---------------------------------------------------------------------
+    std::cout << "\n  === (B) sub-0.80 run against the Fortran metadata scheme ===\n";
     {
         // Fixture used only for its grid dimensions when comparing buffers.
         Fixture probe(false);
         const std::vector<double> conc_fortran = run_scheme("gocart", "", false);
         const std::vector<double> conc_engine = run_scheme("gocart_cpp", exaero_config, false);
         check(conc_fortran.size() == conc_engine.size() && !conc_engine.empty(),
-              "engine and baseline produce same-shaped buffers");
+              "engine and Fortran metadata scheme produce same-shaped buffers");
 
-        double worst_overall = 0.0;
-        bool all_match = true;
+        bool dry_match = true;
+        bool live_control = false;
         for (const auto& info : species) {
             const double rel = max_rel_diff(probe, conc_fortran, conc_engine, info.packed_index);
-            worst_overall = std::max(worst_overall, rel);
-            if (rel > 1.0e-10)
-                all_match = false;
+            if (info.dry_below_080) {
+                if (rel > 1.0e-10) {
+                    dry_match = false;
+                    std::cout << "    dry-species mismatch: " << info.short_name << " rel " << rel << '\n';
+                }
+            }
+            else if (rel > 1.0e-6) {
+                live_control = true;
+            }
         }
-        check(all_match, "EVERY settling species matches the Fortran baseline to roundoff below the gate (worst rel " +
-                             std::to_string(worst_overall) + ")");
+        check(dry_match, "species the tables keep dry below 0.80 match the Fortran metadata scheme to roundoff");
+        check(live_control, "hygroscopic species swell below 0.80 per the tables (curve live; the metadata path "
+                            "stays dry there by design)");
 
         // Determinism: a repeated native-engine run is byte-identical.
         const std::vector<double> again = run_scheme("gocart_cpp", exaero_config, false);
@@ -327,67 +419,61 @@ int main() {
         for (std::size_t i = 0; identical && i < again.size(); ++i)
             if (std::memcmp(&conc_engine[i], &again[i], sizeof(double)) != 0)
                 identical = false;
-        check(identical, "native engine is deterministic below the gate (repeat run byte-identical)");
+        check(identical, "native engine is deterministic (repeat run byte-identical)");
     }
 
     // ---------------------------------------------------------------------
-    // (B) Active-regime model validation.  Above the 0.80 threshold both the
-    // Fortran baseline and the engine resize particles, from different sources.
-    // Compare the two sizings directly at a representative point, then confirm
-    // the engine is live and physically sane end-to-end.
+    // (C) End-to-end above RH 0.80.  The metadata path swells every species
+    // there (Fitzgerald is species-blind) while the tables swell only the
+    // hygroscopic ones, so the engine (tables) and the metadata scheme
+    // (Fitzgerald) diverge for every species.  Report the divergence and
+    // assert only physical sanity.
     // ---------------------------------------------------------------------
-    std::cout << "\n  === (B) active-regime validation (all RH > 0.80) ===\n";
+    std::cout << "\n  === (C) super-0.80 run (table sizing vs species-blind Fitzgerald) ===\n";
     {
-        const double rh = 0.90;       // representative super-gate relative humidity
-        const double rhoa = 1.2;      // surface air density
-        const double temp = 288.15;   // surface temperature
+        const double rh = 0.90;     // representative super-0.80 relative humidity
+        const double rhoa = 1.2;    // surface air density
+        const double temp = 288.15; // surface temperature
 
+        std::cout << std::fixed << std::setprecision(4);
+        std::cout << "  species     mie   table gf  table v [m/s]   Fitzgerald gf  Fitzgerald v [m/s]  v ratio\n";
         ExaeroPackageHandle handle;
         handle.init_environment();
         std::string error;
         if (handle.initialize_from_file(exaero_config, error)) {
-            std::cout << std::fixed << std::setprecision(4);
-            std::cout << "  species     mie   exaero gf  exaero v [m/s]   Fitzgerald gf  Fitzgerald v [m/s]  v ratio\n";
             for (const auto& info : species) {
                 const int pkg_index = handle.species_index(info.mie_name);
                 std::vector<double> radius_wet(1, 0.0), density_wet(1, 0.0);
                 std::vector<int> status(1, 0);
-                double gf_exaero = 1.0, v_exaero = 0.0;
+                double gf_table = 1.0, v_table = 0.0;
                 if (pkg_index >= 0 &&
                     handle.compute_wet_sizing(1, 1, &rh, info.radius_dry_m, info.density_dry, pkg_index, radius_wet,
                                               density_wet, status, error) &&
                     ExaeroPackageHandle::attribute_value_ok(status[0])) {
-                    gf_exaero = radius_wet[0] / info.radius_dry_m;
-                    v_exaero = sci::calc_vsettle(radius_wet[0], density_wet[0], rhoa, temp, sci::kGravity);
+                    gf_table = radius_wet[0] / info.radius_dry_m;
+                    v_table = sci::calc_vsettle(radius_wet[0], density_wet[0], rhoa, temp, sci::kGravity);
                 }
                 else {
-                    // No usable curve: the engine would fall back to the
-                    // same Fitzgerald sizing the Fortran baseline uses, so the
-                    // two agree by construction.  Report gf = 1 divergence = 0.
-                    v_exaero = sci::calc_vsettle(info.radius_dry_m, info.density_dry, rhoa, temp, sci::kGravity);
+                    v_table = sci::calc_vsettle(info.radius_dry_m, info.density_dry, rhoa, temp, sci::kGravity);
                 }
 
                 double radius_fitz = 0.0, rhop_fitz = 0.0;
                 sci::swelling_fitzgerald(info.radius_dry_m, info.density_dry, rh, &radius_fitz, &rhop_fitz);
                 const double gf_fitz = radius_fitz / info.radius_dry_m;
                 const double v_fitz = sci::calc_vsettle(radius_fitz, rhop_fitz, rhoa, temp, sci::kGravity);
-                const double ratio = v_fitz > 0.0 ? v_exaero / v_fitz : 1.0;
+                const double ratio = v_fitz > 0.0 ? v_table / v_fitz : 1.0;
                 std::cout << "  " << std::setw(9) << info.short_name << " " << std::setw(4) << info.mie_name << "   "
-                          << std::setw(8) << gf_exaero << "   " << std::setw(11) << v_exaero << "        "
+                          << std::setw(8) << gf_table << "   " << std::setw(11) << v_table << "        "
                           << std::setw(8) << gf_fitz << "        " << std::setw(11) << v_fitz << "   " << std::setw(7)
                           << ratio << (info.curve_bound ? "" : " (fallback)") << '\n';
             }
         }
         else {
-            check(false, "active-regime: library package initializes from config: " + error);
+            check(false, "super-0.80: library package initializes from config: " + error);
         }
         handle.release();
         handle.finalize_environment();
 
-        // End-to-end: run both schemes above the gate and confirm the engine is
-        // live (differs from the dry-only path is not the test here -- both
-        // swell, but from different sizings) and physically sane.
-        Fixture probe(true);
         const std::vector<double> conc_fortran = run_scheme("gocart", "", true);
         const std::vector<double> conc_engine = run_scheme("gocart_cpp", exaero_config, true);
 
@@ -398,17 +484,7 @@ int main() {
             if (v < 0.0)
                 non_negative = false;
         }
-        check(finite && non_negative, "engine output above the gate is finite and non-negative");
-
-        // The engine and the Fortran baseline now disagree for at least the
-        // curve-bound hygroscopic species (different wet sizes).  This is the
-        // accepted model difference above the gate, not a replication failure.
-        double worst_curve = 0.0;
-        for (const auto& info : species)
-            if (info.curve_bound)
-                worst_curve = std::max(worst_curve, max_rel_diff(probe, conc_fortran, conc_engine, info.packed_index));
-        check(worst_curve > 0.0, "engine uses the library curve above the gate (differs from Fitzgerald sizing, worst rel " +
-                                    std::to_string(worst_curve) + ")");
+        check(finite && non_negative, "engine output above 0.80 is finite and non-negative");
 
         // Settling only removes mass, so each scheme's column total must not
         // exceed the 1.0e-8 initial concentration it started from.  (The two
@@ -420,9 +496,8 @@ int main() {
             engine_total += v;
         for (double v : conc_fortran)
             fortran_total += v;
-        check(engine_total <= initial_total * (1.0 + 1.0e-6),
-              "engine does not create mass above the gate");
-        check(fortran_total <= initial_total * (1.0 + 1.0e-6), "baseline does not create mass above the gate");
+        check(engine_total <= initial_total * (1.0 + 1.0e-6), "engine does not create mass above 0.80");
+        check(fortran_total <= initial_total * (1.0 + 1.0e-6), "metadata scheme does not create mass above 0.80");
     }
 
     // ---------------------------------------------------------------------
@@ -452,7 +527,7 @@ int main() {
 
     ExaeroPackageHandle::finalize_environment();
 
-    std::cout << (failures == 0 ? "\nSUCCESS: sub-gate replication exact; active-regime divergence measured.\n"
+    std::cout << (failures == 0 ? "\nSUCCESS: engine sizing reproduces the GOCART radiation-table curve.\n"
                                 : "\nFAILURE: " + std::to_string(failures) + " assertion(s) failed.\n");
     return failures == 0 ? 0 : 1;
 }

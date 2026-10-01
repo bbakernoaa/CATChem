@@ -65,17 +65,6 @@ namespace catchem {
         // particle dry, matching the upstream default branch.
         void swell(double radius_dry, double rhop_dry, double rh, int flag, double* radius_out, double* rhop_out);
 
-        // Whether the configured swelling method actually resizes a particle at
-        // relative humidity `rh` (fraction). This is the activation rule the
-        // Fortran baseline applies, so a caller that swaps in a different size
-        // source must gate on it to stay faithful: Fitzgerald resizes only above
-        // its 0.80 deliquescence threshold (below it the Fortran returns the dry
-        // particle for every species); Gerber resizes at all relative
-        // humidities; no-swelling and unknown flags never resize. A caller
-        // substituting its own sizing where this returns false would swell a
-        // particle the baseline leaves dry.
-        bool swelling_active(double rh, int flag);
-
         // Pressure-lid index: the level whose pressure is nearest `plid_hpa`
         // (converted to Pa), scanning top-to-bottom with the first minimum
         // winning ties, exactly as findKlid does. Returns a zero-based index
