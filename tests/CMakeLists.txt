@@ -979,6 +979,14 @@ if(CATCHEM_BUILD_EXAERO)
     test_catchem_settling_cpp
     PRIVATE CATChem_core_cpp CATChem_core CATChem_process_settling catchem_exaero_bridge
   )
+  # The active-regime validation block calls the GOCART swelling kernels
+  # directly to compare the library curve against the Fitzgerald baseline.
+  # Those kernels are compiled into CATChem_process_settling (already linked);
+  # this only exposes their header.
+  target_include_directories(
+    test_catchem_settling_cpp
+    PRIVATE ${PROJECT_SOURCE_DIR}/src/process/settling
+  )
   set_target_properties(
     test_catchem_settling_cpp
     PROPERTIES CXX_STANDARD 20 LINKER_LANGUAGE CXX

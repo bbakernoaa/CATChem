@@ -178,6 +178,22 @@ namespace catchem {
             }
         }
 
+        bool swelling_active(double rh, int flag) {
+            switch (flag) {
+            case 1:
+                // Fitzgerald resizes only above the deliquescence threshold;
+                // at or below it the Fortran returns the dry particle for every
+                // species, so a substitute sizing must stay dry too.
+                return rh > kFitzgeraldRhThreshold;
+            case 2:
+                // Gerber resizes at every relative humidity (no threshold).
+                return true;
+            case 0:
+            default:
+                return false;
+            }
+        }
+
         int find_klid(const double* press, int n, double plid_hpa) {
             const double plid_pa = plid_hpa * 100.0;
             int klid = 0; // zero-based; Fortran starts at 1 and takes the first minimum

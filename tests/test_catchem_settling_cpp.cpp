@@ -1,4 +1,4 @@
-// Gate-ON native-engine settling parity test (scheme: gocart_cpp).
+// Gate-ON native-engine settling parity + swelling-model validation.
 //
 // This is a standalone executable that owns the full aerosol-library runtime
 // lifecycle: unlike the Fortran-bridge settling test (which drives the science
@@ -11,22 +11,32 @@
 // init/finalize pairs only ever bump the count 1 <-> 2 and a premature
 // Kokkos::finalize is impossible.
 //
-// The parity contract, mirroring the Fortran scheme:
-//   * The Fortran `gocart` metadata path applies ParticleSwelling (Fitzgerald)
-//     only where RH > 0.80; below that ceiling every species stays dry.  The
-//     fixture holds every point at or below that ceiling, so the Fortran
-//     baseline sizes EVERY species with its dry radius and density.
-//   * The native engine sizes a species from exaero's caller-anchored wet
-//     sizing where the species' curve is bound, and from the same Fitzgerald/
-//     Gerber parameterization otherwise.  A hydrophobic curve (growth factor
-//     exactly 1) returns the caller's dry particle, so the engine feeds the
-//     identical (radius, density) to the identical ported solver and reproduces
-//     the Fortran tendency to floating-point roundoff.  A hygroscopic curve
-//     (growth factor > 1) swells the particle where the Fortran baseline does
-//     not, so it settles faster and leaves less mass -- the positive control
-//     that the curve is actually driving the result.
-//   * Species are classified by querying the library directly, independent of
-//     either settling run, so the assertions are not circular.
+// The Fortran `gocart` metadata path resizes a particle only where its
+// configured swelling method is active: Fitzgerald (method 1) resizes above its
+// 0.80 deliquescence threshold and leaves EVERY species dry at or below it;
+// Gerber (method 2) resizes at all relative humidities.  The native engine
+// gates the library's caller-anchored wet sizing on the same activation rule,
+// so it can reproduce the baseline exactly where the baseline does not swell.
+// This executable checks two things:
+//
+//   (A) Sub-gate replication.  With every fixture point at or below the 0.80
+//       threshold, the Fortran baseline is dry for all species and the engine
+//       stays dry too, so the engine must reproduce the Fortran tendency for
+//       EVERY settling species to floating-point roundoff -- not merely the
+//       hydrophobic ones.  This is the replication contract.
+//
+//   (B) Active-regime model validation.  Above the threshold both the Fortran
+//       baseline and the engine resize particles, but from different sources:
+//       the Fortran uses the species-blind Fitzgerald parameterization (it
+//       swells dust and black carbon too), while the engine uses the library's
+//       per-species growth-factor curves (which correctly keep hydrophobic
+//       species dry).  They are different models and CANNOT be bit-identical
+//       there.  This block MEASURES and reports the divergence -- the growth
+//       factor, the wet/dry density, and the resulting Stokes fall-speed ratio
+//       of each sizing -- rather than asserting equality, and it runs both
+//       schemes end-to-end to confirm the engine is live (differs from the
+//       Fortran result) and physically sane (finite, non-negative, no mass
+//       creation) above the gate.
 //
 // Invariants checked on the engine output: non-negativity, no mass creation,
 // and determinism (a repeated run is byte-identical).  Configuration errors
@@ -39,11 +49,13 @@
 #include "catchem_state_manager.hpp"
 #include "catchem_test_config.hpp"
 #include "catchem_exaero_bridge.hpp"
+#include "settling_gocart_kernels.hpp"
 
 #include <cmath>
 #include <cstring>
 #include <functional>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -56,18 +68,22 @@ void catchem_register_settling_cpp();
 
 namespace {
 
+    namespace sci = catchem::settling;
+    using catchem::exaero_util::ExaeroPackageHandle;
+
     // A small vertical profile that keeps every settling input finite and
     // physically ordered (temperature lapse, decreasing pressure, ascending
-    // geometric height).  Relative humidity is capped at or below the Fortran
-    // Fitzgerald activation ceiling (0.80) so the baseline stays dry for every
-    // species and the hydrophobic-parity argument holds.
+    // geometric height).  `active` selects the humidity regime: false holds
+    // every point at or below the Fortran Fitzgerald activation ceiling (0.80)
+    // so the baseline stays dry for every species; true lifts every point above
+    // it so both the baseline and the engine resize particles.
     struct Fixture {
         int n_cols = 4;
         int n_levels = 5;
         int n_species = 22;
         std::vector<double> T, AIRDEN, DELP, RH, PMID, Zedge, conc;
 
-        Fixture() {
+        explicit Fixture(bool active = false) {
             T.assign(n_cols * n_levels, 0.0);
             AIRDEN.assign(n_cols * n_levels, 0.0);
             DELP.assign(n_cols * n_levels, 0.0);
@@ -82,8 +98,9 @@ namespace {
                     PMID[i] = 101300.25 * std::exp(-lev / 8.0);
                     AIRDEN[i] = 1.2 * std::exp(-lev / 8.0);
                     DELP[i] = 5000.0;
-                    // Surface 0.78, decreasing upward: every point <= 0.80.
-                    RH[i] = 0.78 * std::exp(-lev / 6.0);
+                    // Sub-gate: surface 0.78 decreasing upward (all <= 0.80).
+                    // Active: 0.92 down to 0.84 (all > 0.80).
+                    RH[i] = active ? (0.92 - 0.02 * lev) : (0.78 * std::exp(-lev / 6.0));
                 }
             for (int c = 0; c < n_cols; ++c)
                 for (int lev = 0; lev <= n_levels; ++lev)
@@ -135,7 +152,7 @@ namespace {
 
     // Build a bound state from a fresh fixture and attach the settling config.
     std::shared_ptr<catchem::StateManager> bind_state(const std::shared_ptr<catchem::Core>& core, Fixture& fix,
-                                                      const std::shared_ptr<catchem::ConfigManager>& config) {
+                                                     const std::shared_ptr<catchem::ConfigManager>& config) {
         auto state = core->get_state_manager();
         state->attach_config_manager(config);
         state->load_species_config(default_species_path());
@@ -154,37 +171,31 @@ namespace {
         return state;
     }
 
-    // One settling species' packed identity plus its library classification.
+    // One settling species' packed identity plus its dry sizing and library
+    // curve presence.
     struct SpeciesInfo {
         int packed_index;
         std::string short_name;
         std::string mie_name;
         double radius_dry_m;
         double density_dry;
-        bool hydrophobic; // curve returns the dry particle at every fixture point
-        // Peak wet/dry size ratio over the fixture's usable points, and the
-        // matching wet/dry density ratio at that point.  Both are 1 for a
-        // hydrophobic curve; the radius ratio is the hygroscopic growth factor
-        // and quantifies how much larger (and therefore faster-settling) the
-        // engine makes the particle relative to the dry Fortran baseline.
-        double swell_ratio_max = 1.0;
-        double density_ratio_at_swell = 1.0;
+        bool curve_bound; // the library has a usable curve for this species
     };
 
     // Run one settling scheme to completion and return the resulting
     // concentration buffer.  The process is destroyed before returning so the
     // native engine releases its library handle (dropping the environment
     // reference back to the sticky baseline) before the next run.
-    std::vector<double> run_scheme(const std::string& scheme, const std::string& exaero_config, Fixture& out_fix,
-                                   bool simple_scheme = false) {
-        auto core = std::make_shared<catchem::Core>(out_fix.n_cols, out_fix.n_levels, out_fix.n_species);
-        auto config = settling_config(scheme, exaero_config, simple_scheme);
-        auto state = bind_state(core, out_fix, config);
+    std::vector<double> run_scheme(const std::string& scheme, const std::string& exaero_config, bool active) {
+        Fixture fix(active);
+        auto core = std::make_shared<catchem::Core>(fix.n_cols, fix.n_levels, fix.n_species);
+        auto config = settling_config(scheme, exaero_config);
+        auto state = bind_state(core, fix, config);
         auto settling = catchem::ProcessRegistry::get_instance().create("settling");
         settling->init(state);
         settling->run(state);
         state->sync_to_host();
-        std::vector<double> result = out_fix.conc;
+        std::vector<double> result = fix.conc;
         settling->finalize();
         settling.reset();
         return result;
@@ -199,11 +210,23 @@ namespace {
         return false;
     }
 
+    // The maximum pointwise relative difference between two concentration
+    // buffers over the (cell, level) block of one species.
+    double max_rel_diff(const Fixture& fix, const std::vector<double>& a, const std::vector<double>& b,
+                        int species) {
+        double worst = 0.0;
+        for (int c = 0; c < fix.n_cols; ++c)
+            for (int lev = 0; lev < fix.n_levels; ++lev) {
+                const std::size_t idx = flat(fix, c, lev, species);
+                const double denom = std::max(std::abs(a[idx]), 1.0e-12);
+                worst = std::max(worst, std::abs(b[idx] - a[idx]) / denom);
+            }
+        return worst;
+    }
+
 } // namespace
 
 int main() {
-    using catchem::exaero_util::ExaeroPackageHandle;
-
     int failures = 0;
     auto check = [&](bool condition, const std::string& label) {
         std::cout << (condition ? "  PASS: " : "  FAIL: ") << label << '\n';
@@ -213,8 +236,7 @@ int main() {
 
     catchem_register_settling_cpp();
 
-    const std::string exaero_config =
-        std::string(catchem::test::TEST_DIR) + "/Configs/exaero/settling_species.yml";
+    const std::string exaero_config = std::string(catchem::test::TEST_DIR) + "/Configs/exaero/settling_species.yml";
     const std::string exaero_config_du_only =
         std::string(catchem::test::TEST_DIR) + "/Configs/exaero/settling_species_du_only.yml";
 
@@ -223,17 +245,13 @@ int main() {
     ExaeroPackageHandle::init_environment();
 
     // ---------------------------------------------------------------------
-    // Enumerate the settling species and classify each by querying the library
-    // directly: a species whose bound curve returns its dry radius at every
-    // fixture point is hydrophobic (growth factor 1) and must reproduce the
-    // Fortran baseline; one that swells is hygroscopic and must settle faster.
-    // A species with no bound curve falls back to the same parameterization the
-    // Fortran baseline uses at this RH, so it also matches.  Classification is
-    // independent of either settling run.
+    // Enumerate the settling species and record each one's dry sizing and
+    // whether the library carries a usable curve for it.  This is a direct
+    // library query, independent of either settling run.
     // ---------------------------------------------------------------------
     std::vector<SpeciesInfo> species;
     {
-        Fixture probe;
+        Fixture probe(false);
         auto core = std::make_shared<catchem::Core>(probe.n_cols, probe.n_levels, probe.n_species);
         auto config = settling_config("gocart", "");
         auto state = bind_state(core, probe, config);
@@ -242,7 +260,7 @@ int main() {
         handle.init_environment();
         std::string error;
         const bool init_ok = handle.initialize_from_file(exaero_config, error);
-        check(init_ok, "classification: library package initializes from config: " + error);
+        check(init_ok, "library package initializes from config: " + error);
         if (init_ok) {
             for (int ispec : state->chemistry().settling_indices) {
                 const auto& meta = state->chemistry().species_list[static_cast<std::size_t>(ispec)];
@@ -256,41 +274,19 @@ int main() {
                 const int pkg_index = handle.species_index(meta.mie_name);
                 std::vector<double> radius_wet, density_wet;
                 std::vector<int> status;
-                bool curve_ok = false;
+                info.curve_bound = false;
                 if (pkg_index >= 0 &&
                     handle.compute_wet_sizing(probe.n_cols, probe.n_levels, probe.RH.data(), info.radius_dry_m,
                                               info.density_dry, pkg_index, radius_wet, density_wet, status, error)) {
-                    bool any_ok = false;
-                    bool all_dry = true;
-                    for (std::size_t p = 0; p < radius_wet.size(); ++p) {
-                        if (!ExaeroPackageHandle::attribute_value_ok(status[p]))
-                            continue;
-                        any_ok = true;
-                        if (radius_wet[p] != info.radius_dry_m || density_wet[p] != info.density_dry)
-                            all_dry = false;
-                        const double ratio = radius_wet[p] / info.radius_dry_m;
-                        if (ratio > info.swell_ratio_max) {
-                            info.swell_ratio_max = ratio;
-                            info.density_ratio_at_swell = density_wet[p] / info.density_dry;
+                    for (int st : status)
+                        if (ExaeroPackageHandle::attribute_value_ok(st)) {
+                            info.curve_bound = true;
+                            break;
                         }
-                    }
-                    // A curve-bound species is hydrophobic only if it has a
-                    // usable point AND every usable point is the dry particle.
-                    curve_ok = any_ok;
-                    info.hydrophobic = any_ok && all_dry;
-                }
-                else {
-                    // No curve / query failure: the engine falls back to the
-                    // configured swelling parameterization, which at this RH is
-                    // the same dry result the Fortran baseline produces.
-                    info.hydrophobic = true;
                 }
                 species.push_back(info);
-                std::cout << "  classify: " << info.short_name << " [mie " << info.mie_name << "] "
-                          << (info.hydrophobic ? "hydrophobic (matches baseline)"
-                                               : (curve_ok ? "hygroscopic (settles faster)" : "no curve (matches)"))
-                          << "  peak growth factor " << info.swell_ratio_max << "  (wet/dry density "
-                          << info.density_ratio_at_swell << ")\n";
+                std::cout << "  species: " << info.short_name << " [mie " << info.mie_name << "] "
+                          << (info.curve_bound ? "curve-bound" : "no curve (Fitzgerald fallback)") << '\n';
             }
         }
         handle.release();
@@ -300,92 +296,133 @@ int main() {
     check(!species.empty(), "at least one settling species is configured");
 
     // ---------------------------------------------------------------------
-    // Parity: run the Fortran baseline and the native engine on identical
-    // fixtures.  Every hydrophobic species must match the baseline to roundoff
-    // (this validates the whole ported solver chain: swelling gate, fall speed,
-    // lid, transport, unit conversions).  Hygroscopic species settle faster in
-    // the engine than in the dry baseline, so they leave no more mass; at least
-    // one must actually differ, proving the curve drives the result.
+    // (A) Sub-gate replication.  Every point at or below the 0.80 threshold:
+    // the Fortran baseline is dry for all species and the engine stays dry too,
+    // so the engine must reproduce the Fortran tendency for EVERY species to
+    // roundoff.  This is the replication contract.
     // ---------------------------------------------------------------------
+    std::cout << "\n  === (A) sub-gate replication (all RH <= 0.80) ===\n";
     {
-        Fixture fix_f, fix_e;
-        const std::vector<double> conc_fortran = run_scheme("gocart", "", fix_f);
-        const std::vector<double> conc_engine = run_scheme("gocart_cpp", exaero_config, fix_e);
+        // Fixture used only for its grid dimensions when comparing buffers.
+        Fixture probe(false);
+        const std::vector<double> conc_fortran = run_scheme("gocart", "", false);
+        const std::vector<double> conc_engine = run_scheme("gocart_cpp", exaero_config, false);
         check(conc_fortran.size() == conc_engine.size() && !conc_engine.empty(),
               "engine and baseline produce same-shaped buffers");
 
-        int n_hydro = 0, n_hygro = 0, n_hygro_differ = 0;
+        double worst_overall = 0.0;
+        bool all_match = true;
         for (const auto& info : species) {
-            double max_rel = 0.0;
-            bool finite = true;
-            bool non_negative = true;
-            for (int c = 0; c < fix_f.n_cols; ++c)
-                for (int lev = 0; lev < fix_f.n_levels; ++lev) {
-                    const std::size_t idx = flat(fix_f, c, lev, info.packed_index);
-                    const double f = conc_fortran[idx];
-                    const double e = conc_engine[idx];
-                    if (!std::isfinite(e))
-                        finite = false;
-                    if (e < 0.0)
-                        non_negative = false;
-                    const double denom = std::max(std::abs(f), 1.0e-12);
-                    max_rel = std::max(max_rel, std::abs(e - f) / denom);
-                }
-            if (info.hydrophobic) {
-                ++n_hydro;
-                check(finite && non_negative && max_rel <= 1.0e-10,
-                      "hydrophobic '" + info.short_name + "' matches baseline to roundoff (max rel " +
-                          std::to_string(max_rel) + ")");
-            }
-            else {
-                ++n_hygro;
-                check(finite && non_negative, "hygroscopic '" + info.short_name + "' output finite & non-negative");
-                if (max_rel > 1.0e-6)
-                    ++n_hygro_differ;
-                // Report the physical magnitude of the divergence.  In the
-                // small-particle (Stokes) regime the fall speed scales with
-                // density times the square of the diameter, so the swollen
-                // particle settles growth-factor^2 x (wet/dry density) times
-                // faster than the dry Fortran baseline.  This is the settled
-                // fraction per unit time the engine gains over the baseline;
-                // the pointwise concentration difference below then reflects
-                // how much of that speed-up had time to move mass in one step.
-                const double vsettle_ratio = info.swell_ratio_max * info.swell_ratio_max * info.density_ratio_at_swell;
-                std::cout << "  settling diff: " << info.short_name << " growth factor " << info.swell_ratio_max
-                          << ", wet/dry density " << info.density_ratio_at_swell << " -> fall speed " << vsettle_ratio
-                          << "x the dry baseline; max pointwise rel " << max_rel
-                          << (max_rel > 1.0e-6 ? " (differs)" : " (unchanged: fine bin, little motion in one step)")
-                          << '\n';
-            }
+            const double rel = max_rel_diff(probe, conc_fortran, conc_engine, info.packed_index);
+            worst_overall = std::max(worst_overall, rel);
+            if (rel > 1.0e-10)
+                all_match = false;
         }
+        check(all_match, "EVERY settling species matches the Fortran baseline to roundoff below the gate (worst rel " +
+                             std::to_string(worst_overall) + ")");
 
-        check(n_hydro > 0, "fixture includes at least one hydrophobic species");
-        check(n_hygro > 0, "fixture includes at least one hygroscopic species");
-        check(n_hygro_differ > 0, "at least one hygroscopic species differs from the dry baseline (curve live)");
-
-        // Settling only removes mass and a swollen particle settles no slower,
-        // so the engine leaves no more mass than the dry baseline overall.
-        double engine_total = 0.0, fortran_total = 0.0;
-        for (std::size_t i = 0; i < conc_engine.size(); ++i) {
-            engine_total += conc_engine[i];
-            fortran_total += conc_fortran[i];
-        }
-        check(engine_total <= fortran_total + 1.0e-6 * std::abs(fortran_total),
-              "engine does not create mass relative to baseline");
+        // Determinism: a repeated native-engine run is byte-identical.
+        const std::vector<double> again = run_scheme("gocart_cpp", exaero_config, false);
+        bool identical = conc_engine.size() == again.size();
+        for (std::size_t i = 0; identical && i < again.size(); ++i)
+            if (std::memcmp(&conc_engine[i], &again[i], sizeof(double)) != 0)
+                identical = false;
+        check(identical, "native engine is deterministic below the gate (repeat run byte-identical)");
     }
 
     // ---------------------------------------------------------------------
-    // Determinism: a repeated native-engine run is byte-identical.
+    // (B) Active-regime model validation.  Above the 0.80 threshold both the
+    // Fortran baseline and the engine resize particles, from different sources.
+    // Compare the two sizings directly at a representative point, then confirm
+    // the engine is live and physically sane end-to-end.
     // ---------------------------------------------------------------------
+    std::cout << "\n  === (B) active-regime validation (all RH > 0.80) ===\n";
     {
-        Fixture a, b;
-        const std::vector<double> first = run_scheme("gocart_cpp", exaero_config, a);
-        const std::vector<double> second = run_scheme("gocart_cpp", exaero_config, b);
-        bool identical = first.size() == second.size();
-        for (std::size_t i = 0; identical && i < first.size(); ++i)
-            if (std::memcmp(&first[i], &second[i], sizeof(double)) != 0)
-                identical = false;
-        check(identical, "native engine is deterministic (repeat run byte-identical)");
+        const double rh = 0.90;       // representative super-gate relative humidity
+        const double rhoa = 1.2;      // surface air density
+        const double temp = 288.15;   // surface temperature
+
+        ExaeroPackageHandle handle;
+        handle.init_environment();
+        std::string error;
+        if (handle.initialize_from_file(exaero_config, error)) {
+            std::cout << std::fixed << std::setprecision(4);
+            std::cout << "  species     mie   exaero gf  exaero v [m/s]   Fitzgerald gf  Fitzgerald v [m/s]  v ratio\n";
+            for (const auto& info : species) {
+                const int pkg_index = handle.species_index(info.mie_name);
+                std::vector<double> radius_wet(1, 0.0), density_wet(1, 0.0);
+                std::vector<int> status(1, 0);
+                double gf_exaero = 1.0, v_exaero = 0.0;
+                if (pkg_index >= 0 &&
+                    handle.compute_wet_sizing(1, 1, &rh, info.radius_dry_m, info.density_dry, pkg_index, radius_wet,
+                                              density_wet, status, error) &&
+                    ExaeroPackageHandle::attribute_value_ok(status[0])) {
+                    gf_exaero = radius_wet[0] / info.radius_dry_m;
+                    v_exaero = sci::calc_vsettle(radius_wet[0], density_wet[0], rhoa, temp, sci::kGravity);
+                }
+                else {
+                    // No usable curve: the engine would fall back to the
+                    // same Fitzgerald sizing the Fortran baseline uses, so the
+                    // two agree by construction.  Report gf = 1 divergence = 0.
+                    v_exaero = sci::calc_vsettle(info.radius_dry_m, info.density_dry, rhoa, temp, sci::kGravity);
+                }
+
+                double radius_fitz = 0.0, rhop_fitz = 0.0;
+                sci::swelling_fitzgerald(info.radius_dry_m, info.density_dry, rh, &radius_fitz, &rhop_fitz);
+                const double gf_fitz = radius_fitz / info.radius_dry_m;
+                const double v_fitz = sci::calc_vsettle(radius_fitz, rhop_fitz, rhoa, temp, sci::kGravity);
+                const double ratio = v_fitz > 0.0 ? v_exaero / v_fitz : 1.0;
+                std::cout << "  " << std::setw(9) << info.short_name << " " << std::setw(4) << info.mie_name << "   "
+                          << std::setw(8) << gf_exaero << "   " << std::setw(11) << v_exaero << "        "
+                          << std::setw(8) << gf_fitz << "        " << std::setw(11) << v_fitz << "   " << std::setw(7)
+                          << ratio << (info.curve_bound ? "" : " (fallback)") << '\n';
+            }
+        }
+        else {
+            check(false, "active-regime: library package initializes from config: " + error);
+        }
+        handle.release();
+        handle.finalize_environment();
+
+        // End-to-end: run both schemes above the gate and confirm the engine is
+        // live (differs from the dry-only path is not the test here -- both
+        // swell, but from different sizings) and physically sane.
+        Fixture probe(true);
+        const std::vector<double> conc_fortran = run_scheme("gocart", "", true);
+        const std::vector<double> conc_engine = run_scheme("gocart_cpp", exaero_config, true);
+
+        bool finite = true, non_negative = true;
+        for (double v : conc_engine) {
+            if (!std::isfinite(v))
+                finite = false;
+            if (v < 0.0)
+                non_negative = false;
+        }
+        check(finite && non_negative, "engine output above the gate is finite and non-negative");
+
+        // The engine and the Fortran baseline now disagree for at least the
+        // curve-bound hygroscopic species (different wet sizes).  This is the
+        // accepted model difference above the gate, not a replication failure.
+        double worst_curve = 0.0;
+        for (const auto& info : species)
+            if (info.curve_bound)
+                worst_curve = std::max(worst_curve, max_rel_diff(probe, conc_fortran, conc_engine, info.packed_index));
+        check(worst_curve > 0.0, "engine uses the library curve above the gate (differs from Fitzgerald sizing, worst rel " +
+                                    std::to_string(worst_curve) + ")");
+
+        // Settling only removes mass, so each scheme's column total must not
+        // exceed the 1.0e-8 initial concentration it started from.  (The two
+        // schemes can retain different amounts -- different wet sizes settle at
+        // different rates -- but neither may create mass.)
+        const double initial_total = conc_engine.size() * 1.0e-8;
+        double engine_total = 0.0, fortran_total = 0.0;
+        for (double v : conc_engine)
+            engine_total += v;
+        for (double v : conc_fortran)
+            fortran_total += v;
+        check(engine_total <= initial_total * (1.0 + 1.0e-6),
+              "engine does not create mass above the gate");
+        check(fortran_total <= initial_total * (1.0 + 1.0e-6), "baseline does not create mass above the gate");
     }
 
     // ---------------------------------------------------------------------
@@ -394,7 +431,7 @@ int main() {
     {
         // A species present in the transport inventory but missing from the
         // library config aborts init() naming the config.
-        Fixture fix;
+        Fixture fix(false);
         auto core = std::make_shared<catchem::Core>(fix.n_cols, fix.n_levels, fix.n_species);
         auto config = settling_config("gocart_cpp", exaero_config_du_only);
         auto state = bind_state(core, fix, config);
@@ -404,7 +441,7 @@ int main() {
     }
     {
         // The optics-table branch is not implemented on the native engine.
-        Fixture fix;
+        Fixture fix(false);
         auto core = std::make_shared<catchem::Core>(fix.n_cols, fix.n_levels, fix.n_species);
         auto config = settling_config("gocart_cpp", exaero_config, /*simple_scheme=*/true);
         auto state = bind_state(core, fix, config);
@@ -415,7 +452,7 @@ int main() {
 
     ExaeroPackageHandle::finalize_environment();
 
-    std::cout << (failures == 0 ? "SUCCESS: native-engine settling parity assertions passed.\n"
-                                : "FAILURE: " + std::to_string(failures) + " parity assertion(s) failed.\n");
+    std::cout << (failures == 0 ? "\nSUCCESS: sub-gate replication exact; active-regime divergence measured.\n"
+                                : "\nFAILURE: " + std::to_string(failures) + " assertion(s) failed.\n");
     return failures == 0 ? 0 : 1;
 }

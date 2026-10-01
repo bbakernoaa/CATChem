@@ -470,14 +470,21 @@ namespace catchem {
                 sci::layer_thickness(z_col.data(), n_levels, dz_col.data());
                 const int klid0 = sci::find_klid(pmid_col.data(), n_levels, sci::kPressureLidHpa);
 
-                // Wet radius/density per level.  Where the aerosol library
-                // has a curve, its anchored sizing already set both from the
-                // caller's dry particle.  Without a curve, the configured
-                // swelling parameterization applies, matching the Fortran
-                // metadata path.
+                // Wet radius/density per level.  The Fortran baseline resizes a
+                // particle only where its configured swelling method is active
+                // (Fitzgerald above the 0.80 deliquescence threshold, Gerber at
+                // all RH).  Elsewhere the baseline leaves every species dry, so
+                // the engine must too -- applying the library curve below the
+                // activation gate would swell a particle the Fortran scheme
+                // keeps dry and break replication.  Where swelling is active the
+                // library's anchored sizing sets both from the caller's dry
+                // particle for a species it has a curve for; without a curve the
+                // configured swelling parameterization applies, matching the
+                // Fortran metadata path.
                 for (int k = 0; k < n_levels; ++k) {
                     const std::size_t host_point = cbase + static_cast<std::size_t>(n_columns) * (n_levels - 1 - k);
-                    if (su::ExaeroPackageHandle::attribute_value_ok(status[host_point])) {
+                    if (sci::swelling_active(rh_col[static_cast<std::size_t>(k)], gocart_swelling_method) &&
+                        su::ExaeroPackageHandle::attribute_value_ok(status[host_point])) {
                         radius_wet[static_cast<std::size_t>(k)] = radius_block[host_point];
                         rhop_wet[static_cast<std::size_t>(k)] = density_block[host_point];
                     }
