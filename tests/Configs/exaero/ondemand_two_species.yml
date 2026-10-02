@@ -1,0 +1,24 @@
+# Exaero species configuration for the on-demand diagnostics tests.
+# Two synthetic modal types with DRY diameters chosen to discriminate the
+# PM cuts: FINE (0.8 um) sits inside the 1 um / 2.5 um / 10 um cuts, while
+# COARSE (2.0 um) sits outside the 1 um cut and inside the 2.5 um and 10 um
+# cuts.  Field set mirrors the settling fixture (analytical ADT optics).
+species:
+  - name: "FINE"
+    dry_density: 1700.0
+    molecular_weight: 96.06
+    dry_particle_diameter: 0.8e-6
+    hygroscopicity: 0.0
+    lognormal_sigma: 1.5
+    lognormal_dg: 0.8e-6
+    refractive_index_real: 1.45
+    refractive_index_imag: 0.001
+  - name: "COARSE"
+    dry_density: 2200.0
+    molecular_weight: 58.5
+    dry_particle_diameter: 2.0e-6
+    hygroscopicity: 0.0
+    lognormal_sigma: 1.5
+    lognormal_dg: 2.0e-6
+    refractive_index_real: 1.4
+    refractive_index_imag: 0.001

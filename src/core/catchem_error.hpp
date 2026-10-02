@@ -26,7 +26,8 @@ namespace catchem {
         InvalidConfiguration = 14,
         ProcessFailure = 15,
         ShutdownFailure = 16,
-        PhysicalValidationFailure = 17
+        PhysicalValidationFailure = 17,
+        QuantityNotAvailable = 18
     };
 
     struct BoundaryError {

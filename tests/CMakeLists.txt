@@ -999,6 +999,65 @@ if(CATCHEM_BUILD_EXAERO)
   catchem_label_tests("parity;cpp;exaero;settling" test_catchem_settling_cpp)
 endif()
 
+# On-demand aerosol diagnostics API contract scenarios.  A standalone
+# executable because the compute path owns the reference-counted Kokkos
+# runtime (the sticky-environment pattern from the gate-ON settling test).
+# The catalogue endpoints link the core plus the bridge so the aerosol
+# library's usage requirements reach the test; with the utility not built the
+# same source compiles a gate-OFF abort test asserting the build remedy.
+if(CATCHEM_BUILD_EXAERO)
+  add_executable(test_catchem_api_on_demand test_catchem_api_on_demand.cpp)
+  target_link_libraries(
+    test_catchem_api_on_demand
+    PRIVATE
+      CATChem_core_cpp
+      CATChem_core
+      catchem_exaero_bridge
+      CATChem_process_settling
+      CATChem_process_seasalt
+      CATChem_process_drydep
+      CATChem_process_wetdep
+      CATChem_process_so4chem
+      CATChem_process_dust
+      CATChem_process_carbchem
+  )
+  set_target_properties(
+    test_catchem_api_on_demand
+    PROPERTIES CXX_STANDARD 20 LINKER_LANGUAGE CXX
+  )
+  add_test(
+    NAME test_catchem_api_on_demand
+    COMMAND test_catchem_api_on_demand
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  )
+  catchem_label_tests("contract;cpp;exaero;diagnostics" test_catchem_api_on_demand)
+else()
+  add_executable(test_catchem_api_on_demand test_catchem_api_on_demand.cpp)
+  target_link_libraries(
+    test_catchem_api_on_demand
+    PRIVATE
+      CATChem_core_cpp
+      CATChem_process_settling
+      CATChem_process_seasalt
+      CATChem_process_drydep
+      CATChem_process_wetdep
+      CATChem_process_so4chem
+      CATChem_process_dust
+      CATChem_process_carbchem
+  )
+  target_compile_definitions(test_catchem_api_on_demand PRIVATE CATCHEM_ONDEMAND_GATE_OFF)
+  set_target_properties(
+    test_catchem_api_on_demand
+    PROPERTIES CXX_STANDARD 20 LINKER_LANGUAGE CXX
+  )
+  add_test(
+    NAME test_catchem_api_on_demand
+    COMMAND test_catchem_api_on_demand
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  )
+  catchem_label_tests("contract;cpp;diagnostics" test_catchem_api_on_demand)
+endif()
+
 add_executable(test_catchem_gaschem_units test_catchem_gaschem_units.cpp)
 add_test(NAME test_catchem_gaschem_units COMMAND test_catchem_gaschem_units)
 

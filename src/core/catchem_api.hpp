@@ -29,7 +29,16 @@ enum catchem_dataflow_status {
     CATCHEM_INVALID_CONFIGURATION = 14,
     CATCHEM_PROCESS_FAILURE = 15,
     CATCHEM_SHUTDOWN_FAILURE = 16,
-    CATCHEM_PHYSICAL_VALIDATION_FAILURE = 17
+    CATCHEM_PHYSICAL_VALIDATION_FAILURE = 17,
+    /**
+     * @brief A quantity exists but cannot be answered for this request.
+     *
+     * Raised when a requested wavelength lies outside the optics table band
+     * range, a requested species has no curve in the source tables, or the
+     * aerosol utility is not configured/built. The last-error message names
+     * the offending input and the remedy.
+     */
+    CATCHEM_QUANTITY_NOT_AVAILABLE = 18
 };
 
 int catchem_core_create_checked(int nc, int nl, int ns, void** core_out);
@@ -302,6 +311,27 @@ int catchem_diag_get_axes_checked(void* core_ptr, const char* name, int* axes_ou
 /// Non-zero when the field has no packed dimension or `slot` is out of range.
 int catchem_diag_get_unpack_label_at_checked(void* core_ptr, const char* name, int slot, char* label_out,
                                              int label_length);
+
+// On-demand aerosol diagnostics (PM, optics, AOD) -- quantity catalogue.
+// The enumeration trio exposes the normative quantity registry; with the
+// aerosol utility not built into this library the count endpoint answers 0
+// and CATCHEM_QUANTITY_NOT_AVAILABLE so a host can skip the feature.
+void catchem_ondemand_quantity_count(void* core_ptr, int* count_out);
+int catchem_ondemand_quantity_count_checked(void* core_ptr, int* count_out);
+void catchem_ondemand_quantity_name_at(void* core_ptr, int index, char* name_out);
+int catchem_ondemand_quantity_name_at_checked(void* core_ptr, int index, char* name_out, int name_length);
+void catchem_ondemand_quantity_units(void* core_ptr, const char* name, char* units_out);
+int catchem_ondemand_quantity_units_checked(void* core_ptr, const char* name, char* units_out, int units_length);
+
+// On-demand bulk particulate matter.  'quantity_names' holds 'num_names'
+// diagnostic-family names (for example "pm1", "pm2_5", "pm10"); the values
+// are name-major, the block for name i starting at i * ncols * nlevels in
+// (cell, level) order, with a per-point availability code in 'status_out'
+// (optional).  The read is pure: the prognostic state is never advanced.
+void catchem_ondemand_get_pm(void* core_ptr, const char* const* quantity_names, int num_names, double* values_out,
+                             int* status_out, int values_length, int status_length);
+int catchem_ondemand_get_pm_checked(void* core_ptr, const char* const* quantity_names, int num_names,
+                                    double* values_out, int* status_out, int values_length, int status_length);
 
 // YAML Species Metadata
 void catchem_state_load_species_config(void* state_ptr, const char* filename);

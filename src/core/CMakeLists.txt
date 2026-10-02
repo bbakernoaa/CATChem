@@ -11,6 +11,8 @@ set(
   catchem_api_diagnostics.cpp
   catchem_api_config.cpp
   catchem_api_utilities.cpp
+  catchem_api_on_demand.cpp
+  catchem_ondemand_service.cpp
   catchem_diagnostic.cpp
   catchem_config_manager.cpp
   catchem_grid_manager.cpp
@@ -55,6 +57,16 @@ target_compile_definitions(
     CATCHEM_BUILD_VERSION="${CATCHEM_VERSION_FULL}"
     CATCHEM_BUILD_COMMIT="${CATCHEM_GIT_COMMIT}"
 )
+
+# The on-demand diagnostics service is compiled into the core in all builds;
+# it reaches the aerosol library through the bridge, so the core gains the
+# bridge link and the guard definition only when the utility is enabled.  With
+# the gate off the service compiles against its stub surface and reports
+# CATCHEM_QUANTITY_NOT_AVAILABLE with the reconfigure remedy.
+if(CATCHEM_BUILD_EXAERO)
+  target_link_libraries(CATChem_core_cpp PRIVATE catchem_exaero_bridge)
+  target_compile_definitions(CATChem_core_cpp PRIVATE CATCHEM_HAVE_EXAERO)
+endif()
 
 if(CATCHEM_ENABLE_KOKKOS)
   target_link_libraries(CATChem_core_cpp PUBLIC Kokkos::kokkos)

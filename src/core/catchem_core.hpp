@@ -8,6 +8,7 @@
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_execution_plan.hpp"
 #include "catchem_grid_manager.hpp"
+#include "catchem_ondemand_service.hpp"
 #include "catchem_process_interface.hpp"
 #include "catchem_runtime_lease.hpp"
 #include "catchem_state_manager.hpp"
@@ -45,6 +46,7 @@ namespace catchem {
         std::shared_ptr<GridManager> grid_mgr;                    ///< Shared grid details.
         std::shared_ptr<StateManager> state_mgr;                  ///< Reference-counted memory state.
         std::shared_ptr<DiagnosticManager> diag_mgr;              ///< Global diagnostics registry.
+        std::unique_ptr<OnDemandService> on_demand_;              ///< On-demand aerosol utility (lazy).
         std::vector<std::shared_ptr<ProcessInterface>> processes; ///< Scheduled physics processes.
         TimestepOutcome last_outcome_;
         std::size_t timestep_counter_ = 0;
@@ -138,6 +140,20 @@ namespace catchem {
          * @brief Executes a single timestep using the default step size from configuration.
          */
         void run_timestep();
+
+        /**
+         * @brief On-demand aerosol diagnostics utility (PM, optics, AOD).
+         *
+         * Created on first use and configured from the optional
+         * 'diagnostics/on_demand' node; the utility stays unconfigured (and
+         * reports CATCHEM_QUANTITY_NOT_AVAILABLE with the build/configure
+         * remedy) when the node is absent.  Bring-up against the live state
+         * is lazy and performed by the service itself.
+         */
+        OnDemandService& on_demand_service();
+
+        /** True when the on-demand utility is configured and enabled. */
+        bool on_demand_configured() const;
     };
 
 } // namespace catchem

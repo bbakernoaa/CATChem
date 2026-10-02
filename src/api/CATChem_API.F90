@@ -16,6 +16,30 @@ module CATChem_API
 
    public :: CATChem_Model, catchem_diag_register_contract_checked, catchem_diag_get_contract
 
+   ! Status codes mirroring enum catchem_dataflow_status in catchem_api.hpp.
+   ! Hosts compare the integer returned by any *_checked endpoint against
+   ! these named constants instead of bare literals.  The values are part of
+   ! the published ABI: append-only, never renumber.
+   integer(c_int), parameter, public :: CATCHEM_SUCCESS = 0
+   integer(c_int), parameter, public :: CATCHEM_NULL_ARGUMENT = 1
+   integer(c_int), parameter, public :: CATCHEM_MISSING_FIELD = 2
+   integer(c_int), parameter, public :: CATCHEM_RANK_MISMATCH = 3
+   integer(c_int), parameter, public :: CATCHEM_EXTENT_MISMATCH = 4
+   integer(c_int), parameter, public :: CATCHEM_INVALID_INDEX = 5
+   integer(c_int), parameter, public :: CATCHEM_STALE_GENERATION = 6
+   integer(c_int), parameter, public :: CATCHEM_DUPLICATE_MAPPING = 7
+   integer(c_int), parameter, public :: CATCHEM_INVALID_STATE = 8
+   integer(c_int), parameter, public :: CATCHEM_INTERNAL_ERROR = 9
+   integer(c_int), parameter, public :: CATCHEM_INVALID_HANDLE = 10
+   integer(c_int), parameter, public :: CATCHEM_WRONG_HANDLE_TYPE = 11
+   integer(c_int), parameter, public :: CATCHEM_RUNTIME_UNAVAILABLE = 12
+   integer(c_int), parameter, public :: CATCHEM_CONTRACT_VIOLATION = 13
+   integer(c_int), parameter, public :: CATCHEM_INVALID_CONFIGURATION = 14
+   integer(c_int), parameter, public :: CATCHEM_PROCESS_FAILURE = 15
+   integer(c_int), parameter, public :: CATCHEM_SHUTDOWN_FAILURE = 16
+   integer(c_int), parameter, public :: CATCHEM_PHYSICAL_VALIDATION_FAILURE = 17
+   integer(c_int), parameter, public :: CATCHEM_QUANTITY_NOT_AVAILABLE = 18
+
    !=========================================================================
    ! C-API Interfaces to catchem_api.cpp
    !=========================================================================
@@ -489,6 +513,47 @@ module CATChem_API
          type(c_ptr), value :: state_ptr
          integer(c_int), value :: index
       end function
+
+      ! On-demand aerosol diagnostics: quantity catalogue (count / name / units).
+      integer(c_int) function catchem_ondemand_quantity_count_checked(core_ptr, count_out) &
+         bind(C, name="catchem_ondemand_quantity_count_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), intent(out) :: count_out
+      end function
+
+      integer(c_int) function catchem_ondemand_quantity_name_at_checked(core_ptr, index, name_out, name_length) &
+         bind(C, name="catchem_ondemand_quantity_name_at_checked")
+         import :: c_ptr, c_int, c_char
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: index, name_length
+         character(kind=c_char), intent(out) :: name_out(*)
+      end function
+
+      integer(c_int) function catchem_ondemand_quantity_units_checked(core_ptr, name, units_out, units_length) &
+         bind(C, name="catchem_ondemand_quantity_units_checked")
+         import :: c_ptr, c_int, c_char
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         character(kind=c_char), intent(out) :: units_out(*)
+         integer(c_int), value :: units_length
+      end function
+
+      ! On-demand bulk particulate matter.  'names' is a C array of
+      ! NUL-terminated string pointers (const char * const *); 'values' and
+      ! 'status' are the name-major output blocks.  A null status pointer is
+      ! allowed (the wrapper passes c_null_ptr when the host omits it).
+      integer(c_int) function catchem_ondemand_get_pm_checked(core_ptr, names, n_names, values, status, &
+                                                              vlen, slen) &
+         bind(C, name="catchem_ondemand_get_pm_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+         type(c_ptr), value :: names
+         integer(c_int), value :: n_names
+         type(c_ptr), value :: values
+         type(c_ptr), value :: status
+         integer(c_int), value :: vlen, slen
+      end function
    end interface
 
    !=========================================================================
@@ -543,6 +608,10 @@ module CATChem_API
       procedure :: has_emission_mapping => model_has_emission_mapping
       procedure :: set_physical_validation_policy => model_set_physical_validation_policy
       procedure :: get_physical_validation_report => model_get_physical_validation_report
+      procedure :: get_ondemand_quantity_count => model_get_ondemand_quantity_count
+      procedure :: get_ondemand_quantity_names => model_get_ondemand_quantity_names
+      procedure :: get_ondemand_quantity_units => model_get_ondemand_quantity_units
+      procedure :: get_ondemand_pm => model_get_ondemand_pm
    end type CATChem_Model
 
 contains
@@ -1275,5 +1344,148 @@ contains
       logical :: has_mapping
       has_mapping = (catchem_config_has_emission_mapping(this%cpp_core_ptr) /= 0_c_int)
    end function model_has_emission_mapping
+
+   ! On-demand aerosol diagnostics: catalogue count.  A non-success rc with
+   ! count == 0 means the aerosol utility is not built into this library; the
+   ! remedy is in this%last_error.
+   subroutine model_get_ondemand_quantity_count(this, count, rc)
+      class(CATChem_Model), intent(inout) :: this
+      integer, intent(out) :: count
+      integer, intent(out) :: rc
+      integer(c_int) :: c_count, status
+
+      count = 0
+      status = catchem_ondemand_quantity_count_checked(this%cpp_core_ptr, c_count)
+      rc = int(status)
+      if (status /= 0_c_int) then
+         call capture_boundary_error(this)
+         return
+      end if
+      count = int(c_count)
+   end subroutine model_get_ondemand_quantity_count
+
+   ! On-demand aerosol diagnostics: enumerate the quantity catalogue.
+   subroutine model_get_ondemand_quantity_names(this, quantity_names, rc)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), allocatable, intent(out) :: quantity_names(:)
+      integer, intent(out) :: rc
+
+      integer :: i, count
+      integer(c_int) :: c_count, status
+      character(kind=c_char) :: c_name(64)
+      character(len=64) :: f_name
+
+      status = catchem_ondemand_quantity_count_checked(this%cpp_core_ptr, c_count)
+      if (status /= 0_c_int) then
+         allocate(quantity_names(0))
+         rc = int(status)
+         call capture_boundary_error(this)
+         return
+      end if
+      count = int(c_count)
+      allocate(quantity_names(count))
+
+      do i = 1, count
+         status = catchem_ondemand_quantity_name_at_checked( &
+            this%cpp_core_ptr, int(i - 1, c_int), c_name, 64_c_int)
+         if (status /= 0_c_int) then
+            rc = int(status)
+            call capture_boundary_error(this)
+            return
+         end if
+         f_name = ""
+         block
+            integer :: j
+            do j = 1, 64
+               if (c_name(j) == c_null_char) exit
+               f_name(j:j) = c_name(j)
+            end do
+         end block
+         quantity_names(i) = trim(f_name)
+      end do
+
+      rc = CC_SUCCESS
+   end subroutine model_get_ondemand_quantity_names
+
+   ! On-demand aerosol diagnostics: canonical units for one catalogue name.
+   subroutine model_get_ondemand_quantity_units(this, quantity_name, units, rc)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: quantity_name
+      character(len=*), intent(out) :: units
+      integer, intent(out) :: rc
+      character(kind=c_char) :: c_name(64), c_units(64)
+      integer(c_int) :: status
+      integer :: i
+
+      units = ''
+      call to_c_string(quantity_name, c_name)
+      status = catchem_ondemand_quantity_units_checked( &
+         this%cpp_core_ptr, c_name, c_units, int(size(c_units), c_int))
+      rc = int(status)
+      if (status /= 0_c_int) then
+         call capture_boundary_error(this)
+         return
+      end if
+      do i = 1, min(len(units), size(c_units))
+         if (c_units(i) == c_null_char) exit
+         units(i:i) = c_units(i)
+      end do
+   end subroutine model_get_ondemand_quantity_units
+
+   ! On-demand aerosol diagnostics: bulk particulate matter for a list of
+   ! diagnostic-family names (for example "pm1", "pm2_5", "pm10").  Values
+   ! come back name-major: the block for names(i) covers the (cell, level)
+   ! grid at values((i-1)*block+1 : i*block), with matching per-point
+   ! availability codes in 'status' (optional).  The read is pure -- the
+   ! prognostic state is never advanced.
+   subroutine model_get_ondemand_pm(this, quantity_names, values, status, rc)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: quantity_names(:)
+      real(c_double), allocatable, target, intent(out) :: values(:)
+      integer(c_int), allocatable, target, intent(out), optional :: status(:)
+      integer, intent(out) :: rc
+
+      integer :: i, n, block
+      integer(c_int) :: c_status
+      type(c_ptr), allocatable, target :: name_ptrs(:)
+      character(kind=c_char), allocatable, target :: c_names(:, :)
+
+      n = size(quantity_names)
+      block = this%nx * this%ny * this%nz
+      if (n <= 0 .or. block <= 0) then
+         rc = CC_FAILURE
+         return
+      end if
+
+      ! Pack the names as a C array of NUL-terminated string pointers.  The
+      ! character buffer is (64, n) so each name's column is contiguous and
+      ! c_loc of its first element addresses a valid C string.
+      allocate(name_ptrs(n), c_names(64, n))
+      do i = 1, n
+         call to_c_string(quantity_names(i), c_names(:, i))
+         name_ptrs(i) = c_loc(c_names(1, i))
+      end do
+
+      allocate(values(n * block))
+      values = 0.0_c_double
+      if (present(status)) then
+         allocate(status(n * block))
+         status = 0_c_int
+         c_status = catchem_ondemand_get_pm_checked( &
+            this%cpp_core_ptr, c_loc(name_ptrs), int(n, c_int), &
+            c_loc(values), c_loc(status), int(n * block, c_int), int(n * block, c_int))
+      else
+         c_status = catchem_ondemand_get_pm_checked( &
+            this%cpp_core_ptr, c_loc(name_ptrs), int(n, c_int), &
+            c_loc(values), c_null_ptr, int(n * block, c_int), 0_c_int)
+      end if
+
+      rc = int(c_status)
+      if (c_status /= 0_c_int) then
+         call capture_boundary_error(this)
+         return
+      end if
+      rc = CC_SUCCESS
+   end subroutine model_get_ondemand_pm
 
 end module CATChem_API

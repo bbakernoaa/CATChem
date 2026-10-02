@@ -1,0 +1,21 @@
+# Minimal two-aerosol host species inventory for the on-demand diagnostics
+# tests.  The __mie_name labels are the join key the service uses to map each
+# host transport species onto the exaero modal species (FINE / COARSE).
+- name: fine_aero
+  __long_name: fine_aero
+  __description: fine-mode aerosol (inside the PM1 cut)
+  __is_aerosol: true
+  __is_advected: true
+  molecular weight [kg mol-1]: 96.06e-3
+  __radius: 0.4
+  __density: 1700.0
+  __mie_name: FINE
+- name: coarse_aero
+  __long_name: coarse_aero
+  __description: coarse-mode aerosol (outside the PM1 cut)
+  __is_aerosol: true
+  __is_advected: true
+  molecular weight [kg mol-1]: 58.5e-3
+  __radius: 1.0
+  __density: 2200.0
+  __mie_name: COARSE

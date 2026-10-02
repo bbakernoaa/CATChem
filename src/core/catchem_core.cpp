@@ -218,6 +218,29 @@ namespace catchem {
         return diag_mgr;
     }
 
+    OnDemandService& Core::on_demand_service() {
+        // Created on first use and configured from the optional
+        // 'diagnostics/on_demand' node.  An absent or disabled node leaves
+        // the service unconfigured; its read paths then report the gate-OFF
+        // remedy (not built / not configured) instead of failing the Core.
+        if (!on_demand_) {
+            on_demand_ = std::make_unique<OnDemandService>();
+            if (config_mgr) {
+                const bool enabled = config_mgr->get_bool("diagnostics/on_demand/enabled", false);
+                const std::string exaero_config = config_mgr->get_string("diagnostics/on_demand/exaero_config", "");
+                // A configuration error here (enabled without a species YAML)
+                // is recorded, not thrown: the Core stays usable and the
+                // service reports the problem on the first request.
+                on_demand_->configure(exaero_config, enabled && !exaero_config.empty());
+            }
+        }
+        return *on_demand_;
+    }
+
+    bool Core::on_demand_configured() const {
+        return on_demand_ && on_demand_->configured();
+    }
+
     std::size_t Core::get_num_processes() const {
         return processes.size();
     }
