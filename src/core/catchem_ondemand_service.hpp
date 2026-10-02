@@ -145,6 +145,20 @@ class OnDemandService {
                     double* values, int* status_out, std::size_t values_len, std::string& error);
 
     /**
+     * @brief Read several optical quantities at the same wavelengths in one
+     * compute. Output is name-major; the block for name i starts after the
+     * blocks of names 0..i-1. A coefficient (3D/derived-albedo) name occupies
+     * num_bands * cells * levels points laid out band-major ((cell, level)
+     * within a band); an AOT (2D) name occupies num_bands * cells points.
+     * Any name outside the optics family fails with CATCHEM_INVALID_INDEX
+     * before compute; a wavelength outside the configured band range fails
+     * with CATCHEM_QUANTITY_NOT_AVAILABLE naming it and the range.
+     */
+    int read_optics_bulk(const std::vector<std::string>& names, const double* wavelengths, int num_bands,
+                         StateManager& state, double* values, int* status_out, std::size_t values_len,
+                         std::string& error);
+
+    /**
      * @brief General dispatch: any registered quantity. Diagnostic names
      * ignore wavelengths; optics names require them. A non-empty species list
      * narrows either family to the named species' masked contribution.

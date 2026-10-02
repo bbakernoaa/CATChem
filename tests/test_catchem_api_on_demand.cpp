@@ -147,6 +147,17 @@ int main() {
           "the bulk PM endpoint answers QUANTITY_NOT_AVAILABLE");
     check(last_error().find("CATCHEM_BUILD_EXAERO=ON") != std::string::npos,
           "the PM failure message names the reconfigure remedy");
+    const double gate_lambda = 5.5e-7;
+    check(catchem_ondemand_get_optics_checked(core, pm_names, 1, &gate_lambda, 1, pm_values, nullptr, 4, 0) ==
+              CATCHEM_QUANTITY_NOT_AVAILABLE,
+          "the optics endpoint answers QUANTITY_NOT_AVAILABLE");
+    check(last_error().find("CATCHEM_BUILD_EXAERO=ON") != std::string::npos,
+          "the optics failure message names the reconfigure remedy");
+    check(catchem_ondemand_get_quantity_checked(core, "extinction", &gate_lambda, 1, nullptr, 0, pm_values, nullptr, 4,
+                                                0) == CATCHEM_QUANTITY_NOT_AVAILABLE,
+          "the general quantity endpoint answers QUANTITY_NOT_AVAILABLE");
+    check(last_error().find("CATCHEM_BUILD_EXAERO=ON") != std::string::npos,
+          "the general endpoint failure message names the reconfigure remedy");
     catchem_core_destroy(core);
 #else
     std::cout << "== on-demand API: quantity catalogue ==\n";
@@ -467,6 +478,247 @@ int main() {
         catchem_core_destroy(api_core);
     }
     std::remove(config_path.c_str());
+
+    // --- Optical quantities at host wavelengths ------------------------------
+    // The service answers the library's optics slab at the wavelengths the
+    // host asks for, inside the configured band range only: an out-of-band
+    // request is rejected with the offending wavelength and the valid range
+    // named, never silently clamped or answered by an analytical fallback.
+    std::cout << "== on-demand API: optics ==\n";
+    const double lambda = 5.5e-7;
+    std::vector<double> ext(points, -1.0), sca(points, -1.0), albedo(points, -1.0);
+    std::vector<double> aod(Us1State::kCells, -1.0);
+    std::vector<int> ext_status(points, -1), sca_status(points, -1), albedo_status(points, -1),
+        aod_status(Us1State::kCells, -1);
+
+    error.clear();
+    int rc = service.read_optics("extinction", &lambda, 1, fixture.state, ext.data(), ext_status.data(), ext.size(),
+                                 error);
+    check(rc == CATCHEM_SUCCESS, "extinction at 550 nm succeeds");
+    rc = service.read_optics("scattering", &lambda, 1, fixture.state, sca.data(), sca_status.data(), sca.size(),
+                             error);
+    check(rc == CATCHEM_SUCCESS, "scattering at 550 nm succeeds");
+    rc = service.read_optics("aod", &lambda, 1, fixture.state, aod.data(), aod_status.data(), aod.size(), error);
+    check(rc == CATCHEM_SUCCESS, "the column AOD at 550 nm succeeds");
+
+    bool optics_positive = (rc == CATCHEM_SUCCESS);
+    for (std::size_t p = 0; p < points; ++p) {
+        optics_positive &= (ext_status[p] == kAvailable && ext[p] > 0.0);
+        optics_positive &= (sca_status[p] == kAvailable && sca[p] > 0.0 && sca[p] < ext[p]);
+    }
+    check(optics_positive, "extinction and scattering are positive with scattering below extinction everywhere");
+
+    // The AOT is the layer-thickness-weighted column integral of extinction
+    // from the same call -- the internal-consistency invariant, not a second
+    // independent model of the atmosphere.
+    bool aod_ok = true;
+    for (int cell = 0; cell < Us1State::kCells; ++cell) {
+        double want = 0.0;
+        for (int level = 0; level < Us1State::kLevels; ++level)
+            want += ext[cell + level * Us1State::kCells] * 100.0;  // BXHEIGHT in the fixture
+        const double got = aod[cell];
+        aod_ok &= (aod_status[cell] == kAvailable && std::abs(got - want) <= 1e-9 * want);
+    }
+    check(aod_ok, "the column AOD equals the thickness-weighted sum of per-level extinction");
+
+    // Single scattering albedo is derived, not a library slot: scattering
+    // over extinction wherever extinction is positive.
+    error.clear();
+    rc = service.read_optics("single_scattering_albedo", &lambda, 1, fixture.state, albedo.data(),
+                             albedo_status.data(), albedo.size(), error);
+    check(rc == CATCHEM_SUCCESS, "the derived single scattering albedo succeeds");
+    bool albedo_ok = true;
+    for (std::size_t p = 0; p < points; ++p) {
+        albedo_ok &= (albedo_status[p] == kAvailable && std::abs(albedo[p] - sca[p] / ext[p]) <= 1e-12);
+    }
+    check(albedo_ok, "single scattering albedo equals scattering divided by extinction at every point");
+
+    // A point with no aerosol mass has no albedo: the request reports the
+    // absence with a zero value, never an ok-flagged divide-by-nothing.
+    for (int species = 0; species < Us1State::kSpecies; ++species)
+        fixture.set_mass(species, 0, 0, 0.0);
+    rc = service.read_optics("single_scattering_albedo", &lambda, 1, fixture.state, albedo.data(),
+                             albedo_status.data(), albedo.size(), error);
+    check(rc == CATCHEM_SUCCESS && albedo_status[0] == kNotInSource && albedo[0] == 0.0,
+          "a mass-free point reports the albedo as not-in-source with a zero value");
+    for (int species = 0; species < Us1State::kSpecies; ++species) {
+        const double base = (0 + 1) * (0 + 1) * 10.0 * (species == 1 ? 2.0 : 1.0);
+        fixture.set_mass(species, 0, 0, base);
+    }
+
+    // An out-of-band wavelength is rejected, and the rejection names both
+    // the wavelength and the valid band range in a form a host can act on.
+    const double out_of_band = 1.0;  // metres -- not a radiation-band wavelength
+    error.clear();
+    std::vector<double> rejected(points, 0.0);
+    const int reject_status = service.read_optics("extinction", &out_of_band, 1, fixture.state, rejected.data(),
+                                                  nullptr, rejected.size(), error);
+    check(reject_status == CATCHEM_QUANTITY_NOT_AVAILABLE, "a 1 m wavelength is rejected, never clamped");
+    check(error.find("1 m") != std::string::npos, "the rejection names the offending wavelength");
+    check(error.find("2e-07") != std::string::npos && error.find("4e-06") != std::string::npos,
+          "the rejection names the valid band range at micrometre scale");
+
+    // --- Optical quantities through the flat C endpoint ---------------------
+    // Drive the optics read through a config-enabled Core so the endpoint's
+    // name-major layout (coefficient blocks of bands x cells x levels, AOT
+    // blocks of bands x cells), extent checking, and out-of-band rejection
+    // are exercised end to end, not just the service method.
+    std::cout << "== on-demand API: optics endpoint ==\n";
+    {
+        const std::string config_text =
+            "simulation:\n"
+            "  name: ondemand_optics\n"
+            "  species_filename: " +
+            host_config +
+            "\n"
+            "grid:\n"
+            "  number_of_levels: 3\n"
+            "diagnostics:\n"
+            "  on_demand:\n"
+            "    enabled: true\n"
+            "    exaero_config: " +
+            modal_config + "\n";
+        const std::string config_path = "ondemand_optics_config.yml";
+        {
+            std::ofstream out(config_path);
+            out << config_text;
+        }
+        void* optics_core = nullptr;
+        const int create_status =
+            catchem_core_create_from_config_with_grid_checked(config_path.c_str(), Us1State::kCells,
+                                                              Us1State::kLevels, &optics_core);
+        check(create_status == CATCHEM_SUCCESS && optics_core != nullptr,
+              "a configured Core builds for the optics endpoint");
+
+        if (optics_core != nullptr) {
+            void* state_ptr = nullptr;
+            check(catchem_core_get_state_manager_checked(optics_core, &state_ptr) == CATCHEM_SUCCESS &&
+                      state_ptr != nullptr,
+                  "the optics Core exposes its state manager");
+
+            Us1State fields;
+            for (int level = 0; level < Us1State::kLevels; ++level) {
+                for (int cell = 0; cell < Us1State::kCells; ++cell) {
+                    const double base = (cell + 1) * (level + 1) * 10.0;
+                    fields.set_mass(0, cell, level, base);
+                    fields.set_mass(1, cell, level, 2.0 * base);
+                }
+            }
+            bool bound = true;
+            bound &= catchem_state_bind_met_3d_checked(state_ptr, "T", fields.temperature.data(), Us1State::kCells,
+                                                       Us1State::kLevels, 1) == CATCHEM_SUCCESS;
+            bound &= catchem_state_bind_met_3d_checked(state_ptr, "AIRDEN", fields.air_density.data(), Us1State::kCells,
+                                                       Us1State::kLevels, 1) == CATCHEM_SUCCESS;
+            bound &= catchem_state_bind_met_3d_checked(state_ptr, "PMID", fields.p_mid.data(), Us1State::kCells,
+                                                       Us1State::kLevels, 1) == CATCHEM_SUCCESS;
+            bound &= catchem_state_bind_met_3d_checked(state_ptr, "RH", fields.relative_humidity.data(),
+                                                       Us1State::kCells, Us1State::kLevels, 1) == CATCHEM_SUCCESS;
+            bound &= catchem_state_bind_met_3d_checked(state_ptr, "BXHEIGHT", fields.thickness.data(),
+                                                       Us1State::kCells, Us1State::kLevels, 1) == CATCHEM_SUCCESS;
+            bound &= catchem_state_bind_unified_chemistry_checked(state_ptr, fields.concentration.data(),
+                                                                  Us1State::kCells, Us1State::kLevels,
+                                                                  Us1State::kSpecies) == CATCHEM_SUCCESS;
+            check(bound, "the optics Core binds met + chemistry fields");
+
+            const char* opt_names[3] = {"extinction", "scattering", "aod"};
+            const double lambdas[1] = {lambda};
+            // extinction + scattering are coefficient (1 band x cells x levels);
+            // aod is a column (1 band x cells).  Name-major total:
+            const std::size_t coeff = Us1State::kPoints;  // cells * levels at one band
+            const std::size_t column = Us1State::kCells;  // cells at one band
+            const std::size_t total = 2 * coeff + column;
+            std::vector<double> opt_values(total, -1.0);
+            std::vector<int> opt_status(total, -1);
+            const int optics_status =
+                catchem_ondemand_get_optics_checked(optics_core, opt_names, 3, lambdas, 1, opt_values.data(),
+                                                    opt_status.data(), static_cast<int>(opt_values.size()),
+                                                    static_cast<int>(opt_status.size()));
+            check(optics_status == CATCHEM_SUCCESS, "the optics endpoint answers three names at one wavelength");
+
+            // The endpoint's extinction/scattering blocks must reproduce the
+            // service-level values from the same masses, and the AOT block the
+            // thickness-weighted column integral -- name-major layout verified.
+            bool ext_block_ok = true, sca_block_ok = true, aod_block_ok = true;
+            for (std::size_t p = 0; p < coeff; ++p) {
+                ext_block_ok &= (opt_status[p] == kAvailable && std::abs(opt_values[p] - ext[p]) <= 1e-12);
+                sca_block_ok &= (opt_status[coeff + p] == kAvailable &&
+                                 std::abs(opt_values[coeff + p] - sca[p]) <= 1e-12);
+            }
+            for (std::size_t c = 0; c < column; ++c) {
+                aod_block_ok &= (opt_status[2 * coeff + c] == kAvailable &&
+                                 std::abs(opt_values[2 * coeff + c] - aod[c]) <= 1e-9 * (1.0 + aod[c]));
+            }
+            check(ext_block_ok, "the endpoint extinction block matches the service read (name-major offset 0)");
+            check(sca_block_ok, "the endpoint scattering block follows at offset cells x levels");
+            check(aod_block_ok, "the endpoint AOT block follows the coefficient blocks at offset cells");
+
+            // The general single-quantity form reaches the same values: optics
+            // with a wavelength, and a diagnostic name ignoring wavelengths.
+            std::vector<double> one(coeff, -1.0);
+            std::vector<int> one_status(coeff, -1);
+            const int gq_optics = catchem_ondemand_get_quantity_checked(optics_core, "extinction", lambdas, 1, nullptr,
+                                                                        0, one.data(), one_status.data(),
+                                                                        static_cast<int>(one.size()),
+                                                                        static_cast<int>(one_status.size()));
+            bool gq_ext_ok = (gq_optics == CATCHEM_SUCCESS);
+            for (std::size_t p = 0; p < coeff && gq_ext_ok; ++p) {
+                gq_ext_ok &= (one_status[p] == kAvailable && std::abs(one[p] - ext[p]) <= 1e-12);
+            }
+            check(gq_ext_ok, "the general form returns extinction for an optics name with a wavelength");
+
+            std::vector<double> pm_one(coeff, -1.0);
+            std::vector<int> pm_status(coeff, -1);
+            const int gq_pm = catchem_ondemand_get_quantity_checked(optics_core, "pm2_5", nullptr, 0, nullptr, 0,
+                                                                    pm_one.data(), pm_status.data(),
+                                                                    static_cast<int>(pm_one.size()),
+                                                                    static_cast<int>(pm_status.size()));
+            bool gq_pm_ok = (gq_pm == CATCHEM_SUCCESS);
+            for (std::size_t p = 0; p < coeff && gq_pm_ok; ++p) {
+                const int cell = static_cast<int>(p % Us1State::kCells);
+                const int level = static_cast<int>(p / Us1State::kCells);
+                const double want = fields.expected_kg_per_m3(0, cell, level) + fields.expected_kg_per_m3(1, cell, level);
+                gq_pm_ok &= (pm_status[p] == kAvailable && pm_one[p] == want);
+            }
+            check(gq_pm_ok, "the general form returns bulk pm2_5 for a diagnostic name without wavelengths");
+
+            // An out-of-band wavelength is rejected through the endpoint,
+            // naming the wavelength and the valid range.
+            const double bad_lambda = 1.0;
+            std::vector<double> rejected(total, 0.0);
+            const int reject_status =
+                catchem_ondemand_get_optics_checked(optics_core, opt_names, 3, &bad_lambda, 1, rejected.data(), nullptr,
+                                                    static_cast<int>(rejected.size()), 0);
+            check(reject_status == CATCHEM_QUANTITY_NOT_AVAILABLE, "the optics endpoint rejects an out-of-band λ");
+            check(last_error().find("1 m") != std::string::npos, "the endpoint rejection names the wavelength");
+
+            // A diagnostic name sent to the optics endpoint is rejected by name.
+            const char* wrong_names[1] = {"pm2_5"};
+            std::vector<double> unused(total, 0.0);
+            const int wrong_status = catchem_ondemand_get_optics_checked(optics_core, wrong_names, 1, lambdas, 1,
+                                                                         unused.data(), nullptr,
+                                                                         static_cast<int>(unused.size()), 0);
+            check(wrong_status == CATCHEM_INVALID_INDEX, "a non-optics name fails the optics endpoint by name");
+            check(last_error().find("pm2_5") != std::string::npos, "the failure names the non-optics quantity");
+
+            // An undersized buffer is rejected before values are trusted.
+            std::vector<double> small(coeff, 0.0);  // one block, three requested
+            const int small_status = catchem_ondemand_get_optics_checked(optics_core, opt_names, 3, lambdas, 1,
+                                                                         small.data(), nullptr,
+                                                                         static_cast<int>(small.size()), 0);
+            check(small_status == CATCHEM_EXTENT_MISMATCH, "an undersized optics buffer fails EXTENT_MISMATCH");
+
+            // A species subset is not yet wired through the general form.
+            const char* species[1] = {"fine_aero"};
+            std::vector<double> sp_out(coeff, 0.0);
+            const int sp_status = catchem_ondemand_get_quantity_checked(optics_core, "extinction", lambdas, 1, species,
+                                                                        1, sp_out.data(), nullptr,
+                                                                        static_cast<int>(sp_out.size()), 0);
+            check(sp_status == CATCHEM_INVALID_INDEX, "a species filter is rejected until attribution lands");
+
+            catchem_core_destroy(optics_core);
+        }
+        std::remove(config_path.c_str());
+    }
 
     catchem::exaero_util::ExaeroPackageHandle::finalize_environment();
 #endif

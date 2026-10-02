@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -53,6 +54,15 @@ std::string to_upper(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(),
                    [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
     return value;
+}
+
+// Compact scientific rendering for error messages: std::to_string's fixed
+// six-decimal form would print a micrometre-scale wavelength band as
+// "0.000000", hiding the very range the message exists to name.
+std::string format_si(double value) {
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), "%g", value);
+    return std::string(buffer);
 }
 
 }  // namespace
@@ -575,9 +585,9 @@ int OnDemandService::read_optics(const std::string& name, const double* waveleng
     for (int b = 0; b < num_bands; ++b) {
         const double lambda = wavelengths[b];
         if (!std::isfinite(lambda) || lambda < band_min_m_ || lambda > band_max_m_) {
-            error = "wavelength " + std::to_string(lambda) + " m for '" + name +
-                    "' lies outside the configured optics band range [" + std::to_string(band_min_m_) + ", " +
-                    std::to_string(band_max_m_) + "] m; request a wavelength inside the band";
+            error = "wavelength " + format_si(lambda) + " m for '" + name +
+                    "' lies outside the configured optics band range [" + format_si(band_min_m_) + ", " +
+                    format_si(band_max_m_) + "] m; request a wavelength inside the band";
             return CATCHEM_QUANTITY_NOT_AVAILABLE;
         }
     }
@@ -653,6 +663,109 @@ int OnDemandService::read_optics(const std::string& name, const double* waveleng
                 }
             }
         }
+    }
+    return CATCHEM_SUCCESS;
+}
+
+int OnDemandService::read_optics_bulk(const std::vector<std::string>& names, const double* wavelengths, int num_bands,
+                                      StateManager& state, double* values, int* status_out, std::size_t values_len,
+                                      std::string& error) {
+    if (names.empty()) {
+        error = "on-demand bulk optics request names no quantities";
+        return CATCHEM_NULL_ARGUMENT;
+    }
+    std::vector<const QuantityInfo*> infos;
+    infos.reserve(names.size());
+    for (const std::string& name : names) {
+        const QuantityInfo* info = find_quantity(name);
+        if (info == nullptr ||
+            (info->kind != Kind::Optical3D && info->kind != Kind::Optical2D && info->kind != Kind::OpticalSsa)) {
+            error = "unknown optical quantity '" + name + "'; request an optics quantity from the on-demand catalogue";
+            return CATCHEM_INVALID_INDEX;
+        }
+        infos.push_back(info);
+    }
+    if (wavelengths == nullptr || num_bands <= 0) {
+        error = "an on-demand optics request requires at least one wavelength";
+        return CATCHEM_NULL_ARGUMENT;
+    }
+    // Band bounds are only known after bring-up, so the out-of-band test runs
+    // after ensure_ready -- never against an uninitialised range.
+    int rc = ensure_ready(state, error);
+    if (rc != CATCHEM_SUCCESS) {
+        return rc;
+    }
+    for (int b = 0; b < num_bands; ++b) {
+        const double lambda = wavelengths[b];
+        if (!std::isfinite(lambda) || lambda < band_min_m_ || lambda > band_max_m_) {
+            error = "wavelength " + format_si(lambda) + " m lies outside the configured optics band range [" +
+                    format_si(band_min_m_) + ", " + format_si(band_max_m_) +
+                    "] m; request a wavelength inside the band";
+            return CATCHEM_QUANTITY_NOT_AVAILABLE;
+        }
+    }
+    rc = assemble_inputs(state, error);
+    if (rc != CATCHEM_SUCCESS) {
+        return rc;
+    }
+    rc = run_optics(wavelengths, num_bands, nullptr, 0, error);
+    if (rc != CATCHEM_SUCCESS) {
+        error = "on-demand optics compute failed: " + error;
+        return rc;
+    }
+
+    const std::size_t cells = static_cast<std::size_t>(cells_);
+    const std::size_t levels = static_cast<std::size_t>(levels_);
+    const std::size_t bands = static_cast<std::size_t>(num_bands);
+    // Each coefficient (3D / derived-albedo) name occupies bands * cells *
+    // levels points, band-major; each AOT (2D) name occupies bands * cells.
+    std::size_t total = 0;
+    for (const QuantityInfo* info : infos) {
+        total += bands * cells * (info->kind == Kind::Optical2D ? 1 : levels);
+    }
+    if (values_len < total) {
+        error = "on-demand output buffer too small: " + std::to_string(total) + " values required for " +
+                std::to_string(infos.size()) + " optics names";
+        return CATCHEM_EXTENT_MISMATCH;
+    }
+    std::size_t base = 0;
+    for (const QuantityInfo* info : infos) {
+        const int slot = info->slot;
+        const std::size_t per_band = (info->kind == Kind::Optical2D) ? cells : cells * levels;
+        for (std::size_t b = 0; b < bands; ++b) {
+            for (std::size_t p = 0; p < per_band; ++p) {
+                double value = 0.0;
+                int status = kStatusAvailable;
+                if (info->kind == Kind::Optical2D) {
+                    value = impl_->package->optic(slot, static_cast<int>(p), 0, static_cast<int>(b));
+                } else if (info->kind == Kind::OpticalSsa) {
+                    const int cell = static_cast<int>(p % cells);
+                    const int level = static_cast<int>(p / cells);
+                    const double ext = impl_->package->optic(0, cell, level, static_cast<int>(b));
+                    const double sca = impl_->package->optic(1, cell, level, static_cast<int>(b));
+                    if (!std::isfinite(ext) || ext <= 0.0 || !std::isfinite(sca)) {
+                        value = 0.0;
+                        status = kStatusNotInSource;
+                    } else {
+                        value = sca / ext;
+                    }
+                } else {
+                    const int cell = static_cast<int>(p % cells);
+                    const int level = static_cast<int>(p / cells);
+                    value = impl_->package->optic(slot, cell, level, static_cast<int>(b));
+                }
+                if (!std::isfinite(value)) {
+                    value = 0.0;
+                    status = kStatusNotInSource;
+                }
+                const std::size_t idx = base + b * per_band + p;
+                values[idx] = value;
+                if (status_out != nullptr) {
+                    status_out[idx] = status;
+                }
+            }
+        }
+        base += bands * per_band;
     }
     return CATCHEM_SUCCESS;
 }
@@ -748,6 +861,13 @@ int OnDemandService::read_pm_bulk(const std::vector<std::string>&, StateManager&
 
 int OnDemandService::read_optics(const std::string&, const double*, int, StateManager&, double*, int*, std::size_t,
                                  std::string& error) {
+    error = "the aerosol utility is not built into this CATChem library; "
+            "reconfigure with -DCATCHEM_BUILD_EXAERO=ON";
+    return CATCHEM_QUANTITY_NOT_AVAILABLE;
+}
+
+int OnDemandService::read_optics_bulk(const std::vector<std::string>&, const double*, int, StateManager&, double*,
+                                      int*, std::size_t, std::string& error) {
     error = "the aerosol utility is not built into this CATChem library; "
             "reconfigure with -DCATCHEM_BUILD_EXAERO=ON";
     return CATCHEM_QUANTITY_NOT_AVAILABLE;

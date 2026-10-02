@@ -539,6 +539,17 @@ module CATChem_API
          integer(c_int), value :: units_length
       end function
 
+      ! Catalogue shape query: is_columnar_out = 1 when the quantity is a 2D
+      ! (cell-only) field, 0 when it spans the full (cell, level) grid.  A
+      ! static fact, so the query needs no bound state.
+      integer(c_int) function catchem_ondemand_quantity_is_columnar_checked(core_ptr, name, is_columnar_out) &
+         bind(C, name="catchem_ondemand_quantity_is_columnar_checked")
+         import :: c_ptr, c_int, c_char
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         integer(c_int), intent(out) :: is_columnar_out
+      end function
+
       ! On-demand bulk particulate matter.  'names' is a C array of
       ! NUL-terminated string pointers (const char * const *); 'values' and
       ! 'status' are the name-major output blocks.  A null status pointer is
@@ -550,6 +561,43 @@ module CATChem_API
          type(c_ptr), value :: core_ptr
          type(c_ptr), value :: names
          integer(c_int), value :: n_names
+         type(c_ptr), value :: values
+         type(c_ptr), value :: status
+         integer(c_int), value :: vlen, slen
+      end function
+
+      ! On-demand bulk optical properties at host wavelengths.  'names' is a
+      ! C array of NUL-terminated string pointers, 'wavelengths' a C array of
+      ! free-space metres.  Values are name-major: a coefficient name occupies
+      ! n_wavelengths * ncols * nlevels points, a column-integrated (AOT)
+      ! name n_wavelengths * ncols points.
+      integer(c_int) function catchem_ondemand_get_optics_checked(core_ptr, names, n_names, wavelengths, &
+                                                                 n_wavelengths, values, status, vlen, slen) &
+         bind(C, name="catchem_ondemand_get_optics_checked")
+         import :: c_ptr, c_int, c_double
+         type(c_ptr), value :: core_ptr
+         type(c_ptr), value :: names
+         integer(c_int), value :: n_names
+         type(c_ptr), value :: wavelengths
+         integer(c_int), value :: n_wavelengths
+         type(c_ptr), value :: values
+         type(c_ptr), value :: status
+         integer(c_int), value :: vlen, slen
+      end function
+
+      ! On-demand general single-quantity form: any catalogue name.  A null
+      ! 'wavelengths' with zero count is fine for diagnostic names; optics
+      ! names require them.  A null 'species' with zero count requests bulk.
+      integer(c_int) function catchem_ondemand_get_quantity_checked(core_ptr, name, wavelengths, n_wavelengths, &
+                                                                    species, n_species, values, status, vlen, slen) &
+         bind(C, name="catchem_ondemand_get_quantity_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+         type(c_ptr), value :: name
+         type(c_ptr), value :: wavelengths
+         integer(c_int), value :: n_wavelengths
+         type(c_ptr), value :: species
+         integer(c_int), value :: n_species
          type(c_ptr), value :: values
          type(c_ptr), value :: status
          integer(c_int), value :: vlen, slen
@@ -612,6 +660,8 @@ module CATChem_API
       procedure :: get_ondemand_quantity_names => model_get_ondemand_quantity_names
       procedure :: get_ondemand_quantity_units => model_get_ondemand_quantity_units
       procedure :: get_ondemand_pm => model_get_ondemand_pm
+      procedure :: get_ondemand_optics => model_get_ondemand_optics
+      procedure :: get_ondemand_quantity => model_get_ondemand_quantity
    end type CATChem_Model
 
 contains
@@ -1487,5 +1537,143 @@ contains
       end if
       rc = CC_SUCCESS
    end subroutine model_get_ondemand_pm
+
+   ! On-demand aerosol diagnostics: bulk optical properties at host
+   ! wavelengths for a list of optics-family names.  Each name's block is
+   ! sized from the catalogue shape: a column-integrated (AOT) quantity
+   ! occupies size(wavelengths) * (nx*ny) points, a coefficient quantity
+   ! size(wavelengths) * (nx*ny*nz).  Blocks are concatenated name-major.
+   subroutine model_get_ondemand_optics(this, quantity_names, wavelengths, values, status, rc)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: quantity_names(:)
+      real(c_double), intent(in), target :: wavelengths(:)
+      real(c_double), allocatable, target, intent(out) :: values(:)
+      integer(c_int), allocatable, target, intent(out), optional :: status(:)
+      integer, intent(out) :: rc
+
+      integer :: i, n, nb, cells, levels, block, total
+      integer(c_int) :: c_status, shape_status, c_col
+      type(c_ptr), allocatable, target :: name_ptrs(:)
+      character(kind=c_char), allocatable, target :: c_names(:, :)
+
+      n = size(quantity_names)
+      nb = size(wavelengths)
+      cells = this%nx * this%ny
+      levels = this%nz
+      if (n <= 0 .or. nb <= 0 .or. cells <= 0 .or. levels <= 0) then
+         rc = CC_FAILURE
+         return
+      end if
+
+      ! Pack the names and accumulate the name-major extent using the
+      ! per-name shape query (columnar quantities carry one point per cell).
+      allocate(name_ptrs(n), c_names(64, n))
+      total = 0
+      do i = 1, n
+         call to_c_string(quantity_names(i), c_names(:, i))
+         name_ptrs(i) = c_loc(c_names(1, i))
+         c_col = 0
+         shape_status = catchem_ondemand_quantity_is_columnar_checked( &
+            this%cpp_core_ptr, c_names(:, i), c_col)
+         if (shape_status /= 0_c_int) then
+            rc = int(shape_status)
+            call capture_boundary_error(this)
+            return
+         end if
+         block = nb * cells * merge(1, levels, int(c_col) == 1)
+         total = total + block
+      end do
+
+      allocate(values(total))
+      values = 0.0_c_double
+      if (present(status)) then
+         allocate(status(total))
+         status = 0_c_int
+         c_status = catchem_ondemand_get_optics_checked( &
+            this%cpp_core_ptr, c_loc(name_ptrs), int(n, c_int), &
+            c_loc(wavelengths), int(nb, c_int), &
+            c_loc(values), c_loc(status), int(total, c_int), int(total, c_int))
+      else
+         c_status = catchem_ondemand_get_optics_checked( &
+            this%cpp_core_ptr, c_loc(name_ptrs), int(n, c_int), &
+            c_loc(wavelengths), int(nb, c_int), &
+            c_loc(values), c_null_ptr, int(total, c_int), 0_c_int)
+      end if
+
+      rc = int(c_status)
+      if (c_status /= 0_c_int) then
+         call capture_boundary_error(this)
+         return
+      end if
+      rc = CC_SUCCESS
+   end subroutine model_get_ondemand_optics
+
+   ! On-demand aerosol diagnostics: general single-quantity form.  Pass
+   ! 'wavelengths' for an optics name; omit it for a diagnostic name.  The
+   ! block size follows the catalogue shape (and, for optics, one block per
+   ! wavelength).  Bulk only -- species attribution is wired separately.
+   subroutine model_get_ondemand_quantity(this, quantity_name, values, rc, wavelengths, status)
+      class(CATChem_Model), intent(inout) :: this
+      character(len=*), intent(in) :: quantity_name
+      real(c_double), allocatable, target, intent(out) :: values(:)
+      integer, intent(out) :: rc
+      real(c_double), intent(in), target, optional :: wavelengths(:)
+      integer(c_int), allocatable, target, intent(out), optional :: status(:)
+
+      integer :: nb, cells, levels, block, total
+      integer(c_int) :: c_status, shape_status, c_col, n_wl
+      character(kind=c_char), target :: c_name(64)
+      type(c_ptr) :: wl_ptr
+
+      cells = this%nx * this%ny
+      levels = this%nz
+      if (cells <= 0 .or. levels <= 0) then
+         rc = CC_FAILURE
+         return
+      end if
+
+      call to_c_string(quantity_name, c_name)
+      c_col = 0
+      shape_status = catchem_ondemand_quantity_is_columnar_checked(this%cpp_core_ptr, c_name, c_col)
+      if (shape_status /= 0_c_int) then
+         rc = int(shape_status)
+         call capture_boundary_error(this)
+         return
+      end if
+
+      if (present(wavelengths)) then
+         nb = size(wavelengths)
+         wl_ptr = c_loc(wavelengths)
+         n_wl = int(nb, c_int)
+      else
+         nb = 1
+         wl_ptr = c_null_ptr
+         n_wl = 0_c_int
+      end if
+
+      block = cells * merge(1, levels, int(c_col) == 1)
+      total = block * nb
+
+      allocate(values(total))
+      values = 0.0_c_double
+      if (present(status)) then
+         allocate(status(total))
+         status = 0_c_int
+         c_status = catchem_ondemand_get_quantity_checked( &
+            this%cpp_core_ptr, c_loc(c_name), wl_ptr, n_wl, c_null_ptr, 0_c_int, &
+            c_loc(values), c_loc(status), int(total, c_int), int(total, c_int))
+      else
+         c_status = catchem_ondemand_get_quantity_checked( &
+            this%cpp_core_ptr, c_loc(c_name), wl_ptr, n_wl, c_null_ptr, 0_c_int, &
+            c_loc(values), c_null_ptr, int(total, c_int), 0_c_int)
+      end if
+
+      rc = int(c_status)
+      if (c_status /= 0_c_int) then
+         call capture_boundary_error(this)
+         return
+      end if
+      rc = CC_SUCCESS
+   end subroutine model_get_ondemand_quantity
 
 end module CATChem_API

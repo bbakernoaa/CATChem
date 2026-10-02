@@ -323,6 +323,13 @@ int catchem_ondemand_quantity_name_at_checked(void* core_ptr, int index, char* n
 void catchem_ondemand_quantity_units(void* core_ptr, const char* name, char* units_out);
 int catchem_ondemand_quantity_units_checked(void* core_ptr, const char* name, char* units_out, int units_length);
 
+// Catalogue shape query: is_columnar_out = 1 when the quantity is 2D (one
+// point per cell -- a surface/column field or an AOT), 0 when it spans the
+// full (cell, level) grid.  A static catalogue fact, so it needs no bound
+// state; a host uses it to size optics/PM output blocks per name.
+void catchem_ondemand_quantity_is_columnar(void* core_ptr, const char* name, int* is_columnar_out);
+int catchem_ondemand_quantity_is_columnar_checked(void* core_ptr, const char* name, int* is_columnar_out);
+
 // On-demand bulk particulate matter.  'quantity_names' holds 'num_names'
 // diagnostic-family names (for example "pm1", "pm2_5", "pm10"); the values
 // are name-major, the block for name i starting at i * ncols * nlevels in
@@ -332,6 +339,33 @@ void catchem_ondemand_get_pm(void* core_ptr, const char* const* quantity_names, 
                              int* status_out, int values_length, int status_length);
 int catchem_ondemand_get_pm_checked(void* core_ptr, const char* const* quantity_names, int num_names,
                                     double* values_out, int* status_out, int values_length, int status_length);
+
+// On-demand bulk optical properties at host wavelengths.  'quantity_names'
+// holds 'num_names' optics-family names (for example "extinction",
+// "scattering", "aod", "single_scattering_albedo"); 'wavelengths_m' holds
+// 'num_wavelengths' free-space metres, all inside the configured band range
+// (outside values are rejected, never clamped).  Values are name-major: a
+// coefficient name occupies num_wavelengths * ncols * nlevels points laid
+// out band-major ((cell, level) within a band); a column-integrated (AOT)
+// name occupies num_wavelengths * ncols points.  The read is pure.
+void catchem_ondemand_get_optics(void* core_ptr, const char* const* quantity_names, int num_names,
+                                 const double* wavelengths_m, int num_wavelengths, double* values_out,
+                                 int* status_out, int values_length, int status_length);
+int catchem_ondemand_get_optics_checked(void* core_ptr, const char* const* quantity_names, int num_names,
+                                        const double* wavelengths_m, int num_wavelengths, double* values_out,
+                                        int* status_out, int values_length, int status_length);
+
+// On-demand general single-quantity form: any catalogue name, diagnostic or
+// optics.  Diagnostic names ignore 'wavelengths_m'; optics names require it.
+// 'species_names' NULL / 'num_species' == 0 requests the bulk (all-species)
+// value; a named subset is reserved for per-species attribution.  The output
+// layout follows the quantity's family (see the PM and optics endpoints).
+void catchem_ondemand_get_quantity(void* core_ptr, const char* quantity_name, const double* wavelengths_m,
+                                   int num_wavelengths, const char* const* species_names, int num_species,
+                                   double* values_out, int* status_out, int values_length, int status_length);
+int catchem_ondemand_get_quantity_checked(void* core_ptr, const char* quantity_name, const double* wavelengths_m,
+                                          int num_wavelengths, const char* const* species_names, int num_species,
+                                          double* values_out, int* status_out, int values_length, int status_length);
 
 // YAML Species Metadata
 void catchem_state_load_species_config(void* state_ptr, const char* filename);
