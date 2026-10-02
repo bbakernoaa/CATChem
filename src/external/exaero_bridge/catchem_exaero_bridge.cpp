@@ -19,9 +19,12 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 static_assert(exaero::diagnostic_indices::NUM_DIAGNOSTICS == catchem::exaero_util::kDiagnosticSlots,
               "bridge slab extent disagrees with the exaero diagnostic ABI");
+static_assert(exaero::optical_indices::NUM_OPTICS == catchem::exaero_util::kOpticalSlots,
+              "bridge optics slab extent disagrees with the exaero optics ABI");
 static_assert(exaero::microphysical_indices::NUM_ATTRIBUTES == catchem::exaero_util::kMicrophysicalSlots,
               "bridge attribute extent disagrees with the exaero microphysical ABI");
 
@@ -67,6 +70,34 @@ namespace catchem {
                 return exaero::diagnostic_indices::SURFACE_PM2_5_MASS;
             if (name == "column_pm2_5_mass")
                 return exaero::diagnostic_indices::COLUMN_PM2_5_MASS;
+            if (name == "pm1")
+                return exaero::diagnostic_indices::PM1_CONCENTRATION;
+            return -1;
+        }
+
+        int optical_slot(const std::string& name) {
+            if (name == "extinction")
+                return exaero::optical_indices::EXTINCTION_COEFF;
+            if (name == "scattering")
+                return exaero::optical_indices::SCATTERING_COEFF;
+            if (name == "backscatter")
+                return exaero::optical_indices::BACKSCATTER_COEFF;
+            if (name == "asymmetry")
+                return exaero::optical_indices::ASYMMETRY_FACTOR;
+            if (name == "lidar_backscatter")
+                return exaero::optical_indices::LIDAR_BACKSCATTER;
+            if (name == "aod")
+                return exaero::optical_indices::EXTINCTION_AOT;
+            if (name == "scattering_aot")
+                return exaero::optical_indices::SCATTERING_AOT;
+            if (name == "fine_mode_aod")
+                return exaero::optical_indices::FINE_MODE_EXTINCTION_AOT;
+            if (name == "fine_mode_scattering_aot")
+                return exaero::optical_indices::FINE_MODE_SCATTERING_AOT;
+            if (name == "pm2_5_aod")
+                return exaero::optical_indices::PM2_5_EXTINCTION_AOT;
+            if (name == "pm2_5_scattering_aot")
+                return exaero::optical_indices::PM2_5_SCATTERING_AOT;
             return -1;
         }
 
@@ -95,10 +126,15 @@ namespace catchem {
 
         ExaeroPackageHandle::ExaeroPackageHandle(ExaeroPackageHandle&& other) noexcept
             : package_(other.package_), slab_(std::move(other.slab_)), slab_cells_(other.slab_cells_),
-              slab_levels_(other.slab_levels_) {
+              slab_levels_(other.slab_levels_), optics_slab_(std::move(other.optics_slab_)),
+              optics_cells_(other.optics_cells_), optics_levels_(other.optics_levels_),
+              optics_bands_(other.optics_bands_) {
             other.package_ = nullptr;
             other.slab_cells_ = 0;
             other.slab_levels_ = 0;
+            other.optics_cells_ = 0;
+            other.optics_levels_ = 0;
+            other.optics_bands_ = 0;
         }
 
         ExaeroPackageHandle& ExaeroPackageHandle::operator=(ExaeroPackageHandle&& other) noexcept {
@@ -108,9 +144,16 @@ namespace catchem {
                 slab_ = std::move(other.slab_);
                 slab_cells_ = other.slab_cells_;
                 slab_levels_ = other.slab_levels_;
+                optics_slab_ = std::move(other.optics_slab_);
+                optics_cells_ = other.optics_cells_;
+                optics_levels_ = other.optics_levels_;
+                optics_bands_ = other.optics_bands_;
                 other.package_ = nullptr;
                 other.slab_cells_ = 0;
                 other.slab_levels_ = 0;
+                other.optics_cells_ = 0;
+                other.optics_levels_ = 0;
+                other.optics_bands_ = 0;
             }
             return *this;
         }
@@ -153,6 +196,35 @@ namespace catchem {
                 return -1;
             }
             return exaero_get_species_index(package_, name.c_str());
+        }
+
+        int ExaeroPackageHandle::species_count() const {
+            if (package_ == nullptr) {
+                return 0;
+            }
+            // The C ABI name accessor yields an empty name past the last
+            // species, so probing forward counts the configured species.
+            // The bound guards a pathological accessor; normal configurations
+            // hold far fewer species than the cap.
+            char name[64];
+            int count = 0;
+            while (count < 4096) {
+                exaero_get_species_name(package_, count, name, static_cast<int>(sizeof(name)));
+                if (name[0] == '\0') {
+                    break;
+                }
+                ++count;
+            }
+            return count;
+        }
+
+        std::string ExaeroPackageHandle::species_name(int index) const {
+            if (package_ == nullptr || index < 0) {
+                return {};
+            }
+            char name[64];
+            exaero_get_species_name(package_, index, name, static_cast<int>(sizeof(name)));
+            return std::string(name);
         }
 
         bool ExaeroPackageHandle::compute_diagnostics(int num_cells, int num_levels, int num_species,
@@ -203,6 +275,125 @@ namespace catchem {
             // Column-major (cell, level, slot): cell varies fastest.
             return slab_[static_cast<std::size_t>(slot) * slab_levels_ * slab_cells_ +
                          static_cast<std::size_t>(level) * slab_cells_ + static_cast<std::size_t>(cell)];
+        }
+
+        bool ExaeroPackageHandle::compute_optics(int num_cells, int num_levels, int num_bands, int num_species,
+                                                 const double* wavelengths, const double* temperature,
+                                                 const double* pressure, const double* air_density,
+                                                 const double* relative_humidity, const double* layer_thickness,
+                                                 const double* state, std::string& error) {
+            error.clear();
+            if (package_ == nullptr) {
+                error = "exaero bridge: optics compute requested before the package was initialized";
+                return false;
+            }
+            if (num_cells <= 0 || num_levels <= 0 || num_bands <= 0 || num_species <= 0) {
+                error = "exaero bridge: non-positive optics grid extent";
+                return false;
+            }
+            if (wavelengths == nullptr || temperature == nullptr || pressure == nullptr || air_density == nullptr ||
+                relative_humidity == nullptr || layer_thickness == nullptr || state == nullptr) {
+                error = "exaero bridge: null optics input field";
+                return false;
+            }
+            optics_slab_.assign(static_cast<std::size_t>(num_cells) * num_levels * num_bands * kOpticalSlots, 0.0);
+            char errmsg[kErrmsgSize] = {0};
+            int errflg = 1;
+            exaero_compute_optics(package_, num_cells, num_levels, num_bands, num_species, wavelengths, temperature,
+                                  pressure, air_density, relative_humidity, layer_thickness, state, optics_slab_.data(),
+                                  errmsg, &errflg);
+            if (errflg != 0) {
+                // The library reports out-of-band wavelengths here; its message names
+                // the offending value, so forward it verbatim rather than clamping.
+                error = std::string("exaero bridge: optics compute failed: ") + errmsg;
+                optics_slab_.clear();
+                optics_cells_ = 0;
+                optics_levels_ = 0;
+                optics_bands_ = 0;
+                return false;
+            }
+            // Fence before host reads, matching the diagnostics path.
+            exaero::fence_environment();
+            optics_cells_ = num_cells;
+            optics_levels_ = num_levels;
+            optics_bands_ = num_bands;
+            return true;
+        }
+
+        double ExaeroPackageHandle::optic(int slot, int cell, int level, int band) const {
+            if (slot < 0 || slot >= kOpticalSlots || cell < 0 || level < 0 || band < 0 || cell >= optics_cells_ ||
+                level >= optics_levels_ || band >= optics_bands_ || optics_slab_.empty()) {
+                return std::numeric_limits<double>::quiet_NaN();
+            }
+            // Column-major (cell, level, band, slot): cell varies fastest.
+            const std::size_t idx =
+                (((static_cast<std::size_t>(slot) * optics_bands_ + static_cast<std::size_t>(band)) * optics_levels_ +
+                  static_cast<std::size_t>(level)) *
+                     optics_cells_ +
+                 static_cast<std::size_t>(cell));
+            return optics_slab_[idx];
+        }
+
+        namespace {
+
+            // Copy 'state' (column-major (cell, level, species)) with every species
+            // axis NOT listed in 'keep' zeroed, so a masked kernel pass yields exactly
+            // the kept species' contribution.  Returns false on a malformed index list
+            // (out-of-range or duplicate) rather than computing a wrong mask.
+            bool masked_species_state(const double* state, int num_cells, int num_levels, int num_species,
+                                      const int* keep, int num_keep, std::vector<double>& out) {
+                const std::size_t points = static_cast<std::size_t>(num_cells) * num_levels;
+                out.assign(points * static_cast<std::size_t>(num_species), 0.0);
+                std::vector<bool> selected(static_cast<std::size_t>(num_species), false);
+                for (int i = 0; i < num_keep; ++i) {
+                    const int s = keep[i];
+                    if (s < 0 || s >= num_species || selected[static_cast<std::size_t>(s)]) {
+                        return false;
+                    }
+                    selected[static_cast<std::size_t>(s)] = true;
+                }
+                for (int s = 0; s < num_species; ++s) {
+                    if (!selected[static_cast<std::size_t>(s)]) {
+                        continue;
+                    }
+                    const double* src = state + static_cast<std::size_t>(s) * points;
+                    double* dst = out.data() + static_cast<std::size_t>(s) * points;
+                    for (std::size_t p = 0; p < points; ++p) {
+                        dst[p] = src[p];
+                    }
+                }
+                return true;
+            }
+
+        } // namespace
+
+        bool ExaeroPackageHandle::compute_diagnostics_masked(int num_cells, int num_levels, int num_species,
+                                                             const double* temperature, const double* pressure,
+                                                             const double* air_density, const double* relative_humidity,
+                                                             const double* layer_thickness, const double* state,
+                                                             const int* species_keep, int num_keep, std::string& error) {
+            std::vector<double> masked;
+            if (!masked_species_state(state, num_cells, num_levels, num_species, species_keep, num_keep, masked)) {
+                error = "exaero bridge: masked diagnostics request names an out-of-range or duplicate species index";
+                return false;
+            }
+            return compute_diagnostics(num_cells, num_levels, num_species, temperature, pressure, air_density,
+                                       relative_humidity, layer_thickness, masked.data(), error);
+        }
+
+        bool ExaeroPackageHandle::compute_optics_masked(int num_cells, int num_levels, int num_bands, int num_species,
+                                                        const double* wavelengths, const double* temperature,
+                                                        const double* pressure, const double* air_density,
+                                                        const double* relative_humidity, const double* layer_thickness,
+                                                        const double* state, const int* species_keep, int num_keep,
+                                                        std::string& error) {
+            std::vector<double> masked;
+            if (!masked_species_state(state, num_cells, num_levels, num_species, species_keep, num_keep, masked)) {
+                error = "exaero bridge: masked optics request names an out-of-range or duplicate species index";
+                return false;
+            }
+            return compute_optics(num_cells, num_levels, num_bands, num_species, wavelengths, temperature, pressure,
+                                  air_density, relative_humidity, layer_thickness, masked.data(), error);
         }
 
         bool ExaeroPackageHandle::attribute_value_ok(int status) {

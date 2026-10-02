@@ -36,17 +36,28 @@ namespace catchem {
         // Total diagnostic slots in the output slab (the slab's third extent).
         // Mirrors exaero's NUM_DIAGNOSTICS; kept here so the header stays free of the
         // library include.  Asserted equal to the library constant in the .cpp.
-        inline constexpr int kDiagnosticSlots = 11;
+        inline constexpr int kDiagnosticSlots = 12;
 
         // Total microphysical attribute slots queried per (cell, level) point.
         // Mirrors exaero's microphysical NUM_ATTRIBUTES; asserted equal in the .cpp.
         inline constexpr int kMicrophysicalSlots = 9;
+
+        // Total optics slots in the output slab (the slab's fourth extent).
+        // Mirrors exaero's NUM_OPTICS; kept here so the header stays free of the
+        // library include.  Asserted equal to the library constant in the .cpp.
+        inline constexpr int kOpticalSlots = 11;
 
         // Map a configuration diagnostic name to its exaero slot code.  Names are the
         // lower-snake_case forms used in process configuration (for example
         // "gravitational_settling_velocity", "number_concentration").  Returns -1 for
         // an unknown name so the caller can fail fast rather than read slot -1.
         int diagnostic_slot(const std::string& name);
+
+        // Map a configuration optics name to its exaero optics slot code.  Names are
+        // the lower-snake_case forms of the published quantity registry (for example
+        // "extinction", "aod", "pm2_5_scattering_aot").  Returns -1 for an unknown
+        // name so the caller can fail fast rather than read slot -1.
+        int optical_slot(const std::string& name);
 
         // Owns one exaero package handle for a single enabling process, plus the host
         // staging for the most recent diagnostics slab.  Non-copyable (one handle, one
@@ -82,6 +93,17 @@ namespace catchem {
             // (zero-based; -1 when the label is absent from the active configuration).
             int species_index(const std::string& name) const;
 
+            // Number of species in the package's own configured order (the species-axis
+            // length a state array must present to compute_diagnostics/compute_optics).
+            // Probed from the library's name accessor, which yields an empty name past
+            // the last species; 0 before initialization.
+            int species_count() const;
+
+            // The package's species label at a packed species-axis index, in the
+            // package's own configured order.  Returns an empty string before
+            // initialization or past the last species.
+            std::string species_name(int index) const;
+
             // Run the derived-diagnostics step for one column block.  'state' is a flat
             // column-major (cell, level, species) array of mass concentrations
             // [kg m^-3]; the five environmental arrays are column-major (cell, level).
@@ -91,11 +113,51 @@ namespace catchem {
                                      const double* pressure, const double* air_density, const double* relative_humidity,
                                      const double* layer_thickness, const double* state, std::string& error);
 
+            // Run the optical-properties step for one column block.  'wavelengths' is a
+            // flat array of num_bands free-space wavelengths [m]; 'state' and the five
+            // environmental arrays follow the compute_diagnostics layout contract.  The
+            // resulting (cell, level, band, slot) slab is retained internally for
+            // optic() reads.  The library rejects a wavelength outside the optics table
+            // band range with its own error (never a silent clamp); the caller surfaces
+            // that as a named failure.  Returns false and fills 'error' on failure.
+            bool compute_optics(int num_cells, int num_levels, int num_bands, int num_species, const double* wavelengths,
+                                const double* temperature, const double* pressure, const double* air_density,
+                                const double* relative_humidity, const double* layer_thickness, const double* state,
+                                std::string& error);
+
+            // Masked single-species passes for per-species attribution.  Both copy
+            // 'state', zero every species axis not listed in 'species_keep' (length
+            // num_keep, indices from species_index()), and run the corresponding bulk
+            // compute.  The kernels are linear in species mass, so the masked pass
+            // yields exactly that species subset's contribution and species-summed
+            // values recover the bulk pass by construction.  The masked diagnostics
+            // slab is retained for diagnostic() reads; the masked optics slab for
+            // optic() reads.
+            bool compute_diagnostics_masked(int num_cells, int num_levels, int num_species, const double* temperature,
+                                            const double* pressure, const double* air_density,
+                                            const double* relative_humidity, const double* layer_thickness,
+                                            const double* state, const int* species_keep, int num_keep,
+                                            std::string& error);
+            bool compute_optics_masked(int num_cells, int num_levels, int num_bands, int num_species,
+                                       const double* wavelengths, const double* temperature, const double* pressure,
+                                       const double* air_density, const double* relative_humidity,
+                                       const double* layer_thickness, const double* state, const int* species_keep,
+                                       int num_keep, std::string& error);
+
             // Read one diagnostic slot at (cell, level) from the last compute.  'slot'
             // is an exaero diagnostic index (see diagnostic_slot).  Returns NaN when no
             // slab is present or the indices are out of range, so a missing compute
             // surfaces as a non-finite value rather than a stale or zero reading.
             double diagnostic(int slot, int cell, int level) const;
+
+            // Read one optics slot at (cell, level, band) from the last optics compute.
+            // 'slot' is an exaero optics index (see optical_slot).  Returns NaN when no
+            // slab is present or the indices are out of range, matching diagnostic().
+            double optic(int slot, int cell, int level, int band) const;
+
+            // Number of bands in the last optics compute (0 before any compute).  Lets a
+            // caller size its own view of the retained slab.
+            int optic_bands() const { return optics_bands_; }
 
             // Per-point availability codes of an exaero attribute query, mirrored
             // from the library's AttributeStatus enum so consumers do not need the
@@ -145,6 +207,10 @@ namespace catchem {
             std::vector<double> slab_; // (cell, level, slot), column-major
             int slab_cells_ = 0;
             int slab_levels_ = 0;
+            std::vector<double> optics_slab_; // (cell, level, band, slot), column-major
+            int optics_cells_ = 0;
+            int optics_levels_ = 0;
+            int optics_bands_ = 0;
         };
 
     } // namespace exaero_util
