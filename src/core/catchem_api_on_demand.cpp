@@ -404,29 +404,49 @@ int catchem_ondemand_get_quantity_checked(void* core_ptr, const char* quantity_n
                 std::string("the optics quantity '") + quantity_name + "' requires at least one wavelength";
             return fail(catchem::BoundaryStatus::NullArgument, "ondemand_get_quantity", "wavelengths_m", why.c_str());
         }
-        // Bulk form only for now: species attribution is a later milestone.
-        if (species_names != nullptr && num_species > 0) {
-            const std::string why = std::string("per-species attribution for '") + quantity_name +
-                                    "' is not yet supported; request the bulk value with species_names = NULL";
-            return fail(catchem::BoundaryStatus::InvalidIndex, "ondemand_get_quantity", "species_names", why.c_str());
-        }
         const std::size_t cells = static_cast<std::size_t>(state->column_count());
         const std::size_t levels = static_cast<std::size_t>(state->level_count());
         const std::size_t bands = static_cast<std::size_t>(num_wavelengths > 0 ? num_wavelengths : 1);
-        std::size_t needed = 0;
+        std::size_t block = 0;
         if (is_diagnostic_kind(info->kind)) {
-            needed = diagnostic_points(*info, cells, levels);
+            block = diagnostic_points(*info, cells, levels);
         } else if (is_optics_kind(info->kind)) {
-            needed = optics_points(*info, bands, cells, levels);
+            block = optics_points(*info, bands, cells, levels);
         }
+        // A null / zero species list is the bulk request: one block.  A named
+        // subset attributes the quantity to each species: one block per
+        // species, species-major.
+        const bool bulk_request = (species_names == nullptr || num_species <= 0);
+        if (!bulk_request) {
+            for (int i = 0; i < num_species; ++i) {
+                if (!species_names[i]) {
+                    const std::string why = "a null species name at index " + std::to_string(i) + " is not allowed";
+                    return fail(catchem::BoundaryStatus::NullArgument, "ondemand_get_quantity", "species_names",
+                                why.c_str());
+                }
+            }
+        }
+        const std::size_t needed = block * (bulk_request ? 1 : static_cast<std::size_t>(num_species));
         if (static_cast<std::size_t>(values_length) < needed) {
-            const std::string why = "the values buffer holds " + std::to_string(values_length) +
-                                    " entries; quantity '" + quantity_name + "' needs " + std::to_string(needed);
+            const std::string why = "the values buffer holds " + std::to_string(values_length) + " entries; quantity '" +
+                                    quantity_name + "' needs " + std::to_string(needed);
             return fail(catchem::BoundaryStatus::ExtentMismatch, "ondemand_get_quantity", "values_out", why.c_str());
         }
         std::string error;
-        const int rc = service->read_quantity(quantity_name, wavelengths_m, num_wavelengths, nullptr, 0, *state,
-                                              values_out, status_out, static_cast<std::size_t>(values_length), error);
+        int rc = CATCHEM_SUCCESS;
+        if (bulk_request) {
+            rc = service->read_quantity(quantity_name, wavelengths_m, num_wavelengths, nullptr, 0, *state, values_out,
+                                        status_out, static_cast<std::size_t>(values_length), error);
+        } else {
+            std::vector<std::string> species;
+            species.reserve(static_cast<std::size_t>(num_species));
+            for (int i = 0; i < num_species; ++i) {
+                species.emplace_back(species_names[i]);
+            }
+            rc = service->read_quantity_by_species(quantity_name, wavelengths_m, num_wavelengths, species, *state,
+                                                   values_out, status_out, static_cast<std::size_t>(values_length),
+                                                   error);
+        }
         if (rc != CATCHEM_SUCCESS) {
             return fail(static_cast<catchem::BoundaryStatus>(rc), "ondemand_get_quantity", "on_demand", error.c_str());
         }

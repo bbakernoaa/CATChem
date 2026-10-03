@@ -358,8 +358,11 @@ int catchem_ondemand_get_optics_checked(void* core_ptr, const char* const* quant
 // On-demand general single-quantity form: any catalogue name, diagnostic or
 // optics.  Diagnostic names ignore 'wavelengths_m'; optics names require it.
 // 'species_names' NULL / 'num_species' == 0 requests the bulk (all-species)
-// value; a named subset is reserved for per-species attribution.  The output
-// layout follows the quantity's family (see the PM and optics endpoints).
+// value; a named subset attributes the quantity to each species, one block
+// per species in request order (species-major).  For optics, a species whose
+// label has no Mie curve in the library's source tables reports its block
+// with the not-in-source status and zeroed values.  The output layout
+// follows the quantity's family (see the PM and optics endpoints).
 void catchem_ondemand_get_quantity(void* core_ptr, const char* quantity_name, const double* wavelengths_m,
                                    int num_wavelengths, const char* const* species_names, int num_species,
                                    double* values_out, int* status_out, int values_length, int status_length);

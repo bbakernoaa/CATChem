@@ -159,6 +159,27 @@ class OnDemandService {
                          std::string& error);
 
     /**
+     * @brief Attribute one quantity to individual species: one output block
+     * per requested species, species-major.  Each block is the same shape
+     * and layout as that quantity's bulk block (diagnostic: (cell, level);
+     * optics coefficient: band-major (cell, level); AOT: (cell) per band).
+     *
+     * The values come from masked single-species kernel passes: the kernels
+     * are linear in species mass, so summing the blocks recovers the bulk
+     * value at every point by construction.  For optics, each species'
+     * block additionally consults the library's curve store: a species whose
+     * label has no Mie curve in the pinned source tables reports its whole
+     * optics block as NotInSource with zeroed values -- the analytical
+     * fallback the kernel can model is not a sourced curve.  Diagnostic
+     * (PM) blocks carry no such flag: every configured species contributes
+     * its mass.  An unknown or duplicate species name fails with
+     * CATCHEM_INVALID_INDEX naming it, before any compute runs.
+     */
+    int read_quantity_by_species(const std::string& name, const double* wavelengths, int num_bands,
+                                 const std::vector<std::string>& species, StateManager& state, double* values,
+                                 int* status_out, std::size_t values_len, std::string& error);
+
+    /**
      * @brief General dispatch: any registered quantity. Diagnostic names
      * ignore wavelengths; optics names require them. A non-empty species list
      * narrows either family to the named species' masked contribution.

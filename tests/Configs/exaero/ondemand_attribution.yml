@@ -1,0 +1,44 @@
+# Exaero species configuration for the per-species attribution tests.
+# Three modal types chosen so attribution scenarios discriminate cleanly:
+#   DU   -- a baked Mie-curve species (dry diameter 2.0 um): curve-backed, so
+#           optics report Available and it contributes to pm2_5 / pm10 but not
+#           the 1 um pm1 cut.
+#   SS   -- a baked Mie-curve species (dry diameter 0.8 um): curve-backed,
+#           inside every PM cut.
+#   INERT-- a custom ADT-only species with no Mie curve in the source tables,
+#           given a real refractive index of exactly 1.0 so its analytical
+#           optical response is null.  It still carries mass and PM, but the
+#           curve-store oracle reports NotInSource for its optics -- the
+#           "species with no optics curve" case, where the masked value and
+#           the availability reason agree (a near-zero contribution flagged
+#           as not-in-source rather than an ok-flagged zero).
+# Dry diameters sit strictly inside or outside each cut (pm1 1.0, pm2_5 2.5,
+# pm10 10 um) so the all-or-nothing modal cut is exercised unambiguously.
+species:
+  - name: "DU"
+    dry_density: 2650.0
+    molecular_weight: 0.0
+    dry_particle_diameter: 2.0e-6
+    hygroscopicity: 0.0
+    lognormal_sigma: 1.5
+    lognormal_dg: 2.0e-6
+    refractive_index_real: 1.4
+    refractive_index_imag: 0.0
+  - name: "SS"
+    dry_density: 1000.0
+    molecular_weight: 58.44
+    dry_particle_diameter: 0.8e-6
+    hygroscopicity: 0.0
+    lognormal_sigma: 1.5
+    lognormal_dg: 0.8e-6
+    refractive_index_real: 1.4
+    refractive_index_imag: 0.0
+  - name: "INERT"
+    dry_density: 1500.0
+    molecular_weight: 100.0
+    dry_particle_diameter: 2.0e-6
+    hygroscopicity: 0.0
+    lognormal_sigma: 1.5
+    lognormal_dg: 2.0e-6
+    refractive_index_real: 1.0
+    refractive_index_imag: 0.0

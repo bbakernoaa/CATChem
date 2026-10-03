@@ -117,6 +117,64 @@ struct Us1State {
     }
 };
 
+// Synthetic three-species state for the attribution scenarios: dust_aero ->
+// DU (curve-backed, 2.0 um), sea_salt_aero -> SS (curve-backed, 0.8 um), and
+// inert_aero -> INERT (no Mie curve in the source tables, optically inert,
+// 2.0 um).  DU and INERT sit outside the pm1 cut and inside pm2_5/pm10; SS
+// sits inside every cut.  The inert species exercises the availability
+// reason: it carries mass and PM, but the library's curve store reports its
+// optics as not-in-source.
+struct AttrState {
+    static constexpr int kCells = 2;
+    static constexpr int kLevels = 3;
+    static constexpr int kSpecies = 3;
+    static constexpr int kPoints = kCells * kLevels;
+
+    catchem::StateManager state;
+    std::vector<double> temperature;
+    std::vector<double> air_density;
+    std::vector<double> p_mid;
+    std::vector<double> relative_humidity;
+    std::vector<double> thickness;
+    std::vector<double> concentration;
+
+    AttrState() :
+        state(kCells, kLevels, kSpecies),
+        temperature(kPoints),
+        air_density(kPoints),
+        p_mid(kPoints),
+        relative_humidity(kPoints),
+        thickness(kPoints),
+        concentration(static_cast<std::size_t>(kPoints) * kSpecies, 0.0) {
+        for (int level = 0; level < kLevels; ++level) {
+            for (int cell = 0; cell < kCells; ++cell) {
+                const int point = cell + level * kCells;
+                temperature[point] = 290.0;
+                air_density[point] = 1.2;
+                p_mid[point] = 101325.0;
+                relative_humidity[point] = 0.1;
+                thickness[point] = 100.0;
+            }
+        }
+        state.bind_met_field_3d("T", temperature.data());
+        state.bind_met_field_3d("AIRDEN", air_density.data());
+        state.bind_met_field_3d("PMID", p_mid.data());
+        state.bind_met_field_3d("RH", relative_humidity.data());
+        state.bind_met_field_3d("BXHEIGHT", thickness.data());
+        state.bind_unified_chemistry(concentration.data());
+    }
+
+    void set_mass(int species, int cell, int level, double ug_per_kg) {
+        concentration[static_cast<std::size_t>(species) * kPoints + cell + level * kCells] = ug_per_kg;
+    }
+
+    double expected_kg_per_m3(int species, int cell, int level) const {
+        const double ug_per_kg =
+            concentration[static_cast<std::size_t>(species) * kPoints + cell + level * kCells];
+        return ug_per_kg * 1.0e-9 * air_density[cell + level * kCells];
+    }
+};
+
 #endif  // CATCHEM_ONDEMAND_GATE_OFF
 
 }  // namespace
@@ -707,15 +765,236 @@ int main() {
                                                                          static_cast<int>(small.size()), 0);
             check(small_status == CATCHEM_EXTENT_MISMATCH, "an undersized optics buffer fails EXTENT_MISMATCH");
 
-            // A species subset is not yet wired through the general form.
+            // A species filter through the general form dispatches to
+            // attribution.  The optics fixture's species are analytical-only
+            // (no Mie curve in the source tables), so the curve store reports
+            // the block not-in-source -- the availability reason the
+            // attribution path derives from the library's own oracle.
             const char* species[1] = {"fine_aero"};
             std::vector<double> sp_out(coeff, 0.0);
-            const int sp_status = catchem_ondemand_get_quantity_checked(optics_core, "extinction", lambdas, 1, species,
-                                                                        1, sp_out.data(), nullptr,
-                                                                        static_cast<int>(sp_out.size()), 0);
-            check(sp_status == CATCHEM_INVALID_INDEX, "a species filter is rejected until attribution lands");
+            std::vector<int> sp_status(coeff, -1);
+            const int sp_status_code =
+                catchem_ondemand_get_quantity_checked(optics_core, "extinction", lambdas, 1, species, 1,
+                                                     sp_out.data(), sp_status.data(), static_cast<int>(sp_out.size()),
+                                                     static_cast<int>(sp_status.size()));
+            bool sp_ok = (sp_status_code == CATCHEM_SUCCESS);
+            for (std::size_t p = 0; p < coeff && sp_ok; ++p) {
+                sp_ok &= (sp_status[p] == kNotInSource && sp_out[p] == 0.0);
+            }
+            check(sp_ok, "a species filter routes through attribution and reports curve availability honestly");
 
             catchem_core_destroy(optics_core);
+        }
+        std::remove(config_path.c_str());
+    }
+
+    // --- Per-species attribution of PM and optics ---------------------------
+    // Attribution runs the same kernels with a masked state (one species'
+    // mass, the rest zero): the kernels are linear in species mass, so the
+    // species-summed blocks recover the bulk value at every point.  Optics
+    // additionally consult the library's curve store: a species whose label
+    // has no Mie curve in the pinned source tables reports its optics block
+    // as not-in-source -- the analytical fallback the kernel can model is
+    // not a sourced curve -- while curve-backed species still return values.
+    std::cout << "== on-demand API: per-species attribution ==\n";
+    AttrState attr;
+    for (int level = 0; level < AttrState::kLevels; ++level) {
+        for (int cell = 0; cell < AttrState::kCells; ++cell) {
+            const double base = (cell + 1) * (level + 1) * 10.0;
+            attr.set_mass(0, cell, level, base);        // dust_aero -> DU
+            attr.set_mass(1, cell, level, 2.0 * base);  // sea_salt_aero -> SS
+            attr.set_mass(2, cell, level, 3.0 * base);  // inert_aero -> INERT
+        }
+    }
+    catchem::OnDemandService attr_service;
+    const std::string attr_modal =
+        std::string(catchem::test::TEST_DIR) + "/Configs/exaero/ondemand_attribution.yml";
+    const std::string attr_host =
+        std::string(catchem::test::TEST_DIR) + "/Configs/exaero/ondemand_attribution_species.yml";
+    attr.state.load_species_config(attr_host);
+    error.clear();
+    check(attr_service.configure(attr_modal, true) == CATCHEM_SUCCESS, "the attribution service configures");
+
+    const std::vector<std::string> all_species = {"dust_aero", "sea_salt_aero", "inert_aero"};
+    const std::size_t a_points = AttrState::kPoints;
+
+    // Bulk references for the same state.
+    std::vector<double> bulk_pm(a_points, 0.0);
+    std::vector<int> bulk_pm_status(a_points, 0);
+    error.clear();
+    rc = attr_service.read_pm("", "pm2_5", attr.state, bulk_pm.data(), bulk_pm_status.data(), a_points, error);
+    check(rc == CATCHEM_SUCCESS, "bulk pm2_5 reads for the three-species state");
+
+    // Per-species pm2_5: one block per species; the species-summed total
+    // equals the bulk value pointwise (the linearity invariant).
+    std::vector<double> pm_by_species(3 * a_points, -1.0);
+    std::vector<int> pm_by_status(3 * a_points, -1);
+    error.clear();
+    rc = attr_service.read_quantity_by_species("pm2_5", nullptr, 0, all_species, attr.state, pm_by_species.data(),
+                                               pm_by_status.data(), pm_by_species.size(), error);
+    check(rc == CATCHEM_SUCCESS, "per-species pm2_5 reads three blocks");
+    bool pm_sum_ok = true;
+    for (std::size_t p = 0; p < a_points; ++p) {
+        double sum = 0.0;
+        for (int s = 0; s < 3; ++s) {
+            sum += pm_by_species[static_cast<std::size_t>(s) * a_points + p];
+            pm_sum_ok &= (pm_by_status[static_cast<std::size_t>(s) * a_points + p] == kAvailable);
+        }
+        pm_sum_ok &= (sum == bulk_pm[p]);
+    }
+    check(pm_sum_ok, "species-summed per-species pm2_5 equals the bulk pm2_5 at every point");
+
+    // Each species' block is that species' own mass (all three sit inside the
+    // 2.5 um cut), confirming the blocks are per-species, not per-name.
+    bool pm_blocks_ok = true;
+    for (int s = 0; s < 3 && pm_blocks_ok; ++s) {
+        for (std::size_t p = 0; p < a_points; ++p) {
+            const int cell = static_cast<int>(p % AttrState::kCells);
+            const int level = static_cast<int>(p / AttrState::kCells);
+            pm_blocks_ok &= (pm_by_species[static_cast<std::size_t>(s) * a_points + p] ==
+                             attr.expected_kg_per_m3(s, cell, level));
+        }
+    }
+    check(pm_blocks_ok, "each species' pm2_5 block carries exactly that species' mass");
+
+    // Per-species extinction at 550 nm: the two curve-backed species return
+    // positive values; the species with no Mie curve reports its block as
+    // not-in-source with a zero value, and the summed extinction still
+    // recovers the bulk coefficient (the inert species' analytical fallback
+    // is numerically null, so the flagged zero costs nothing).
+    std::vector<double> bulk_ext(a_points, 0.0);
+    std::vector<int> bulk_ext_status(a_points, 0);
+    error.clear();
+    rc = attr_service.read_optics("extinction", &lambda, 1, attr.state, bulk_ext.data(), bulk_ext_status.data(),
+                                  a_points, error);
+    check(rc == CATCHEM_SUCCESS, "bulk extinction reads for the three-species state");
+
+    std::vector<double> ext_by_species(3 * a_points, -1.0);
+    std::vector<int> ext_by_status(3 * a_points, -1);
+    error.clear();
+    rc = attr_service.read_quantity_by_species("extinction", &lambda, 1, all_species, attr.state, ext_by_species.data(),
+                                               ext_by_status.data(), ext_by_species.size(), error);
+    check(rc == CATCHEM_SUCCESS, "per-species extinction reads three blocks");
+    bool curve_backed_ok = true;
+    for (int s = 0; s < 2; ++s) {  // DU, SS
+        for (std::size_t p = 0; p < a_points && curve_backed_ok; ++p) {
+            curve_backed_ok &= (ext_by_status[static_cast<std::size_t>(s) * a_points + p] == kAvailable &&
+                                ext_by_species[static_cast<std::size_t>(s) * a_points + p] > 0.0);
+        }
+    }
+    check(curve_backed_ok, "curve-backed species return positive extinction values with available status");
+    bool inert_flagged = true;
+    for (std::size_t p = 0; p < a_points; ++p) {
+        inert_flagged &= (ext_by_status[2 * a_points + p] == kNotInSource && ext_by_species[2 * a_points + p] == 0.0);
+    }
+    check(inert_flagged, "the species with no Mie curve reports its optics block as not-in-source, value zero");
+    bool ext_sum_ok = true;
+    for (std::size_t p = 0; p < a_points; ++p) {
+        double sum = 0.0;
+        for (int s = 0; s < 3; ++s)
+            sum += ext_by_species[static_cast<std::size_t>(s) * a_points + p];
+        ext_sum_ok &= (std::abs(sum - bulk_ext[p]) <= 1e-12 * std::abs(bulk_ext[p]));
+    }
+    check(ext_sum_ok, "species-summed per-species extinction equals the bulk extinction at every point");
+
+    // A subset request returns exactly the named species' blocks, identical
+    // to the same blocks in the full request.
+    const std::vector<std::string> subset = {"dust_aero", "sea_salt_aero"};
+    std::vector<double> pm_subset(2 * a_points, -1.0);
+    std::vector<int> pm_subset_status(2 * a_points, -1);
+    error.clear();
+    rc = attr_service.read_quantity_by_species("pm2_5", nullptr, 0, subset, attr.state, pm_subset.data(),
+                                               pm_subset_status.data(), pm_subset.size(), error);
+    bool subset_ok = (rc == CATCHEM_SUCCESS);
+    for (int s = 0; s < 2 && subset_ok; ++s) {
+        for (std::size_t p = 0; p < a_points; ++p) {
+            subset_ok &= (pm_subset[static_cast<std::size_t>(s) * a_points + p] ==
+                          pm_by_species[static_cast<std::size_t>(s) * a_points + p]);
+        }
+    }
+    check(subset_ok, "a two-species subset returns exactly those species' blocks");
+
+    // An unknown species name fails loudly and names it, before compute.
+    const std::vector<std::string> ghost = {"dust_aero", "no_such_species"};
+    std::vector<double> ghost_out(2 * a_points, 0.0);
+    error.clear();
+    rc = attr_service.read_quantity_by_species("pm2_5", nullptr, 0, ghost, attr.state, ghost_out.data(), nullptr,
+                                               ghost_out.size(), error);
+    check(rc == CATCHEM_INVALID_INDEX, "an unknown species name fails attribution with INVALID_INDEX");
+    check(error.find("no_such_species") != std::string::npos, "the attribution failure names the unknown species");
+
+    // The flat endpoint reaches the same attribution: a two-name species
+    // request through catchem_ondemand_get_quantity_checked.
+    {
+        const std::string config_text =
+            "simulation:\n"
+            "  name: ondemand_attr\n"
+            "  species_filename: " +
+            attr_host +
+            "\n"
+            "grid:\n"
+            "  number_of_levels: 3\n"
+            "diagnostics:\n"
+            "  on_demand:\n"
+            "    enabled: true\n"
+            "    exaero_config: " +
+            attr_modal + "\n";
+        const std::string config_path = "ondemand_attr_config.yml";
+        {
+            std::ofstream out(config_path);
+            out << config_text;
+        }
+        void* attr_core = nullptr;
+        const int create_status =
+            catchem_core_create_from_config_with_grid_checked(config_path.c_str(), AttrState::kCells,
+                                                              AttrState::kLevels, &attr_core);
+        check(create_status == CATCHEM_SUCCESS && attr_core != nullptr, "a configured Core builds for attribution");
+        if (attr_core != nullptr) {
+            void* state_ptr = nullptr;
+            catchem_core_get_state_manager_checked(attr_core, &state_ptr);
+            bool bound = true;
+            bound &= catchem_state_bind_met_3d_checked(state_ptr, "T", attr.temperature.data(), AttrState::kCells,
+                                                       AttrState::kLevels, 1) == CATCHEM_SUCCESS;
+            bound &= catchem_state_bind_met_3d_checked(state_ptr, "AIRDEN", attr.air_density.data(), AttrState::kCells,
+                                                       AttrState::kLevels, 1) == CATCHEM_SUCCESS;
+            bound &= catchem_state_bind_met_3d_checked(state_ptr, "PMID", attr.p_mid.data(), AttrState::kCells,
+                                                       AttrState::kLevels, 1) == CATCHEM_SUCCESS;
+            bound &= catchem_state_bind_met_3d_checked(state_ptr, "RH", attr.relative_humidity.data(),
+                                                       AttrState::kCells, AttrState::kLevels, 1) == CATCHEM_SUCCESS;
+            bound &= catchem_state_bind_met_3d_checked(state_ptr, "BXHEIGHT", attr.thickness.data(), AttrState::kCells,
+                                                       AttrState::kLevels, 1) == CATCHEM_SUCCESS;
+            bound &= catchem_state_bind_unified_chemistry_checked(state_ptr, attr.concentration.data(),
+                                                                  AttrState::kCells, AttrState::kLevels,
+                                                                  AttrState::kSpecies) == CATCHEM_SUCCESS;
+            check(bound, "the attribution Core binds the three-species state");
+
+            const char* endpoint_species[2] = {"dust_aero", "sea_salt_aero"};
+            std::vector<double> ep_values(2 * a_points, -1.0);
+            std::vector<int> ep_status(2 * a_points, -1);
+            const int ep_rc = catchem_ondemand_get_quantity_checked(attr_core, "pm2_5", nullptr, 0, endpoint_species, 2,
+                                                                    ep_values.data(), ep_status.data(),
+                                                                    static_cast<int>(ep_values.size()),
+                                                                    static_cast<int>(ep_status.size()));
+            bool ep_ok = (ep_rc == CATCHEM_SUCCESS);
+            for (int s = 0; s < 2 && ep_ok; ++s) {
+                for (std::size_t p = 0; p < a_points; ++p) {
+                    ep_ok &= (ep_status[static_cast<std::size_t>(s) * a_points + p] == kAvailable &&
+                              ep_values[static_cast<std::size_t>(s) * a_points + p] ==
+                                  pm_by_species[static_cast<std::size_t>(s) * a_points + p]);
+                }
+            }
+            check(ep_ok, "the general endpoint returns the named species' blocks through the boundary");
+
+            const char* ghost_names[1] = {"no_such_species"};
+            std::vector<double> ep_ghost(a_points, 0.0);
+            const int ep_ghost_rc = catchem_ondemand_get_quantity_checked(attr_core, "pm2_5", nullptr, 0, ghost_names,
+                                                                          1, ep_ghost.data(), nullptr,
+                                                                          static_cast<int>(ep_ghost.size()), 0);
+            check(ep_ghost_rc == CATCHEM_INVALID_INDEX, "the endpoint rejects an unknown species by name");
+            check(last_error().find("no_such_species") != std::string::npos,
+                  "the endpoint rejection names the unknown species");
+
+            catchem_core_destroy(attr_core);
         }
         std::remove(config_path.c_str());
     }

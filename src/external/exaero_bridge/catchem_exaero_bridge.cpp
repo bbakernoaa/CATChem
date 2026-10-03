@@ -455,6 +455,40 @@ namespace catchem {
             return true;
         }
 
+        bool ExaeroPackageHandle::query_optics_availability(int species_index, double relative_humidity,
+                                                            double wavelength_m, int& status_out, std::string& error) {
+            error.clear();
+            status_out = kAttributeNotInSource;
+            if (package_ == nullptr) {
+                error = "exaero bridge: optics availability queried before the package was initialized";
+                return false;
+            }
+            if (species_index < 0) {
+                error = "exaero bridge: negative species index in an optics availability query";
+                return false;
+            }
+            // The value/unit/version outputs are placeholders here -- only the
+            // status is consumed.  The library writes value_out solely on an
+            // available/interpolated result, so a curve-less species leaves it
+            // untouched and reports NotInSource (never a silent 0).
+            double value = 0.0;
+            char unit[32] = {0};
+            char version[96] = {0};
+            char errmsg[kErrmsgSize] = {0};
+            int errflg = 1;
+            int status = kAttributeNotInSource;
+            exaero_query_attribute(package_, species_index, static_cast<int>(exaero::AttributeCategory::SpectralOptical),
+                                   exaero::spectral_optical_indices::MASS_EXTINCTION, relative_humidity, wavelength_m,
+                                   &value, unit, static_cast<int>(sizeof(unit)), version, static_cast<int>(sizeof(version)),
+                                   &status, errmsg, &errflg);
+            if (errflg != 0) {
+                error = std::string("exaero bridge: optics availability query failed: ") + errmsg;
+                return false;
+            }
+            status_out = status;
+            return true;
+        }
+
         void ExaeroPackageHandle::release() {
             if (package_ != nullptr) {
                 exaero_free_package(package_);

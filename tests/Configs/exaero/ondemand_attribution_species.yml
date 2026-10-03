@@ -1,0 +1,32 @@
+# Host species inventory for the per-species attribution tests.  Three
+# aerosols whose __mie_name labels join onto the exaero modal species DU / SS
+# / INERT (see ondemand_attribution.yml).  The service resolves each host
+# transport species onto its modal slot through the same Mie-name join the
+# settling engine established.
+- name: dust_aero
+  __long_name: dust_aero
+  __description: dust-mode aerosol (curve-backed, coarse)
+  __is_aerosol: true
+  __is_advected: true
+  molecular weight [kg mol-1]: 2650.0e-3
+  __radius: 1.0
+  __density: 2650.0
+  __mie_name: DU
+- name: sea_salt_aero
+  __long_name: sea_salt_aero
+  __description: sea-salt aerosol (curve-backed, fine)
+  __is_aerosol: true
+  __is_advected: true
+  molecular weight [kg mol-1]: 58.44e-3
+  __radius: 0.4
+  __density: 1000.0
+  __mie_name: SS
+- name: inert_aero
+  __long_name: inert_aero
+  __description: optically inert aerosol (no Mie curve, carries mass)
+  __is_aerosol: true
+  __is_advected: true
+  molecular weight [kg mol-1]: 100.0e-3
+  __radius: 1.0
+  __density: 1500.0
+  __mie_name: INERT

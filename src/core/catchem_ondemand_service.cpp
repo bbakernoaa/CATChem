@@ -22,6 +22,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -770,6 +771,202 @@ int OnDemandService::read_optics_bulk(const std::vector<std::string>& names, con
     return CATCHEM_SUCCESS;
 }
 
+int OnDemandService::read_quantity_by_species(const std::string& name, const double* wavelengths, int num_bands,
+                                              const std::vector<std::string>& species, StateManager& state,
+                                              double* values, int* status_out, std::size_t values_len,
+                                              std::string& error) {
+    if (species.empty()) {
+        error = "an on-demand attribution request names no species; use the bulk form for the all-species value";
+        return CATCHEM_NULL_ARGUMENT;
+    }
+    const QuantityInfo* info = find_quantity(name);
+    if (info == nullptr) {
+        error = "unknown on-demand quantity '" + name + "'; consult the catalogue via the enumeration endpoints";
+        return CATCHEM_INVALID_INDEX;
+    }
+    const bool is_optics =
+        (info->kind == Kind::Optical3D || info->kind == Kind::Optical2D || info->kind == Kind::OpticalSsa);
+    if (is_optics && (wavelengths == nullptr || num_bands <= 0)) {
+        error = "optical quantity '" + name + "' requires at least one wavelength";
+        return CATCHEM_NULL_ARGUMENT;
+    }
+
+    int rc = ensure_ready(state, error);
+    if (rc != CATCHEM_SUCCESS) {
+        return rc;
+    }
+
+    // Resolve every species name through the modal-type / host-short-name
+    // join before any compute, so a bad request fails loudly by name rather
+    // than mid-attribution.  Duplicates would double-count a block.
+    std::vector<int> keep;
+    keep.reserve(species.size());
+    for (const std::string& s : species) {
+        const int modal = resolve_species(state, s);
+        if (modal < 0) {
+            error = "species '" + s + "' is not an aerosol species of the bound state or the exaero "
+                    "configuration";
+            return CATCHEM_INVALID_INDEX;
+        }
+        for (const int prev : keep) {
+            if (prev == modal) {
+                error = "species '" + s + "' is requested twice in one attribution; name each species once";
+                return CATCHEM_INVALID_INDEX;
+            }
+        }
+        keep.push_back(modal);
+    }
+
+    if (is_optics) {
+        for (int b = 0; b < num_bands; ++b) {
+            const double lambda = wavelengths[b];
+            if (!std::isfinite(lambda) || lambda < band_min_m_ || lambda > band_max_m_) {
+                error = "wavelength " + format_si(lambda) + " m lies outside the configured optics band range [" +
+                        format_si(band_min_m_) + ", " + format_si(band_max_m_) +
+                        "] m; request a wavelength inside the band";
+                return CATCHEM_QUANTITY_NOT_AVAILABLE;
+            }
+        }
+    }
+
+    rc = assemble_inputs(state, error);
+    if (rc != CATCHEM_SUCCESS) {
+        return rc;
+    }
+
+    const std::size_t cells = static_cast<std::size_t>(cells_);
+    const std::size_t levels = static_cast<std::size_t>(levels_);
+    const std::size_t bands = is_optics ? static_cast<std::size_t>(num_bands) : 1;
+    // Per-species block size follows the quantity's family: a diagnostic
+    // covers (cell, level) or (cell); an optics coefficient or derived albedo
+    // covers (cell, level) per band; an AOT covers (cell) per band.
+    std::size_t block = 0;
+    switch (info->kind) {
+        case Kind::Diagnostic3D:
+            block = cells * levels;
+            break;
+        case Kind::Diagnostic2D:
+            block = cells;
+            break;
+        case Kind::Optical3D:
+        case Kind::OpticalSsa:
+            block = bands * cells * levels;
+            break;
+        case Kind::Optical2D:
+            block = bands * cells;
+            break;
+    }
+    const std::size_t total = keep.size() * block;
+    if (values_len < total) {
+        error = "on-demand output buffer too small: " + std::to_string(total) + " values required for " +
+                std::to_string(keep.size()) + " species x " + std::to_string(block) + " points";
+        return CATCHEM_EXTENT_MISMATCH;
+    }
+
+    const int slot = info->slot;
+    // A representative query point for the curve-availability oracle: the
+    // first cell/level's RH and the first requested wavelength.  The oracle
+    // answers whether the species label has a sourced Mie curve at all; the
+    // query point only selects which curve value would back an available
+    // result, never whether a curve exists.
+    const double oracle_rh = (impl_->relative_humidity != nullptr) ? impl_->relative_humidity[0] : 0.0;
+    const double oracle_lambda = is_optics ? wavelengths[0] : std::numeric_limits<double>::quiet_NaN();
+
+    for (std::size_t s = 0; s < keep.size(); ++s) {
+        const int modal = keep[s];
+        const std::size_t base = s * block;
+        double* out = values + base;
+        int* out_status = (status_out != nullptr) ? (status_out + base) : nullptr;
+
+        // Optics attribution consults the curve store first: a species with
+        // no sourced Mie curve reports its whole block as not-in-source --
+        // the analytical fallback the kernel can model is not sourced data,
+        // and an ok-flagged modelled value would misrepresent its origin.
+        if (is_optics) {
+            int availability = kStatusNotInSource;
+            std::string oracle_error;
+            if (!impl_->package->query_optics_availability(modal, oracle_rh, oracle_lambda, availability,
+                                                           oracle_error)) {
+                error = "on-demand optics availability query failed: " + oracle_error;
+                return CATCHEM_INTERNAL_ERROR;
+            }
+            if (!exaero_util::ExaeroPackageHandle::attribute_value_ok(availability)) {
+                for (std::size_t p = 0; p < block; ++p) {
+                    out[p] = 0.0;
+                    if (out_status != nullptr) {
+                        out_status[p] = kStatusNotInSource;
+                    }
+                }
+                continue;
+            }
+        }
+
+        const int one = modal;
+        if (is_optics) {
+            rc = run_optics(wavelengths, num_bands, &one, 1, error);
+            if (rc != CATCHEM_SUCCESS) {
+                error = "on-demand per-species optics compute failed for '" + name + "': " + error;
+                return rc;
+            }
+            for (std::size_t b = 0; b < bands; ++b) {
+                for (std::size_t p = 0; p < cells * (info->kind == Kind::Optical2D ? 1 : levels); ++p) {
+                    const std::size_t per_band = (info->kind == Kind::Optical2D) ? cells : cells * levels;
+                    double value = 0.0;
+                    int status = kStatusAvailable;
+                    if (info->kind == Kind::Optical2D) {
+                        value = impl_->package->optic(slot, static_cast<int>(p), 0, static_cast<int>(b));
+                    } else if (info->kind == Kind::OpticalSsa) {
+                        const int cell = static_cast<int>(p % cells);
+                        const int level = static_cast<int>(p / cells);
+                        const double ext = impl_->package->optic(0, cell, level, static_cast<int>(b));
+                        const double sca = impl_->package->optic(1, cell, level, static_cast<int>(b));
+                        if (!std::isfinite(ext) || ext <= 0.0 || !std::isfinite(sca)) {
+                            value = 0.0;
+                            status = kStatusNotInSource;
+                        } else {
+                            value = sca / ext;
+                        }
+                    } else {
+                        const int cell = static_cast<int>(p % cells);
+                        const int level = static_cast<int>(p / cells);
+                        value = impl_->package->optic(slot, cell, level, static_cast<int>(b));
+                    }
+                    if (!std::isfinite(value)) {
+                        value = 0.0;
+                        status = kStatusNotInSource;
+                    }
+                    const std::size_t idx = b * per_band + p;
+                    out[idx] = value;
+                    if (out_status != nullptr) {
+                        out_status[idx] = status;
+                    }
+                }
+            }
+        } else {
+            rc = run_diagnostics(&one, 1, error);
+            if (rc != CATCHEM_SUCCESS) {
+                error = "on-demand per-species diagnostics compute failed for '" + name + "': " + error;
+                return rc;
+            }
+            for (std::size_t p = 0; p < block; ++p) {
+                const int cell = static_cast<int>(p % cells);
+                const int level = (info->kind == Kind::Diagnostic3D) ? static_cast<int>(p / cells) : 0;
+                double value = impl_->package->diagnostic(slot, cell, level);
+                int status = kStatusAvailable;
+                if (!std::isfinite(value)) {
+                    value = 0.0;
+                    status = kStatusNotInSource;
+                }
+                out[p] = value;
+                if (out_status != nullptr) {
+                    out_status[p] = status;
+                }
+            }
+        }
+    }
+    return CATCHEM_SUCCESS;
+}
+
 int OnDemandService::read_quantity(const std::string& name, const double* wavelengths, int num_bands,
                                    const std::string* species_names, int num_species_filter, StateManager& state,
                                    double* values, int* status_out, std::size_t values_len, std::string& error) {
@@ -868,6 +1065,13 @@ int OnDemandService::read_optics(const std::string&, const double*, int, StateMa
 
 int OnDemandService::read_optics_bulk(const std::vector<std::string>&, const double*, int, StateManager&, double*,
                                       int*, std::size_t, std::string& error) {
+    error = "the aerosol utility is not built into this CATChem library; "
+            "reconfigure with -DCATCHEM_BUILD_EXAERO=ON";
+    return CATCHEM_QUANTITY_NOT_AVAILABLE;
+}
+
+int OnDemandService::read_quantity_by_species(const std::string&, const double*, int, const std::vector<std::string>&,
+                                              StateManager&, double*, int*, std::size_t, std::string& error) {
     error = "the aerosol utility is not built into this CATChem library; "
             "reconfigure with -DCATCHEM_BUILD_EXAERO=ON";
     return CATCHEM_QUANTITY_NOT_AVAILABLE;

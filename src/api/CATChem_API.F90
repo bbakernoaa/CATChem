@@ -1612,18 +1612,21 @@ contains
    ! 'wavelengths' for an optics name; omit it for a diagnostic name.  The
    ! block size follows the catalogue shape (and, for optics, one block per
    ! wavelength).  Bulk only -- species attribution is wired separately.
-   subroutine model_get_ondemand_quantity(this, quantity_name, values, rc, wavelengths, status)
+   subroutine model_get_ondemand_quantity(this, quantity_name, values, rc, wavelengths, status, species)
       class(CATChem_Model), intent(inout) :: this
       character(len=*), intent(in) :: quantity_name
       real(c_double), allocatable, target, intent(out) :: values(:)
       integer, intent(out) :: rc
       real(c_double), intent(in), target, optional :: wavelengths(:)
       integer(c_int), allocatable, target, intent(out), optional :: status(:)
+      character(len=*), intent(in), optional :: species(:)
 
-      integer :: nb, cells, levels, block, total
+      integer :: i, nb, ns, cells, levels, block, total
       integer(c_int) :: c_status, shape_status, c_col, n_wl
       character(kind=c_char), target :: c_name(64)
-      type(c_ptr) :: wl_ptr
+      character(kind=c_char), allocatable, target :: c_species(:, :)
+      type(c_ptr), allocatable, target :: species_ptrs(:)
+      type(c_ptr) :: wl_ptr, sp_ptr
 
       cells = this%nx * this%ny
       levels = this%nz
@@ -1651,8 +1654,22 @@ contains
          n_wl = 0_c_int
       end if
 
+      ! A species list attributes the quantity per species (one block each,
+      ! species-major); its absence requests the bulk value.
+      ns = 0
+      sp_ptr = c_null_ptr
+      if (present(species)) then
+         ns = size(species)
+         allocate(species_ptrs(ns), c_species(64, ns))
+         do i = 1, ns
+            call to_c_string(species(i), c_species(:, i))
+            species_ptrs(i) = c_loc(c_species(1, i))
+         end do
+         sp_ptr = c_loc(species_ptrs)
+      end if
+
       block = cells * merge(1, levels, int(c_col) == 1)
-      total = block * nb
+      total = block * nb * merge(ns, 1, ns > 0)
 
       allocate(values(total))
       values = 0.0_c_double
@@ -1660,11 +1677,11 @@ contains
          allocate(status(total))
          status = 0_c_int
          c_status = catchem_ondemand_get_quantity_checked( &
-            this%cpp_core_ptr, c_loc(c_name), wl_ptr, n_wl, c_null_ptr, 0_c_int, &
+            this%cpp_core_ptr, c_loc(c_name), wl_ptr, n_wl, sp_ptr, int(ns, c_int), &
             c_loc(values), c_loc(status), int(total, c_int), int(total, c_int))
       else
          c_status = catchem_ondemand_get_quantity_checked( &
-            this%cpp_core_ptr, c_loc(c_name), wl_ptr, n_wl, c_null_ptr, 0_c_int, &
+            this%cpp_core_ptr, c_loc(c_name), wl_ptr, n_wl, sp_ptr, int(ns, c_int), &
             c_loc(values), c_null_ptr, int(total, c_int), 0_c_int)
       end if
 

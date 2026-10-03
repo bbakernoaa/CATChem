@@ -192,6 +192,21 @@ namespace catchem {
                                     std::vector<double>& density_wet_out, std::vector<int>& status_out,
                                     std::string& error);
 
+            // Availability oracle for a species' spectral-optical attributes.  A
+            // species whose label has no Mie curve in the pinned source tables
+            // reports NotInSource (4) for its optics, independently of whether it
+            // carries mass: the analytical (ADT) optics a masked compute produces
+            // for such a species is a modelled fallback, not a sourced curve.  This
+            // is the per-species status signal for optics attribution -- the value
+            // comes from the masked kernel, the availability reason from here.  The
+            // query point ('relative_humidity', 'wavelength_m') only selects which
+            // curve value backs an available result; a curve-less species reports
+            // NotInSource at any point.  'status_out' receives the AttributeStatus
+            // code (usable via attribute_value_ok).  Returns false and fills 'error'
+            // only when the library call itself failed.
+            bool query_optics_availability(int species_index, double relative_humidity, double wavelength_m,
+                                           int& status_out, std::string& error);
+
             // The opaque exaero handle for a Fortran scheme that calls the compute
             // directly through the exaero_interface module.  Null before
             // initialize_from_* and after release.
