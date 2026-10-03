@@ -230,6 +230,7 @@ nav:
     - Standalone Driver: user-guide/standalone-driver.md
     - Configuration System: user-guide/configuration.md
     - Input Files: user-guide/input-files.md
+    - On-Demand Aerosol Diagnostics: user-guide/on-demand-diagnostics.md
   - Processes:
     - Process Overview: processes/index.md
     - Dust Process: processes/dust_process.md
@@ -263,6 +264,7 @@ nav:
     - Diagnostic System: core-concepts/diagnostics.md
     - Error Handling: core-concepts/error-handling.md
     - Configuration System: core-concepts/configuration.md
+    - On-Demand Quantity Registry: core-concepts/on-demand-quantity-registry.md
   - API Reference:
     - api/index.md
     - Column Interface: api/column-interface.md
