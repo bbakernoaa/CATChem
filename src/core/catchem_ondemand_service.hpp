@@ -166,14 +166,16 @@ class OnDemandService {
      *
      * The values come from masked single-species kernel passes: the kernels
      * are linear in species mass, so summing the blocks recovers the bulk
-     * value at every point by construction.  For optics, each species'
-     * block additionally consults the library's curve store: a species whose
-     * label has no Mie curve in the pinned source tables reports its whole
-     * optics block as NotInSource with zeroed values -- the analytical
-     * fallback the kernel can model is not a sourced curve.  Diagnostic
-     * (PM) blocks carry no such flag: every configured species contributes
-     * its mass.  An unknown or duplicate species name fails with
-     * CATCHEM_INVALID_INDEX naming it, before any compute runs.
+     * value at every point by construction.  For optics, each block also
+     * consults the library's curve store: a species with neither a sourced
+     * Mie curve nor a modelled optical contribution reports its whole optics
+     * block as NotInSource with zeroed values -- an ok-flagged zero would be
+     * indistinguishable from a real physical zero.  A curve-less species
+     * that still has modelled optical properties keeps its value (hiding it
+     * would break the summed-equals-bulk invariant).  Diagnostic (PM) blocks
+     * carry no such flag: every configured species contributes its mass.  An
+     * unknown or duplicate species name fails with CATCHEM_INVALID_INDEX
+     * naming it, before any compute runs.
      */
     int read_quantity_by_species(const std::string& name, const double* wavelengths, int num_bands,
                                  const std::vector<std::string>& species, StateManager& state, double* values,

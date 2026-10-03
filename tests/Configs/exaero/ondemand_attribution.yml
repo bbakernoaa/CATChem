@@ -5,13 +5,12 @@
 #           the 1 um pm1 cut.
 #   SS   -- a baked Mie-curve species (dry diameter 0.8 um): curve-backed,
 #           inside every PM cut.
-#   INERT-- a custom ADT-only species with no Mie curve in the source tables,
-#           given a real refractive index of exactly 1.0 so its analytical
-#           optical response is null.  It still carries mass and PM, but the
-#           curve-store oracle reports NotInSource for its optics -- the
-#           "species with no optics curve" case, where the masked value and
-#           the availability reason agree (a near-zero contribution flagged
-#           as not-in-source rather than an ok-flagged zero).
+#   INERT-- a custom ADT-only species with no Mie curve in the source tables.
+#           It carries mass (so it contributes to the PM cuts) but the
+#           attribution scenarios hold it at zero mass when optics are read,
+#           so the library produces no optical contribution for it and its
+#           optics block reports the not-in-source availability reason rather
+#           than an ok-flagged zero indistinguishable from a real one.
 # Dry diameters sit strictly inside or outside each cut (pm1 1.0, pm2_5 2.5,
 # pm10 10 um) so the all-or-nothing modal cut is exercised unambiguously.
 species:

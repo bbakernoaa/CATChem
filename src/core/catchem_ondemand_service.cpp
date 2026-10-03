@@ -15,7 +15,10 @@
 // configured modal slot is rejected before compute; a point whose slab read is
 // non-finite (a missing slab or out-of-range slot, never a real physical
 // zero) reports NotInSource with a zero value; and a bulk pass reports
-// Available at every point.
+// Available at every point.  Per-species optics additionally consult the
+// library's curve store: a species with neither a sourced Mie curve nor a
+// modelled optical contribution reports NotInSource rather than an
+// ok-flagged zero a reader could not distinguish from a real one.
 #include "catchem_ondemand_service.hpp"
 
 #include <algorithm>
@@ -864,42 +867,34 @@ int OnDemandService::read_quantity_by_species(const std::string& name, const dou
     }
 
     const int slot = info->slot;
-    // A representative query point for the curve-availability oracle: the
-    // first cell/level's RH and the first requested wavelength.  The oracle
-    // answers whether the species label has a sourced Mie curve at all; the
-    // query point only selects which curve value would back an available
-    // result, never whether a curve exists.
-    const double oracle_rh = (impl_->relative_humidity != nullptr) ? impl_->relative_humidity[0] : 0.0;
-    const double oracle_lambda = is_optics ? wavelengths[0] : std::numeric_limits<double>::quiet_NaN();
+    // Curve availability per species: a label with a Mie curve in the library's
+    // pinned source tables is backed by sourced data; one without is modelled
+    // analytically.  This decides how a zero optics block must be reported, not
+    // whether a nonzero analytical value may be returned -- a species can have
+    // real optical properties without a sourced curve, and hiding that value
+    // would break the species-summed-equals-bulk invariant.
+    std::vector<char> curve_backed(keep.size(), 0);
+    if (is_optics) {
+        // A representative query point selects which curve value would back an
+        // available result; it never decides whether a curve exists.
+        const double oracle_rh = (impl_->relative_humidity != nullptr) ? impl_->relative_humidity[0] : 0.0;
+        for (std::size_t s = 0; s < keep.size(); ++s) {
+            int availability = kStatusNotInSource;
+            std::string oracle_error;
+            if (!impl_->package->query_optics_availability(keep[s], oracle_rh, wavelengths[0], availability,
+                                                           oracle_error)) {
+                error = "on-demand optics availability query failed: " + oracle_error;
+                return CATCHEM_INTERNAL_ERROR;
+            }
+            curve_backed[s] = exaero_util::ExaeroPackageHandle::attribute_value_ok(availability) ? 1 : 0;
+        }
+    }
 
     for (std::size_t s = 0; s < keep.size(); ++s) {
         const int modal = keep[s];
         const std::size_t base = s * block;
         double* out = values + base;
         int* out_status = (status_out != nullptr) ? (status_out + base) : nullptr;
-
-        // Optics attribution consults the curve store first: a species with
-        // no sourced Mie curve reports its whole block as not-in-source --
-        // the analytical fallback the kernel can model is not sourced data,
-        // and an ok-flagged modelled value would misrepresent its origin.
-        if (is_optics) {
-            int availability = kStatusNotInSource;
-            std::string oracle_error;
-            if (!impl_->package->query_optics_availability(modal, oracle_rh, oracle_lambda, availability,
-                                                           oracle_error)) {
-                error = "on-demand optics availability query failed: " + oracle_error;
-                return CATCHEM_INTERNAL_ERROR;
-            }
-            if (!exaero_util::ExaeroPackageHandle::attribute_value_ok(availability)) {
-                for (std::size_t p = 0; p < block; ++p) {
-                    out[p] = 0.0;
-                    if (out_status != nullptr) {
-                        out_status[p] = kStatusNotInSource;
-                    }
-                }
-                continue;
-            }
-        }
 
         const int one = modal;
         if (is_optics) {
@@ -933,6 +928,11 @@ int OnDemandService::read_quantity_by_species(const std::string& name, const dou
                     }
                     if (!std::isfinite(value)) {
                         value = 0.0;
+                        status = kStatusNotInSource;
+                    } else if (value <= 0.0 && curve_backed[s] == 0) {
+                        // No sourced curve and no modelled optical contribution:
+                        // report the absence rather than an ok-flagged zero that
+                        // a reader cannot distinguish from a real physical zero.
                         status = kStatusNotInSource;
                     }
                     const std::size_t idx = b * per_band + p;
