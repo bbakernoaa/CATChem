@@ -388,7 +388,7 @@ diagnostics:
   output:
     attributes:
       institution: "Example Lab"
-      references: "CATChem v1.0 run"
+      references: "https://github.com/ufs-community/CATChem"
 ```
 
 ## Advanced Features
