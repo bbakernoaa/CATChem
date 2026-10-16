@@ -4,6 +4,7 @@
 #include <cctype>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -33,6 +34,40 @@ namespace catchem {
 
     namespace {
 
+        std::string lowercase(std::string s) {
+            std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
+            return s;
+        }
+
+        // A scalar that carries no value: absent, YAML null, or one of the
+        // null spellings YAML allows.
+        bool is_null_scalar(const YAML::Node& node) {
+            if (!node.IsDefined() || node.IsNull())
+                return true;
+            if (!node.IsScalar())
+                return false;
+            const std::string s = lowercase(node.Scalar());
+            return s.empty() || s == "~" || s == "null";
+        }
+
+        // File settings additionally accept "none" as "no file".
+        bool is_no_file_sentinel(const std::string& path) {
+            const std::string s = lowercase(path);
+            return s.empty() || s == "~" || s == "null" || s == "none";
+        }
+
+        // A boolean is `true` or `false` (any case); nothing else is accepted.
+        std::optional<bool> parse_bool_scalar(const YAML::Node& node) {
+            if (!node.IsDefined() || !node.IsScalar())
+                return std::nullopt;
+            const std::string s = lowercase(node.Scalar());
+            if (s == "true")
+                return true;
+            if (s == "false")
+                return false;
+            return std::nullopt;
+        }
+
         YAML::Node safe_get_map_child(const YAML::Node& node, std::string_view key) {
             if (!node.IsDefined() || !node.IsMap()) {
                 return YAML::Node();
@@ -43,7 +78,8 @@ namespace catchem {
                 if (child.IsDefined() && !child.IsNull()) {
                     return child;
                 }
-            } catch (...) {
+            } catch (const YAML::Exception&) {
+                // A non-string key lookup on this map: treat as absent.
             }
             return YAML::Node();
         }
@@ -73,8 +109,7 @@ namespace catchem {
         }
 
         std::string resolve_relative_config_path(const std::string& config_file, const std::string& path) {
-            if (path.empty() || path.front() == '/' || path == "none" || path == "NONE" || path == "null" ||
-                path == "NULL")
+            if (is_no_file_sentinel(path) || path.front() == '/')
                 return path;
             if (config_file.empty())
                 return path;
@@ -88,16 +123,8 @@ namespace catchem {
             if (!node)
                 return "";
             if (node.IsScalar()) {
-                try {
-                    std::string path = node.as<std::string>();
-                    if (!path.empty() && path != "none" && path != "NONE" && path != "null" && path != "NULL" &&
-                        path != "~" && path != "true" && path != "false" && path != "TRUE" && path != "FALSE" &&
-                        path != "1" && path != "0") {
-                        return path;
-                    }
-                } catch (...) {
-                }
-                return "";
+                const std::string path = node.Scalar();
+                return is_no_file_sentinel(path) ? "" : path;
             }
             if (!node.IsMap())
                 return "";
@@ -189,72 +216,46 @@ namespace catchem {
 
     bool ProcessConfig::get_bool(std::string_view key, bool default_val) const {
         YAML::Node val = resolve_yaml_path(settings_node, key);
-        if (val.IsDefined() && !val.IsNull()) {
-            try {
-                return val.as<bool>();
-            } catch (...) {
-                if (val.IsScalar()) {
-                    std::string s = val.Scalar();
-                    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
-                    if (s == "true" || s == "1" || s == "yes" || s == "y" || s == "on")
-                        return true;
-                    if (s == "false" || s == "0" || s == "no" || s == "n" || s == "off")
-                        return false;
-                }
-            }
-        }
+        if (is_null_scalar(val))
+            return default_val;
+        if (const auto parsed = parse_bool_scalar(val))
+            return *parsed;
+        Logger::warn(nullptr, "Process option is not a boolean; using the default",
+                     {{"key", key}, {"value", val.IsScalar() ? val.Scalar() : "<non-scalar>"}});
         return default_val;
     }
 
     double ProcessConfig::get_double(std::string_view key, double default_val) const {
         YAML::Node val = resolve_yaml_path(settings_node, key);
-        if (val.IsDefined() && !val.IsNull()) {
-            try {
-                return val.as<double>();
-            } catch (...) {
-                if (val.IsScalar()) {
-                    try {
-                        return std::stod(val.Scalar());
-                    } catch (...) {
-                    }
-                }
-            }
+        if (is_null_scalar(val))
+            return default_val;
+        try {
+            return val.as<double>();
+        } catch (const YAML::Exception&) {
+            Logger::warn(nullptr, "Process option is not a number; using the default",
+                         {{"key", key}, {"value", val.IsScalar() ? val.Scalar() : "<non-scalar>"}});
+            return default_val;
         }
-        return default_val;
     }
 
     int ProcessConfig::get_int(std::string_view key, int default_val) const {
         YAML::Node val = resolve_yaml_path(settings_node, key);
-        if (val.IsDefined() && !val.IsNull()) {
-            try {
-                return val.as<int>();
-            } catch (...) {
-                if (val.IsScalar()) {
-                    try {
-                        return std::stoi(val.Scalar());
-                    } catch (...) {
-                    }
-                }
-            }
+        if (is_null_scalar(val))
+            return default_val;
+        try {
+            return val.as<int>();
+        } catch (const YAML::Exception&) {
+            Logger::warn(nullptr, "Process option is not an integer; using the default",
+                         {{"key", key}, {"value", val.IsScalar() ? val.Scalar() : "<non-scalar>"}});
+            return default_val;
         }
-        return default_val;
     }
 
     std::string ProcessConfig::get_string(std::string_view key, std::string_view default_val) const {
         YAML::Node val = resolve_yaml_path(settings_node, key);
-        if (val.IsDefined() && !val.IsNull()) {
-            try {
-                std::string res = val.as<std::string>();
-                if (res != "null" && res != "NULL" && res != "~") {
-                    return res;
-                }
-            } catch (...) {
-                if (val.IsScalar()) {
-                    return val.Scalar();
-                }
-            }
-        }
-        return std::string(default_val);
+        if (is_null_scalar(val) || !val.IsScalar())
+            return std::string(default_val);
+        return val.Scalar();
     }
 
     std::vector<double> ProcessConfig::get_vector(std::string_view key) const {
@@ -265,7 +266,7 @@ namespace catchem {
         for (const auto& item : val) {
             try {
                 values.push_back(item.as<double>());
-            } catch (...) {
+            } catch (const YAML::Exception&) {
                 throw std::invalid_argument("Process option '" + std::string(key) + "' must be a sequence of numbers.");
             }
         }
@@ -315,21 +316,12 @@ namespace catchem {
             }
         }
         YAML::Node node = resolve_yaml_path(root_node, path);
-        if (node.IsDefined() && !node.IsNull()) {
-            try {
-                return node.as<bool>();
-            } catch (const std::exception& e) {
-                try {
-                    std::string s = node.as<std::string>();
-                    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
-                    if (s == "true" || s == "1" || s == "yes" || s == "y" || s == "on")
-                        return true;
-                    if (s == "false" || s == "0" || s == "no" || s == "n" || s == "off")
-                        return false;
-                } catch (...) {
-                }
-            }
-        }
+        if (is_null_scalar(node))
+            return default_val;
+        if (const auto parsed = parse_bool_scalar(node))
+            return *parsed;
+        Logger::warn(nullptr, "Configuration value is not a boolean; using the default",
+                     {{"path", path}, {"value", node.IsScalar() ? node.Scalar() : "<non-scalar>"}});
         return default_val;
     }
 
@@ -349,19 +341,15 @@ namespace catchem {
             }
         }
         YAML::Node node = resolve_yaml_path(root_node, path);
-        if (node.IsDefined() && !node.IsNull()) {
-            try {
-                return node.as<double>();
-            } catch (...) {
-                if (node.IsScalar()) {
-                    try {
-                        return std::stod(node.Scalar());
-                    } catch (...) {
-                    }
-                }
-            }
+        if (is_null_scalar(node))
+            return default_val;
+        try {
+            return node.as<double>();
+        } catch (const YAML::Exception&) {
+            Logger::warn(nullptr, "Configuration value is not a number; using the default",
+                         {{"path", path}, {"value", node.IsScalar() ? node.Scalar() : "<non-scalar>"}});
+            return default_val;
         }
-        return default_val;
     }
 
     int ConfigManager::get_int(std::string_view path, int default_val) const {
@@ -380,19 +368,15 @@ namespace catchem {
             }
         }
         YAML::Node node = resolve_yaml_path(root_node, path);
-        if (node.IsDefined() && !node.IsNull()) {
-            try {
-                return node.as<int>();
-            } catch (...) {
-                if (node.IsScalar()) {
-                    try {
-                        return std::stoi(node.Scalar());
-                    } catch (...) {
-                    }
-                }
-            }
+        if (is_null_scalar(node))
+            return default_val;
+        try {
+            return node.as<int>();
+        } catch (const YAML::Exception&) {
+            Logger::warn(nullptr, "Configuration value is not an integer; using the default",
+                         {{"path", path}, {"value", node.IsScalar() ? node.Scalar() : "<non-scalar>"}});
+            return default_val;
         }
-        return default_val;
     }
 
     std::string ConfigManager::get_string(std::string_view path, std::string_view default_val) const {
@@ -420,20 +404,13 @@ namespace catchem {
             }
         }
         YAML::Node node = resolve_yaml_path(root_node, path);
-        if (node.IsDefined() && !node.IsNull()) {
-            try {
-                std::string str_val = node.as<std::string>();
-                if (str_val != "null" && str_val != "NULL" && str_val != "Null" && str_val != "~") {
-                    if (path.find("source_file") != std::string_view::npos ||
-                        path.find("filename") != std::string_view::npos) {
-                        return resolve_relative_config_path(config_file_path, str_val);
-                    }
-                    return str_val;
-                }
-            } catch (...) {
-            }
+        if (is_null_scalar(node) || !node.IsScalar())
+            return std::string(default_val);
+        const std::string str_val = node.Scalar();
+        if (path.find("source_file") != std::string_view::npos || path.find("filename") != std::string_view::npos) {
+            return resolve_relative_config_path(config_file_path, str_val);
         }
-        return std::string(default_val);
+        return str_val;
     }
 
     std::vector<std::string> ConfigManager::get_string_list(std::string_view path) const {
@@ -452,10 +429,7 @@ namespace catchem {
                             if (item.IsScalar()) {
                                 results.push_back(item.Scalar());
                             } else {
-                                try {
-                                    results.push_back(item.as<std::string>());
-                                } catch (...) {
-                                }
+                                Logger::warn(nullptr, "Ignoring non-scalar entry in a configuration list");
                             }
                         }
                         return results;
@@ -469,10 +443,7 @@ namespace catchem {
                 if (item.IsScalar()) {
                     results.push_back(item.Scalar());
                 } else {
-                    try {
-                        results.push_back(item.as<std::string>());
-                    } catch (...) {
-                    }
+                    Logger::warn(nullptr, "Ignoring non-scalar entry in a configuration list");
                 }
             }
         }
@@ -708,47 +679,31 @@ namespace catchem {
         }
 
         auto get_bool = [](const YAML::Node& n, const std::string& key, bool def) {
-            if (n["__" + key]) {
-                try {
-                    return n["__" + key].as<bool>();
-                } catch (...) {
-                }
-            }
-            if (n[key]) {
-                try {
-                    return n[key].as<bool>();
-                } catch (...) {
-                }
+            for (const std::string& k : {"__" + key, key}) {
+                if (!n[k])
+                    continue;
+                if (const auto parsed = parse_bool_scalar(n[k]))
+                    return *parsed;
+                Logger::warn(nullptr, "Species attribute is not a boolean; using the default", {{"attribute", k}});
             }
             return def;
         };
         auto get_double = [](const YAML::Node& n, const std::string& key, double def) {
-            if (n["__" + key]) {
+            for (const std::string& k : {"__" + key, key}) {
+                if (!n[k])
+                    continue;
                 try {
-                    return n["__" + key].as<double>();
-                } catch (...) {
-                }
-            }
-            if (n[key]) {
-                try {
-                    return n[key].as<double>();
-                } catch (...) {
+                    return n[k].as<double>();
+                } catch (const YAML::Exception&) {
+                    Logger::warn(nullptr, "Species attribute is not a number; using the default", {{"attribute", k}});
                 }
             }
             return def;
         };
         auto get_str = [](const YAML::Node& n, const std::string& key, const std::string& def) {
-            if (n["__" + key]) {
-                try {
-                    return n["__" + key].as<std::string>();
-                } catch (...) {
-                }
-            }
-            if (n[key]) {
-                try {
-                    return n[key].as<std::string>();
-                } catch (...) {
-                }
+            for (const std::string& k : {"__" + key, key}) {
+                if (n[k] && n[k].IsScalar())
+                    return n[k].Scalar();
             }
             return def;
         };
@@ -847,7 +802,8 @@ namespace catchem {
         }
     }
 
-    const ValidationReport& ConfigManager::validate(bool strict) {
+    const ValidationReport& ConfigManager::validate() {
+        const bool strict = strict_validation_;
         validation_report.issues.clear();
         auto add = [this](std::string category, std::string path, std::string message, std::string correction,
                           ValidationSeverity severity = ValidationSeverity::Error) {
@@ -993,8 +949,8 @@ namespace catchem {
         return validation_report;
     }
 
-    void ConfigManager::validate_or_throw(bool strict) {
-        const auto& report = validate(strict);
+    void ConfigManager::validate_or_throw() {
+        const auto& report = validate();
         if (report.has_errors())
             throw std::invalid_argument("Invalid CATChem configuration:\n" + report.format());
     }

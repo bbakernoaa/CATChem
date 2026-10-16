@@ -2,9 +2,12 @@
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <filesystem>
 #include <iostream>
 #include <limits>
+#include <string_view>
 #include <unordered_set>
 
 namespace {
@@ -12,12 +15,10 @@ namespace {
     // Resolve a (possibly relative) species path against the config file's
     // directory, so YAML-relative paths work regardless of the host's CWD.
     std::string resolve_against_config(const std::string& config_file, const std::string& path) {
-        if (path.empty() || path.front() == '/')
+        const std::filesystem::path p(path);
+        if (path.empty() || p.is_absolute())
             return path;
-        auto slash = config_file.find_last_of('/');
-        if (slash == std::string::npos)
-            return path;
-        return config_file.substr(0, slash + 1) + path;
+        return (std::filesystem::path(config_file).parent_path() / p).string();
     }
 
     void load_and_validate_configuration(catchem::ConfigManager& config, const std::string& config_file) {
@@ -37,9 +38,9 @@ namespace {
         // DEBUG threshold and skip the full-array sweep when it is off.
         if (!catchem::Logger::enabled(catchem::Logger::Level::Debug))
             return;
-        static const std::vector<std::string> watch = {"so2",   "so4",   "dms",   "msa",   "bc1",   "bc2",
-                                                       "oc1",   "oc2",   "dust1", "dust2", "dust3", "dust4",
-                                                       "dust5", "seas1", "seas2", "seas3", "seas4", "seas5"};
+        static constexpr std::array<std::string_view, 18> watch = {
+            "so2",   "so4",   "dms",   "msa",   "bc1",   "bc2",   "oc1",   "oc2",   "dust1",
+            "dust2", "dust3", "dust4", "dust5", "seas1", "seas2", "seas3", "seas4", "seas5"};
         if (!state.chemistry().conc)
             return;
         const auto view = state.chemistry().conc->mdspan();

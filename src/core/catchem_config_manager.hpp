@@ -230,6 +230,7 @@ namespace catchem {
 
         ConfigData data;
         bool is_loaded = false;
+        bool strict_validation_ = true;
         std::string config_file_path;
         ValidationReport validation_report;
 
@@ -237,8 +238,12 @@ namespace catchem {
         void load_from_file(const std::string& filename);
         void load_species_file(const std::string& filename);
         void load_emission_mapping_file(const std::string& filename);
-        const ValidationReport& validate(bool strict = true);
-        void validate_or_throw(bool strict = true);
+        // Strict validation rejects unknown top-level keys; relax it with
+        // set_strict_validation(false) for configs that carry extra sections.
+        void set_strict_validation(bool strict) { strict_validation_ = strict; }
+        bool strict_validation() const { return strict_validation_; }
+        const ValidationReport& validate();
+        void validate_or_throw();
 
         // Safe path-based queries
         bool get_bool(std::string_view path, bool default_val = false) const;
