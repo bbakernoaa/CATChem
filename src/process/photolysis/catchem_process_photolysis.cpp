@@ -161,8 +161,8 @@ namespace catchem {
         tuvx_instance = musica::CreateTuvx(config_path.c_str(), grids, profiles, radiators, &err);
 
         if (err.code_ != 0) {
-            std::cerr << "PhotolysisProcess: Error: Failed to initialize TUV-x! "
-                      << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
+            Logger::error(state.get(), "PhotolysisProcess: failed to initialize TUV-x",
+                          {{"error", err.message_.value_ ? err.message_.value_ : "Unknown Error"}});
             return;
         }
 
@@ -220,8 +220,8 @@ namespace catchem {
         Logger::debug(state.get(), "Fetching ProfileMap from TUVX instance");
         musica::ProfileMap* loaded_profiles = musica::GetProfileMap(tuvx_instance, &err);
         if (err.code_ != 0) {
-            std::cerr << "PhotolysisProcess: Error getting ProfileMap: "
-                      << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
+            Logger::error(state.get(), "PhotolysisProcess: error getting ProfileMap",
+                          {{"error", err.message_.value_ ? err.message_.value_ : "Unknown Error"}});
             return;
         }
 
@@ -363,8 +363,9 @@ namespace catchem {
                             nullptr, nullptr, nullptr, &err);
 
             if (err.code_ != 0) {
-                std::cerr << "PhotolysisProcess: Solver error in column " << i_col << ": "
-                          << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
+                Logger::error(state.get(), "PhotolysisProcess: solver error in column",
+                              {{"column", std::to_string(i_col)},
+                               {"error", err.message_.value_ ? err.message_.value_ : "Unknown Error"}});
                 // The write loop below is skipped for this column, so clear its
                 // slice of every J-rate field.  This reproduces the zeroed cell
                 // that Instantaneous reset used to guarantee, now that the

@@ -97,7 +97,7 @@ namespace catchem {
                 }
             }
         } catch (const std::exception& e) {
-            std::cerr << "GasChemProcess: Error: failed to initialize MICM: " << e.what() << std::endl;
+            Logger::error(state.get(), "GasChemProcess: failed to initialize MICM", {{"error", e.what()}});
             initialized = false;
             throw std::runtime_error(std::string("GasChemProcess: failed to initialize MICM: ") + e.what());
         }
@@ -105,7 +105,7 @@ namespace catchem {
 
     void GasChemProcess::run(std::shared_ptr<StateManager> state) {
         if (!initialized) {
-            std::cerr << "GasChemProcess: Warning: skipped run because solver is not initialized." << std::endl;
+            Logger::warn(state.get(), "GasChemProcess: skipped run because solver is not initialized");
             return;
         }
 

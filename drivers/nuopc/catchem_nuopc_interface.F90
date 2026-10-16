@@ -638,7 +638,7 @@ contains
       type(cc_wrap_type), pointer:: cc_wrap
       integer :: verify_rc
       type(ESMF_VM) :: vm
-      integer :: localPet, vmrc
+      integer :: localPet
 
       ! Initialize
       rc = CC_SUCCESS
@@ -657,11 +657,12 @@ contains
       ! Every PET parses the same YAML, so echo the effective configuration to
       ! stdout only on the root PET; the C++ core prints it during the
       ! initialize() call below (see catchem_set_config_echo_enabled).
-      call ESMF_VMGetCurrent(vm, rc=vmrc)
-      if (vmrc == ESMF_SUCCESS) then
-         call ESMF_VMGet(vm, localPet=localPet, rc=vmrc)
-      end if
-      if (vmrc /= ESMF_SUCCESS) localPet = 0  ! single-PET or query failed: print
+      call ESMF_GridCompGet(model, vm=vm, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      call ESMF_VMGet(vm, localPet=localPet, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
       if (localPet /= 0) call catchem_set_config_echo_enabled(0_c_int)
 
       ! Initialize catchem using process-local variable
@@ -1166,8 +1167,11 @@ contains
       rc = CC_SUCCESS
       if (cc_wrap%ext_emis%n_categories == 0) then
 #ifdef CATCHEM_TRACE_NUOPC
-         write(*,'(A)') '[CATCHEM DEBUG] bind_static_met_from_aqmio: no emission categories available'
-         call flush(6)
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A)') '[CATCHEM DEBUG] bind_static_met_from_aqmio: no emission categories available'
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
 #endif
          return
       end if
@@ -1316,15 +1320,27 @@ contains
                exit
             end if
          end do
-         write(*,'(A,A,A,A,A,A,A,A,A,ES12.4)') '[CATCHEM DEBUG] bind_static_field met=', trim(met_name), &
-            ' source_category=', trim(resolved_category), ' source_field=', trim(resolved_field), &
-            ' source_file=', trim(resolved_source_file), &
-            ' scale=', scale * map_scale * category_scale * real(cc_wrap%ext_emis%global_scale, c_double)
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A,A,A,A,A,A,A,A,A,ES12.4)') '[CATCHEM DEBUG] bind_static_field met=', trim(met_name), &
+               ' source_category=', trim(resolved_category), ' source_field=', trim(resolved_field), &
+               ' source_file=', trim(resolved_source_file), &
+               ' scale=', scale * map_scale * category_scale * real(cc_wrap%ext_emis%global_scale, c_double)
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
          if (allocated(src_field%emission_data)) then
-            write(*,'(A,A,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] bind_static_field source=', trim(resolved_field), &
-               ' min=', minval(src_field%emission_data(:,:,1,1)), ' max=', maxval(src_field%emission_data(:,:,1,1))
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] bind_static_field source=', trim(resolved_field), &
+                  ' min=', minval(src_field%emission_data(:,:,1,1)), ' max=', maxval(src_field%emission_data(:,:,1,1))
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
          else
-            write(*,'(A,A)') '[CATCHEM DEBUG] bind_static_field source has no emission_data: ', trim(resolved_field)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A)') '[CATCHEM DEBUG] bind_static_field source has no emission_data: ', trim(resolved_field)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
          end if
          call flush(6)
 #endif
@@ -1336,20 +1352,29 @@ contains
       ! Not found: leave the met buffer unbound (the dust process validates the
       ! required inputs and will error clearly if a mandatory field is missing).
 #ifdef CATCHEM_TRACE_NUOPC
-      write(*,'(A,A,A,I0)') '[CATCHEM DEBUG] bind_static_field missing met=', trim(met_name), &
-         ' n_categories=', cc_wrap%ext_emis%n_categories
-      call flush(6)
+      block
+         character(len=512) :: log_msg
+         write(log_msg, '(A,A,A,I0)') '[CATCHEM DEBUG] bind_static_field missing met=', trim(met_name), &
+            ' n_categories=', cc_wrap%ext_emis%n_categories
+         call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+      end block
       do i = 1, cc_wrap%ext_emis%n_categories
-         write(*,'(A,A,A,I0)') '[CATCHEM DEBUG]   category=', trim(cc_wrap%ext_emis%categories(i)%category_name), &
-            ' n_fields=', cc_wrap%ext_emis%categories(i)%n_fields
-         call flush(6)
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A,A,A,I0)') '[CATCHEM DEBUG]   category=', trim(cc_wrap%ext_emis%categories(i)%category_name), &
+               ' n_fields=', cc_wrap%ext_emis%categories(i)%n_fields
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
          if (.not. allocated(cc_wrap%ext_emis%categories(i)%fields)) cycle
          do j = 1, cc_wrap%ext_emis%categories(i)%n_fields
-            write(*,'(A,A,A,L1,A,L1)') '[CATCHEM DEBUG]     field=', &
-               trim(cc_wrap%ext_emis%categories(i)%fields(j)%field_name), &
-               ' emission_data=', allocated(cc_wrap%ext_emis%categories(i)%fields(j)%emission_data), &
-               ' interp_t1=', allocated(cc_wrap%ext_emis%categories(i)%fields(j)%interp_data_t1)
-            call flush(6)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A,A,L1,A,L1)') '[CATCHEM DEBUG]     field=', &
+                  trim(cc_wrap%ext_emis%categories(i)%fields(j)%field_name), &
+                  ' emission_data=', allocated(cc_wrap%ext_emis%categories(i)%fields(j)%emission_data), &
+                  ' interp_t1=', allocated(cc_wrap%ext_emis%categories(i)%fields(j)%interp_data_t1)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
          end do
       end do
 #endif
@@ -1386,9 +1411,12 @@ contains
          end if
          met_buffer = real(src_field%emission_data(:,:,1,1), c_double) * scale
 #ifdef CATCHEM_TRACE_NUOPC
-         write(*,'(A,A,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] bind_static_field final=', trim(met_name), &
-            ' min=', minval(met_buffer), ' max=', maxval(met_buffer)
-         call flush(6)
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A,A,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] bind_static_field final=', trim(met_name), &
+               ' min=', minval(met_buffer), ' max=', maxval(met_buffer)
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
 #endif
       else
          return
@@ -1598,7 +1626,6 @@ contains
             end do
             if (.not. required_from_import) cycle
             if (.not. set_required_met(i)) then
-               !write(*,*) 'Wait. A required field is not set: ' // trim(cc_wrap%catchem_model%required_fields(i))
                call ESMF_LogWrite("Required met field not set yet: "// &
                   trim(cc_wrap%catchem_model%required_fields(i)), ESMF_LOGMSG_ERROR, rc=rc)
                rc = ESMF_FAILURE
@@ -1738,9 +1765,12 @@ contains
             line=__LINE__, file=__FILE__)) return
          if (.not. associated(fptr2d)) then
 #ifdef CATCHEM_TRACE_NUOPC
-            write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 2D UNASSOCIATED: ', &
-               trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
-            call flush(6)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 2D UNASSOCIATED: ', &
+                  trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
 #endif
             call ESMF_LogWrite("transform_field_to_catchem: fptr2d NOT associated for "// &
                trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
@@ -1789,9 +1819,12 @@ contains
             line=__LINE__, file=__FILE__)) return
          if (.not. associated(fptr3d)) then
 #ifdef CATCHEM_TRACE_NUOPC
-            write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 3D UNASSOCIATED: ', &
-               trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
-            call flush(6)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 3D UNASSOCIATED: ', &
+                  trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
 #endif
             call ESMF_LogWrite("transform_field_to_catchem: fptr3d NOT associated for "// &
                trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
@@ -1890,9 +1923,12 @@ contains
             line=__LINE__, file=__FILE__)) return
          if (.not. associated(fptr4d)) then
 #ifdef CATCHEM_TRACE_NUOPC
-            write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 4D UNASSOCIATED: ', &
-               trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
-            call flush(6)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 4D UNASSOCIATED: ', &
+                  trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
 #endif
             call ESMF_LogWrite("transform_field_to_catchem: fptr4d NOT associated for "// &
                trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
@@ -1993,17 +2029,23 @@ contains
             bc1_mapped_min = minval(cc_wrap%chem_buf_4d(:,:,:,bc1_catchem_index))
             bc1_mapped_max = maxval(cc_wrap%chem_buf_4d(:,:,:,bc1_catchem_index))
             bc1_mapped_sum = sum(cc_wrap%chem_buf_4d(:,:,:,bc1_catchem_index))
-            write(*,'(A,I0,A,I0,A,A,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4)') &
-               '[CATCHEM TRACE] BC1 import host_slot=', bc1_host_index, &
-               ' catchem_index=', bc1_catchem_index, ' units=', trim(cc_wrap%tracer_map%units(bc1_host_index)), &
-               ' factor=', cc_wrap%tracer_map%host_to_catchem(bc1_host_index), &
-               ' raw_min=', bc1_raw_min, ' raw_max=', bc1_raw_max, ' raw_sum=', bc1_raw_sum, &
-               ' mapped_min=', bc1_mapped_min, ' mapped_max=', bc1_mapped_max, ' mapped_sum=', bc1_mapped_sum
-            call flush(6)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,I0,A,I0,A,A,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4)') &
+                  '[CATCHEM TRACE] BC1 import host_slot=', bc1_host_index, &
+                  ' catchem_index=', bc1_catchem_index, ' units=', trim(cc_wrap%tracer_map%units(bc1_host_index)), &
+                  ' factor=', cc_wrap%tracer_map%host_to_catchem(bc1_host_index), &
+                  ' raw_min=', bc1_raw_min, ' raw_max=', bc1_raw_max, ' raw_sum=', bc1_raw_sum, &
+                  ' mapped_min=', bc1_mapped_min, ' mapped_max=', bc1_mapped_max, ' mapped_sum=', bc1_mapped_sum
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
          else
-            write(*,'(A,I0,A,I0)') '[CATCHEM TRACE] BC1 import mapping missing host_slot=', bc1_host_index, &
-               ' catchem_index=', bc1_catchem_index
-            call flush(6)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,I0,A,I0)') '[CATCHEM TRACE] BC1 import mapping missing host_slot=', bc1_host_index, &
+                  ' catchem_index=', bc1_catchem_index
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
          end if
 #endif
 
@@ -2289,7 +2331,11 @@ contains
       ! Use grid (must be set during initialization)
       if (.not. ESMF_GridIsCreated(cc_wrap%grid)) then
          rc = CC_FAILURE
-         write(*,'(A)') 'Error: grid not initialized.'
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A)') 'Error: grid not initialized.'
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+         end block
          return
       end if
 
@@ -2305,36 +2351,56 @@ contains
       ! diagnostics.output.attributes) onto the file just created (FR-011).
       call write_global_attributes(cc_wrap, filename, rc)
       if (rc /= CC_SUCCESS) then
-         write(*,'(A)') 'Warning: Failed to write diagnostic global attributes.'
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A)') 'Warning: Failed to write diagnostic global attributes.'
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+         end block
          rc = CC_SUCCESS
       end if
 
       !write extemission fields if needed
       call catchem_emis_write_diagnostics(cc_wrap%ext_emis, cc_wrap%current_time_slice, cc_wrap%iocomp, cc_wrap%grid, filename, rc)
       if (rc /= CC_SUCCESS) then
-         write(*,'(A)') 'Error: Failed to write external emission diagnostics.'
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A)') 'Error: Failed to write external emission diagnostics.'
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+         end block
          return
       end if
 
       ! Write chemical species concentration diagnostics
       call write_chem_diagnostics(cc_wrap, filename, rc)
       if (rc /= CC_SUCCESS) then
-         write(*,'(A)') 'Error: Failed to write chemical species diagnostics.'
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A)') 'Error: Failed to write chemical species diagnostics.'
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+         end block
          return
       end if
 
       ! Write per-process diagnostic variables (dust/seasalt emissions,
-      ! fluxes, thresholds) when diagnostics.output/process_diagnostics is on.
+      ! fluxes, thresholds) when diagnostics output is enabled.
       call write_process_diagnostics(cc_wrap, 'all', filename, rc)
       if (rc /= CC_SUCCESS) then
-         write(*,'(A)') 'Warning: Failed to write process diagnostics.'
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A)') 'Warning: Failed to write process diagnostics.'
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+         end block
          rc = CC_SUCCESS
       end if
 
       ! Update last output time
       cc_wrap%last_output_time = current_time
 
-      write(*,'(A,A)') 'CATChem: Wrote diagnostic output to ', trim(filename)
+      block
+         character(len=512) :: log_msg
+         write(log_msg, '(A,A)') 'CATChem: Wrote diagnostic output to ', trim(filename)
+         call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_INFO)
+      end block
 
    end subroutine catchem_diagnostics_write
 
@@ -2452,7 +2518,11 @@ contains
          c_status = catchem_diag_get_axes_checked(cc_wrap%catchem_model%cpp_core_ptr, &
             trim(field_name) // c_null_char, axes, 3_c_int)
          if (c_status /= 0_c_int) then
-            write(*,'(A,A)') 'ERROR: Cannot read the axis contract for diagnostic: ', trim(field_name)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A)') 'ERROR: Cannot read the axis contract for diagnostic: ', trim(field_name)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+            end block
             rc = CC_FAILURE
             return
          end if
@@ -2460,7 +2530,11 @@ contains
          ! Process diagnostics are flattened over this PE's columns; a field
          ! whose leading extent is not nx*ny cannot be mapped onto the grid.
          if (axes(1) /= AXIS_COLUMN .or. dims(1) /= nx * ny) then
-            write(*,'(A,A)') 'Warning: Skipping process diagnostic with unexpected shape: ', trim(field_name)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A)') 'Warning: Skipping process diagnostic with unexpected shape: ', trim(field_name)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+            end block
             cycle
          end if
 
@@ -2477,7 +2551,11 @@ contains
          c_status = catchem_diag_get_pointer_checked(cc_wrap%catchem_model%cpp_core_ptr, &
             trim(field_name) // c_null_char, rank, dims, raw_ptr)
          if (c_status /= 0_c_int .or. .not. c_associated(raw_ptr)) then
-            write(*,'(A,A)') 'Warning: Could not map process diagnostic storage: ', trim(field_name)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A)') 'Warning: Could not map process diagnostic storage: ', trim(field_name)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+            end block
             cycle
          end if
 
@@ -2490,7 +2568,11 @@ contains
             select case (int(axes(2)))
              case (AXIS_SINGLETON)
                if (dims(2) /= 1) then
-                  write(*,'(A,A)') 'ERROR: Singleton-axis diagnostic without extent 1: ', trim(field_name)
+                  block
+                     character(len=512) :: log_msg
+                     write(log_msg, '(A,A)') 'ERROR: Singleton-axis diagnostic without extent 1: ', trim(field_name)
+                     call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+                  end block
                   rc = CC_FAILURE
                   return
                end if
@@ -2500,13 +2582,21 @@ contains
                packed = .true.
                nslot = int(dims(2))
              case default
-               write(*,'(A,A)') 'ERROR: Unsupported second axis on diagnostic: ', trim(field_name)
+               block
+                  character(len=512) :: log_msg
+                  write(log_msg, '(A,A)') 'ERROR: Unsupported second axis on diagnostic: ', trim(field_name)
+                  call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+               end block
                rc = CC_FAILURE
                return
             end select
           case (3)
             if (int(axes(2)) /= AXIS_LEVEL) then
-               write(*,'(A,A)') 'ERROR: Unsupported second axis on diagnostic: ', trim(field_name)
+               block
+                  character(len=512) :: log_msg
+                  write(log_msg, '(A,A)') 'ERROR: Unsupported second axis on diagnostic: ', trim(field_name)
+                  call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+               end block
                rc = CC_FAILURE
                return
             end if
@@ -2515,12 +2605,20 @@ contains
                packed = .true.
                nslot = int(dims(3))
              case default
-               write(*,'(A,A)') 'ERROR: Unsupported third axis on diagnostic: ', trim(field_name)
+               block
+                  character(len=512) :: log_msg
+                  write(log_msg, '(A,A)') 'ERROR: Unsupported third axis on diagnostic: ', trim(field_name)
+                  call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+               end block
                rc = CC_FAILURE
                return
             end select
           case default
-            write(*,'(A,A)') 'ERROR: Unsupported rank on diagnostic: ', trim(field_name)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A)') 'ERROR: Unsupported rank on diagnostic: ', trim(field_name)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+            end block
             rc = CC_FAILURE
             return
          end select
@@ -2544,7 +2642,11 @@ contains
                end if
                nullify(view_3d)
                if (rc /= CC_SUCCESS) then
-                  write(*,'(A,A)') 'Warning: Failed to write process diagnostic: ', trim(field_name)
+                  block
+                     character(len=512) :: log_msg
+                     write(log_msg, '(A,A)') 'Warning: Failed to write process diagnostic: ', trim(field_name)
+                     call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+                  end block
                   rc = CC_SUCCESS
                end if
             end if
@@ -2562,8 +2664,12 @@ contains
                   cc_wrap%catchem_model%cpp_core_ptr, trim(field_name) // c_null_char, &
                   int(slot - 1, c_int), c_label, 64_c_int)
                if (c_status /= 0_c_int) then
-                  write(*,'(A,I0,A,A)') 'ERROR: Packed diagnostic slot ', slot - 1, &
-                     ' has no label for field: ', trim(field_name)
+                  block
+                     character(len=512) :: log_msg
+                     write(log_msg, '(A,I0,A,A)') 'ERROR: Packed diagnostic slot ', slot - 1, &
+                        ' has no label for field: ', trim(field_name)
+                     call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+                  end block
                   rc = CC_FAILURE
                   return
                end if
@@ -2581,7 +2687,11 @@ contains
                      units=trim(units_str), filename=filename, rc=rc)
                end if
                if (rc /= CC_SUCCESS) then
-                  write(*,'(A,A)') 'Warning: Failed to write process diagnostic: ', trim(var_name)
+                  block
+                     character(len=512) :: log_msg
+                     write(log_msg, '(A,A)') 'Warning: Failed to write process diagnostic: ', trim(var_name)
+                     call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+                  end block
                   rc = CC_SUCCESS
                end if
             end do
@@ -2601,8 +2711,12 @@ contains
             end if
          end do
          if (len_trim(warn_msg) > 0) then
-            write(*,'(A,A)') 'Warning: diag_list selector(s) matched no diagnostic field: ', &
-               trim(warn_msg)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A)') 'Warning: diag_list selector(s) matched no diagnostic field: ', &
+                  trim(warn_msg)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+            end block
          end if
          cc_wrap%diag_list_warned = .true.
       end if
@@ -2908,7 +3022,11 @@ contains
             end if
 
             if (rc /= CC_SUCCESS) then
-               write(*,'(A,A)') 'Warning: Failed to write diagnostics for species: ', trim(species_name)
+               block
+                  character(len=512) :: log_msg
+                  write(log_msg, '(A,A)') 'Warning: Failed to write diagnostics for species: ', trim(species_name)
+                  call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+               end block
                rc = CC_SUCCESS
             end if
          end do
@@ -2922,7 +3040,11 @@ contains
             species_idx = int(species_index_out)
 
             if (catchem_status /= 0_c_int .or. species_idx <= 0) then
-               write(*,'(A,A)') 'Warning: Requested diagnostic species not found: ', trim(species_name)
+               block
+                  character(len=512) :: log_msg
+                  write(log_msg, '(A,A)') 'Warning: Requested diagnostic species not found: ', trim(species_name)
+                  call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+               end block
                cycle
             end if
 
@@ -2943,13 +3065,21 @@ contains
                units_str = 'ug/m3'
                description = 'Aerosol mass concentration of ' // trim(species_name)
             else
-               write(*,'(A,A)') 'Warning: Species is neither gas nor aerosol: ', trim(species_name)
+               block
+                  character(len=512) :: log_msg
+                  write(log_msg, '(A,A)') 'Warning: Species is neither gas nor aerosol: ', trim(species_name)
+                  call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+               end block
                cycle
             end if
 
             call cc_wrap%catchem_model%get_species_conc_ptr(species_idx, conc_data, dims, rc)
             if (rc /= 0 .or. .not. associated(conc_data)) then
-               write(*,'(A,A)') 'Warning: Concentration data not available for species: ', trim(species_name)
+               block
+                  character(len=512) :: log_msg
+                  write(log_msg, '(A,A)') 'Warning: Concentration data not available for species: ', trim(species_name)
+                  call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+               end block
                cycle
             end if
 
@@ -2967,7 +3097,11 @@ contains
             end if
 
             if (rc /= CC_SUCCESS) then
-               write(*,'(A,A)') 'Warning: Failed to write diagnostics for species: ', trim(species_name)
+               block
+                  character(len=512) :: log_msg
+                  write(log_msg, '(A,A)') 'Warning: Failed to write diagnostics for species: ', trim(species_name)
+                  call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+               end block
                rc = CC_SUCCESS
             end if
          end do
@@ -3112,7 +3246,11 @@ contains
             cc_wrap%catchem_model%state_mgr_ptr, "AIRDEN_DRY" // c_null_char, raw_airden_ptr)
       end if
       if (.not. c_associated(raw_airden_ptr)) then
-         write(*,'(A)') 'Error: AIRDEN not available for PM diagnostics'
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A)') 'Error: AIRDEN not available for PM diagnostics'
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+         end block
          rc = CC_FAILURE
          return
       end if
@@ -3199,14 +3337,22 @@ contains
          call cc_wrap%catchem_model%register_diagnostic('pm25', &
             'PM2.5 aerosol mass concentration', 'ug m-3', (/ni, nj, nk/), rc, persistent=.true.)
          if (rc /= 0) then
-            write(*,'(A)') 'Error: could not register pm25 diagnostic'
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A)') 'Error: could not register pm25 diagnostic'
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+            end block
             rc = CC_FAILURE
             return
          end if
          call cc_wrap%catchem_model%register_diagnostic('pm10', &
             'PM10 aerosol mass concentration', 'ug m-3', (/ni, nj, nk/), rc, persistent=.true.)
          if (rc /= 0) then
-            write(*,'(A)') 'Error: could not register pm10 diagnostic'
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A)') 'Error: could not register pm10 diagnostic'
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+            end block
             rc = CC_FAILURE
             return
          end if
@@ -3218,7 +3364,11 @@ contains
       catchem_status = catchem_diag_get_pointer_checked(cc_wrap%catchem_model%cpp_core_ptr, &
          'pm25' // c_null_char, 3_c_int, diag_dims, raw_diag_ptr)
       if (catchem_status /= 0_c_int .or. .not. c_associated(raw_diag_ptr)) then
-         write(*,'(A)') 'Error: could not map pm25 diagnostic storage'
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A)') 'Error: could not map pm25 diagnostic storage'
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+         end block
          rc = CC_FAILURE
          return
       end if
@@ -3229,7 +3379,11 @@ contains
       catchem_status = catchem_diag_get_pointer_checked(cc_wrap%catchem_model%cpp_core_ptr, &
          'pm10' // c_null_char, 3_c_int, diag_dims, raw_diag_ptr)
       if (catchem_status /= 0_c_int .or. .not. c_associated(raw_diag_ptr)) then
-         write(*,'(A)') 'Error: could not map pm10 diagnostic storage'
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A)') 'Error: could not map pm10 diagnostic storage'
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_ERROR)
+         end block
          rc = CC_FAILURE
          return
       end if
@@ -3389,8 +3543,12 @@ contains
       na = cc_wrap%catchem_model%get_output_attribute_count()
       do i = 1, na
          if (n >= max_attrs) then
-            write(*,'(A,I0,A)') 'Warning: global attributes truncated at ', max_attrs, &
-               ' entries; remaining diagnostics.output.attributes ignored.'
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,I0,A)') 'Warning: global attributes truncated at ', max_attrs, &
+                  ' entries; remaining diagnostics.output.attributes ignored.'
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
+            end block
             exit
          end if
          call cc_wrap%catchem_model%get_output_attribute_at(i, attr_key, attr_val)

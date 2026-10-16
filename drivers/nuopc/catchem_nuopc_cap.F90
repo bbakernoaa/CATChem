@@ -297,9 +297,9 @@ contains
                   call NUOPC_FieldDictionaryAddEntry( &
                      StandardName=trim(field_config%import_fields(i)%standard_name), &
                      CanonicalUnits=trim(units_to_use), rc=rc)
+                  if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) return
                end block
-               if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__)) return
             end if
 
             call NUOPC_Advertise(importState, &
@@ -328,9 +328,9 @@ contains
                   call NUOPC_FieldDictionaryAddEntry( &
                      StandardName=trim(field_config%export_fields(i)%standard_name), &
                      CanonicalUnits=trim(units_to_use), rc=rc)
+                  if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) return
                end block
-               if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__)) return
             end if
 
             call NUOPC_Advertise(exportState, &
@@ -419,7 +419,7 @@ contains
       real(ESMF_KIND_R8), dimension(:,:), allocatable :: lat
       type(ESMF_CoordSys_Flag)   :: coordSys
       real(ESMF_KIND_R8), parameter :: rad_to_deg = 180._ESMF_KIND_R8 / 3.14159265358979323846_ESMF_KIND_R8
-      real(ESMF_KIND_R8) :: convet_unit
+      real(ESMF_KIND_R8) :: convert_unit
       integer :: localPet, petCount
       integer :: item, coord_item, rank, localDeCount, numLevels, localDe, localrc
       integer, dimension(2) :: lb, ub
@@ -438,8 +438,11 @@ contains
          line=__LINE__, file=__FILE__)) return
 
 #ifdef CATCHEM_TRACE_NUOPC
-      write(*, '(A,I0,A,I0)') '[CAP DEBUG] InitializeP2 localPet=', localPet, ' petCount=', petCount
-      call flush(6)
+      block
+         character(len=512) :: log_msg
+         write(log_msg, '(A,I0,A,I0)') '[CAP DEBUG] InitializeP2 localPet=', localPet, ' petCount=', petCount
+         call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+      end block
 #endif
 
       ! Get import and export states
@@ -498,10 +501,10 @@ contains
 
                      if (coordSys == ESMF_COORDSYS_SPH_DEG) then
                         !coordinates are in degrees already
-                        convet_unit = 1._ESMF_KIND_R8
+                        convert_unit = 1._ESMF_KIND_R8
                      else if (coordSys == ESMF_COORDSYS_SPH_RAD) then
                         !convert radians to degrees
-                        convet_unit = rad_to_deg
+                        convert_unit = rad_to_deg
                      else
                         call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
                            msg="Unsupported coordinate system - Failed to set coordinates for air quality model", &
@@ -512,9 +515,9 @@ contains
                      if (associated(coord)) then
                         select case (coord_item)
                          case(1)
-                           lon = coord * convet_unit
+                           lon = coord * convert_unit
                          case(2)
-                           lat = coord * convet_unit
+                           lat = coord * convert_unit
                          case default
                            !do nothing
                         end select
@@ -876,7 +879,7 @@ contains
       type(ESMF_CoordSys_Flag) :: coordSys
       real(ESMF_KIND_R8), parameter :: rad_to_deg = &
          180._ESMF_KIND_R8 / 3.14159265358979323846_ESMF_KIND_R8
-      real(ESMF_KIND_R8) :: convet_unit
+      real(ESMF_KIND_R8) :: convert_unit
       integer :: coord_item
 
       rc = ESMF_SUCCESS
@@ -887,9 +890,9 @@ contains
          line=__LINE__, file=__FILE__)) return
 
       if (coordSys == ESMF_COORDSYS_SPH_DEG) then
-         convet_unit = 1._ESMF_KIND_R8
+         convert_unit = 1._ESMF_KIND_R8
       else if (coordSys == ESMF_COORDSYS_SPH_RAD) then
-         convet_unit = rad_to_deg
+         convert_unit = rad_to_deg
       else
          call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
             msg="Unsupported coordinate system - cannot read standalone grid coordinates", &
@@ -905,9 +908,9 @@ contains
 
          select case (coord_item)
           case (1)
-            lon = coord * convet_unit
+            lon = coord * convert_unit
           case (2)
-            lat = coord * convet_unit
+            lat = coord * convert_unit
          end select
       end do
 

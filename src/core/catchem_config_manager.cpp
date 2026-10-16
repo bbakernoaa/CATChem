@@ -694,7 +694,7 @@ namespace catchem {
             }
             is_loaded = true;
         } catch (const std::exception& e) {
-            std::cerr << "Error loading configuration file " << filename << ": " << e.what() << std::endl;
+            Logger::error(nullptr, "Error loading configuration file", {{"file", filename}, {"error", e.what()}});
             is_loaded = false;
             throw;
         }

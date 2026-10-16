@@ -1,6 +1,7 @@
 module WetDepScienceBridge_Mod
    use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_bool, c_int
    use catchem_bridge_precision, only: fp
+   use catchem_bridge_error, only: CC_Error
    use catchem_bridge_constants, only: g0, AIRMW
    use WetDepCommon_Mod, only: WetDepSchemeJACOBConfig, WetDepSchemeGOCARTConfig
    use WetDepScheme_JACOB_Mod, only: compute_jacob
@@ -110,22 +111,46 @@ contains
       nullify(conc, tendency, diag_mass, diag_flux)
 
       if (.not. c_associated(c_airden_dry) .and. .not. c_associated(c_mairden)) then
-         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge missing required field AIRDEN / AIRDEN_DRY'
+         block
+            character(len=512) :: err_msg
+            integer :: rc_err
+            rc_err = 0
+            write(err_msg, '(A)') 'FATAL ERROR: WetDepScienceBridge missing required field AIRDEN / AIRDEN_DRY'
+            call CC_Error(trim(err_msg), rc_err, 'WetDepScienceBridge')
+         end block
          call flush(6)
          error stop "FATAL ERROR: WetDepScienceBridge missing required field AIRDEN"
       end if
       if (.not. c_associated(c_pedge)) then
-         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge missing required field PEDGE'
+         block
+            character(len=512) :: err_msg
+            integer :: rc_err
+            rc_err = 0
+            write(err_msg, '(A)') 'FATAL ERROR: WetDepScienceBridge missing required field PEDGE'
+            call CC_Error(trim(err_msg), rc_err, 'WetDepScienceBridge')
+         end block
          call flush(6)
          error stop "FATAL ERROR: WetDepScienceBridge missing required field PEDGE"
       end if
       if (.not. c_associated(c_t_air)) then
-         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge missing required field T'
+         block
+            character(len=512) :: err_msg
+            integer :: rc_err
+            rc_err = 0
+            write(err_msg, '(A)') 'FATAL ERROR: WetDepScienceBridge missing required field T'
+            call CC_Error(trim(err_msg), rc_err, 'WetDepScienceBridge')
+         end block
          call flush(6)
          error stop "FATAL ERROR: WetDepScienceBridge missing required field T"
       end if
       if (.not. c_associated(c_conc) .or. .not. c_associated(c_tendency)) then
-         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge missing required concentration or tendency pointers'
+         block
+            character(len=512) :: err_msg
+            integer :: rc_err
+            rc_err = 0
+            write(err_msg, '(A)') 'FATAL ERROR: WetDepScienceBridge missing required concentration or tendency pointers'
+            call CC_Error(trim(err_msg), rc_err, 'WetDepScienceBridge')
+         end block
          call flush(6)
          error stop "FATAL ERROR: WetDepScienceBridge missing required concentration or tendency pointers"
       end if
@@ -331,27 +356,57 @@ contains
       ! The GOCART kernel consumes every one of these fields unconditionally;
       ! fail loud rather than substituting zeros (mirrors the Jacob entry).
       if (.not. c_associated(c_mairden)) then
-         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge(gocart) missing required field AIRDEN/MAIRDEN'
+         block
+            character(len=512) :: err_msg
+            integer :: rc_err
+            rc_err = 0
+            write(err_msg, '(A)') 'FATAL ERROR: WetDepScienceBridge(gocart) missing required field AIRDEN/MAIRDEN'
+            call CC_Error(trim(err_msg), rc_err, 'WetDepScienceBridge')
+         end block
          call flush(6)
          error stop "FATAL ERROR: WetDepScienceBridge(gocart) missing required field AIRDEN/MAIRDEN"
       end if
       if (.not. c_associated(c_pedge)) then
-         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge(gocart) missing required field PEDGE'
+         block
+            character(len=512) :: err_msg
+            integer :: rc_err
+            rc_err = 0
+            write(err_msg, '(A)') 'FATAL ERROR: WetDepScienceBridge(gocart) missing required field PEDGE'
+            call CC_Error(trim(err_msg), rc_err, 'WetDepScienceBridge')
+         end block
          call flush(6)
          error stop "FATAL ERROR: WetDepScienceBridge(gocart) missing required field PEDGE"
       end if
       if (.not. c_associated(c_t_air)) then
-         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge(gocart) missing required field T'
+         block
+            character(len=512) :: err_msg
+            integer :: rc_err
+            rc_err = 0
+            write(err_msg, '(A)') 'FATAL ERROR: WetDepScienceBridge(gocart) missing required field T'
+            call CC_Error(trim(err_msg), rc_err, 'WetDepScienceBridge')
+         end block
          call flush(6)
          error stop "FATAL ERROR: WetDepScienceBridge(gocart) missing required field T"
       end if
       if (.not. c_associated(c_preccon) .or. .not. c_associated(c_preclsc)) then
-         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge(gocart) missing required field PRECCON/PRECLSC'
+         block
+            character(len=512) :: err_msg
+            integer :: rc_err
+            rc_err = 0
+            write(err_msg, '(A)') 'FATAL ERROR: WetDepScienceBridge(gocart) missing required field PRECCON/PRECLSC'
+            call CC_Error(trim(err_msg), rc_err, 'WetDepScienceBridge')
+         end block
          call flush(6)
          error stop "FATAL ERROR: WetDepScienceBridge(gocart) missing required field PRECCON/PRECLSC"
       end if
       if (.not. c_associated(c_conc) .or. .not. c_associated(c_tendency)) then
-         write(*,'(A)') 'FATAL ERROR: WetDepScienceBridge(gocart) missing required concentration or tendency pointers'
+         block
+            character(len=512) :: err_msg
+            integer :: rc_err
+            rc_err = 0
+            write(err_msg, '(A)') 'FATAL ERROR: WetDepScienceBridge(gocart) missing required concentration or tendency pointers'
+            call CC_Error(trim(err_msg), rc_err, 'WetDepScienceBridge')
+         end block
          call flush(6)
          error stop "FATAL ERROR: WetDepScienceBridge(gocart) missing required concentration or tendency pointers"
       end if

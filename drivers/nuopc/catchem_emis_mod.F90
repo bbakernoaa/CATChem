@@ -277,8 +277,11 @@ contains
       extemis_activate = (catchem_config_get_yaml_bool(core_ptr, 'processes/extemis/activate' // c_null_char, 1_c_int) /= 0)
       if (.not. extemis_activate) then
 #ifdef CATCHEM_TRACE_NUOPC
-         write(*,'(A)') '[CATCHEM DEBUG] catchem_emis_init: extemis disabled by processes/extemis/activate=false'
-         call flush(6)
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A)') '[CATCHEM DEBUG] catchem_emis_init: extemis disabled by processes/extemis/activate=false'
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
 #endif
          call ESMF_LogWrite(trim(pName)//': External emissions disabled (processes/extemis/activate=false)', &
             ESMF_LOGMSG_INFO, rc=localrc)
@@ -337,8 +340,11 @@ contains
       end if
 
 #ifdef CATCHEM_TRACE_NUOPC
-      write(*,'(A,I0)') '[CATCHEM DEBUG] catchem_emis_init: n_categories=', ext_emis_data%n_categories
-      call flush(6)
+      block
+         character(len=512) :: log_msg
+         write(log_msg, '(A,I0)') '[CATCHEM DEBUG] catchem_emis_init: n_categories=', ext_emis_data%n_categories
+         call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+      end block
 #endif
 
       call ESMF_LogWrite(trim(pName)//': Emission initialization completed', &
@@ -663,11 +669,15 @@ contains
       call catchem_emis_detect_field_ranks(category, filename, localrc)
 #ifdef CATCHEM_TRACE_NUOPC
       do ifield = 1, category%n_fields
-         write(*,'(A,A,A,A,A,A,A,L1,A,I0)') '[CATCHEM DEBUG] AQMIO rank category=', trim(category_name), &
-            ' file=', trim(filename), &
-            ' field=', trim(category%fields(ifield)%field_name), &
-            ' is_2d=', category%fields(ifield)%is_2d, &
-            ' nlev_file=', category%fields(ifield)%nlev_file
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A,A,A,A,A,A,A,L1,A,I0)') '[CATCHEM DEBUG] AQMIO rank category=', trim(category_name), &
+               ' file=', trim(filename), &
+               ' field=', trim(category%fields(ifield)%field_name), &
+               ' is_2d=', category%fields(ifield)%is_2d, &
+               ' nlev_file=', category%fields(ifield)%nlev_file
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
       end do
       call flush(6)
 #endif
@@ -754,13 +764,16 @@ contains
 
          category%fields(ifield)%is_loaded = .true.   !set to true; otherwise diagnostics will not be saved.
 #ifdef CATCHEM_TRACE_NUOPC
-         write(*,'(A,A,A,A,A,L1,A,L1,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] AQMIO read category=', trim(category_name), &
-            ' field=', trim(category%fields(ifield)%field_name), &
-            ' emission_data=', allocated(category%fields(ifield)%emission_data), &
-            ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1), &
-            ' min=', minval(category%fields(ifield)%emission_data), &
-            ' max=', maxval(category%fields(ifield)%emission_data)
-         call flush(6)
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A,A,A,A,A,L1,A,L1,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] AQMIO read category=', trim(category_name), &
+               ' field=', trim(category%fields(ifield)%field_name), &
+               ' emission_data=', allocated(category%fields(ifield)%emission_data), &
+               ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1), &
+               ' min=', minval(category%fields(ifield)%emission_data), &
+               ' max=', maxval(category%fields(ifield)%emission_data)
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
 #endif
 
          ! Clean up ESMF field after data transfer
@@ -1133,11 +1146,14 @@ contains
 
          category%fields(ifield)%is_loaded = .true.
 #ifdef CATCHEM_TRACE_NUOPC
-         write(*,'(A,A,A,A,A,L1,A,L1)') '[CATCHEM DEBUG] AQMIO regrid read category=', trim(category_name), &
-            ' field=', trim(category%fields(ifield)%field_name), &
-            ' emission_data=', allocated(category%fields(ifield)%emission_data), &
-            ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1)
-         call flush(6)
+         block
+            character(len=512) :: log_msg
+            write(log_msg, '(A,A,A,A,A,L1,A,L1)') '[CATCHEM DEBUG] AQMIO regrid read category=', trim(category_name), &
+               ' field=', trim(category%fields(ifield)%field_name), &
+               ' emission_data=', allocated(category%fields(ifield)%emission_data), &
+               ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1)
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
 #endif
 
          call ESMF_FieldDestroy(esmf_field, rc=localrc)
@@ -1870,11 +1886,14 @@ contains
 
 #ifdef CATCHEM_TRACE_NUOPC
             if (emis_lower(trim(mapped_species_name)) == 'bc1') then
-               write(*,'(A,A,A,A,A,ES12.4,A,ES12.4,A,ES12.4)') &
-                  '[CATCHEM TRACE] BC1 after emission category=', trim(category_name), &
-                  ' field=', trim(field_name), ' min=', minval(f_conc), &
-                  ' max=', maxval(f_conc), ' sum=', sum(f_conc)
-               call flush(6)
+               block
+                  character(len=512) :: log_msg
+                  write(log_msg, '(A,A,A,A,A,ES12.4,A,ES12.4,A,ES12.4)') &
+                     '[CATCHEM TRACE] BC1 after emission category=', trim(category_name), &
+                     ' field=', trim(field_name), ' min=', minval(f_conc), &
+                     ' max=', maxval(f_conc), ' sum=', sum(f_conc)
+                  call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+               end block
             end if
 #endif
 
@@ -2917,9 +2936,12 @@ contains
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
 #ifdef CATCHEM_TRACE_NUOPC
-            write(*,'(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate category=', trim(category_name), &
-               ' field=', trim(field_name)
-            call flush(6)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate category=', trim(category_name), &
+                  ' field=', trim(field_name)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
 #endif
             if (ext_emis_data%diagnostic .and. new_category%diagnostic) then
                if (allocated(diag_species_list)) then
@@ -2962,9 +2984,12 @@ contains
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
 #ifdef CATCHEM_TRACE_NUOPC
-            write(*,'(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate species-list category=', trim(category_name), &
-               ' field=', trim(field_name)
-            call flush(6)
+            block
+               character(len=512) :: log_msg
+               write(log_msg, '(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate species-list category=', trim(category_name), &
+                  ' field=', trim(field_name)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
 #endif
             call new_category%add_field(new_field, localrc)
          end if

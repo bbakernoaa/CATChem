@@ -1,5 +1,6 @@
 #pragma once
 
+#include "catchem_logger.hpp"
 #include <exception>
 #include <iostream>
 #include <stdexcept>
@@ -84,11 +85,12 @@ namespace catchem {
             }
         }
         void report_error(ErrorCode code, const std::string& msg) {
-            std::cerr << "[CATChem C++ Error " << code << "] " << msg << " | Context: ";
+            std::string context;
             for (const auto& ctx : context_stack) {
-                std::cerr << ctx << " -> ";
+                context += ctx + " -> ";
             }
-            std::cerr << "End\n";
+            context += "End";
+            Logger::error(nullptr, msg, {{"code", std::to_string(static_cast<int>(code))}, {"context", context}});
         }
     };
 

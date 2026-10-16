@@ -2,6 +2,7 @@
 #include "catchem_api_internal.hpp"
 #include "catchem_core.hpp"
 #include "catchem_diagnostic_manager.hpp"
+#include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include "catchem_state_manager.hpp"
 #include "catchem_unit_conversion.hpp"
@@ -20,8 +21,8 @@ void catchem_state_load_species_config(void* state_ptr, const char* filename) {
         auto* state = static_cast<catchem::StateManager*>(state_ptr);
         state->load_species_config(filename);
     } catch (const std::exception& e) {
-        std::cerr << "CATChem API Error: Failed to load species configuration '" << filename
-                  << "'. Details: " << e.what() << std::endl;
+        catchem::Logger::error(static_cast<catchem::StateManager*>(state_ptr), "Failed to load species configuration",
+                               {{"file", filename}, {"error", e.what()}});
     }
 }
 
