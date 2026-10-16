@@ -702,23 +702,30 @@ contains
          type(ESMF_Field) :: areaField
          real(ESMF_KIND_R8), pointer :: areaPtr(:,:)
          integer :: arc
-         logical :: areaIsPresent
+         logical :: areaIsPresent, area_ok
          nullify(areaPtr)
          areaIsPresent = .false.
+         area_ok = .false.
          call ESMF_GridGetItem(input_grid, itemflag=ESMF_GRIDITEM_AREA, &
             staggerloc=ESMF_STAGGERLOC_CENTER, isPresent=areaIsPresent, rc=arc)
          if (arc == ESMF_SUCCESS .and. areaIsPresent) then
             call ESMF_GridGetItem(input_grid, itemflag=ESMF_GRIDITEM_AREA, &
                staggerloc=ESMF_STAGGERLOC_CENTER, farrayPtr=areaPtr, rc=arc)
-         else
-            arc = ESMF_RC_NOT_FOUND
-         end if
-         if (arc == ESMF_SUCCESS .and. associated(areaPtr)) then
-            if (size(areaPtr,1) == nx .and. size(areaPtr,2) == ny) then
-               cc_wrap%area_m2 = real(areaPtr, c_double)
+            if (arc == ESMF_SUCCESS .and. associated(areaPtr)) then
+               if (size(areaPtr,1) == nx .and. size(areaPtr,2) == ny) then
+                  cc_wrap%area_m2 = real(areaPtr, c_double)
+                  area_ok = .true.
+               else
+                  call ESMF_LogWrite('catchem_nuopc_init: grid-cell area item has the wrong shape', &
+                     ESMF_LOGMSG_ERROR, rc=arc)
+                  rc = CC_FAILURE
+                  return
+               end if
             end if
          else
-            ! Fall back to computing cell areas from the grid geometry.
+            ! Fall back to computing cell areas from the grid geometry.  This
+            ! needs grid coordinates; test harnesses and some standalone grids
+            ! have none, so a failure here is reported but not fatal.
             nullify(areaPtr)
             areaField = ESMF_FieldCreate(input_grid, typekind=ESMF_TYPEKIND_R8, &
                staggerloc=ESMF_STAGGERLOC_CENTER, rc=arc)
@@ -727,16 +734,23 @@ contains
             if (arc == ESMF_SUCCESS .and. associated(areaPtr)) then
                if (size(areaPtr,1) == nx .and. size(areaPtr,2) == ny) then
                   cc_wrap%area_m2 = real(areaPtr, c_double) * real(Re * Re, c_double)
+                  area_ok = .true.
                end if
-            else
-               call ESMF_LogWrite('catchem_nuopc_init: could not determine grid-cell '// &
-                  'areas; AREA_M2 left unset (point emissions will be skipped)', &
-                  ESMF_LOGMSG_WARNING, rc=arc)
             end if
             call ESMF_FieldDestroy(areaField, rc=arc)
+            if (ESMF_LogFoundError(rcToCheck=arc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          end if
-         call cc_wrap%catchem_model%bind_met_2d("AREA_M2", cc_wrap%area_m2, rc)
-         if (rc /= CC_SUCCESS) return
+         if (area_ok) then
+            call cc_wrap%catchem_model%bind_met_2d("AREA_M2", cc_wrap%area_m2, rc)
+            if (rc /= CC_SUCCESS) return
+         else
+            ! AREA_M2 stays unbound: point-source emissions check for it and
+            ! fail with a clear error at first use instead of using zero areas.
+            call ESMF_LogWrite('catchem_nuopc_init: could not determine grid-cell areas; '// &
+               'AREA_M2 is not bound and point emissions will fail if used', &
+               ESMF_LOGMSG_ERROR, rc=arc)
+         end if
       end block
 
       !initialize extemission data here
@@ -1905,6 +1919,12 @@ contains
           case ('soil_layer')
             call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%catchem_var), &
                cc_wrap%met_buf_3d(fidx)%data, 2, rc)
+          case default
+            call ESMF_LogWrite("Unsupported vertical_axis for 3D import field: " // &
+               trim(field_map%standard_name) // " (" // trim(field_map%vertical_axis) // ")", &
+               ESMF_LOGMSG_ERROR, rc=rc)
+            rc = ESMF_FAILURE
+            return
          end select
          if (rc /= CC_SUCCESS) return
 

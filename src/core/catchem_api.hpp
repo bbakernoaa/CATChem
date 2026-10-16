@@ -295,11 +295,9 @@ int catchem_diag_get_unpack_label_at_checked(void* core_ptr, const char* name, i
                                              int label_length);
 
 // YAML Species Metadata
-void catchem_state_load_species_config(void* state_ptr, const char* filename);
+int catchem_state_load_species_config(void* state_ptr, const char* filename);
 int catchem_state_get_species_count(void* state_ptr);
 int catchem_state_get_species_count_checked(void* state_ptr, int* count_out);
-int catchem_state_get_species_index(void* state_ptr,
-                                    const char* name); // returns 1-based index matching Fortran, or -1 if not found
 int catchem_state_get_species_index_checked(void* state_ptr, const char* name, int* index_out);
 
 // Categorized counts and list getters

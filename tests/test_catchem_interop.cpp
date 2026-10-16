@@ -9,6 +9,13 @@
 #include <iostream>
 #include <vector>
 
+// The unchecked catchem_state_get_species_index was retired; keep the 1-based
+// index / -1-if-missing convention the assertions below rely on.
+static int species_index_1based(void* state_ptr, const char* name) {
+    int index = 0;
+    return catchem_state_get_species_index_checked(state_ptr, name, &index) == CATCHEM_SUCCESS ? index : -1;
+}
+
 extern "C" {
 void catchem_register_settling_cpp();
 void catchem_register_drydep_cpp();
@@ -337,8 +344,8 @@ int main(int argc, char* argv[]) {
             std::cout << "INFO: Loaded " << count << " species in integration test.\n";
 
             // 3. Translate species names to 1-based indices
-            int idx_so2 = catchem_state_get_species_index(state, "so2");
-            int idx_so4 = catchem_state_get_species_index(state, "so4");
+            int idx_so2 = species_index_1based(state, "so2");
+            int idx_so4 = species_index_1based(state, "so4");
             assert(idx_so2 != -1);
             assert(idx_so4 != -1);
 
@@ -468,7 +475,7 @@ int main(int argc, char* argv[]) {
             // sea-salt bin (seas5) has a large fall speed and measurably
             // depletes the top layer.  Using a coarse bin makes the sink
             // observable instead of lost in round-off.
-            int idx_1based = catchem_state_get_species_index(state, "seas5");
+            int idx_1based = species_index_1based(state, "seas5");
             assert(idx_1based > 0);
             int idx_0based = idx_1based - 1;
 

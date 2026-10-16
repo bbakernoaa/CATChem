@@ -6,7 +6,9 @@
 #include "catchem_process_registry.hpp"
 #include "catchem_state_manager.hpp"
 #include "catchem_unit_conversion.hpp"
+#include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -15,6 +17,18 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+// The unchecked catchem_state_get_species_index was retired.  This test builds
+// its StateManager on the stack, outside the handle registry the checked C API
+// requires, so resolve names through the chemistry map directly (1-based index,
+// -1 if missing, as the assertions below expect).
+static int species_index_1based(catchem::StateManager* state, const char* name) {
+    std::string key(name);
+    std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return std::toupper(c); });
+    const auto& map = state->chemistry().species_name_to_index;
+    auto it = map.find(key);
+    return it == map.end() ? -1 : it->second + 1;
+}
 
 extern "C" {
 void catchem_register_seasalt_cpp();
@@ -329,7 +343,7 @@ void CatchemPropertiesTest_SpeciesMetadataAPI() {
     int count = catchem_state_get_species_count(&state);
     assert(count > 20);
 
-    int so2_idx = catchem_state_get_species_index(&state, "so2"); // 1-based
+    int so2_idx = species_index_1based(&state, "so2"); // 1-based
     assert(so2_idx > 0);
 
     char name_buf[128];
@@ -346,7 +360,7 @@ void CatchemPropertiesTest_SpeciesMetadataAPI() {
     assert(catchem_state_is_species_drydep(&state, so2_idx) == 1);
     assert(catchem_state_is_species_wetdep(&state, so2_idx) == 1);
 
-    int msa_idx = catchem_state_get_species_index(&state, "msa");
+    int msa_idx = species_index_1based(&state, "msa");
     assert(msa_idx > 0);
     // The original SO4chem Fortran scheme carries MSA as aerosol mass (ug/kg).
     assert(catchem_state_is_species_gas(&state, msa_idx) == 0);
@@ -360,7 +374,7 @@ void CatchemPropertiesTest_SpeciesMetadataAPI() {
     assert(catchem_state_get_species_radius(&state, msa_idx) == 0.35);
     assert(catchem_state_get_species_density(&state, msa_idx) == 1700.0);
 
-    int dust1_idx = catchem_state_get_species_index(&state, "dust1");
+    int dust1_idx = species_index_1based(&state, "dust1");
     assert(dust1_idx > 0);
     assert(catchem_state_is_species_dust(&state, dust1_idx) == 1);
     assert(catchem_state_is_species_aerosol(&state, dust1_idx) == 1);

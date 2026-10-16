@@ -220,12 +220,6 @@ module catchem_nuopc_emis_mod
          type(c_ptr), value :: state_ptr
       end function
 
-      integer(c_int) function catchem_state_get_species_index(state_ptr, name) bind(C, name="catchem_state_get_species_index")
-         import :: c_ptr, c_char, c_int
-         type(c_ptr), value :: state_ptr
-         character(kind=c_char), intent(in) :: name(*)
-      end function
-
       integer(c_int) function catchem_state_is_species_gas(state_ptr, index) bind(C, name="catchem_state_is_species_gas")
          import :: c_ptr, c_int
          type(c_ptr), value :: state_ptr
@@ -303,6 +297,8 @@ contains
          if (catchem_config_has_emission_mapping(core_ptr) == 0) then
             write(msg, '(A,A)') trim(pName), ': Emission mapping not loaded in C++ ConfigManager'
             call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+            rc = CC_FAILURE
+            return
          else
             n_categories = catchem_config_get_emission_category_count(core_ptr)
             do icat = 0, n_categories - 1
@@ -730,7 +726,12 @@ contains
          if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__,  file=__FILE__,  rcToReturn=rc)) then
             ! Clean up field before returning
-            call ESMF_FieldDestroy(esmf_field, rc=localrc)
+            block
+               integer :: destroy_rc
+               call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+               if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+            end block
             return  ! bail out
          end if
 
@@ -740,7 +741,12 @@ contains
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__,  file=__FILE__,  rcToReturn=rc)) then
                ! Clean up field before returning
-               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               block
+                  integer :: destroy_rc
+                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+               end block
                return  ! bail out
             end if
             !!TODO: We should check unit conversion in the future. Here we make sure the gridded emission is in kg/m2/s already
@@ -751,7 +757,12 @@ contains
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__,  file=__FILE__,  rcToReturn=rc)) then
                ! Clean up field before returning
-               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               block
+                  integer :: destroy_rc
+                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+               end block
                return  ! bail out
             end if
             !!TODO: We should check unit conversion in the future. Here we make sure the gridded emission is in kg/m2/s already
@@ -981,14 +992,24 @@ contains
                rc        = localrc)
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               block
+                  integer :: destroy_rc
+                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+               end block
                return
             end if
 
             call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=localrc)
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               block
+                  integer :: destroy_rc
+                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+               end block
                return
             end if
 
@@ -1029,7 +1050,12 @@ contains
                end if
                if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                  call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                  block
+                     integer :: destroy_rc
+                     call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                     if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                        line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                  end block
                   return
                end if
 
@@ -1066,14 +1092,24 @@ contains
                   rc        = localrc)
                if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                  call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                  block
+                     integer :: destroy_rc
+                     call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                     if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                        line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                  end block
                   return
                end if
 
                call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=localrc)
                if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                  call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                  block
+                     integer :: destroy_rc
+                     call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                     if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                        line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                  end block
                   return
                end if
 
@@ -1114,7 +1150,12 @@ contains
                   end if
                   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                      line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                     call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                     block
+                        integer :: destroy_rc
+                        call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                        if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                           line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                     end block
                      return
                   end if
 
@@ -2596,7 +2637,12 @@ contains
       ! Get field data pointer and copy emission data
       call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=rc)
       if (rc /= ESMF_SUCCESS) then
-         call ESMF_FieldDestroy(esmf_field, rc=rc)
+         block
+            integer :: destroy_rc
+            call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+            if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+         end block
          return
       end if
 
@@ -2668,7 +2714,12 @@ contains
       ! Get field data pointer and copy emission data
       call ESMF_FieldGet(esmf_field, farrayPtr=field_data_3d, rc=rc)
       if (rc /= ESMF_SUCCESS) then
-         call ESMF_FieldDestroy(esmf_field, rc=rc)
+         block
+            integer :: destroy_rc
+            call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+            if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+         end block
          return
       end if
 

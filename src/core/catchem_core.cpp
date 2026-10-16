@@ -110,7 +110,10 @@ namespace catchem {
     Core::~Core() noexcept {
         try {
             shutdown();
+        } catch (const std::exception& e) {
+            Logger::error(nullptr, "Core shutdown failed during destruction", {{"error", e.what()}});
         } catch (...) {
+            Logger::error(nullptr, "Core shutdown failed during destruction", {{"error", "unknown exception"}});
         }
     }
 
