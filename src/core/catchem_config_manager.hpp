@@ -87,7 +87,7 @@ namespace catchem {
     /// @brief Process activation and nested process settings from YAML.
     struct ProcessConfig {
     private:
-        YAML::Node settings_node;
+        YAML::Node settings_node_;
         friend class ConfigManager;
 
     public:
@@ -96,7 +96,7 @@ namespace catchem {
         std::string scheme;
         std::vector<std::string> diag_species;
 
-        void set_settings_node(const YAML::Node& node) { settings_node = node; }
+        void set_settings_node(const YAML::Node& node) { settings_node_ = node; }
 
         bool get_bool(std::string_view key, bool default_val = false) const;
         double get_double(std::string_view key, double default_val = 0.0) const;
@@ -218,7 +218,8 @@ namespace catchem {
 
     class ConfigManager {
     private:
-        YAML::Node root_node;
+        YAML::Node root_node_;
+        bool strict_validation_ = true;
 
     public:
         // When false, load_from_file() suppresses the stdout echo of the parsed
@@ -237,8 +238,12 @@ namespace catchem {
         void load_from_file(const std::string& filename);
         void load_species_file(const std::string& filename);
         void load_emission_mapping_file(const std::string& filename);
-        const ValidationReport& validate(bool strict = true);
-        void validate_or_throw(bool strict = true);
+        // Strict validation rejects unknown top-level keys; relax it with
+        // set_strict_validation(false) for configs that carry extra sections.
+        void set_strict_validation(bool strict) { strict_validation_ = strict; }
+        bool strict_validation() const { return strict_validation_; }
+        const ValidationReport& validate();
+        void validate_or_throw();
 
         // Safe path-based queries
         bool get_bool(std::string_view path, bool default_val = false) const;

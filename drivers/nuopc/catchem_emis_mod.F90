@@ -33,6 +33,7 @@ module catchem_nuopc_emis_mod
 
    use iso_c_binding, only: c_ptr, c_char, c_int, c_double, c_null_char, c_associated, c_f_pointer
    use ESMF
+   use catchem_nuopc_lengths
    use NUOPC
    use aqmio
    use netcdf
@@ -59,7 +60,7 @@ module catchem_nuopc_emis_mod
    real(c_double), parameter :: AVO = 6.02214076e23_c_double
 
    !> \brief Parameters for emission handling
-   integer, parameter :: EMIS_MAXSTR = 256
+   integer, parameter :: EMIS_MAXSTR = NUOPC_PATH_LEN  !< kept for existing callers; same value as the path length
    integer, parameter :: EMIS_MAXFIELDS = 100
    real(fp), parameter :: EMIS_MISSING = -999.0_fp
 
@@ -220,12 +221,6 @@ module catchem_nuopc_emis_mod
          type(c_ptr), value :: state_ptr
       end function
 
-      integer(c_int) function catchem_state_get_species_index(state_ptr, name) bind(C, name="catchem_state_get_species_index")
-         import :: c_ptr, c_char, c_int
-         type(c_ptr), value :: state_ptr
-         character(kind=c_char), intent(in) :: name(*)
-      end function
-
       integer(c_int) function catchem_state_is_species_gas(state_ptr, index) bind(C, name="catchem_state_is_species_gas")
          import :: c_ptr, c_int
          type(c_ptr), value :: state_ptr
@@ -277,8 +272,11 @@ contains
       extemis_activate = (catchem_config_get_yaml_bool(core_ptr, 'processes/extemis/activate' // c_null_char, 1_c_int) /= 0)
       if (.not. extemis_activate) then
 #ifdef CATCHEM_TRACE_NUOPC
-         write(*,'(A)') '[CATCHEM DEBUG] catchem_emis_init: extemis disabled by processes/extemis/activate=false'
-         call flush(6)
+         block
+            character(len=NUOPC_MSG_LEN) :: log_msg
+            write(log_msg, '(A)') '[CATCHEM DEBUG] catchem_emis_init: extemis disabled by processes/extemis/activate=false'
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
 #endif
          call ESMF_LogWrite(trim(pName)//': External emissions disabled (processes/extemis/activate=false)', &
             ESMF_LOGMSG_INFO, rc=localrc)
@@ -300,10 +298,12 @@ contains
          if (catchem_config_has_emission_mapping(core_ptr) == 0) then
             write(msg, '(A,A)') trim(pName), ': Emission mapping not loaded in C++ ConfigManager'
             call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+            rc = CC_FAILURE
+            return
          else
             n_categories = catchem_config_get_emission_category_count(core_ptr)
             do icat = 0, n_categories - 1
-               call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, 64_c_int)
+               call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, int(len(category_name), c_int))
                call clean_c_string(category_name)
                category_active = (catchem_config_is_emission_category_active(core_ptr, trim(category_name) // c_null_char) /= 0)
 
@@ -337,8 +337,11 @@ contains
       end if
 
 #ifdef CATCHEM_TRACE_NUOPC
-      write(*,'(A,I0)') '[CATCHEM DEBUG] catchem_emis_init: n_categories=', ext_emis_data%n_categories
-      call flush(6)
+      block
+         character(len=NUOPC_MSG_LEN) :: log_msg
+         write(log_msg, '(A,I0)') '[CATCHEM DEBUG] catchem_emis_init: n_categories=', ext_emis_data%n_categories
+         call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+      end block
 #endif
 
       call ESMF_LogWrite(trim(pName)//': Emission initialization completed', &
@@ -595,7 +598,7 @@ contains
       ! Local variables
       integer :: localrc,   ifield, nlev_f
       character(len=EMIS_MAXSTR) :: msg, filename
-      character(len=64) :: category_name
+      character(len=NUOPC_NAME_LEN) :: category_name
       type(ESMF_Field) :: esmf_field
       real(ESMF_KIND_R4), pointer :: field_data_2d(:,:) => null()
       real(ESMF_KIND_R4), pointer :: field_data_3d(:,:,:) => null()
@@ -663,13 +666,16 @@ contains
       call catchem_emis_detect_field_ranks(category, filename, localrc)
 #ifdef CATCHEM_TRACE_NUOPC
       do ifield = 1, category%n_fields
-         write(*,'(A,A,A,A,A,A,A,L1,A,I0)') '[CATCHEM DEBUG] AQMIO rank category=', trim(category_name), &
-            ' file=', trim(filename), &
-            ' field=', trim(category%fields(ifield)%field_name), &
-            ' is_2d=', category%fields(ifield)%is_2d, &
-            ' nlev_file=', category%fields(ifield)%nlev_file
+         block
+            character(len=NUOPC_MSG_LEN) :: log_msg
+            write(log_msg, '(A,A,A,A,A,A,A,L1,A,I0)') '[CATCHEM DEBUG] AQMIO rank category=', trim(category_name), &
+               ' file=', trim(filename), &
+               ' field=', trim(category%fields(ifield)%field_name), &
+               ' is_2d=', category%fields(ifield)%is_2d, &
+               ' nlev_file=', category%fields(ifield)%nlev_file
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
       end do
-      call flush(6)
 #endif
 
       ! Determine if this category needs runtime regridding.
@@ -720,7 +726,13 @@ contains
          if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__,  file=__FILE__,  rcToReturn=rc)) then
             ! Clean up field before returning
-            call ESMF_FieldDestroy(esmf_field, rc=localrc)
+            block
+               integer :: destroy_rc
+               ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+               call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+               if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__)) continue
+            end block
             return  ! bail out
          end if
 
@@ -730,7 +742,13 @@ contains
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__,  file=__FILE__,  rcToReturn=rc)) then
                ! Clean up field before returning
-               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               block
+                  integer :: destroy_rc
+                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) continue
+               end block
                return  ! bail out
             end if
             !!TODO: We should check unit conversion in the future. Here we make sure the gridded emission is in kg/m2/s already
@@ -741,7 +759,13 @@ contains
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__,  file=__FILE__,  rcToReturn=rc)) then
                ! Clean up field before returning
-               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               block
+                  integer :: destroy_rc
+                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) continue
+               end block
                return  ! bail out
             end if
             !!TODO: We should check unit conversion in the future. Here we make sure the gridded emission is in kg/m2/s already
@@ -754,13 +778,16 @@ contains
 
          category%fields(ifield)%is_loaded = .true.   !set to true; otherwise diagnostics will not be saved.
 #ifdef CATCHEM_TRACE_NUOPC
-         write(*,'(A,A,A,A,A,L1,A,L1,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] AQMIO read category=', trim(category_name), &
-            ' field=', trim(category%fields(ifield)%field_name), &
-            ' emission_data=', allocated(category%fields(ifield)%emission_data), &
-            ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1), &
-            ' min=', minval(category%fields(ifield)%emission_data), &
-            ' max=', maxval(category%fields(ifield)%emission_data)
-         call flush(6)
+         block
+            character(len=NUOPC_MSG_LEN) :: log_msg
+            write(log_msg, '(A,A,A,A,A,L1,A,L1,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] AQMIO read category=', trim(category_name), &
+               ' field=', trim(category%fields(ifield)%field_name), &
+               ' emission_data=', allocated(category%fields(ifield)%emission_data), &
+               ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1), &
+               ' min=', minval(category%fields(ifield)%emission_data), &
+               ' max=', maxval(category%fields(ifield)%emission_data)
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
 #endif
 
          ! Clean up ESMF field after data transfer
@@ -799,7 +826,7 @@ contains
       ! Local variables
       integer :: localrc, ifield, klev, nlev_f
       character(len=EMIS_MAXSTR) :: msg
-      character(len=64) :: category_name
+      character(len=NUOPC_NAME_LEN) :: category_name
       type(ESMF_Field) :: esmf_field
       real(ESMF_KIND_R4), pointer :: field_data_2d(:,:) => null()
       logical :: didRegrid
@@ -968,14 +995,26 @@ contains
                rc        = localrc)
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               block
+                  integer :: destroy_rc
+                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) continue
+               end block
                return
             end if
 
             call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=localrc)
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               block
+                  integer :: destroy_rc
+                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) continue
+               end block
                return
             end if
 
@@ -1016,7 +1055,13 @@ contains
                end if
                if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                  call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                  block
+                     integer :: destroy_rc
+                     ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                     call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                     if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                        line=__LINE__, file=__FILE__)) continue
+                  end block
                   return
                end if
 
@@ -1053,14 +1098,26 @@ contains
                   rc        = localrc)
                if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                  call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                  block
+                     integer :: destroy_rc
+                     ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                     call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                     if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                        line=__LINE__, file=__FILE__)) continue
+                  end block
                   return
                end if
 
                call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=localrc)
                if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                  call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                  block
+                     integer :: destroy_rc
+                     ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                     call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                     if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                        line=__LINE__, file=__FILE__)) continue
+                  end block
                   return
                end if
 
@@ -1101,7 +1158,13 @@ contains
                   end if
                   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                      line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                     call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                     block
+                        integer :: destroy_rc
+                        ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                        call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+                        if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+                           line=__LINE__, file=__FILE__)) continue
+                     end block
                      return
                   end if
 
@@ -1133,11 +1196,14 @@ contains
 
          category%fields(ifield)%is_loaded = .true.
 #ifdef CATCHEM_TRACE_NUOPC
-         write(*,'(A,A,A,A,A,L1,A,L1)') '[CATCHEM DEBUG] AQMIO regrid read category=', trim(category_name), &
-            ' field=', trim(category%fields(ifield)%field_name), &
-            ' emission_data=', allocated(category%fields(ifield)%emission_data), &
-            ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1)
-         call flush(6)
+         block
+            character(len=NUOPC_MSG_LEN) :: log_msg
+            write(log_msg, '(A,A,A,A,A,L1,A,L1)') '[CATCHEM DEBUG] AQMIO regrid read category=', trim(category_name), &
+               ' field=', trim(category%fields(ifield)%field_name), &
+               ' emission_data=', allocated(category%fields(ifield)%emission_data), &
+               ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1)
+            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+         end block
 #endif
 
          call ESMF_FieldDestroy(esmf_field, rc=localrc)
@@ -1402,16 +1468,16 @@ contains
       real(fp), intent(out)   :: f_bb(:,:)
       integer, intent(out)    :: rc
       real(c_double), allocatable :: flux_columns(:,:), rh_columns(:,:), factors(:)
-      character(kind=c_char) :: mie_name_c(64)
+      character(kind=c_char) :: mie_name_c(NUOPC_NAME_LEN)
       integer(c_int) :: limiter_rc
       integer :: nx, ny, nz, i, j, k, column
 
       interface
          subroutine run_emission_mie_factor(n_columns, n_levels, mie_name_c, flux, rh, &
             scale_factor, dt, factor, limiter_rc) bind(C, name='run_emission_mie_factor')
-            import :: c_int, c_double, c_char
+            import :: c_int, c_double, c_char, NUOPC_NAME_LEN
             integer(c_int), value :: n_columns, n_levels
-            character(kind=c_char), intent(in) :: mie_name_c(64)
+            character(kind=c_char), intent(in) :: mie_name_c(NUOPC_NAME_LEN)
             real(c_double), intent(in) :: flux(n_columns,n_levels), rh(n_columns,n_levels)
             real(c_double), value :: scale_factor, dt
             real(c_double), intent(out) :: factor(n_columns)
@@ -1619,7 +1685,7 @@ contains
       integer :: localrc, ifield, ispec, n_mapped_species
       integer :: nx, ny, nz, i, j, k
       character(len=EMIS_MAXSTR) :: msg, field_name, category_name
-      character(len=64) :: mapped_species_name, species_mie_name
+      character(len=NUOPC_NAME_LEN) :: mapped_species_name, species_mie_name
       real(c_double) :: scale_factor
       integer(c_int) :: species_index
       character(len=*), parameter :: pName = 'catchem_emis_apply'
@@ -1772,7 +1838,7 @@ contains
 
          do ispec = 1, n_mapped_species
             call catchem_config_get_emission_species_map_at(core_ptr, trim(category_name) // c_null_char, trim(field_name) // c_null_char, ispec - 1, &
-               mapped_species_name, 64_c_int, scale_factor, species_index)
+               mapped_species_name, int(len(mapped_species_name), c_int), scale_factor, species_index)
             call clean_c_string(mapped_species_name)
 
             if (species_index <= 0) then
@@ -1870,11 +1936,14 @@ contains
 
 #ifdef CATCHEM_TRACE_NUOPC
             if (emis_lower(trim(mapped_species_name)) == 'bc1') then
-               write(*,'(A,A,A,A,A,ES12.4,A,ES12.4,A,ES12.4)') &
-                  '[CATCHEM TRACE] BC1 after emission category=', trim(category_name), &
-                  ' field=', trim(field_name), ' min=', minval(f_conc), &
-                  ' max=', maxval(f_conc), ' sum=', sum(f_conc)
-               call flush(6)
+               block
+                  character(len=NUOPC_MSG_LEN) :: log_msg
+                  write(log_msg, '(A,A,A,A,A,ES12.4,A,ES12.4,A,ES12.4)') &
+                     '[CATCHEM TRACE] BC1 after emission category=', trim(category_name), &
+                     ' field=', trim(field_name), ' min=', minval(f_conc), &
+                     ' max=', maxval(f_conc), ' sum=', sum(f_conc)
+                  call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+               end block
             end if
 #endif
 
@@ -2223,7 +2292,7 @@ contains
       integer :: npts, ksel, n_mapped_species
       real(c_double) :: area, fluxcol, hlow, hup, dzv, zb, zt, ovlp, frac
       real(c_double) :: converter, scale_factor, dmr
-      character(len=64) :: mapped_species_name
+      character(len=NUOPC_NAME_LEN) :: mapped_species_name
       character(len=EMIS_MAXSTR) :: category_name, field_name
       character(len=*), parameter :: pName = 'catchem_emis_apply_points'
 
@@ -2356,7 +2425,7 @@ contains
 
          do ispec = 1, n_mapped_species
             call catchem_config_get_emission_species_map_at(core_ptr, trim(category_name) // c_null_char, trim(field_name) // c_null_char, ispec - 1, &
-               mapped_species_name, 64_c_int, scale_factor, species_index)
+               mapped_species_name, int(len(mapped_species_name), c_int), scale_factor, species_index)
             call clean_c_string(mapped_species_name)
 
             if (species_index <= 0) cycle
@@ -2451,9 +2520,9 @@ contains
       ! Local variables
       integer :: localrc, icat, ifield
       character(len=EMIS_MAXSTR) :: msg
-      character(len=64) :: field_name, category_name
-      character(len=128) :: description
-      character(len=32) :: units
+      character(len=NUOPC_NAME_LEN) :: field_name, category_name
+      character(len=NUOPC_LONG_NAME_LEN) :: description
+      character(len=NUOPC_KEYWORD_LEN) :: units
       character(len=*), parameter :: pName = 'catchem_emis_write_diagnostics'
 
       rc = CC_SUCCESS
@@ -2577,7 +2646,13 @@ contains
       ! Get field data pointer and copy emission data
       call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=rc)
       if (rc /= ESMF_SUCCESS) then
-         call ESMF_FieldDestroy(esmf_field, rc=rc)
+         block
+            integer :: destroy_rc
+            ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+            call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+            if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__)) continue
+         end block
          return
       end if
 
@@ -2649,7 +2724,13 @@ contains
       ! Get field data pointer and copy emission data
       call ESMF_FieldGet(esmf_field, farrayPtr=field_data_3d, rc=rc)
       if (rc /= ESMF_SUCCESS) then
-         call ESMF_FieldDestroy(esmf_field, rc=rc)
+         block
+            integer :: destroy_rc
+            ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+            call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
+            if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__)) continue
+         end block
          return
       end if
 
@@ -2718,7 +2799,7 @@ contains
       type(c_ptr), intent(in) :: core_ptr
       character(len=*), intent(in) :: category_name
       integer, intent(out) :: rc
-      character(len=64), optional, allocatable, intent(out) :: diag_species(:)
+      character(len=NUOPC_NAME_LEN), optional, allocatable, intent(out) :: diag_species(:)
 
       integer :: i, n_diag, localrc
       character(len=EMIS_MAXSTR) :: config_path, item_path, c_buf, clean_cat_name, msg
@@ -2732,19 +2813,19 @@ contains
 
       ! source_file
       item_path = trim(config_path) // '/source_file'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%source_file = trim(c_buf)
 
       ! format
       item_path = trim(config_path) // '/format'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%format = trim(c_buf)
 
       ! frequency
       item_path = trim(config_path) // '/frequency'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%frequency = trim(c_buf)
 
@@ -2766,27 +2847,27 @@ contains
 
       ! lat_name, lon_name, regrid_method, time_interpolation, vertical_dist
       item_path = trim(config_path) // '/lat_name'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%latname = trim(c_buf)
 
       item_path = trim(config_path) // '/lon_name'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%lonname = trim(c_buf)
 
       item_path = trim(config_path) // '/regrid_method'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), 'none' // c_null_char)
       call clean_c_string(c_buf)
       category%regrid_method = trim(c_buf)
 
       item_path = trim(config_path) // '/time_interpolation'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), 'none' // c_null_char)
       call clean_c_string(c_buf)
       category%time_interpolation = trim(c_buf)
 
       item_path = trim(config_path) // '/vertical_dist'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), 'none' // c_null_char)
       call clean_c_string(c_buf)
       category%vertical_dist = trim(c_buf)
 
@@ -2795,22 +2876,22 @@ contains
 
       ! Stack parameters
       item_path = trim(config_path) // '/stack_diameter'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%stkdmname = trim(c_buf)
 
       item_path = trim(config_path) // '/stack_height'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%stkhtname = trim(c_buf)
 
       item_path = trim(config_path) // '/stack_temperature'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%stktkname = trim(c_buf)
 
       item_path = trim(config_path) // '/stack_velocity'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%stkvename = trim(c_buf)
 
@@ -2819,7 +2900,7 @@ contains
       category%topfraction = catchem_config_get_yaml_double(core_ptr, trim(item_path) // c_null_char, -1.0_c_double)
 
       item_path = trim(config_path) // '/plume_rise'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%plumerise = trim(c_buf)
 
@@ -2831,7 +2912,7 @@ contains
       category%diurnal_bb = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
 
       item_path = trim(config_path) // '/apply_method'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'add' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), 'add' // c_null_char)
       call clean_c_string(c_buf)
       category%apply_method = trim(c_buf)
 
@@ -2843,7 +2924,7 @@ contains
       category%daily_hold = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
 
       item_path = trim(config_path) // '/monthly_anchor'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'climatological' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), 'climatological' // c_null_char)
       call clean_c_string(c_buf)
       category%monthly_anchor = trim(c_buf)
 
@@ -2865,7 +2946,7 @@ contains
          if (n_diag > 0) then
             allocate(diag_species(n_diag))
             do i = 1, n_diag
-               call catchem_config_get_yaml_list_at(core_ptr, trim(item_path) // c_null_char, int(i - 1, c_int), c_buf, 64_c_int)
+               call catchem_config_get_yaml_list_at(core_ptr, trim(item_path) // c_null_char, int(i - 1, c_int), c_buf, int(NUOPC_NAME_LEN, c_int))
                call clean_c_string(c_buf)
                diag_species(i) = trim(c_buf)
             end do
@@ -2890,7 +2971,7 @@ contains
       character(len=EMIS_MAXSTR) :: field_name, field_units, species_list_path
       type(ExtEmisCategoryType) :: new_category
       type(ExtEmisFieldType) :: new_field
-      character(len=64), allocatable :: diag_species_list(:)
+      character(len=NUOPC_NAME_LEN), allocatable :: diag_species_list(:)
 
       rc = CC_SUCCESS
 
@@ -2904,7 +2985,7 @@ contains
       n_fields = catchem_config_get_emission_field_count(core_ptr, trim(category_name) // c_null_char)
 
       do ispec = 0, n_fields - 1
-         call catchem_config_get_emission_field_name_at(core_ptr, trim(category_name) // c_null_char, ispec, field_name, 64_c_int)
+         call catchem_config_get_emission_field_name_at(core_ptr, trim(category_name) // c_null_char, ispec, field_name, int(len(field_name), c_int))
          call clean_c_string(field_name)
          ! Field units are part of the emission mapping contract.  Most sources
          ! are mass fluxes, but some inputs (e.g., an ocean concentration) are
@@ -2917,9 +2998,12 @@ contains
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
 #ifdef CATCHEM_TRACE_NUOPC
-            write(*,'(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate category=', trim(category_name), &
-               ' field=', trim(field_name)
-            call flush(6)
+            block
+               character(len=NUOPC_MSG_LEN) :: log_msg
+               write(log_msg, '(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate category=', trim(category_name), &
+                  ' field=', trim(field_name)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
 #endif
             if (ext_emis_data%diagnostic .and. new_category%diagnostic) then
                if (allocated(diag_species_list)) then
@@ -2949,7 +3033,7 @@ contains
 
       do ispec = 0, n_species_fields - 1
          call catchem_config_get_yaml_list_at(core_ptr, trim(species_list_path) // c_null_char, &
-            int(ispec, c_int), field_name, 64_c_int)
+            int(ispec, c_int), field_name, int(len(field_name), c_int))
          call clean_c_string(field_name)
          if (len_trim(field_name) == 0) cycle
          if (new_category%find_field(trim(field_name)) > 0) cycle
@@ -2962,9 +3046,12 @@ contains
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
 #ifdef CATCHEM_TRACE_NUOPC
-            write(*,'(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate species-list category=', trim(category_name), &
-               ' field=', trim(field_name)
-            call flush(6)
+            block
+               character(len=NUOPC_MSG_LEN) :: log_msg
+               write(log_msg, '(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate species-list category=', trim(category_name), &
+                  ' field=', trim(field_name)
+               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+            end block
 #endif
             call new_category%add_field(new_field, localrc)
          end if

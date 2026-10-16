@@ -38,6 +38,7 @@
 module cc_nuopc
 
    use ESMF
+   use catchem_nuopc_lengths
    use NUOPC
    use NUOPC_Model, only: &
       NUOPC_ModelGet, &
@@ -64,8 +65,8 @@ module cc_nuopc
 
    !> \brief Component configuration parameters
    !! \{
-   character(len=256), save :: config_file = 'CATChem_new_config.yml' !< Configuration file path
-   character(len=256), save :: field_mapping_file = 'CATChem_field_mapping.yml' !< Field mapping file path
+   character(len=NUOPC_PATH_LEN), save :: config_file = 'CATChem_new_config.yml' !< Configuration file path
+   character(len=NUOPC_PATH_LEN), save :: field_mapping_file = 'CATChem_field_mapping.yml' !< Field mapping file path
    !logical, save :: do_chemistry = .true.                         !< Enable chemistry calculations
    !! \}
 
@@ -203,8 +204,8 @@ contains
       !type(ESMF_Field), pointer :: fieldList(:)
       character(len=*), parameter :: routine = 'InitializeP1'
       integer :: i, localPet, advertised_imports, advertised_exports
-      character(len=218) :: errmsg
-      character(len=256) :: contract_msg
+      character(len=NUOPC_MSG_LEN) :: errmsg
+      character(len=NUOPC_PATH_LEN) :: contract_msg
       logical :: have_mapping
 
       rc = ESMF_SUCCESS
@@ -291,15 +292,15 @@ contains
                line=__LINE__, file=__FILE__)) return
             if (.not. NUOPC_FieldDictionaryHasEntry(trim(field_config%import_fields(i)%standard_name), rc=rc)) then
                block
-                  character(len=64) :: units_to_use
+                  character(len=NUOPC_NAME_LEN) :: units_to_use
                   units_to_use = trim(field_config%import_fields(i)%units)
                   if (len_trim(units_to_use) == 0) units_to_use = '1'
                   call NUOPC_FieldDictionaryAddEntry( &
                      StandardName=trim(field_config%import_fields(i)%standard_name), &
                      CanonicalUnits=trim(units_to_use), rc=rc)
+                  if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) return
                end block
-               if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__)) return
             end if
 
             call NUOPC_Advertise(importState, &
@@ -322,15 +323,15 @@ contains
                line=__LINE__, file=__FILE__)) return
             if (.not. NUOPC_FieldDictionaryHasEntry(trim(field_config%export_fields(i)%standard_name), rc=rc)) then
                block
-                  character(len=64) :: units_to_use
+                  character(len=NUOPC_NAME_LEN) :: units_to_use
                   units_to_use = trim(field_config%export_fields(i)%units)
                   if (len_trim(units_to_use) == 0) units_to_use = '1'
                   call NUOPC_FieldDictionaryAddEntry( &
                      StandardName=trim(field_config%export_fields(i)%standard_name), &
                      CanonicalUnits=trim(units_to_use), rc=rc)
+                  if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) return
                end block
-               if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__)) return
             end if
 
             call NUOPC_Advertise(exportState, &
@@ -419,7 +420,7 @@ contains
       real(ESMF_KIND_R8), dimension(:,:), allocatable :: lat
       type(ESMF_CoordSys_Flag)   :: coordSys
       real(ESMF_KIND_R8), parameter :: rad_to_deg = 180._ESMF_KIND_R8 / 3.14159265358979323846_ESMF_KIND_R8
-      real(ESMF_KIND_R8) :: convet_unit
+      real(ESMF_KIND_R8) :: convert_unit
       integer :: localPet, petCount
       integer :: item, coord_item, rank, localDeCount, numLevels, localDe, localrc
       integer, dimension(2) :: lb, ub
@@ -438,8 +439,11 @@ contains
          line=__LINE__, file=__FILE__)) return
 
 #ifdef CATCHEM_TRACE_NUOPC
-      write(*, '(A,I0,A,I0)') '[CAP DEBUG] InitializeP2 localPet=', localPet, ' petCount=', petCount
-      call flush(6)
+      block
+         character(len=NUOPC_MSG_LEN) :: log_msg
+         write(log_msg, '(A,I0,A,I0)') '[CAP DEBUG] InitializeP2 localPet=', localPet, ' petCount=', petCount
+         call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
+      end block
 #endif
 
       ! Get import and export states
@@ -498,10 +502,10 @@ contains
 
                      if (coordSys == ESMF_COORDSYS_SPH_DEG) then
                         !coordinates are in degrees already
-                        convet_unit = 1._ESMF_KIND_R8
+                        convert_unit = 1._ESMF_KIND_R8
                      else if (coordSys == ESMF_COORDSYS_SPH_RAD) then
                         !convert radians to degrees
-                        convet_unit = rad_to_deg
+                        convert_unit = rad_to_deg
                      else
                         call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
                            msg="Unsupported coordinate system - Failed to set coordinates for air quality model", &
@@ -512,9 +516,9 @@ contains
                      if (associated(coord)) then
                         select case (coord_item)
                          case(1)
-                           lon = coord * convet_unit
+                           lon = coord * convert_unit
                          case(2)
-                           lat = coord * convet_unit
+                           lat = coord * convert_unit
                          case default
                            !do nothing
                         end select
@@ -625,7 +629,7 @@ contains
       type(ESMF_TimeInterval) :: timeStep
       type(CATChem_InternalState) :: is
       character(len=*), parameter :: routine = 'ModelAdvance'
-      character(len=512) :: errmsg
+      character(len=NUOPC_MSG_LEN) :: errmsg
       integer :: localPet
       real(ESMF_KIND_R8) :: dt_seconds
 
@@ -758,7 +762,7 @@ contains
 
       type(CATChem_InternalState) :: is
       character(len=*), parameter :: routine = 'ModelFinalize'
-      character(len=512) :: errmsg
+      character(len=NUOPC_MSG_LEN) :: errmsg
       integer :: localPet
 
       rc = ESMF_SUCCESS
@@ -812,7 +816,7 @@ contains
    !! \ingroup catchem_nuopc_group
    function real_to_string(val) result(str)
       real(ESMF_KIND_R8), intent(in) :: val
-      character(len=32) :: str
+      character(len=NUOPC_KEYWORD_LEN) :: str
 
       write(str, '(f0.2)') val
       str = adjustl(str)
@@ -876,7 +880,7 @@ contains
       type(ESMF_CoordSys_Flag) :: coordSys
       real(ESMF_KIND_R8), parameter :: rad_to_deg = &
          180._ESMF_KIND_R8 / 3.14159265358979323846_ESMF_KIND_R8
-      real(ESMF_KIND_R8) :: convet_unit
+      real(ESMF_KIND_R8) :: convert_unit
       integer :: coord_item
 
       rc = ESMF_SUCCESS
@@ -887,9 +891,9 @@ contains
          line=__LINE__, file=__FILE__)) return
 
       if (coordSys == ESMF_COORDSYS_SPH_DEG) then
-         convet_unit = 1._ESMF_KIND_R8
+         convert_unit = 1._ESMF_KIND_R8
       else if (coordSys == ESMF_COORDSYS_SPH_RAD) then
-         convet_unit = rad_to_deg
+         convert_unit = rad_to_deg
       else
          call ESMF_LogSetError(ESMF_RC_INTNRL_BAD, &
             msg="Unsupported coordinate system - cannot read standalone grid coordinates", &
@@ -905,9 +909,9 @@ contains
 
          select case (coord_item)
           case (1)
-            lon = coord * convet_unit
+            lon = coord * convert_unit
           case (2)
-            lat = coord * convet_unit
+            lat = coord * convert_unit
          end select
       end do
 

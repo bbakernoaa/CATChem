@@ -120,19 +120,6 @@ diagnostics:
     buffer_size: 1000
 ```
 
-!!! warning
-    `diagnostics.output.latlon_output` and the top-level `mie` block appear in
-    some shipped example configs but are **not read by the current loader**.
-    `mie` is accepted by validation, so it is harmless; `latlon_output` is simply
-    ignored. Do not rely on either key to change behavior.
-
-!!! deprecated
-    `diagnostics.output/process_diagnostics` no longer suppresses process
-    diagnostic output — it is a **deprecated no-op** retained only for
-    configuration compatibility. Remove it from control files; it has no
-    effect. Per-process diagnostics are now controlled entirely by each
-    process's own `diagnostics:` flag (see *Process diagnostics* below).
-
 ### Process diagnostics (all schemes)
 
 Setting `processes/<name>/diagnostics: true` registers that process's scheme
