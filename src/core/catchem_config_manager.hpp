@@ -87,7 +87,7 @@ namespace catchem {
     /// @brief Process activation and nested process settings from YAML.
     struct ProcessConfig {
     private:
-        YAML::Node settings_node;
+        YAML::Node settings_node_;
         friend class ConfigManager;
 
     public:
@@ -96,7 +96,7 @@ namespace catchem {
         std::string scheme;
         std::vector<std::string> diag_species;
 
-        void set_settings_node(const YAML::Node& node) { settings_node = node; }
+        void set_settings_node(const YAML::Node& node) { settings_node_ = node; }
 
         bool get_bool(std::string_view key, bool default_val = false) const;
         double get_double(std::string_view key, double default_val = 0.0) const;
@@ -218,7 +218,7 @@ namespace catchem {
 
     class ConfigManager {
     private:
-        YAML::Node root_node;
+        YAML::Node root_node_;
 
     public:
         // When false, load_from_file() suppresses the stdout echo of the parsed

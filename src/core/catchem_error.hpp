@@ -75,18 +75,18 @@ namespace catchem {
 
     class ErrorManager {
     private:
-        std::vector<std::string> context_stack;
+        std::vector<std::string> context_stack_;
 
     public:
-        void push_context(const std::string& ctx) { context_stack.push_back(ctx); }
+        void push_context(const std::string& ctx) { context_stack_.push_back(ctx); }
         void pop_context() {
-            if (!context_stack.empty()) {
-                context_stack.pop_back();
+            if (!context_stack_.empty()) {
+                context_stack_.pop_back();
             }
         }
         void report_error(ErrorCode code, const std::string& msg) {
             std::string context;
-            for (const auto& ctx : context_stack) {
+            for (const auto& ctx : context_stack_) {
                 context += ctx + " -> ";
             }
             context += "End";

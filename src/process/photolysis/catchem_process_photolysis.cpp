@@ -34,7 +34,7 @@ namespace catchem {
                              {{"photolysis.ozone", "", true}});
     }
 
-    PhotolysisProcess::PhotolysisProcess() : config_path("") {}
+    PhotolysisProcess::PhotolysisProcess() : config_path_("") {}
     PhotolysisProcess::~PhotolysisProcess() = default;
 
     void PhotolysisProcess::init(std::shared_ptr<StateManager> state) {
@@ -45,18 +45,18 @@ namespace catchem {
                 cfg = state->config_manager()->get_string("process/photolysis/config_file", "");
             }
             if (!cfg.empty()) {
-                this->config_path = cfg;
+                this->config_path_ = cfg;
             }
         }
 
-        if (this->config_path.empty()) {
-            this->config_path = "src/external/musica/configs/tuvx/tuv_5_4.yml";
+        if (this->config_path_.empty()) {
+            this->config_path_ = "src/external/musica/configs/tuvx/tuv_5_4.yml";
         }
 
-        Logger::debug(*state, "Parsing TUV-x config file to check profiles", {{"config", config_path}});
+        Logger::debug(*state, "Parsing TUV-x config file to check profiles", {{"config", config_path_}});
         std::unordered_set<std::string> config_defined_profiles;
         try {
-            YAML::Node tuvx_config = YAML::LoadFile(config_path);
+            YAML::Node tuvx_config = YAML::LoadFile(config_path_);
             if (tuvx_config["profiles"]) {
                 for (const auto& p : tuvx_config["profiles"]) {
                     if (p["name"]) {
@@ -70,9 +70,9 @@ namespace catchem {
 
         Logger::debug(*state, "Creating GridMap, ProfileMap, and RadiatorMap");
         musica::Error err;
-        grids = musica::CreateGridMap(&err);
-        profiles = musica::CreateProfileMap(&err);
-        radiators = musica::CreateRadiatorMap(&err);
+        grids_ = musica::CreateGridMap(&err);
+        profiles_ = musica::CreateProfileMap(&err);
+        radiators_ = musica::CreateRadiatorMap(&err);
 
         Logger::debug(*state, "Creating height grid");
         musica::Grid* height_grid = musica::CreateGrid("height", "km", state->level_count(), &err);
@@ -88,7 +88,7 @@ namespace catchem {
         musica::SetGridMidpoints(height_grid, dummy_mids.data(), dummy_mids.size(), &err);
 
         Logger::debug(*state, "Adding height grid to GridMap");
-        musica::AddGrid(grids, height_grid, &err);
+        musica::AddGrid(grids_, height_grid, &err);
 
         Logger::debug(*state, "Selecting and configuring wavelength grid");
 
@@ -115,8 +115,8 @@ namespace catchem {
         int wl_sections = 156;
         std::vector<double> wl_edges;
 
-        if (config_path.find("from_host") != std::string::npos ||
-            config_path.find("config.json") != std::string::npos) {
+        if (config_path_.find("from_host") != std::string::npos ||
+            config_path_.find("config.json") != std::string::npos) {
             wl_sections = 5;
             wl_edges.assign(edges_from_host.begin(), edges_from_host.end());
         } else {
@@ -135,7 +135,7 @@ namespace catchem {
         musica::SetGridMidpoints(wl_grid, wl_mids.data(), wl_mids.size(), &err);
 
         Logger::debug(*state, "Adding wavelength grid to GridMap");
-        musica::AddGrid(grids, wl_grid, &err);
+        musica::AddGrid(grids_, wl_grid, &err);
 
         // 3. Register profiles safely only if missing from the config file definition
         register_profile_if_missing(*state, config_defined_profiles, "temperature", "K", height_grid, 280.0,
@@ -157,8 +157,8 @@ namespace catchem {
         musica::DeleteGrid(wl_grid, &err);
 
         // 5. Create TUVX instance using C API
-        Logger::debug(*state, "Calling musica::CreateTuvx", {{"config", config_path}});
-        tuvx_instance = musica::CreateTuvx(config_path.c_str(), grids, profiles, radiators, &err);
+        Logger::debug(*state, "Calling musica::CreateTuvx", {{"config", config_path_}});
+        tuvx_instance_ = musica::CreateTuvx(config_path_.c_str(), grids_, profiles_, radiators_, &err);
 
         if (err.code_ != 0) {
             Logger::error(*state, "PhotolysisProcess: failed to initialize TUV-x",
@@ -169,7 +169,7 @@ namespace catchem {
         Logger::info(*state, "PhotolysisProcess: initialized TUV-x successfully!");
 
         Logger::debug(*state, "Getting Photolysis rate constants ordering");
-        musica::GetPhotolysisRateConstantsOrdering(tuvx_instance, &photo_mappings, &err);
+        musica::GetPhotolysisRateConstantsOrdering(tuvx_instance_, &photo_mappings_, &err);
 
         Logger::debug(*state, "Dynamic diagnostic field registration");
         if (state->diagnostic_manager()) {
@@ -181,9 +181,9 @@ namespace catchem {
             // TUV-x solver error, which preserves the Instantaneous semantics
             // (unwritten cells read back as 0) without the per-step memset.
             const std::vector<SemanticAxis> axes_2d = {SemanticAxis::Column, SemanticAxis::Level};
-            for (size_t i = 0; i < photo_mappings.size_; ++i) {
+            for (size_t i = 0; i < photo_mappings_.size_; ++i) {
                 std::string rx_name =
-                    photo_mappings.mappings_[i].name_.value_ ? photo_mappings.mappings_[i].name_.value_ : "";
+                    photo_mappings_.mappings_[i].name_.value_ ? photo_mappings_.mappings_[i].name_.value_ : "";
                 std::string diag_name = "photolysis_rate_" + rx_name;
                 state->diagnostic_manager()->register_field_contract(diag_name, "Photolysis rate for " + rx_name, "s-1",
                                                                      DiagType::FIELD_2D, dims_2d,
@@ -199,7 +199,7 @@ namespace catchem {
 
     void PhotolysisProcess::run(std::shared_ptr<StateManager> state) {
         Logger::debug(*state, "PhotolysisProcess::run started");
-        if (!tuvx_instance) {
+        if (!tuvx_instance_) {
             Logger::debug(*state, "tuvx_instance is NULL, returning");
             return;
         }
@@ -213,11 +213,11 @@ namespace catchem {
         Logger::debug(*state, "Ozone index resolved", {{"index", std::to_string(i_o3)}});
 
         musica::Error err;
-        int num_reactions = photo_mappings.size_;
+        int num_reactions = photo_mappings_.size_;
         Logger::debug(*state, "Number of photolysis reactions mapped", {{"reactions", std::to_string(num_reactions)}});
 
         Logger::debug(*state, "Fetching ProfileMap from TUVX instance");
-        musica::ProfileMap* loaded_profiles = musica::GetProfileMap(tuvx_instance, &err);
+        musica::ProfileMap* loaded_profiles = musica::GetProfileMap(tuvx_instance_, &err);
         if (err.code_ != 0) {
             Logger::error(*state, "PhotolysisProcess: error getting ProfileMap",
                           {{"error", err.message_.value_ ? err.message_.value_ : "Unknown Error"}});
@@ -242,7 +242,7 @@ namespace catchem {
         }
 
         Logger::debug(*state, "Retrieving GridMap from TUVX instance");
-        musica::GridMap* loaded_grids = musica::GetGridMap(tuvx_instance, &err);
+        musica::GridMap* loaded_grids = musica::GetGridMap(tuvx_instance_, &err);
         musica::Grid* height_grid = musica::GetGrid(loaded_grids, "height", "km", &err);
 
         std::ostringstream grid_ss;
@@ -352,12 +352,12 @@ namespace catchem {
             }
 
             std::vector<double> edge_photolysis_rates((state->level_count() + 1) * num_reactions, 0.0);
-            std::vector<double> edge_heating_rates((state->level_count() + 1) * tuvx_instance->GetHeatingRateCount(),
+            std::vector<double> edge_heating_rates((state->level_count() + 1) * tuvx_instance_->GetHeatingRateCount(),
                                                    0.0);
 
             if (dbg_column)
                 Logger::debug(*state, "Calling musica::RunTuvx for column", {{"col", col_str}});
-            musica::RunTuvx(tuvx_instance, sza_rad, 1.0, edge_photolysis_rates.data(), edge_heating_rates.data(),
+            musica::RunTuvx(tuvx_instance_, sza_rad, 1.0, edge_photolysis_rates.data(), edge_heating_rates.data(),
                             nullptr, nullptr, nullptr, &err);
 
             if (err.code_ != 0) {
@@ -369,9 +369,9 @@ namespace catchem {
                 // that Instantaneous reset used to guarantee, now that the
                 // fields are Persistent and carry the previous step's values.
                 if (state->diagnostic_manager()) {
-                    for (size_t rx_idx = 0; rx_idx < photo_mappings.size_; ++rx_idx) {
-                        std::string rx_name = photo_mappings.mappings_[rx_idx].name_.value_
-                                                  ? photo_mappings.mappings_[rx_idx].name_.value_
+                    for (size_t rx_idx = 0; rx_idx < photo_mappings_.size_; ++rx_idx) {
+                        std::string rx_name = photo_mappings_.mappings_[rx_idx].name_.value_
+                                                  ? photo_mappings_.mappings_[rx_idx].name_.value_
                                                   : "";
                         double* diag_ptr = static_cast<double*>(
                             state->diagnostic_manager()->get_host_pointer("photolysis_rate_" + rx_name));
@@ -388,9 +388,9 @@ namespace catchem {
                 Logger::debug(*state, "Copying midpoint-interpolated J-rates to diagnostics for column",
                               {{"col", col_str}});
             if (state->diagnostic_manager()) {
-                for (size_t rx_idx = 0; rx_idx < photo_mappings.size_; ++rx_idx) {
-                    std::string rx_name = photo_mappings.mappings_[rx_idx].name_.value_
-                                              ? photo_mappings.mappings_[rx_idx].name_.value_
+                for (size_t rx_idx = 0; rx_idx < photo_mappings_.size_; ++rx_idx) {
+                    std::string rx_name = photo_mappings_.mappings_[rx_idx].name_.value_
+                                              ? photo_mappings_.mappings_[rx_idx].name_.value_
                                               : "";
                     std::string diag_name = "photolysis_rate_" + rx_name;
                     double* diag_ptr = static_cast<double*>(state->diagnostic_manager()->get_host_pointer(diag_name));
@@ -417,21 +417,21 @@ namespace catchem {
 
     void PhotolysisProcess::finalize() {
         musica::Error err;
-        if (tuvx_instance) {
-            musica::DeleteTuvx(tuvx_instance, &err);
-            tuvx_instance = nullptr;
+        if (tuvx_instance_) {
+            musica::DeleteTuvx(tuvx_instance_, &err);
+            tuvx_instance_ = nullptr;
         }
-        if (grids) {
-            musica::DeleteGridMap(grids, &err);
-            grids = nullptr;
+        if (grids_) {
+            musica::DeleteGridMap(grids_, &err);
+            grids_ = nullptr;
         }
-        if (profiles) {
-            musica::DeleteProfileMap(profiles, &err);
-            profiles = nullptr;
+        if (profiles_) {
+            musica::DeleteProfileMap(profiles_, &err);
+            profiles_ = nullptr;
         }
-        if (radiators) {
-            musica::DeleteRadiatorMap(radiators, &err);
-            radiators = nullptr;
+        if (radiators_) {
+            musica::DeleteRadiatorMap(radiators_, &err);
+            radiators_ = nullptr;
         }
     }
 
@@ -444,7 +444,7 @@ namespace catchem {
             musica::Profile* new_prof = musica::CreateProfile(name, units, grid, err);
             std::vector<double> dummy(num_vals, default_val);
             musica::SetProfileMidpointValues(new_prof, dummy.data(), num_vals, err);
-            musica::AddProfile(profiles, new_prof, err);
+            musica::AddProfile(profiles_, new_prof, err);
             musica::DeleteProfile(new_prof, err);
         }
     }
