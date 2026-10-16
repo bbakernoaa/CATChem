@@ -300,7 +300,13 @@ int catchem_state_get_species_count(void* state_ptr);
 int catchem_state_get_species_count_checked(void* state_ptr, int* count_out);
 int catchem_state_get_species_index_checked(void* state_ptr, const char* name, int* index_out);
 
-// Categorized counts and list getters
+// Categorized counts and list getters.  `category` is the integer value of
+// catchem::SpeciesCategory (0 Gas, 1 Aerosol, 2 Settling, 3 Tracer, 4 Advected,
+// 5 DryDep, 6 WetDep, 7 Photolysis, 8 Dust, 9 SeaSalt).  The count getter
+// returns -1 for a bad state or category; the index getter fills 1-based
+// indices and returns how many it wrote, or -1.
+int catchem_state_get_category_species_count(void* state_ptr, int category);
+int catchem_state_get_category_indices(void* state_ptr, int category, int* indices_out);
 int catchem_state_get_gas_species_count(void* state_ptr);
 void catchem_state_get_gas_indices(void* state_ptr, int* indices_out); // populates 1-based indices
 int catchem_state_get_aerosol_species_count(void* state_ptr);

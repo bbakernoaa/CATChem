@@ -70,28 +70,39 @@ int catchem_state_get_species_index_checked(void* state_ptr, const char* name, i
     return CATCHEM_SUCCESS;
 }
 
-int catchem_state_get_gas_species_count(void* state_ptr) {
+int catchem_state_get_category_species_count(void* state_ptr, int category) {
+    if (!state_ptr || category < 0 || category >= static_cast<int>(catchem::species_category_count))
+        return -1;
     auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    return static_cast<int>(state->chemistry().gas_indices.size());
+    return static_cast<int>(state->chemistry().indices(static_cast<catchem::SpeciesCategory>(category)).size());
+}
+
+int catchem_state_get_category_indices(void* state_ptr, int category, int* indices_out) {
+    if (!state_ptr || !indices_out || category < 0 || category >= static_cast<int>(catchem::species_category_count))
+        return -1;
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    const auto& list = state->chemistry().indices(static_cast<catchem::SpeciesCategory>(category));
+    for (size_t i = 0; i < list.size(); ++i) {
+        indices_out[i] = list[i] + 1; // 1-based
+    }
+    return static_cast<int>(list.size());
+}
+
+int catchem_state_get_gas_species_count(void* state_ptr) {
+    return catchem_state_get_category_species_count(state_ptr, static_cast<int>(catchem::SpeciesCategory::Gas));
 }
 
 void catchem_state_get_gas_indices(void* state_ptr, int* indices_out) {
-    auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    for (size_t i = 0; i < state->chemistry().gas_indices.size(); ++i) {
-        indices_out[i] = state->chemistry().gas_indices[i] + 1; // 1-based
-    }
+    (void)catchem_state_get_category_indices(state_ptr, static_cast<int>(catchem::SpeciesCategory::Gas), indices_out);
 }
 
 int catchem_state_get_aerosol_species_count(void* state_ptr) {
-    auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    return static_cast<int>(state->chemistry().aerosol_indices.size());
+    return catchem_state_get_category_species_count(state_ptr, static_cast<int>(catchem::SpeciesCategory::Aerosol));
 }
 
 void catchem_state_get_aerosol_indices(void* state_ptr, int* indices_out) {
-    auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    for (size_t i = 0; i < state->chemistry().aerosol_indices.size(); ++i) {
-        indices_out[i] = state->chemistry().aerosol_indices[i] + 1; // 1-based
-    }
+    (void)catchem_state_get_category_indices(state_ptr, static_cast<int>(catchem::SpeciesCategory::Aerosol),
+                                             indices_out);
 }
 
 double catchem_state_get_species_mw(void* state_ptr, int index) {
