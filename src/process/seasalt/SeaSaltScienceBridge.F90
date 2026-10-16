@@ -1,7 +1,7 @@
 module SeaSaltScienceBridge_Mod
    use iso_c_binding, only: c_ptr, c_f_pointer, c_double, c_char, c_associated, c_null_char, c_bool, c_int
    use catchem_bridge_precision, only: fp
-   use catchem_bridge_error, only: CC_Error
+   use catchem_bridge_error, only: CC_Fatal
    use catchem_bridge_constants, only: g0, AIRMW, PI
    use SeaSaltCommon_Mod, only: SeaSaltSchemeGONG97Config, SeaSaltSchemeGONG03Config, SeaSaltSchemeGEOS12Config
    use SeaSaltScheme_GONG97_Mod, only: compute_gong97
@@ -150,13 +150,9 @@ contains
          if (target_species(i) == 0) then
             block
                character(len=512) :: err_msg
-               integer :: rc_err
-               rc_err = 0
-               write(err_msg, '(A,A)') 'FATAL ERROR: SeaSaltScienceBridge cannot resolve sea-salt bin ', trim(bin_names(i))
-               call CC_Error(trim(err_msg), rc_err, 'SeaSaltScienceBridge')
+               write(err_msg, '(A,A)') 'SeaSaltScienceBridge cannot resolve sea-salt bin ', trim(bin_names(i))
+               call CC_Fatal(trim(err_msg), 'SeaSaltScienceBridge')
             end block
-            call flush(6)
-            error stop "FATAL ERROR: SeaSaltScienceBridge unresolved sea-salt bin species"
          end if
       end do
 

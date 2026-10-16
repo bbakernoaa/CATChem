@@ -2,7 +2,6 @@
 
 #include "catchem_logger.hpp"
 #include <exception>
-#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <vector>

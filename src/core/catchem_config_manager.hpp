@@ -219,6 +219,7 @@ namespace catchem {
     class ConfigManager {
     private:
         YAML::Node root_node_;
+        bool strict_validation_ = true;
 
     public:
         // When false, load_from_file() suppresses the stdout echo of the parsed
@@ -230,7 +231,6 @@ namespace catchem {
 
         ConfigData data;
         bool is_loaded = false;
-        bool strict_validation_ = true;
         std::string config_file_path;
         ValidationReport validation_report;
 

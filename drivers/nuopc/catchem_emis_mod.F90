@@ -303,7 +303,7 @@ contains
          else
             n_categories = catchem_config_get_emission_category_count(core_ptr)
             do icat = 0, n_categories - 1
-               call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, int(NUOPC_NAME_LEN, c_int))
+               call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, int(len(category_name), c_int))
                call clean_c_string(category_name)
                category_active = (catchem_config_is_emission_category_active(core_ptr, trim(category_name) // c_null_char) /= 0)
 
@@ -676,7 +676,6 @@ contains
             call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
          end block
       end do
-      call flush(6)
 #endif
 
       ! Determine if this category needs runtime regridding.
@@ -729,9 +728,10 @@ contains
             ! Clean up field before returning
             block
                integer :: destroy_rc
+               ! A failed destroy is logged; rc keeps the error that caused the bail-out.
                call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
                if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                  line=__LINE__, file=__FILE__)) continue
             end block
             return  ! bail out
          end if
@@ -744,9 +744,10 @@ contains
                ! Clean up field before returning
                block
                   integer :: destroy_rc
+                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
                   call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
                   if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                     line=__LINE__, file=__FILE__)) continue
                end block
                return  ! bail out
             end if
@@ -760,9 +761,10 @@ contains
                ! Clean up field before returning
                block
                   integer :: destroy_rc
+                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
                   call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
                   if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                     line=__LINE__, file=__FILE__)) continue
                end block
                return  ! bail out
             end if
@@ -995,9 +997,10 @@ contains
                line=__LINE__, file=__FILE__, rcToReturn=rc)) then
                block
                   integer :: destroy_rc
+                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
                   call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
                   if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                     line=__LINE__, file=__FILE__)) continue
                end block
                return
             end if
@@ -1007,9 +1010,10 @@ contains
                line=__LINE__, file=__FILE__, rcToReturn=rc)) then
                block
                   integer :: destroy_rc
+                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
                   call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
                   if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                     line=__LINE__, file=__FILE__)) continue
                end block
                return
             end if
@@ -1053,9 +1057,10 @@ contains
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
                   block
                      integer :: destroy_rc
+                     ! A failed destroy is logged; rc keeps the error that caused the bail-out.
                      call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
                      if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                        line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                        line=__LINE__, file=__FILE__)) continue
                   end block
                   return
                end if
@@ -1095,9 +1100,10 @@ contains
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
                   block
                      integer :: destroy_rc
+                     ! A failed destroy is logged; rc keeps the error that caused the bail-out.
                      call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
                      if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                        line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                        line=__LINE__, file=__FILE__)) continue
                   end block
                   return
                end if
@@ -1107,9 +1113,10 @@ contains
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
                   block
                      integer :: destroy_rc
+                     ! A failed destroy is logged; rc keeps the error that caused the bail-out.
                      call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
                      if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                        line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                        line=__LINE__, file=__FILE__)) continue
                   end block
                   return
                end if
@@ -1153,9 +1160,10 @@ contains
                      line=__LINE__, file=__FILE__, rcToReturn=rc)) then
                      block
                         integer :: destroy_rc
+                        ! A failed destroy is logged; rc keeps the error that caused the bail-out.
                         call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
                         if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                           line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+                           line=__LINE__, file=__FILE__)) continue
                      end block
                      return
                   end if
@@ -1830,7 +1838,7 @@ contains
 
          do ispec = 1, n_mapped_species
             call catchem_config_get_emission_species_map_at(core_ptr, trim(category_name) // c_null_char, trim(field_name) // c_null_char, ispec - 1, &
-               mapped_species_name, 64_c_int, scale_factor, species_index)
+               mapped_species_name, int(len(mapped_species_name), c_int), scale_factor, species_index)
             call clean_c_string(mapped_species_name)
 
             if (species_index <= 0) then
@@ -2417,7 +2425,7 @@ contains
 
          do ispec = 1, n_mapped_species
             call catchem_config_get_emission_species_map_at(core_ptr, trim(category_name) // c_null_char, trim(field_name) // c_null_char, ispec - 1, &
-               mapped_species_name, 64_c_int, scale_factor, species_index)
+               mapped_species_name, int(len(mapped_species_name), c_int), scale_factor, species_index)
             call clean_c_string(mapped_species_name)
 
             if (species_index <= 0) cycle
@@ -2640,9 +2648,10 @@ contains
       if (rc /= ESMF_SUCCESS) then
          block
             integer :: destroy_rc
+            ! A failed destroy is logged; rc keeps the error that caused the bail-out.
             call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
             if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+               line=__LINE__, file=__FILE__)) continue
          end block
          return
       end if
@@ -2717,9 +2726,10 @@ contains
       if (rc /= ESMF_SUCCESS) then
          block
             integer :: destroy_rc
+            ! A failed destroy is logged; rc keeps the error that caused the bail-out.
             call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
             if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__)) rc = ESMF_FAILURE
+               line=__LINE__, file=__FILE__)) continue
          end block
          return
       end if
@@ -2803,19 +2813,19 @@ contains
 
       ! source_file
       item_path = trim(config_path) // '/source_file'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%source_file = trim(c_buf)
 
       ! format
       item_path = trim(config_path) // '/format'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%format = trim(c_buf)
 
       ! frequency
       item_path = trim(config_path) // '/frequency'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%frequency = trim(c_buf)
 
@@ -2837,27 +2847,27 @@ contains
 
       ! lat_name, lon_name, regrid_method, time_interpolation, vertical_dist
       item_path = trim(config_path) // '/lat_name'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%latname = trim(c_buf)
 
       item_path = trim(config_path) // '/lon_name'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%lonname = trim(c_buf)
 
       item_path = trim(config_path) // '/regrid_method'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), 'none' // c_null_char)
       call clean_c_string(c_buf)
       category%regrid_method = trim(c_buf)
 
       item_path = trim(config_path) // '/time_interpolation'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), 'none' // c_null_char)
       call clean_c_string(c_buf)
       category%time_interpolation = trim(c_buf)
 
       item_path = trim(config_path) // '/vertical_dist'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'none' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), 'none' // c_null_char)
       call clean_c_string(c_buf)
       category%vertical_dist = trim(c_buf)
 
@@ -2866,22 +2876,22 @@ contains
 
       ! Stack parameters
       item_path = trim(config_path) // '/stack_diameter'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%stkdmname = trim(c_buf)
 
       item_path = trim(config_path) // '/stack_height'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%stkhtname = trim(c_buf)
 
       item_path = trim(config_path) // '/stack_temperature'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%stktkname = trim(c_buf)
 
       item_path = trim(config_path) // '/stack_velocity'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%stkvename = trim(c_buf)
 
@@ -2890,7 +2900,7 @@ contains
       category%topfraction = catchem_config_get_yaml_double(core_ptr, trim(item_path) // c_null_char, -1.0_c_double)
 
       item_path = trim(config_path) // '/plume_rise'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, '' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), '' // c_null_char)
       call clean_c_string(c_buf)
       category%plumerise = trim(c_buf)
 
@@ -2902,7 +2912,7 @@ contains
       category%diurnal_bb = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
 
       item_path = trim(config_path) // '/apply_method'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'add' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), 'add' // c_null_char)
       call clean_c_string(c_buf)
       category%apply_method = trim(c_buf)
 
@@ -2914,7 +2924,7 @@ contains
       category%daily_hold = (catchem_config_get_yaml_bool(core_ptr, trim(item_path) // c_null_char, 0_c_int) /= 0)
 
       item_path = trim(config_path) // '/monthly_anchor'
-      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, 256_c_int, 'climatological' // c_null_char)
+      call catchem_config_get_yaml_string(core_ptr, trim(item_path) // c_null_char, c_buf, int(len(c_buf), c_int), 'climatological' // c_null_char)
       call clean_c_string(c_buf)
       category%monthly_anchor = trim(c_buf)
 
@@ -2975,7 +2985,7 @@ contains
       n_fields = catchem_config_get_emission_field_count(core_ptr, trim(category_name) // c_null_char)
 
       do ispec = 0, n_fields - 1
-         call catchem_config_get_emission_field_name_at(core_ptr, trim(category_name) // c_null_char, ispec, field_name, int(NUOPC_NAME_LEN, c_int))
+         call catchem_config_get_emission_field_name_at(core_ptr, trim(category_name) // c_null_char, ispec, field_name, int(len(field_name), c_int))
          call clean_c_string(field_name)
          ! Field units are part of the emission mapping contract.  Most sources
          ! are mass fluxes, but some inputs (e.g., an ocean concentration) are
@@ -3023,7 +3033,7 @@ contains
 
       do ispec = 0, n_species_fields - 1
          call catchem_config_get_yaml_list_at(core_ptr, trim(species_list_path) // c_null_char, &
-            int(ispec, c_int), field_name, int(NUOPC_NAME_LEN, c_int))
+            int(ispec, c_int), field_name, int(len(field_name), c_int))
          call clean_c_string(field_name)
          if (len_trim(field_name) == 0) cycle
          if (new_category%find_field(trim(field_name)) > 0) cycle

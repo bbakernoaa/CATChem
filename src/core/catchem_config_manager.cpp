@@ -429,7 +429,7 @@ namespace catchem {
                             if (item.IsScalar()) {
                                 results.push_back(item.Scalar());
                             } else {
-                                Logger::warn("Ignoring non-scalar entry in a configuration list");
+                                Logger::warn("Ignoring non-scalar entry in a configuration list", {{"path", path}});
                             }
                         }
                         return results;
@@ -443,7 +443,7 @@ namespace catchem {
                 if (item.IsScalar()) {
                     results.push_back(item.Scalar());
                 } else {
-                    Logger::warn("Ignoring non-scalar entry in a configuration list");
+                    Logger::warn("Ignoring non-scalar entry in a configuration list", {{"path", path}});
                 }
             }
         }

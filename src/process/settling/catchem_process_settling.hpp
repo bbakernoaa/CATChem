@@ -9,7 +9,7 @@ namespace catchem {
     class SettlingProcess : public ProcessInterface {
     private:
         std::string active_scheme_;
-        std::function<void(void*)> fortran_callback;
+        std::function<void(void*)> fortran_callback_;
 
         // GOCART scheme options staged from the runtime configuration
         // (processes/settling/gocart/*).  They are forwarded verbatim to the
@@ -29,9 +29,9 @@ namespace catchem {
         // the full chemistry species list.  Do not pass C++ indices across
         // this language boundary: C++ is zero-based and Fortran is one-based.
         std::vector<char> aerosol_species_names_;
-        std::vector<double> host_radius_dry; // micrometres, as configured
+        std::vector<double> host_radius_dry_; // micrometres, as configured
         std::vector<double> host_rhop_dry_;
-        std::vector<int> host_is_dust; // 0/1 per settling species
+        std::vector<int> host_is_dust_; // 0/1 per settling species
         // Per settling species' __mie_name (32-byte fixed width, same packing as
         // aerosol_species_names).  The Fortran bridge maps these to loaded table
         // indices; empty means unresolved and aborts initialization on the optics path.
@@ -46,7 +46,7 @@ namespace catchem {
         // the species_idx the scheme loops over.
         bool diagnostics_enabled_ = false;
         std::vector<int> diagnostic_species_id_;
-        std::vector<std::string> diagnostic_species_names; // parallel to ids, for run() lookups
+        std::vector<std::string> diagnostic_species_names_; // parallel to ids, for run() lookups
 
     public:
         SettlingProcess();

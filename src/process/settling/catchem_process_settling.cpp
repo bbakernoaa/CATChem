@@ -51,7 +51,7 @@ namespace catchem {
                               host_concentration()});
     }
 
-    SettlingProcess::SettlingProcess() : active_scheme_("c++_kokkos"), fortran_callback(nullptr) {}
+    SettlingProcess::SettlingProcess() : active_scheme_("c++_kokkos"), fortran_callback_(nullptr) {}
 
     void SettlingProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         // DELP, AIRDEN, and RH are optional host products. GOCART settling
@@ -146,9 +146,9 @@ namespace catchem {
         if (num_aerosols > 0) {
             aerosol_species_names_.assign(static_cast<size_t>(num_aerosols) * 32, ' ');
             aerosol_mie_names_.assign(static_cast<size_t>(num_aerosols) * 32, ' ');
-            host_radius_dry.assign(num_aerosols, 0.0);
+            host_radius_dry_.assign(num_aerosols, 0.0);
             host_rhop_dry_.assign(num_aerosols, 0.0);
-            host_is_dust.assign(num_aerosols, 0);
+            host_is_dust_.assign(num_aerosols, 0);
 
             for (int i = 0; i < num_aerosols; ++i) {
                 int ispec = state->chemistry().indices(SpeciesCategory::Settling)[i];
@@ -159,9 +159,9 @@ namespace catchem {
                                              "' requires explicit radius and density");
                 // Radii are configured in micrometres and cross the bridge in
                 // micrometres; the legacy scheme performs the µm -> m conversion.
-                host_radius_dry[i] = r_val;
+                host_radius_dry_[i] = r_val;
                 host_rhop_dry_[i] = d_val;
-                host_is_dust[i] = state->chemistry().species_list[ispec].is_dust ? 1 : 0;
+                host_is_dust_[i] = state->chemistry().species_list[ispec].is_dust ? 1 : 0;
                 std::copy_n(state->chemistry().species_names_c_arr.data() + static_cast<size_t>(ispec) * 32, 32,
                             aerosol_species_names_.data() + static_cast<size_t>(i) * 32);
                 const std::string& mie_name = state->chemistry().species_list[ispec].mie_name;
@@ -221,16 +221,16 @@ namespace catchem {
                     selected_local.push_back(static_cast<int>(a) + 1);
             }
             diagnostic_species_id_ = selected_local;
-            diagnostic_species_names.clear();
+            diagnostic_species_names_.clear();
             for (int local : selected_local)
-                diagnostic_species_names.push_back(
+                diagnostic_species_names_.push_back(
                     state->chemistry().species_list[aerosol_idx[static_cast<size_t>(local) - 1]].short_name);
 
             if (diagnostics_enabled_ && state->diagnostic_manager() && !selected_local.empty()) {
                 const int ndiag = static_cast<int>(selected_local.size());
                 std::vector<int> dims_vel = {state->column_count(), state->level_count(), ndiag};
                 std::vector<int> dims_flux = {state->column_count(), ndiag};
-                // diagnostic_species_names is the packed-axis label list, built in
+                // diagnostic_species_names_ is the packed-axis label list, built in
                 // the same aerosol-subset order the scheme iterates (FR-006); the
                 // NUOPC driver unpacks each field into one named variable per
                 // species (feature 013).
@@ -239,22 +239,22 @@ namespace catchem {
                 const std::vector<SemanticAxis> axes_flux = {SemanticAxis::Column, SemanticAxis::Species};
                 state->diagnostic_manager()->register_field_contract(
                     "settling_velocity_per_species_per_level", "Settling velocity", "m/s", DiagType::FIELD_3D, dims_vel,
-                    DiagnosticPolicy::Instantaneous, 0.0, axes_vel, diagnostic_species_names);
+                    DiagnosticPolicy::Instantaneous, 0.0, axes_vel, diagnostic_species_names_);
                 state->diagnostic_manager()->register_field_contract(
                     "settling_flux_per_species", "Settling column flux", "kg/m2/s", DiagType::FIELD_2D, dims_flux,
-                    DiagnosticPolicy::Instantaneous, 0.0, axes_flux, diagnostic_species_names);
+                    DiagnosticPolicy::Instantaneous, 0.0, axes_flux, diagnostic_species_names_);
             }
         }
     }
 
     void SettlingProcess::set_fortran_bridge_callback(std::function<void(void*)> cb) {
-        fortran_callback = cb;
+        fortran_callback_ = cb;
     }
 
     void SettlingProcess::run(std::shared_ptr<StateManager> state) {
-        if (fortran_callback) {
+        if (fortran_callback_) {
             // Fallback for tests explicitly requesting the Fortran bridge
-            fortran_callback(static_cast<void*>(state.get()));
+            fortran_callback_(static_cast<void*>(state.get()));
             if (state->chemistry().conc)
                 state->chemistry().conc->mark_host_modified();
             return;
@@ -308,8 +308,8 @@ namespace catchem {
             gocart_scale_factor_, gocart_swelling_method_, gocart_correction_maring_ ? 1 : 0,
             gocart_maring_dust_only_ ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp, pmid,
             state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
-            aerosol_species_names_.data(), state->chemistry().species_names_c_arr.data(), host_is_dust.data(),
-            host_radius_dry.data(), host_rhop_dry_.data(), state->chemistry().conc->host_write(),
+            aerosol_species_names_.data(), state->chemistry().species_names_c_arr.data(), host_is_dust_.data(),
+            host_radius_dry_.data(), host_rhop_dry_.data(), state->chemistry().conc->host_write(),
             gocart_simple_scheme_ ? 1 : 0, aerosol_mie_names_.data(), diag_velocity, diag_flux, diag_ids,
             n_diag_species, &bridge_rc);
         if (bridge_rc == 2)

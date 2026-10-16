@@ -703,10 +703,11 @@ contains
          type(ESMF_Field) :: areaField
          real(ESMF_KIND_R8), pointer :: areaPtr(:,:)
          integer :: arc
-         logical :: areaIsPresent, area_ok
+         logical :: areaIsPresent, area_ok, fieldCreated
          nullify(areaPtr)
          areaIsPresent = .false.
          area_ok = .false.
+         fieldCreated = .false.
          call ESMF_GridGetItem(input_grid, itemflag=ESMF_GRIDITEM_AREA, &
             staggerloc=ESMF_STAGGERLOC_CENTER, isPresent=areaIsPresent, rc=arc)
          if (arc == ESMF_SUCCESS .and. areaIsPresent) then
@@ -722,14 +723,19 @@ contains
                   rc = CC_FAILURE
                   return
                end if
+            else
+               call ESMF_LogWrite('catchem_nuopc_init: grid-cell area item is present but could not be read; '// &
+                  'computing areas from the grid geometry', ESMF_LOGMSG_WARNING, rc=arc)
             end if
-         else
+         end if
+         if (.not. area_ok) then
             ! Fall back to computing cell areas from the grid geometry.  This
             ! needs grid coordinates; test harnesses and some standalone grids
             ! have none, so a failure here is reported but not fatal.
             nullify(areaPtr)
             areaField = ESMF_FieldCreate(input_grid, typekind=ESMF_TYPEKIND_R8, &
                staggerloc=ESMF_STAGGERLOC_CENTER, rc=arc)
+            fieldCreated = (arc == ESMF_SUCCESS)
             if (arc == ESMF_SUCCESS) call ESMF_FieldRegridGetArea(areaField, rc=arc)
             if (arc == ESMF_SUCCESS) call ESMF_FieldGet(areaField, farrayPtr=areaPtr, rc=arc)
             if (arc == ESMF_SUCCESS .and. associated(areaPtr)) then
@@ -738,9 +744,13 @@ contains
                   area_ok = .true.
                end if
             end if
-            call ESMF_FieldDestroy(areaField, rc=arc)
-            if (ESMF_LogFoundError(rcToCheck=arc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            ! Only a field that was created can be destroyed; a failed create
+            ! must not turn into an init failure through the destroy check.
+            if (fieldCreated) then
+               call ESMF_FieldDestroy(areaField, rc=arc)
+               if (ESMF_LogFoundError(rcToCheck=arc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            end if
          end if
          if (area_ok) then
             call cc_wrap%catchem_model%bind_met_2d("AREA_M2", cc_wrap%area_m2, rc)
@@ -756,6 +766,10 @@ contains
 
       !initialize extemission data here
       call catchem_emis_init(cc_wrap%ext_emis, cc_wrap%catchem_model%cpp_core_ptr, nx, ny, nlev, clock, rc)
+      if (rc /= CC_SUCCESS) then
+         call ESMF_LogWrite('catchem_nuopc_init: external emission initialization failed', ESMF_LOGMSG_ERROR)
+         return
+      end if
 
       !get output information from config
       cc_wrap%output_frequency = cc_wrap%catchem_model%get_output_frequency()
@@ -1266,7 +1280,7 @@ contains
             do imap = 0, n_maps - 1
                call catchem_config_get_emission_species_map_at(core_ptr, &
                   trim(category_name) // c_null_char, trim(field_name) // c_null_char, imap, &
-                  mapped_species, 64_c_int, scale_factor, species_index)
+                  mapped_species, int(len(mapped_species), c_int), scale_factor, species_index)
                call trim_at_null(mapped_species)
                if (trim(mapped_species) == trim(target_name)) then
                   field_out = trim(field_name)
@@ -1357,7 +1371,6 @@ contains
                call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
             end block
          end if
-         call flush(6)
 #endif
          call bind_static_field_data(cc_wrap, src_field, met_name, met_buffer, &
             scale * map_scale * category_scale * real(cc_wrap%ext_emis%global_scale, c_double), rc)
@@ -1920,12 +1933,6 @@ contains
           case ('soil_layer')
             call cc_wrap%catchem_model%bind_met_3d_axis(trim(field_map%catchem_var), &
                cc_wrap%met_buf_3d(fidx)%data, 2, rc)
-          case default
-            call ESMF_LogWrite("Unsupported vertical_axis for 3D import field: " // &
-               trim(field_map%standard_name) // " (" // trim(field_map%vertical_axis) // ")", &
-               ESMF_LOGMSG_ERROR, rc=rc)
-            rc = ESMF_FAILURE
-            return
          end select
          if (rc /= CC_SUCCESS) return
 
@@ -2732,12 +2739,10 @@ contains
             end if
          end do
          if (len_trim(warn_msg) > 0) then
-            block
-               character(len=NUOPC_MSG_LEN) :: log_msg
-               write(log_msg, '(A,A)') 'Warning: diag_list selector(s) matched no diagnostic field: ', &
-                  trim(warn_msg)
-               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_WARNING)
-            end block
+            ! Passed straight through: warn_msg can exceed NUOPC_MSG_LEN, and a
+            ! formatted internal write into a shorter buffer is a runtime error.
+            call ESMF_LogWrite('Warning: diag_list selector(s) matched no diagnostic field: ' // &
+               trim(warn_msg), ESMF_LOGMSG_WARNING)
          end if
          cc_wrap%diag_list_warned = .true.
       end if
