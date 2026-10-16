@@ -38,6 +38,7 @@
 module cc_nuopc
 
    use ESMF
+   use catchem_nuopc_lengths
    use NUOPC
    use NUOPC_Model, only: &
       NUOPC_ModelGet, &
@@ -64,8 +65,8 @@ module cc_nuopc
 
    !> \brief Component configuration parameters
    !! \{
-   character(len=256), save :: config_file = 'CATChem_new_config.yml' !< Configuration file path
-   character(len=256), save :: field_mapping_file = 'CATChem_field_mapping.yml' !< Field mapping file path
+   character(len=NUOPC_PATH_LEN), save :: config_file = 'CATChem_new_config.yml' !< Configuration file path
+   character(len=NUOPC_PATH_LEN), save :: field_mapping_file = 'CATChem_field_mapping.yml' !< Field mapping file path
    !logical, save :: do_chemistry = .true.                         !< Enable chemistry calculations
    !! \}
 
@@ -203,8 +204,8 @@ contains
       !type(ESMF_Field), pointer :: fieldList(:)
       character(len=*), parameter :: routine = 'InitializeP1'
       integer :: i, localPet, advertised_imports, advertised_exports
-      character(len=218) :: errmsg
-      character(len=256) :: contract_msg
+      character(len=NUOPC_MSG_LEN) :: errmsg
+      character(len=NUOPC_PATH_LEN) :: contract_msg
       logical :: have_mapping
 
       rc = ESMF_SUCCESS
@@ -291,7 +292,7 @@ contains
                line=__LINE__, file=__FILE__)) return
             if (.not. NUOPC_FieldDictionaryHasEntry(trim(field_config%import_fields(i)%standard_name), rc=rc)) then
                block
-                  character(len=64) :: units_to_use
+                  character(len=NUOPC_NAME_LEN) :: units_to_use
                   units_to_use = trim(field_config%import_fields(i)%units)
                   if (len_trim(units_to_use) == 0) units_to_use = '1'
                   call NUOPC_FieldDictionaryAddEntry( &
@@ -322,7 +323,7 @@ contains
                line=__LINE__, file=__FILE__)) return
             if (.not. NUOPC_FieldDictionaryHasEntry(trim(field_config%export_fields(i)%standard_name), rc=rc)) then
                block
-                  character(len=64) :: units_to_use
+                  character(len=NUOPC_NAME_LEN) :: units_to_use
                   units_to_use = trim(field_config%export_fields(i)%units)
                   if (len_trim(units_to_use) == 0) units_to_use = '1'
                   call NUOPC_FieldDictionaryAddEntry( &
@@ -439,7 +440,7 @@ contains
 
 #ifdef CATCHEM_TRACE_NUOPC
       block
-         character(len=512) :: log_msg
+         character(len=NUOPC_MSG_LEN) :: log_msg
          write(log_msg, '(A,I0,A,I0)') '[CAP DEBUG] InitializeP2 localPet=', localPet, ' petCount=', petCount
          call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
       end block
@@ -628,7 +629,7 @@ contains
       type(ESMF_TimeInterval) :: timeStep
       type(CATChem_InternalState) :: is
       character(len=*), parameter :: routine = 'ModelAdvance'
-      character(len=512) :: errmsg
+      character(len=NUOPC_MSG_LEN) :: errmsg
       integer :: localPet
       real(ESMF_KIND_R8) :: dt_seconds
 
@@ -761,7 +762,7 @@ contains
 
       type(CATChem_InternalState) :: is
       character(len=*), parameter :: routine = 'ModelFinalize'
-      character(len=512) :: errmsg
+      character(len=NUOPC_MSG_LEN) :: errmsg
       integer :: localPet
 
       rc = ESMF_SUCCESS
@@ -815,7 +816,7 @@ contains
    !! \ingroup catchem_nuopc_group
    function real_to_string(val) result(str)
       real(ESMF_KIND_R8), intent(in) :: val
-      character(len=32) :: str
+      character(len=NUOPC_KEYWORD_LEN) :: str
 
       write(str, '(f0.2)') val
       str = adjustl(str)

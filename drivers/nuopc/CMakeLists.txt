@@ -4,6 +4,7 @@
 
 set(
   _srcs
+  catchem_nuopc_lengths.F90
   aqmio.F90
   catchem_regrid_mod.F90
   catchem_latlon_output_mod.F90

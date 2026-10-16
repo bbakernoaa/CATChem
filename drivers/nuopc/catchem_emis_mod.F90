@@ -33,6 +33,7 @@ module catchem_nuopc_emis_mod
 
    use iso_c_binding, only: c_ptr, c_char, c_int, c_double, c_null_char, c_associated, c_f_pointer
    use ESMF
+   use catchem_nuopc_lengths
    use NUOPC
    use aqmio
    use netcdf
@@ -59,7 +60,7 @@ module catchem_nuopc_emis_mod
    real(c_double), parameter :: AVO = 6.02214076e23_c_double
 
    !> \brief Parameters for emission handling
-   integer, parameter :: EMIS_MAXSTR = 256
+   integer, parameter :: EMIS_MAXSTR = NUOPC_PATH_LEN  !< kept for existing callers; same value as the path length
    integer, parameter :: EMIS_MAXFIELDS = 100
    real(fp), parameter :: EMIS_MISSING = -999.0_fp
 
@@ -272,7 +273,7 @@ contains
       if (.not. extemis_activate) then
 #ifdef CATCHEM_TRACE_NUOPC
          block
-            character(len=512) :: log_msg
+            character(len=NUOPC_MSG_LEN) :: log_msg
             write(log_msg, '(A)') '[CATCHEM DEBUG] catchem_emis_init: extemis disabled by processes/extemis/activate=false'
             call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
          end block
@@ -302,7 +303,7 @@ contains
          else
             n_categories = catchem_config_get_emission_category_count(core_ptr)
             do icat = 0, n_categories - 1
-               call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, 64_c_int)
+               call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, int(NUOPC_NAME_LEN, c_int))
                call clean_c_string(category_name)
                category_active = (catchem_config_is_emission_category_active(core_ptr, trim(category_name) // c_null_char) /= 0)
 
@@ -337,7 +338,7 @@ contains
 
 #ifdef CATCHEM_TRACE_NUOPC
       block
-         character(len=512) :: log_msg
+         character(len=NUOPC_MSG_LEN) :: log_msg
          write(log_msg, '(A,I0)') '[CATCHEM DEBUG] catchem_emis_init: n_categories=', ext_emis_data%n_categories
          call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
       end block
@@ -597,7 +598,7 @@ contains
       ! Local variables
       integer :: localrc,   ifield, nlev_f
       character(len=EMIS_MAXSTR) :: msg, filename
-      character(len=64) :: category_name
+      character(len=NUOPC_NAME_LEN) :: category_name
       type(ESMF_Field) :: esmf_field
       real(ESMF_KIND_R4), pointer :: field_data_2d(:,:) => null()
       real(ESMF_KIND_R4), pointer :: field_data_3d(:,:,:) => null()
@@ -666,7 +667,7 @@ contains
 #ifdef CATCHEM_TRACE_NUOPC
       do ifield = 1, category%n_fields
          block
-            character(len=512) :: log_msg
+            character(len=NUOPC_MSG_LEN) :: log_msg
             write(log_msg, '(A,A,A,A,A,A,A,L1,A,I0)') '[CATCHEM DEBUG] AQMIO rank category=', trim(category_name), &
                ' file=', trim(filename), &
                ' field=', trim(category%fields(ifield)%field_name), &
@@ -776,7 +777,7 @@ contains
          category%fields(ifield)%is_loaded = .true.   !set to true; otherwise diagnostics will not be saved.
 #ifdef CATCHEM_TRACE_NUOPC
          block
-            character(len=512) :: log_msg
+            character(len=NUOPC_MSG_LEN) :: log_msg
             write(log_msg, '(A,A,A,A,A,L1,A,L1,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] AQMIO read category=', trim(category_name), &
                ' field=', trim(category%fields(ifield)%field_name), &
                ' emission_data=', allocated(category%fields(ifield)%emission_data), &
@@ -823,7 +824,7 @@ contains
       ! Local variables
       integer :: localrc, ifield, klev, nlev_f
       character(len=EMIS_MAXSTR) :: msg
-      character(len=64) :: category_name
+      character(len=NUOPC_NAME_LEN) :: category_name
       type(ESMF_Field) :: esmf_field
       real(ESMF_KIND_R4), pointer :: field_data_2d(:,:) => null()
       logical :: didRegrid
@@ -1188,7 +1189,7 @@ contains
          category%fields(ifield)%is_loaded = .true.
 #ifdef CATCHEM_TRACE_NUOPC
          block
-            character(len=512) :: log_msg
+            character(len=NUOPC_MSG_LEN) :: log_msg
             write(log_msg, '(A,A,A,A,A,L1,A,L1)') '[CATCHEM DEBUG] AQMIO regrid read category=', trim(category_name), &
                ' field=', trim(category%fields(ifield)%field_name), &
                ' emission_data=', allocated(category%fields(ifield)%emission_data), &
@@ -1459,16 +1460,16 @@ contains
       real(fp), intent(out)   :: f_bb(:,:)
       integer, intent(out)    :: rc
       real(c_double), allocatable :: flux_columns(:,:), rh_columns(:,:), factors(:)
-      character(kind=c_char) :: mie_name_c(64)
+      character(kind=c_char) :: mie_name_c(NUOPC_NAME_LEN)
       integer(c_int) :: limiter_rc
       integer :: nx, ny, nz, i, j, k, column
 
       interface
          subroutine run_emission_mie_factor(n_columns, n_levels, mie_name_c, flux, rh, &
             scale_factor, dt, factor, limiter_rc) bind(C, name='run_emission_mie_factor')
-            import :: c_int, c_double, c_char
+            import :: c_int, c_double, c_char, NUOPC_NAME_LEN
             integer(c_int), value :: n_columns, n_levels
-            character(kind=c_char), intent(in) :: mie_name_c(64)
+            character(kind=c_char), intent(in) :: mie_name_c(NUOPC_NAME_LEN)
             real(c_double), intent(in) :: flux(n_columns,n_levels), rh(n_columns,n_levels)
             real(c_double), value :: scale_factor, dt
             real(c_double), intent(out) :: factor(n_columns)
@@ -1676,7 +1677,7 @@ contains
       integer :: localrc, ifield, ispec, n_mapped_species
       integer :: nx, ny, nz, i, j, k
       character(len=EMIS_MAXSTR) :: msg, field_name, category_name
-      character(len=64) :: mapped_species_name, species_mie_name
+      character(len=NUOPC_NAME_LEN) :: mapped_species_name, species_mie_name
       real(c_double) :: scale_factor
       integer(c_int) :: species_index
       character(len=*), parameter :: pName = 'catchem_emis_apply'
@@ -1928,7 +1929,7 @@ contains
 #ifdef CATCHEM_TRACE_NUOPC
             if (emis_lower(trim(mapped_species_name)) == 'bc1') then
                block
-                  character(len=512) :: log_msg
+                  character(len=NUOPC_MSG_LEN) :: log_msg
                   write(log_msg, '(A,A,A,A,A,ES12.4,A,ES12.4,A,ES12.4)') &
                      '[CATCHEM TRACE] BC1 after emission category=', trim(category_name), &
                      ' field=', trim(field_name), ' min=', minval(f_conc), &
@@ -2283,7 +2284,7 @@ contains
       integer :: npts, ksel, n_mapped_species
       real(c_double) :: area, fluxcol, hlow, hup, dzv, zb, zt, ovlp, frac
       real(c_double) :: converter, scale_factor, dmr
-      character(len=64) :: mapped_species_name
+      character(len=NUOPC_NAME_LEN) :: mapped_species_name
       character(len=EMIS_MAXSTR) :: category_name, field_name
       character(len=*), parameter :: pName = 'catchem_emis_apply_points'
 
@@ -2511,9 +2512,9 @@ contains
       ! Local variables
       integer :: localrc, icat, ifield
       character(len=EMIS_MAXSTR) :: msg
-      character(len=64) :: field_name, category_name
-      character(len=128) :: description
-      character(len=32) :: units
+      character(len=NUOPC_NAME_LEN) :: field_name, category_name
+      character(len=NUOPC_LONG_NAME_LEN) :: description
+      character(len=NUOPC_KEYWORD_LEN) :: units
       character(len=*), parameter :: pName = 'catchem_emis_write_diagnostics'
 
       rc = CC_SUCCESS
@@ -2788,7 +2789,7 @@ contains
       type(c_ptr), intent(in) :: core_ptr
       character(len=*), intent(in) :: category_name
       integer, intent(out) :: rc
-      character(len=64), optional, allocatable, intent(out) :: diag_species(:)
+      character(len=NUOPC_NAME_LEN), optional, allocatable, intent(out) :: diag_species(:)
 
       integer :: i, n_diag, localrc
       character(len=EMIS_MAXSTR) :: config_path, item_path, c_buf, clean_cat_name, msg
@@ -2935,7 +2936,7 @@ contains
          if (n_diag > 0) then
             allocate(diag_species(n_diag))
             do i = 1, n_diag
-               call catchem_config_get_yaml_list_at(core_ptr, trim(item_path) // c_null_char, int(i - 1, c_int), c_buf, 64_c_int)
+               call catchem_config_get_yaml_list_at(core_ptr, trim(item_path) // c_null_char, int(i - 1, c_int), c_buf, int(NUOPC_NAME_LEN, c_int))
                call clean_c_string(c_buf)
                diag_species(i) = trim(c_buf)
             end do
@@ -2960,7 +2961,7 @@ contains
       character(len=EMIS_MAXSTR) :: field_name, field_units, species_list_path
       type(ExtEmisCategoryType) :: new_category
       type(ExtEmisFieldType) :: new_field
-      character(len=64), allocatable :: diag_species_list(:)
+      character(len=NUOPC_NAME_LEN), allocatable :: diag_species_list(:)
 
       rc = CC_SUCCESS
 
@@ -2974,7 +2975,7 @@ contains
       n_fields = catchem_config_get_emission_field_count(core_ptr, trim(category_name) // c_null_char)
 
       do ispec = 0, n_fields - 1
-         call catchem_config_get_emission_field_name_at(core_ptr, trim(category_name) // c_null_char, ispec, field_name, 64_c_int)
+         call catchem_config_get_emission_field_name_at(core_ptr, trim(category_name) // c_null_char, ispec, field_name, int(NUOPC_NAME_LEN, c_int))
          call clean_c_string(field_name)
          ! Field units are part of the emission mapping contract.  Most sources
          ! are mass fluxes, but some inputs (e.g., an ocean concentration) are
@@ -2988,7 +2989,7 @@ contains
             new_field%long_name = trim(field_name)
 #ifdef CATCHEM_TRACE_NUOPC
             block
-               character(len=512) :: log_msg
+               character(len=NUOPC_MSG_LEN) :: log_msg
                write(log_msg, '(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate category=', trim(category_name), &
                   ' field=', trim(field_name)
                call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
@@ -3022,7 +3023,7 @@ contains
 
       do ispec = 0, n_species_fields - 1
          call catchem_config_get_yaml_list_at(core_ptr, trim(species_list_path) // c_null_char, &
-            int(ispec, c_int), field_name, 64_c_int)
+            int(ispec, c_int), field_name, int(NUOPC_NAME_LEN, c_int))
          call clean_c_string(field_name)
          if (len_trim(field_name) == 0) cycle
          if (new_category%find_field(trim(field_name)) > 0) cycle
@@ -3036,7 +3037,7 @@ contains
             new_field%long_name = trim(field_name)
 #ifdef CATCHEM_TRACE_NUOPC
             block
-               character(len=512) :: log_msg
+               character(len=NUOPC_MSG_LEN) :: log_msg
                write(log_msg, '(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate species-list category=', trim(category_name), &
                   ' field=', trim(field_name)
                call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
