@@ -101,7 +101,7 @@ namespace catchem {
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and will be passed to the bridge.
-        Logger::debug(state.get(), "DryDep scheme options",
+        Logger::debug(*state, "DryDep scheme options",
                       {{"gas_scheme", gas_scheme},
                        {"aero_scheme", aero_scheme},
                        {"wesely/scale_factor", std::to_string(wesely_scale_factor)},

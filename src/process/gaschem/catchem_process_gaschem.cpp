@@ -21,7 +21,7 @@ namespace catchem {
     GasChemProcess::~GasChemProcess() = default;
 
     void GasChemProcess::init(std::shared_ptr<StateManager> state) {
-        Logger::debug(state.get(), "GasChemProcess::init started");
+        Logger::debug(*state, "GasChemProcess::init started");
 
         // 1. Resolve configuration path dynamically via ConfigManager. An explicit
         // "config_file" selects a single-file MUSICA mechanism (v1 format) and takes
@@ -75,7 +75,7 @@ namespace catchem {
 
         const std::string micm_config_path = this->config_file.empty() ? this->config_dir : this->config_file;
         Logger::info(
-            state.get(), "GasChemProcess: resolved MICM configuration",
+            *state, "GasChemProcess: resolved MICM configuration",
             {{"path", micm_config_path}, {"type", this->config_file.empty() ? "directory (v0 CAMP)" : "file"}});
 
         // 2. Initialize MICM and State using musica library
@@ -92,12 +92,11 @@ namespace catchem {
                 for (auto& c : name)
                     c = std::toupper(c);
                 if (variable_map.find(name) == variable_map.end()) {
-                    Logger::warn(state.get(), "Active species not found in MICM solver variable map",
-                                 {{"species", name}});
+                    Logger::warn(*state, "Active species not found in MICM solver variable map", {{"species", name}});
                 }
             }
         } catch (const std::exception& e) {
-            Logger::error(state.get(), "GasChemProcess: failed to initialize MICM", {{"error", e.what()}});
+            Logger::error(*state, "GasChemProcess: failed to initialize MICM", {{"error", e.what()}});
             initialized = false;
             throw std::runtime_error(std::string("GasChemProcess: failed to initialize MICM: ") + e.what());
         }
@@ -105,7 +104,7 @@ namespace catchem {
 
     void GasChemProcess::run(std::shared_ptr<StateManager> state) {
         if (!initialized) {
-            Logger::warn(state.get(), "GasChemProcess: skipped run because solver is not initialized");
+            Logger::warn(*state, "GasChemProcess: skipped run because solver is not initialized");
             return;
         }
 
@@ -224,13 +223,13 @@ namespace catchem {
         // 4. Run standard CPU solver
         double tstep = state->clock().timestep;
         if (tstep <= 0.0) {
-            Logger::error(state.get(), "Invalid timestep encountered", {{"timestep", std::to_string(tstep)}});
+            Logger::error(*state, "Invalid timestep encountered", {{"timestep", std::to_string(tstep)}});
             throw std::runtime_error("GasChemProcess: timestep must be greater than zero.");
         }
         auto solver_result = micm_instance->Solve(micm_state.get(), tstep);
         if (solver_result.state_ != micm::SolverState::Converged &&
             solver_result.state_ != micm::SolverState::AcceptingUnconvergedIntegration) {
-            Logger::error(state.get(), "MICM Solver did not reach convergence!",
+            Logger::error(*state, "MICM Solver did not reach convergence!",
                           {{"final_state", micm::SolverStateToString(solver_result.state_)}});
             throw std::runtime_error("GasChemProcess: MICM Solver failed to reach convergence or acceptable state: " +
                                      micm::SolverStateToString(solver_result.state_));

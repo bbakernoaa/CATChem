@@ -147,7 +147,7 @@ namespace catchem {
                     ch_du_joined += ",";
                 ch_du_joined += std::to_string(ginoux_ch_du[i]);
             }
-            Logger::debug(state.get(), "Dust scheme options",
+            Logger::debug(*state, "Dust scheme options",
                           {{"scheme", active_scheme},
                            {"fengsha/alpha", std::to_string(fengsha_alpha)},
                            {"fengsha/gamma", std::to_string(fengsha_gamma)},
@@ -327,7 +327,7 @@ namespace catchem {
                     }
                 }
             }
-            Logger::debug(state.get(), "Dust layer-mass conversion inputs",
+            Logger::debug(*state, "Dust layer-mass conversion inputs",
                           {{"delp_pa_min", std::to_string(min_delp)},
                            {"delp_pa_max", std::to_string(max_delp)},
                            {"delp_surface_pa_min", std::to_string(surf_min)},

@@ -90,7 +90,7 @@ namespace catchem {
                 context += ctx + " -> ";
             }
             context += "End";
-            Logger::error(nullptr, msg, {{"code", std::to_string(static_cast<int>(code))}, {"context", context}});
+            Logger::error(msg, {{"code", std::to_string(static_cast<int>(code))}, {"context", context}});
         }
     };
 

@@ -97,13 +97,13 @@ namespace catchem {
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and will be passed to the bridge.
         if (active_scheme == "gocart") {
-            Logger::debug(state.get(), "WetDep scheme options",
+            Logger::debug(*state, "WetDep scheme options",
                           {{"scheme", active_scheme},
                            {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
                            {"gocart/washout_tuning", std::to_string(gocart_washout_tuning)},
                            {"gocart/radius_threshold", std::to_string(gocart_radius_threshold)}});
         } else {
-            Logger::debug(state.get(), "WetDep scheme options",
+            Logger::debug(*state, "WetDep scheme options",
                           {{"scheme", active_scheme},
                            {"jacob/scale_factor", std::to_string(jacob_scale_factor)},
                            {"jacob/radius_threshold", std::to_string(jacob_radius_threshold)},

@@ -50,7 +50,7 @@ namespace catchem {
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and will be passed to the bridge.
-        Logger::debug(state.get(), "CarbChem scheme options",
+        Logger::debug(*state, "CarbChem scheme options",
                       {{"scheme", active_scheme},
                        {"gocart/time_days_hydrophobic_to_hydrophilic", std::to_string(gocart_time_days)}});
 

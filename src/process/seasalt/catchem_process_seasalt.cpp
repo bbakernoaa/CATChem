@@ -103,7 +103,7 @@ namespace catchem {
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and will be passed to the bridge.
-        Logger::debug(state.get(), "SeaSalt scheme options",
+        Logger::debug(*state, "SeaSalt scheme options",
                       {{"scheme", active_scheme},
                        {"gong97/scale_factor", std::to_string(gong97_scale_factor)},
                        {"gong97/weibull_flag", gong97_weibull_flag ? "true" : "false"},

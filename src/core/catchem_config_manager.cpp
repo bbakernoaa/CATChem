@@ -220,7 +220,7 @@ namespace catchem {
             return default_val;
         if (const auto parsed = parse_bool_scalar(val))
             return *parsed;
-        Logger::warn(nullptr, "Process option is not a boolean; using the default",
+        Logger::warn("Process option is not a boolean; using the default",
                      {{"key", key}, {"value", val.IsScalar() ? val.Scalar() : "<non-scalar>"}});
         return default_val;
     }
@@ -232,7 +232,7 @@ namespace catchem {
         try {
             return val.as<double>();
         } catch (const YAML::Exception&) {
-            Logger::warn(nullptr, "Process option is not a number; using the default",
+            Logger::warn("Process option is not a number; using the default",
                          {{"key", key}, {"value", val.IsScalar() ? val.Scalar() : "<non-scalar>"}});
             return default_val;
         }
@@ -245,7 +245,7 @@ namespace catchem {
         try {
             return val.as<int>();
         } catch (const YAML::Exception&) {
-            Logger::warn(nullptr, "Process option is not an integer; using the default",
+            Logger::warn("Process option is not an integer; using the default",
                          {{"key", key}, {"value", val.IsScalar() ? val.Scalar() : "<non-scalar>"}});
             return default_val;
         }
@@ -320,7 +320,7 @@ namespace catchem {
             return default_val;
         if (const auto parsed = parse_bool_scalar(node))
             return *parsed;
-        Logger::warn(nullptr, "Configuration value is not a boolean; using the default",
+        Logger::warn("Configuration value is not a boolean; using the default",
                      {{"path", path}, {"value", node.IsScalar() ? node.Scalar() : "<non-scalar>"}});
         return default_val;
     }
@@ -346,7 +346,7 @@ namespace catchem {
         try {
             return node.as<double>();
         } catch (const YAML::Exception&) {
-            Logger::warn(nullptr, "Configuration value is not a number; using the default",
+            Logger::warn("Configuration value is not a number; using the default",
                          {{"path", path}, {"value", node.IsScalar() ? node.Scalar() : "<non-scalar>"}});
             return default_val;
         }
@@ -373,7 +373,7 @@ namespace catchem {
         try {
             return node.as<int>();
         } catch (const YAML::Exception&) {
-            Logger::warn(nullptr, "Configuration value is not an integer; using the default",
+            Logger::warn("Configuration value is not an integer; using the default",
                          {{"path", path}, {"value", node.IsScalar() ? node.Scalar() : "<non-scalar>"}});
             return default_val;
         }
@@ -429,7 +429,7 @@ namespace catchem {
                             if (item.IsScalar()) {
                                 results.push_back(item.Scalar());
                             } else {
-                                Logger::warn(nullptr, "Ignoring non-scalar entry in a configuration list");
+                                Logger::warn("Ignoring non-scalar entry in a configuration list");
                             }
                         }
                         return results;
@@ -443,7 +443,7 @@ namespace catchem {
                 if (item.IsScalar()) {
                     results.push_back(item.Scalar());
                 } else {
-                    Logger::warn(nullptr, "Ignoring non-scalar entry in a configuration list");
+                    Logger::warn("Ignoring non-scalar entry in a configuration list");
                 }
             }
         }
@@ -665,7 +665,7 @@ namespace catchem {
             }
             is_loaded = true;
         } catch (const std::exception& e) {
-            Logger::error(nullptr, "Error loading configuration file", {{"file", filename}, {"error", e.what()}});
+            Logger::error("Error loading configuration file", {{"file", filename}, {"error", e.what()}});
             is_loaded = false;
             throw;
         }
@@ -684,7 +684,7 @@ namespace catchem {
                     continue;
                 if (const auto parsed = parse_bool_scalar(n[k]))
                     return *parsed;
-                Logger::warn(nullptr, "Species attribute is not a boolean; using the default", {{"attribute", k}});
+                Logger::warn("Species attribute is not a boolean; using the default", {{"attribute", k}});
             }
             return def;
         };
@@ -695,7 +695,7 @@ namespace catchem {
                 try {
                     return n[k].as<double>();
                 } catch (const YAML::Exception&) {
-                    Logger::warn(nullptr, "Species attribute is not a number; using the default", {{"attribute", k}});
+                    Logger::warn("Species attribute is not a number; using the default", {{"attribute", k}});
                 }
             }
             return def;

@@ -61,7 +61,7 @@ namespace {
                     hi = std::max(hi, v);
                     sum += v;
                 }
-            catchem::Logger::debug(&state, "watch-species bounds after process",
+            catchem::Logger::debug(state, "watch-species bounds after process",
                                    {{"step", std::to_string(step)},
                                     {"process", process_name},
                                     {"species", state.chemistry().species_list[ispec].short_name},
@@ -112,9 +112,9 @@ namespace catchem {
         try {
             shutdown();
         } catch (const std::exception& e) {
-            Logger::error(nullptr, "Core shutdown failed during destruction", {{"error", e.what()}});
+            Logger::error("Core shutdown failed during destruction", {{"error", e.what()}});
         } catch (...) {
-            Logger::error(nullptr, "Core shutdown failed during destruction", {{"error", "unknown exception"}});
+            Logger::error("Core shutdown failed during destruction", {{"error", "unknown exception"}});
         }
     }
 
@@ -324,7 +324,7 @@ namespace catchem {
         last_outcome_.status = TimestepStatus::Running;
         const bool verbose = config_mgr && config_mgr->data.simulation.verbose_enabled;
         if (verbose) {
-            Logger::debug(state_mgr.get(), "Core timestep begin",
+            Logger::debug(*state_mgr, "Core timestep begin",
                           {{"step", std::to_string(last_outcome_.timestep)},
                            {"dt_s", std::to_string(dt)},
                            {"processes", std::to_string(processes.size())},
@@ -335,11 +335,11 @@ namespace catchem {
         for (std::size_t index = 0; index < processes.size(); ++index) {
             try {
                 if (verbose) {
-                    Logger::debug(state_mgr.get(), "Core process prepare",
+                    Logger::debug(*state_mgr, "Core process prepare",
                                   {{"step", std::to_string(last_outcome_.timestep)},
                                    {"index", std::to_string(index)},
                                    {"process", processes[index]->get_name()}});
-                    Logger::debug(state_mgr.get(), "Core process input preparation",
+                    Logger::debug(*state_mgr, "Core process input preparation",
                                   {{"step", std::to_string(last_outcome_.timestep)},
                                    {"index", std::to_string(index)},
                                    {"process", processes[index]->get_name()}});
@@ -347,7 +347,7 @@ namespace catchem {
                 processes[index]->prepare_inputs(state_mgr);
                 execution_plan_.prepare(index, *state_mgr);
                 if (verbose) {
-                    Logger::debug(state_mgr.get(), "Core process run",
+                    Logger::debug(*state_mgr, "Core process run",
                                   {{"step", std::to_string(last_outcome_.timestep)},
                                    {"index", std::to_string(index)},
                                    {"process", processes[index]->get_name()}});
@@ -355,14 +355,14 @@ namespace catchem {
                 processes[index]->run(state_mgr);
                 if (verbose) {
                     log_watch_species_bounds(*state_mgr, processes[index]->get_name(), last_outcome_.timestep);
-                    Logger::debug(state_mgr.get(), "Core process bookkeeping",
+                    Logger::debug(*state_mgr, "Core process bookkeeping",
                                   {{"step", std::to_string(last_outcome_.timestep)},
                                    {"index", std::to_string(index)},
                                    {"process", processes[index]->get_name()}});
                 }
                 execution_plan_.complete(index, *state_mgr);
                 if (verbose) {
-                    Logger::debug(state_mgr.get(), "Core process complete",
+                    Logger::debug(*state_mgr, "Core process complete",
                                   {{"step", std::to_string(last_outcome_.timestep)},
                                    {"index", std::to_string(index)},
                                    {"process", processes[index]->get_name()}});
@@ -375,7 +375,7 @@ namespace catchem {
                 last_outcome_.state = StateClassification::RequiresReimport;
                 tainted_ = true;
                 diag_mgr->mark_generation_failed();
-                Logger::error(state_mgr.get(), "Core process failed",
+                Logger::error(*state_mgr, "Core process failed",
                               {{"step", std::to_string(last_outcome_.timestep)},
                                {"index", std::to_string(index)},
                                {"process", last_outcome_.process_name},
@@ -389,7 +389,7 @@ namespace catchem {
                 last_outcome_.state = StateClassification::RequiresReinitialize;
                 tainted_ = true;
                 diag_mgr->mark_generation_failed();
-                Logger::error(state_mgr.get(), "Core process failed",
+                Logger::error(*state_mgr, "Core process failed",
                               {{"step", std::to_string(last_outcome_.timestep)},
                                {"index", std::to_string(index)},
                                {"process", last_outcome_.process_name},
@@ -400,13 +400,12 @@ namespace catchem {
 
         // Sync diagnostics
         if (verbose)
-            Logger::debug(state_mgr.get(), "Core diagnostics sync", {{"step", std::to_string(last_outcome_.timestep)}});
+            Logger::debug(*state_mgr, "Core diagnostics sync", {{"step", std::to_string(last_outcome_.timestep)}});
         diag_mgr->sync_to_host();
         last_outcome_.status = TimestepStatus::Succeeded;
         last_outcome_.state = StateClassification::Reusable;
         if (verbose)
-            Logger::debug(state_mgr.get(), "Core timestep complete",
-                          {{"step", std::to_string(last_outcome_.timestep)}});
+            Logger::debug(*state_mgr, "Core timestep complete", {{"step", std::to_string(last_outcome_.timestep)}});
     }
 
     void Core::run_timestep() {

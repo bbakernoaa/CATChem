@@ -126,7 +126,7 @@ namespace catchem {
             mie_initialized = true;
         }
         Logger::debug(
-            state.get(), "Settling scheme options",
+            *state, "Settling scheme options",
             {{"scheme", active_scheme},
              {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
              {"gocart/correction_maring", gocart_correction_maring ? "true" : "false"},
@@ -138,7 +138,7 @@ namespace catchem {
              {"gocart/optics_directory", gocart_simple_scheme ? config->data.mie.directory : "(unused)"},
              {"gocart/optics_tables", gocart_simple_scheme ? std::to_string(mie_type_labels.size()) : "0"}});
         for (const auto& label : mie_type_labels)
-            Logger::debug(state.get(), "Settling optics table", {{"binding", label}});
+            Logger::debug(*state, "Settling optics table", {{"binding", label}});
 
         int num_aerosols = state->chemistry().settling_indices.size();
         if (num_aerosols > 0) {
@@ -266,7 +266,7 @@ namespace catchem {
 
         int num_aerosols = state->chemistry().settling_indices.size();
         if (num_aerosols == 0) {
-            Logger::info(state.get(), "Settling skipped: no aerosol species registered", {});
+            Logger::info(*state, "Settling skipped: no aerosol species registered", {});
             return;
         }
 

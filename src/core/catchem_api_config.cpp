@@ -608,7 +608,7 @@ void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int 
             if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size()))                        \
                 return state->chemistry().species_list[idx_0].member;                                                  \
         }                                                                                                              \
-        catchem::Logger::error(nullptr, "species property query failed: null state or index out of range",             \
+        catchem::Logger::error("species property query failed: null state or index out of range",                      \
                                {{"property", #api}, {"index", std::to_string(index)}});                                \
         return fallback;                                                                                               \
     }
@@ -620,7 +620,7 @@ void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int 
             if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size()))                        \
                 return state->chemistry().species_list[idx_0].member ? 1 : 0;                                          \
         }                                                                                                              \
-        catchem::Logger::error(nullptr, "species property query failed: null state or index out of range",             \
+        catchem::Logger::error("species property query failed: null state or index out of range",                      \
                                {{"property", #api}, {"index", std::to_string(index)}});                                \
         return 0;                                                                                                      \
     }
@@ -632,7 +632,7 @@ void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int 
             if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size()))                        \
                 return state->chemistry().species_list[idx_0].member ? 1 : 0;                                          \
         }                                                                                                              \
-        catchem::Logger::error(nullptr, "species property query failed: null state or index out of range",             \
+        catchem::Logger::error("species property query failed: null state or index out of range",                      \
                                {{"property", #api}, {"index", std::to_string(index)}});                                \
         return 0;                                                                                                      \
     }
@@ -651,13 +651,12 @@ void catchem_state_get_species_wd_rainouteff(void* state_ptr, int index, double*
                 eff_out[i] = i < eff.size() ? eff[i] : 0.0;
             }
         } else {
-            catchem::Logger::error(nullptr, "species property query failed: index out of range",
+            catchem::Logger::error("species property query failed: index out of range",
                                    {{"property", "wd_rainouteff"}, {"index", std::to_string(index)}});
             eff_out[0] = eff_out[1] = eff_out[2] = 0.0;
         }
     } catch (const std::exception& e) {
-        catchem::Logger::error(nullptr, "species property query failed",
-                               {{"property", "wd_rainouteff"}, {"error", e.what()}});
+        catchem::Logger::error("species property query failed", {{"property", "wd_rainouteff"}, {"error", e.what()}});
         eff_out[0] = eff_out[1] = eff_out[2] = 0.0;
     }
 }

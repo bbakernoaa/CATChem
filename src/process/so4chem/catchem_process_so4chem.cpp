@@ -61,7 +61,7 @@ namespace catchem {
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and will be passed to the bridge.
-        Logger::debug(state.get(), "SO4Chem scheme options",
+        Logger::debug(*state, "SO4Chem scheme options",
                       {{"scheme", active_scheme},
                        {"gocart/update_so2", gocart_update_so2 ? "true" : "false"},
                        {"gocart/do_drydep", gocart_do_drydep ? "true" : "false"}});
@@ -243,7 +243,7 @@ namespace catchem {
                 conc_ptr + static_cast<std::size_t>(index) * state->column_count() * state->level_count();
             const auto count = static_cast<std::size_t>(state->column_count()) * state->level_count();
             auto [lo, hi] = std::minmax_element(values, values + count);
-            Logger::debug(state.get(), "SO4chem pre-bridge concentration",
+            Logger::debug(*state, "SO4chem pre-bridge concentration",
                           {{"species", name}, {"min", std::to_string(*lo)}, {"max", std::to_string(*hi)}});
         };
         trace_species("dms");
