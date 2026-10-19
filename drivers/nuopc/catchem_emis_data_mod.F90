@@ -43,7 +43,6 @@ MODULE catchem_nuopc_emis_data_mod
       CHARACTER(LEN=NUOPC_NAME_LEN)             :: field_name = ''     !< Field name (e.g., "EMIS_NO", "EMIS_SO2")
       CHARACTER(LEN=NUOPC_LONG_NAME_LEN)            :: long_name = ''      !< Descriptive name
       CHARACTER(LEN=NUOPC_KEYWORD_LEN)             :: units = ''          !< Units (typically kg/m2/s)
-      !CHARACTER(LEN=NUOPC_PATH_LEN)            :: source_file = ''    !< Source file path
       INTEGER                       :: nx = 0              !< Number of longitude points
       INTEGER                       :: ny = 0              !< Number of latitude points
       INTEGER                       :: nz = 1              !< Number of vertical levels (usually 1 for surface)

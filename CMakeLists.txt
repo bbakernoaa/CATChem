@@ -500,6 +500,8 @@ if(CATCHEM_BUILD_NUOPC)
   add_library(
     cc_nuopc
     STATIC
+    drivers/nuopc/catchem_nuopc_lengths.F90
+    drivers/nuopc/catchem_nuopc_strings.F90
     drivers/nuopc/catchem_regrid_mod.F90
     drivers/nuopc/catchem_latlon_output_mod.F90
     drivers/nuopc/aqmio.F90

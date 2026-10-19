@@ -87,6 +87,8 @@ contains
       if (tileCount <= 1) then
          call ESMF_LogWrite('latlon_diag_init: single tile, skipping lat/lon output', &
             ESMF_LOGMSG_INFO, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          return
       end if
 
@@ -106,6 +108,8 @@ contains
       write(logmsg, '(A,I0,A,I0,A,I0)') &
          'latlon_diag_init: C', ntile, ' -> ', ll_nlon, 'x', ll_nlat
       call ESMF_LogWrite(trim(logmsg), ESMF_LOGMSG_INFO, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
       ! --- Create global regular lat/lon grid (periodic in longitude) ---
       maxIdx(1) = ll_nlon
@@ -171,6 +175,8 @@ contains
 
       call ESMF_LogWrite("latlon_diag_init: Lat/lon diagnostic output ready", &
          ESMF_LOGMSG_INFO, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
    end subroutine latlon_diag_init
 
@@ -368,9 +374,17 @@ contains
       if (.not. ll_initialized) return
 
       call ESMF_RouteHandleDestroy(ll_rh, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
       call ESMF_FieldDestroy(ll_src_2d, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
       call ESMF_FieldDestroy(ll_dst_2d, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
       call ESMF_GridDestroy(ll_grid, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
       ll_initialized = .false.
       ll_current_file = ''
 
