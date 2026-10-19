@@ -2,6 +2,7 @@
 #include "catchem_config_manager.hpp"
 #include "catchem_test_config.hpp"
 #include <cassert>
+#include <stdexcept>
 #include <string>
 
 int main() {
@@ -14,26 +15,40 @@ int main() {
     assert(valid.data.species[1].name == "O3");
 
     // Scalar-parsing contract (strict_booleans.yml): booleans are true/false
-    // only, legacy spellings and wrong types fall back to the default.
+    // only; null or absent means the default; a legacy spelling or a wrong
+    // type is an error, never a silent fallback.
+    const auto throws_invalid = [](const auto& call) {
+        try {
+            call();
+        } catch (const std::invalid_argument& e) {
+            return std::string(e.what()).find("Configuration value is not") != std::string::npos;
+        }
+        return false;
+    };
     catchem::ConfigManager scalars;
     scalars.load_from_file(fixtures + "strict_booleans.yml");
     assert(scalars.get_bool("simulation/strict_true", false) == true);
     assert(scalars.get_bool("simulation/strict_false", true) == false);
-    assert(scalars.get_bool("simulation/legacy_yes", false) == false);
-    assert(scalars.get_bool("simulation/legacy_one", false) == false);
+    assert(throws_invalid([&] { scalars.get_bool("simulation/legacy_yes", false); }));
+    assert(throws_invalid([&] { scalars.get_bool("simulation/legacy_one", false); }));
     assert(scalars.get_bool("simulation/null_value", true) == true);
     assert(scalars.get_bool("simulation/missing", true) == true);
     assert(scalars.get_int("simulation/nx", 7) == 2);
-    assert(scalars.get_int("simulation/float_as_int", 7) == 7);
-    assert(scalars.get_double("simulation/not_a_number", 2.5) == 2.5);
+    assert(throws_invalid([&] { scalars.get_int("simulation/float_as_int", 7); }));
+    assert(throws_invalid([&] { scalars.get_double("simulation/not_a_number", 2.5); }));
     assert(scalars.get_double("simulation/timestep", 2.5) == 60.0);
     assert(scalars.get_string("simulation/null_value", "dflt") == "dflt");
     assert(scalars.get_string("simulation/not_a_number", "dflt") == "abc");
+    assert(throws_invalid([&] { scalars.get_string("simulation", "dflt"); }));
     const auto& dust = scalars.data.processes.at("dust");
-    assert(dust.get_bool("legacy_on", false) == false);
-    assert(dust.get_bool("legacy_zero", true) == true);
+    assert(dust.activate);
+    assert(throws_invalid([&] { dust.get_bool("legacy_on", false); }));
+    assert(throws_invalid([&] { dust.get_bool("legacy_zero", true); }));
     assert(dust.get_bool("strict_false", true) == false);
     assert(dust.get_bool("missing", true) == true);
+    // The activate switch follows the same contract at parse time.
+    catchem::ConfigManager legacy_activate;
+    assert(throws_invalid([&] { legacy_activate.load_from_file(fixtures + "strict_booleans_bad_activate.yml"); }));
 
     catchem::ConfigManager invalid;
     invalid.load_from_file(fixtures + "platform_integrity_invalid.yml");
