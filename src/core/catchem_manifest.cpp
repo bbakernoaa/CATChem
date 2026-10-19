@@ -1,3 +1,15 @@
+/**
+ * @file catchem_manifest.cpp
+ * @brief Fingerprint computation and manifest construction from YAML.
+ *
+ * @details Public symbols here (configuration_fingerprint, the manifest
+ * constructor and species_index) are documented at their declarations in
+ * catchem_manifest.hpp; only the anonymous-namespace helpers are documented
+ * in place. The fingerprint is a 64-bit FNV-1a digest rendered as 16 hex
+ * characters, taken over the configuration file bytes plus the resolved
+ * species file, or over the serialised species metadata when no file backs
+ * the ConfigManager.
+ */
 #include "catchem_manifest.hpp"
 
 #include <cmath>
@@ -10,6 +22,8 @@ namespace catchem {
 namespace {
     // Stable FNV-1a fingerprint over source path and content. This detects
     // ordinary edits but is not intended for adversarial collision resistance.
+
+    /// Absorb the bytes of one string, plus a 0xff separator byte, into the FNV-1a state.
     void hash_bytes(std::uint64_t& hash, const std::string& value) {
         for (unsigned char c : value) {
             hash ^= c;
@@ -19,6 +33,7 @@ namespace {
         hash *= 1099511628211ULL;
     }
 
+    /// Absorb every byte of one file into the FNV-1a state (binary mode).
     void hash_file(std::uint64_t& hash, const std::string& path) {
         std::ifstream input(path, std::ios::binary);
         if (!input) throw std::invalid_argument("Cannot fingerprint manifest dependency: " + path);
@@ -29,6 +44,7 @@ namespace {
         }
     }
 
+    /// True for the unit strings a manifest accepts: empty, kg kg-1, mol mol-1, ppmv, ug kg-1, kg m-3, mol m-3.
     bool supported_units(const std::string& units) {
         return units.empty() || units == "kg kg-1" || units == "mol mol-1" || units == "ppmv" ||
                units == "ug kg-1" || units == "kg m-3" || units == "mol m-3";

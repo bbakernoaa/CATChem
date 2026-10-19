@@ -1,3 +1,13 @@
+/**
+ * @file catchem_config_manager.cpp
+ * @brief YAML parsing, typed queries, and validation rules for ConfigManager.
+ *
+ * @details Public members are documented at their declarations in
+ * catchem_config_manager.hpp and inherit those blocks here; only the
+ * anonymous-namespace parsing helpers are documented in place. Validation is
+ * deliberately non-throwing: every rule appends a ValidationIssue and the
+ * caller decides whether errors are fatal via validate_or_throw().
+ */
 #include "catchem_config_manager.hpp"
 #include "catchem_logger.hpp"
 #include <algorithm>
@@ -33,6 +43,7 @@ namespace catchem {
 
     namespace {
 
+        /// Fetch one map child of a YAML node, returning an undefined node instead of throwing on type mismatches.
         YAML::Node safe_get_map_child(const YAML::Node& node, std::string_view key) {
             if (!node.IsDefined() || !node.IsMap()) {
                 return YAML::Node();
@@ -48,6 +59,7 @@ namespace catchem {
             return YAML::Node();
         }
 
+        /// Walk a '/'-separated path through nested YAML maps; returns an undefined node at the first missing, null, or non-map segment.
         YAML::Node resolve_yaml_path(const YAML::Node& root, std::string_view path) {
             if (!root.IsDefined() || root.IsNull() || path.empty()) {
                 return YAML::Node();
@@ -72,6 +84,7 @@ namespace catchem {
             return chain.back();
         }
 
+        /// Join a relative dependency path to the declaring config file's directory; absolute paths and the placeholders none/NONE/null/NULL pass through unchanged.
         std::string resolve_relative_config_path(const std::string& config_file, const std::string& path) {
             if (path.empty() || path.front() == '/' || path == "none" || path == "NONE" || path == "null" ||
                 path == "NULL")
@@ -84,6 +97,7 @@ namespace catchem {
             return config_file.substr(0, slash + 1) + path;
         }
 
+        /// Extract a file path from a scalar or from the first of source_file/input_file/filename/file/path; boolean and placeholder scalars return empty.
         std::string extract_file_setting(const YAML::Node& node) {
             if (!node)
                 return "";
@@ -112,10 +126,12 @@ namespace catchem {
             return "";
         }
 
+        /// Decode a node as T when it exists, otherwise return default_value (no exception on missing nodes).
         template <typename T> T value_or(const YAML::Node& node, const T& default_value) {
             return node ? node.as<T>() : default_value;
         }
 
+        /// Decode a YAML sequence into strings; empty result when the node is absent or not a sequence.
         std::vector<std::string> string_vector_or_empty(const YAML::Node& node) {
             std::vector<std::string> values;
             if (!node || !node.IsSequence()) {
@@ -127,6 +143,7 @@ namespace catchem {
             return values;
         }
 
+        /// Decode a YAML sequence into doubles; empty result when the node is absent or not a sequence.
         std::vector<double> double_vector_or_empty(const YAML::Node& node) {
             std::vector<double> values;
             if (!node || !node.IsSequence()) {
@@ -138,6 +155,7 @@ namespace catchem {
             return values;
         }
 
+        /// Parse a processes/ or process/ block into ProcessConfig entries appended to data.processes.
         void parse_processes(const YAML::Node& process_node, ConfigData& data) {
             if (!process_node || !process_node.IsMap()) {
                 return;
@@ -164,6 +182,8 @@ namespace catchem {
         // are skipped.  daily_hold defaults to false and monthly_anchor to
         // "climatological", so a config written before this feature parses
         // unchanged and yields the previous behaviour.
+
+        /// Parse the extemis sub-maps into data.emission_categories (MAPL temporal options mirror).
         void parse_emission_categories(const YAML::Node& extemis_node, ConfigData& data) {
             if (!extemis_node || !extemis_node.IsMap()) {
                 return;

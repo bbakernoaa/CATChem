@@ -1,3 +1,15 @@
+/**
+ * @file catchem_species_metadata.cpp
+ * @brief Implementation of make_species_metadata(), the SpeciesConfig to
+ *        SpeciesMetadata normaliser.
+ *
+ * @details The only function here is declared in catchem_species_metadata.hpp
+ * and inherits its documentation. The conversion is field-by-field copy with
+ * three normalisation rules: aerosol-only flags are cleared for gases, the
+ * legacy dry-air mass-ratio representation is applied when neither
+ * amount_type nor air_basis is configured, and mw_g falls back to
+ * molecular_weight_kg_mol scaled by 1000 when not given directly.
+ */
 #include "catchem_species_metadata.hpp"
 #include "catchem_config_manager.hpp"
 
