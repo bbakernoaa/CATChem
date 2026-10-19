@@ -1,3 +1,17 @@
+/**
+ * @file catchem_api_manifest.cpp
+ * @brief C entry points for mechanism-manifest loading, probing, and validation.
+ *
+ * @details Implements the manifest section of catchem_api.hpp. A manifest
+ * handle is a registered shared_ptr to MechanismManifest (Owned); the
+ * file-local helpers in the anonymous namespace provide string-result
+ * probing (length == 0 with a null buffer returns the required capacity as
+ * success), capacity checks, and handle admission around manifest
+ * operations. Species v1 flag bits are gas=1, aerosol=2, advected=4.
+ * validate_config compares manifest fingerprints against the ConfigManager;
+ * validate_core compares against the admitted mechanism. Member
+ * documentation lives on catchem_api.hpp.
+ */
 #include "catchem_api.hpp"
 #include "catchem_api_internal.hpp"
 #include "catchem_core.hpp"

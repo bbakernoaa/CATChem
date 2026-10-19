@@ -1,3 +1,15 @@
+/**
+ * @file catchem_api_utilities.cpp
+ * @brief C entry points for time-state helpers and unit/meteorology conversions.
+ *
+ * @details Implements the utilities section of catchem_api.hpp: the TimeState
+ * accessors (reset pins 2000-01-01 with a 3600 s timestep; timezone offset
+ * clamps longitude/15 to [-12, 14]; holiday checks cover global Jan 1/Dec 25
+ * and US Jul 4/Nov 22-28), catchem_convert_concentration between VMR and mass
+ * pairs (unknown unit pair sets *rc = -1 and echoes the input), and thin
+ * pass-through wrappers over catchem::met_utilities whose per-function
+ * documentation lives on catchem_met_utilities.hpp.
+ */
 #include "catchem_api.hpp"
 #include "catchem_api_internal.hpp"
 #include "catchem_core.hpp"

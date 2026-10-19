@@ -1,3 +1,16 @@
+/**
+ * @file catchem_api_state.cpp
+ * @brief C entry points for state field binding, access, and derived meteorology.
+ *
+ * @details Implements the state section of catchem_api.hpp: bind/pointer
+ * accessors for met, chemistry, and species fields with extent checks against
+ * the column/level/species contract (PEDGE, Z, PFILSAN, PFLLSAN require
+ * level+1 interfaces), 1-based species offsets into species_conc, and the
+ * derive_bxheight/derive_airden_dry physical kernels whose std::domain_error
+ * maps to CATCHEM_PHYSICAL_VALIDATION_FAILURE. _checked pointer variants
+ * refresh the host mirror via host_read() first for NUOPC-style export.
+ * Member documentation lives on catchem_api.hpp.
+ */
 #include "catchem_api.hpp"
 #include "catchem_api_internal.hpp"
 #include "catchem_core.hpp"

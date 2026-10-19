@@ -1,3 +1,15 @@
+/**
+ * @file catchem_execution_plan.cpp
+ * @brief Contract compilation and product-provenance bookkeeping for ExecutionPlan.
+ *
+ * @details compile() runs five ordered checks over the schedule: structural
+ * contract validity, mechanism role/capability requirements, conflicting
+ * producers of the same shared field, product producer/units agreement,
+ * required-product availability, and producer-before-consumer ordering.
+ * All findings go into the ValidationIssueReport; only prepare() throws, and
+ * only when a Required read field cannot be resolved against the StateManager.
+ * Member documentation lives on catchem_execution_plan.hpp.
+ */
 #include "catchem_execution_plan.hpp"
 #include <stdexcept>
 #include <unordered_map>

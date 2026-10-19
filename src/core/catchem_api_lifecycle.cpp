@@ -1,3 +1,16 @@
+/**
+ * @file catchem_api_lifecycle.cpp
+ * @brief C entry points for Core create/destroy, state, and process handles.
+ *
+ * @details Implements the handle lifecycle of catchem_api.hpp: create/destroy
+ * of Core, StateManager (registered as a Borrowed child of its Core), and
+ * process admission by contract or name. destroy runs close_and_wait,
+ * invalidate_children, and shutdown before delete, reporting ShutdownFailure
+ * if any step throws but deleting the Core regardless. run_process_checked
+ * maps TimestepOutcome/SelectedOperationOutcome values to status codes
+ * (Failed to ProcessFailure, Rejected to ContractViolation). Member
+ * documentation lives on catchem_api.hpp.
+ */
 #include "catchem_api.hpp"
 #include "catchem_api_internal.hpp"
 #include "catchem_core.hpp"

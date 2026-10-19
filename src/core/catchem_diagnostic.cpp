@@ -1,3 +1,17 @@
+/**
+ * @file catchem_diagnostic.cpp
+ * @brief Storage, sync and registration logic for diagnostics.
+ *
+ * @details Implements DiagnosticField and DiagnosticManager for both build
+ * flavors: the CATCHEM_ENABLE_KOKKOS branch allocates LayoutLeft device and
+ * host views and deep-copies between them, while the host-only branch keeps a
+ * single std::vector and treats mdspans over it as the views, so sync calls
+ * are no-ops. register_field_contract() is where the unpacking invariants are
+ * enforced: Column is the leading axis, at most one packed Species/Category
+ * axis, exactly one NetCDF-safe label per packed slot, and no duplicate
+ * labels. Documentation lives on the headers; this file adds none for
+ * header-declared symbols.
+ */
 // src/core/catchem_diagnostic.cpp
 #include "catchem_diagnostic_manager.hpp"
 #include <algorithm>

@@ -1,3 +1,17 @@
+/**
+ * @file catchem_core.cpp
+ * @brief Implementation of the Core orchestration engine.
+ *
+ * @details Defines the staged construction pipeline, the schedule lifecycle
+ * (add_process/shutdown), whole-schedule timesteps and the host-driven
+ * selected-process interval path. All public member documentation lives on
+ * catchem_core.hpp; this file documents only its internal helpers.
+ *
+ * Ordering guarantees enforced here: contracts are compiled before any
+ * process runs (add_process rejects an invalid schedule), products are
+ * validated for freshness before each consumer executes, and finalize runs
+ * in reverse schedule order exactly once per initialized process.
+ */
 #include "catchem_core.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
@@ -9,6 +23,16 @@
 
 namespace {
 
+    /**
+     * @brief Load the species and emission files named by the config, then validate.
+     *
+     * @param config      ConfigManager that already parsed the main YAML.
+     * @param config_file Path of that YAML; relative includes resolve against its directory.
+     *
+     * @throws whatever load_species_file(), load_emission_mapping_file() or
+     *         validate_or_throw() raises; Core::initialize() converts that into
+     *         a failed construction and runs shutdown() before rethrowing.
+     */
     void load_and_validate_configuration(catchem::ConfigManager& config, const std::string& config_file) {
         if (!config.data.species_filename.empty())
             config.load_species_file(catchem::resolve_config_path(config_file, config.data.species_filename));
@@ -21,6 +45,16 @@ namespace {
     // Diagnostic-only: reports min/max of a fixed species watch-list after each
     // process, so a runaway species can be bisected to the introducing process
     // without re-running the whole coupled model multiple times.
+    /**
+     * @brief Log per-species min/max/sum of the watch-list after one process.
+     *
+     * @param state        StateManager whose unified concentration view is swept.
+     * @param process_name Name tagged onto each emitted record.
+     * @param step         Timestep ordinal tagged onto each record.
+     *
+     * @note Returns immediately below the Debug threshold, so the full
+     *       column x level sweep costs nothing in production runs.
+     */
     void log_watch_species_bounds(catchem::StateManager& state, const std::string& process_name, std::size_t step) {
         // Per-step, per-process, per-species diagnostics: keep them behind the
         // DEBUG threshold and skip the full-array sweep when it is off.

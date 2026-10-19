@@ -1,3 +1,17 @@
+/**
+ * @file catchem_logger.cpp
+ * @brief Implementation of the structured CATChem logger.
+ *
+ * @details Writes synchronously: ERROR goes to std::cerr, every other level
+ * to std::clog. Each record is rendered as
+ * `[YYYY-MM-DD HH:MM:SS] [LEVEL] [catchem-padded-15] [trace-8] message | k=v`
+ * with the trace id taken from the bound state's runtime_trace_id() or a
+ * blank "global" field. ANSI colour is applied only when the stream is a tty
+ * and NO_COLOR is unset. The default level comes from CATCHEM_LOG_LEVEL,
+ * read once and cached; override slots address individual categories, with
+ * -1 meaning "no override". Method documentation lives on
+ * catchem_logger.hpp.
+ */
 #include "catchem_logger.hpp"
 #include <algorithm>
 #include <cctype>
