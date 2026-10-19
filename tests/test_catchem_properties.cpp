@@ -225,6 +225,40 @@ void CatchemPropertiesTest_ConfigManagerLogLevelDrivesLogger() {
         assert(!catchem::Logger::enabled(Level::Info)); // warn override from step 1 persists
     }
 
+    // 4) simulation/verbose/watch_species: a list of names, the word all
+    //    (any case), absent (nothing watched), or an error for anything else.
+    {
+        auto load = [](const std::string& path, const std::string& body) {
+            std::ofstream f(path);
+            f << "simulation:\n  name: watch\n  verbose:\n    activate: true\n" << body;
+            f.close();
+            catchem::ConfigManager mgr;
+            mgr.load_from_file(path);
+            return mgr.data.simulation;
+        };
+        const auto listed = load("cfg_watch_list.yml", "    watch_species: [SO2, dust1]\n");
+        assert(listed.watch_species == std::vector<std::string>({"SO2", "dust1"}));
+        assert(!listed.watch_all_species);
+        const auto all = load("cfg_watch_all.yml", "    watch_species: ALL\n");
+        assert(all.watch_all_species && all.watch_species.empty());
+        const auto none = load("cfg_watch_absent.yml", "");
+        assert(!none.watch_all_species && none.watch_species.empty());
+        const auto null_value = load("cfg_watch_null.yml", "    watch_species: ~\n");
+        assert(!null_value.watch_all_species && null_value.watch_species.empty());
+        for (const auto& [path, body] :
+             {std::pair<std::string, std::string>{"cfg_watch_scalar.yml", "    watch_species: so2\n"},
+              std::pair<std::string, std::string>{"cfg_watch_nested.yml", "    watch_species: [so2, {a: b}]\n"},
+              std::pair<std::string, std::string>{"cfg_watch_map.yml", "    watch_species: {a: b}\n"}}) {
+            bool threw = false;
+            try {
+                load(path, body);
+            } catch (const std::invalid_argument&) {
+                threw = true;
+            }
+            assert(threw);
+        }
+    }
+
     // Leave the process in the environment-controlled state for later tests.
     catchem::Logger::clear_level();
 
