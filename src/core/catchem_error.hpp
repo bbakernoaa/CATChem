@@ -41,7 +41,9 @@ namespace catchem {
      * - NullArgument: a required pointer is null (handle, output buffer, field
      *   name, or versioned descriptor) before any work is attempted.
      * - MissingField: a named diagnostic or 3D state field is not registered.
-     * - RankMismatch: reserved; see the enumerator note below.
+     * - RankMismatch: a diagnostic field is registered with a rank other than
+     *   2 or 3; the C entry point returns the CATCHEM_RANK_MISMATCH spelling
+     *   directly (see the enumerator note for the enum-spelling status).
      * - ExtentMismatch: caller-declared extents disagree with the StateManager
      *   (columns/levels/species, or PEDGE/Z/PFILSAN/PFLLSAN level+1), a create
      *   extent is non-positive, or a string buffer is shorter than the
@@ -50,7 +52,7 @@ namespace catchem {
      *   label slot index is negative or at/past the container end.
      * - StaleGeneration: the handle is registered but its generation differs
      *   from the requested one (HandleRegistry::acquire()).
-     * - DuplicateMapping: reserved; see the enumerator note below.
+     * - DuplicateMapping: reserved; no code path currently returns either spelling.
      * - InvalidState: an axis ordinal or validation policy is outside its
      *   enumeration, a diagnostic has no packed dimension to unpack, the Core
      *   has no active mechanism, a config-driven constructor or timestep was
@@ -62,7 +64,7 @@ namespace catchem {
      *   gone, or it is closing; also close_and_wait() on an unknown handle.
      * - WrongHandleType: registered, but under a different HandleType than the
      *   operation requires, e.g. a State handle where a Core is expected.
-     * - RuntimeUnavailable: reserved; see the enumerator note below.
+     * - RuntimeUnavailable: reserved; no code path currently returns either spelling.
      * - ContractViolation: a versioned descriptor's schema_version/struct_size
      *   is unsupported, an interval or invocation identity is empty or its
      *   duration non-finite/longer than its interval, a field rank exceeds the
@@ -82,16 +84,16 @@ namespace catchem {
         Success = 0,                    ///< The operation completed and its outputs are valid.
         NullArgument = 1,               ///< A required pointer argument (handle, buffer, name, descriptor) was null.
         MissingField = 2,               ///< The named diagnostic or state field is not registered.
-        RankMismatch = 3,               ///< Reserved; mirrors CATCHEM_RANK_MISMATCH (no BoundaryStatus emission site).
+        RankMismatch = 3,               ///< A diagnostic register call used a rank other than 2 or 3; emitted as the CATCHEM_RANK_MISMATCH spelling by the C entry point.
         ExtentMismatch = 4,             ///< Declared extents or buffer lengths disagree with the state contract.
         InvalidIndex = 5,               ///< An index argument is outside its container's valid range.
         StaleGeneration = 6,            ///< The handle exists but predates the requested generation.
-        DuplicateMapping = 7,           ///< Reserved; mirrors CATCHEM_DUPLICATE_MAPPING and has no emission site.
+        DuplicateMapping = 7,           ///< Reserved: mirrors CATCHEM_DUPLICATE_MAPPING; no code path currently returns either spelling.
         InvalidState = 8,               ///< The callee is not in a state that admits this call.
         InternalError = 9,              ///< An unexpected escaping exception or registry failure; cause carries what().
         InvalidHandle = 10,             ///< The pointer is not a usable handle of the expected type.
         WrongHandleType = 11,           ///< The handle is registered under a different HandleType.
-        RuntimeUnavailable = 12,        ///< Reserved; mirrors CATCHEM_RUNTIME_UNAVAILABLE and has no emission site.
+        RuntimeUnavailable = 12,        ///< Reserved: mirrors CATCHEM_RUNTIME_UNAVAILABLE; no code path currently returns either spelling.
         ContractViolation = 13,         ///< A versioned descriptor or interval argument breaks its contract.
         InvalidConfiguration = 14,      ///< A configuration or manifest file failed to parse or validate.
         ProcessFailure = 15,            ///< An admitted process body threw during execution.
