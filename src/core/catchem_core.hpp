@@ -10,6 +10,7 @@
 #include "catchem_grid_manager.hpp"
 #include "catchem_process_interface.hpp"
 #include "catchem_runtime_lease.hpp"
+#include "catchem_selected_dispatch.hpp"
 #include "catchem_state_manager.hpp"
 #include <memory>
 #include <mutex>
@@ -48,14 +49,20 @@ namespace catchem {
         std::vector<std::shared_ptr<ProcessInterface>> processes; ///< Scheduled physics processes.
         TimestepOutcome last_outcome_;
         std::size_t timestep_counter_ = 0;
+        std::uint64_t active_interval_id_ = 0;
         bool tainted_ = false;
         ExecutionPlan execution_plan_;
+        std::unique_ptr<SelectedProcessLedger> selected_dispatch_;
         mutable std::mutex lifecycle_mutex_;
         std::vector<bool> initialized_processes_;
         bool shutdown_ = false;
 
         /** @brief Creates and initializes the processes requested by configuration. */
         void add_configured_processes();
+
+        /** Execute one already-resolved process under the lifecycle lock. */
+        void execute_process(std::size_t index, bool verbose);
+        void rebuild_selected_dispatch();
 
         /** @brief Performs the common ordered construction stages. */
         void initialize(const CoreCreateOptions& options);
@@ -109,6 +116,7 @@ namespace catchem {
 
         /** @brief Get the number of scheduled physics processes. */
         std::size_t get_num_processes() const;
+        const ProcessContract& get_process_contract(std::size_t index) const { return execution_plan_.contract(index); }
 
         /**
          * @brief Return the unique required host-input field names declared by
@@ -138,6 +146,10 @@ namespace catchem {
          * @brief Executes a single timestep using the default step size from configuration.
          */
         void run_timestep();
+
+        void begin_interval(std::uint64_t interval_id, const TimeState& interval_time);
+        SelectedOperationOutcome run_selected_process(const SelectedInvocationKey& key, double duration);
+        void end_interval(std::uint64_t interval_id);
     };
 
 } // namespace catchem

@@ -31,26 +31,38 @@ void run_wetdep_gocart_science_bridge(int n_cols, int n_levels, int n_species, d
 
 namespace catchem {
 
+    /** @brief Declare required host inputs, including GOCART-only rain amounts. */
     ProcessContract WetDepProcess::get_contract() const {
         // PRECCON/PRECLSC are instantaneous surface rain amounts consumed only
         // by the GOCART2G wet-removal kernel.  They are declared Optional so a
         // jacob-only configuration still validates; run() rejects the absence
         // loudly when the active scheme needs them.
-        auto contract = make_contract(
-            get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"), host_field_interface("PEDGE", "Pa"),
-                         host_field_3d("AIRDEN", "kg/m3"), host_field_3d("AIRDEN_DRY", "kg/m3"),
-                         host_field_interface("PFILSAN", "kg/m2/s"), host_field_interface("PFLLSAN", "kg/m2/s"),
-                         host_field_3d("QV", "kg/kg"), host_field_3d("REEVAPLS", "kg/kg/s"),
-                         host_field_2d("PRECCON", "m", FieldRequirement::Optional),
-                         host_field_2d("PRECLSC", "m", FieldRequirement::Optional), host_concentration()});
+        const auto rain_requirement = active_scheme == "gocart" ? FieldRequirement::Required
+                                                                  : FieldRequirement::Optional;
+        std::vector<FieldAccessContract> fields{host_field_3d("T", "K"),
+                                                host_field_interface("PEDGE", "Pa"),
+                                                host_field_3d("AIRDEN", "kg/m3"),
+                                                host_field_interface("PFILSAN", "kg/m2/s"),
+                                                host_field_interface("PFLLSAN", "kg/m2/s"),
+                                                host_field_2d("PRECCON", "m", rain_requirement),
+                                                host_field_2d("PRECLSC", "m", rain_requirement),
+                                                host_concentration()};
+        if (active_scheme == "jacob") {
+            fields.insert(fields.end(), {host_field_3d("PMID", "Pa"), host_field_3d("AIRDEN_DRY", "kg/m3"),
+                                         host_field_3d("QV", "kg/kg"), host_field_3d("REEVAPLS", "kg/kg/s")});
+        }
+        auto contract = make_contract(get_name(), std::move(fields));
         return contract;
     }
 
     WetDepProcess::WetDepProcess() : active_scheme("jacob"), diagnostics_enabled(true) {}
 
+    /** @brief Derive only the meteorological products consumed by the active wet-deposition scheme. */
     void WetDepProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
-        state->derive_reevapls();
-        state->derive_airden_dry();
+        if (active_scheme == "jacob") {
+            state->derive_reevapls();
+            state->derive_airden_dry();
+        }
         state->derive_airden();
     }
 

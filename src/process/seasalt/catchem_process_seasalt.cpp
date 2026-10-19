@@ -6,6 +6,7 @@
 #include <array>
 #include <cctype>
 #include <iostream>
+#include <iomanip>
 
 extern "C" {
 void run_seasalt_science_bridge(int n_cols, int n_levels, int n_species, int n_total_species, double dt,
@@ -311,6 +312,19 @@ namespace catchem {
             density.data(), radius.data(), lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(), mw_g.data(),
             bin_species_names.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, full_tendency.data(),
             diag_mass_total_ptr, diag_num_total_ptr, diag_mass_bin_ptr, diag_num_bin_ptr, diag_ids, n_diag_species);
+
+        /// Report the emitted-bin closure used by the CCPP-SCM acceptance case.
+        if (diag_mass_total_ptr && diag_mass_bin_ptr && n_diag_species > 0) {
+            double total_sum = 0.0;
+            double bin_sum = 0.0;
+            for (int column = 0; column < state->column_count(); ++column) {
+                total_sum += diag_mass_total_ptr[column];
+                for (int bin = 0; bin < n_diag_species; ++bin)
+                    bin_sum += diag_mass_bin_ptr[column + state->column_count() * bin];
+            }
+            std::clog << std::setprecision(17) << "CATCHEM_BUDGET name=seasalt_bin_closure RESIDUAL=" << (total_sum - bin_sum)
+                      << " TOTAL=" << total_sum << " BIN_SUM=" << bin_sum << std::endl;
+        }
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();

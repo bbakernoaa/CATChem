@@ -9,23 +9,12 @@
 
 namespace {
 
-    // Resolve a (possibly relative) species path against the config file's
-    // directory, so YAML-relative paths work regardless of the host's CWD.
-    std::string resolve_against_config(const std::string& config_file, const std::string& path) {
-        if (path.empty() || path.front() == '/')
-            return path;
-        auto slash = config_file.find_last_of('/');
-        if (slash == std::string::npos)
-            return path;
-        return config_file.substr(0, slash + 1) + path;
-    }
-
     void load_and_validate_configuration(catchem::ConfigManager& config, const std::string& config_file) {
         if (!config.data.species_filename.empty())
-            config.load_species_file(resolve_against_config(config_file, config.data.species_filename));
+            config.load_species_file(catchem::resolve_config_path(config_file, config.data.species_filename));
         if (!config.data.simulation.emission_filename.empty())
             config.load_emission_mapping_file(
-                resolve_against_config(config_file, config.data.simulation.emission_filename));
+                catchem::resolve_config_path(config_file, config.data.simulation.emission_filename));
         config.validate_or_throw();
     }
 
@@ -222,6 +211,85 @@ namespace catchem {
         return processes.size();
     }
 
+    void Core::execute_process(std::size_t index, bool verbose) {
+        try {
+            const auto& mechanism = state_mgr->chemistry().mechanism;
+            const std::string mechanism_identity = mechanism
+                ? (!mechanism->fingerprint.empty() ? mechanism->fingerprint : mechanism->identity)
+                : std::string{};
+            const auto interval_identity = active_interval_id_ ? active_interval_id_ : timestep_counter_;
+            for (const auto& requirement : execution_plan_.contract(index).products) {
+                if (!requirement.required || !execution_plan_.product_provenance(requirement.name)) continue;
+                if (!execution_plan_.product_is_current(requirement.name, mechanism_identity, interval_identity,
+                                                        state_mgr->current_import_generation()))
+                    throw std::runtime_error("Process " + processes.at(index)->get_name() +
+                                             " requires unavailable or stale derived product " + requirement.name);
+            }
+            if (verbose) {
+                Logger::debug(state_mgr.get(), "Core process prepare",
+                              {{"step", std::to_string(last_outcome_.timestep)},
+                               {"index", std::to_string(index)}, {"process", processes.at(index)->get_name()}});
+                Logger::debug(state_mgr.get(), "Core process input preparation",
+                              {{"step", std::to_string(last_outcome_.timestep)},
+                               {"index", std::to_string(index)}, {"process", processes.at(index)->get_name()}});
+            }
+            processes.at(index)->prepare_inputs(state_mgr);
+            execution_plan_.prepare(index, *state_mgr);
+            if (verbose)
+                Logger::debug(state_mgr.get(), "Core process run",
+                              {{"step", std::to_string(last_outcome_.timestep)},
+                               {"index", std::to_string(index)}, {"process", processes.at(index)->get_name()}});
+            processes.at(index)->run(state_mgr);
+            if (verbose) {
+                log_watch_species_bounds(*state_mgr, processes.at(index)->get_name(), last_outcome_.timestep);
+                Logger::debug(state_mgr.get(), "Core process bookkeeping",
+                              {{"step", std::to_string(last_outcome_.timestep)},
+                               {"index", std::to_string(index)}, {"process", processes.at(index)->get_name()}});
+            }
+            execution_plan_.complete(index, *state_mgr);
+            execution_plan_.publish_products(index, mechanism_identity,
+                                             interval_identity,
+                                             state_mgr->current_import_generation());
+            if (verbose)
+                Logger::debug(state_mgr.get(), "Core process complete",
+                              {{"step", std::to_string(last_outcome_.timestep)},
+                               {"index", std::to_string(index)}, {"process", processes.at(index)->get_name()}});
+        } catch (const std::exception& error) {
+            last_outcome_.status = TimestepStatus::PartialUpdate;
+            last_outcome_.process_name = processes.at(index)->get_name();
+            last_outcome_.process_index = index;
+            last_outcome_.cause = error.what();
+            const auto recovery = execution_plan_.contract(index).recovery;
+            last_outcome_.state = recovery == RecoveryCapability::RequiresReinitialize
+                                      ? StateClassification::RequiresReinitialize
+                                      : StateClassification::RequiresReimport;
+            tainted_ = true;
+            execution_plan_.invalidate_all_products();
+            diag_mgr->mark_generation_failed();
+            Logger::error(state_mgr.get(), "Core process failed",
+                          {{"step", std::to_string(last_outcome_.timestep)},
+                           {"index", std::to_string(index)}, {"process", last_outcome_.process_name},
+                           {"cause", last_outcome_.cause}});
+            throw;
+        } catch (...) {
+            last_outcome_.status = TimestepStatus::PartialUpdate;
+            last_outcome_.process_name = processes.at(index)->get_name();
+            last_outcome_.process_index = index;
+            last_outcome_.cause = "unknown non-standard exception";
+            last_outcome_.state = execution_plan_.contract(index).recovery == RecoveryCapability::Reconstructible
+                                      ? StateClassification::RequiresReimport
+                                      : StateClassification::RequiresReinitialize;
+            tainted_ = true;
+            execution_plan_.invalidate_all_products();
+            diag_mgr->mark_generation_failed();
+            Logger::error(state_mgr.get(), "Core process failed",
+                          {{"step", std::to_string(last_outcome_.timestep)},
+                           {"index", std::to_string(index)}, {"process", last_outcome_.process_name},
+                           {"cause", last_outcome_.cause}});
+            throw;
+        }
+    }
+
     std::vector<std::string> Core::get_required_host_fields() const {
         std::vector<std::string> fields;
         std::unordered_set<std::string> seen;
@@ -278,8 +346,26 @@ namespace catchem {
             processes.pop_back();
             initialized_processes_.pop_back();
             execution_plan_.compile(processes, state_mgr->chemistry().mechanism.get());
+            rebuild_selected_dispatch();
             throw std::invalid_argument("Invalid process schedule: " + issue_summary);
         }
+        rebuild_selected_dispatch();
+    }
+
+    void Core::rebuild_selected_dispatch() {
+        if (selected_dispatch_ && selected_dispatch_->interval_open())
+            throw std::logic_error("Cannot change process schedule during an open selected interval");
+        std::vector<SelectedProcessSpec> specs;
+        specs.reserve(processes.size());
+        for (std::size_t index = 0; index < processes.size(); ++index) {
+            SelectedProcessSpec spec;
+            spec.name = processes[index]->get_name();
+            spec.active = true;
+            for (const auto& product : execution_plan_.contract(index).products)
+                if (product.required && !product.producer.empty()) spec.required_producers.push_back(product.producer);
+            specs.push_back(std::move(spec));
+        }
+        selected_dispatch_ = std::make_unique<SelectedProcessLedger>(std::move(specs));
     }
 
     void Core::run_timestep(double dt) {
@@ -301,7 +387,7 @@ namespace catchem {
         last_outcome_.timestep = ++timestep_counter_;
         last_outcome_.duration = dt;
         last_outcome_.import_generation = state_mgr->current_import_generation();
-        if (dt <= 0.0 || dt > 86400.0) {
+        if (!std::isfinite(dt) || dt <= 0.0 || dt > 86400.0) {
             last_outcome_.status = TimestepStatus::ValidationFailed;
             last_outcome_.state = StateClassification::RequiresReimport;
             last_outcome_.cause = "invalid timestep duration";
@@ -310,6 +396,8 @@ namespace catchem {
         }
 
         try {
+            state_mgr->clock().timestep = dt;
+            state_mgr->clock().calculate_derived_fields();
             state_mgr->validate_ready_for_execution();
         } catch (const std::exception& error) {
             last_outcome_.status = TimestepStatus::ValidationFailed;
@@ -328,71 +416,8 @@ namespace catchem {
         }
         diag_mgr->begin_timestep();
 
-        for (std::size_t index = 0; index < processes.size(); ++index) {
-            try {
-                if (verbose) {
-                    Logger::debug(state_mgr.get(), "Core process prepare",
-                                  {{"step", std::to_string(last_outcome_.timestep)},
-                                   {"index", std::to_string(index)},
-                                   {"process", processes[index]->get_name()}});
-                    Logger::debug(state_mgr.get(), "Core process input preparation",
-                                  {{"step", std::to_string(last_outcome_.timestep)},
-                                   {"index", std::to_string(index)},
-                                   {"process", processes[index]->get_name()}});
-                }
-                processes[index]->prepare_inputs(state_mgr);
-                execution_plan_.prepare(index, *state_mgr);
-                if (verbose) {
-                    Logger::debug(state_mgr.get(), "Core process run",
-                                  {{"step", std::to_string(last_outcome_.timestep)},
-                                   {"index", std::to_string(index)},
-                                   {"process", processes[index]->get_name()}});
-                }
-                processes[index]->run(state_mgr);
-                if (verbose) {
-                    log_watch_species_bounds(*state_mgr, processes[index]->get_name(), last_outcome_.timestep);
-                    Logger::debug(state_mgr.get(), "Core process bookkeeping",
-                                  {{"step", std::to_string(last_outcome_.timestep)},
-                                   {"index", std::to_string(index)},
-                                   {"process", processes[index]->get_name()}});
-                }
-                execution_plan_.complete(index, *state_mgr);
-                if (verbose) {
-                    Logger::debug(state_mgr.get(), "Core process complete",
-                                  {{"step", std::to_string(last_outcome_.timestep)},
-                                   {"index", std::to_string(index)},
-                                   {"process", processes[index]->get_name()}});
-                }
-            } catch (const std::exception& error) {
-                last_outcome_.status = TimestepStatus::PartialUpdate;
-                last_outcome_.process_name = processes[index]->get_name();
-                last_outcome_.process_index = index;
-                last_outcome_.cause = error.what();
-                last_outcome_.state = StateClassification::RequiresReimport;
-                tainted_ = true;
-                diag_mgr->mark_generation_failed();
-                Logger::error(state_mgr.get(), "Core process failed",
-                              {{"step", std::to_string(last_outcome_.timestep)},
-                               {"index", std::to_string(index)},
-                               {"process", last_outcome_.process_name},
-                               {"cause", last_outcome_.cause}});
-                throw;
-            } catch (...) {
-                last_outcome_.status = TimestepStatus::PartialUpdate;
-                last_outcome_.process_name = processes[index]->get_name();
-                last_outcome_.process_index = index;
-                last_outcome_.cause = "unknown non-standard exception";
-                last_outcome_.state = StateClassification::RequiresReinitialize;
-                tainted_ = true;
-                diag_mgr->mark_generation_failed();
-                Logger::error(state_mgr.get(), "Core process failed",
-                              {{"step", std::to_string(last_outcome_.timestep)},
-                               {"index", std::to_string(index)},
-                               {"process", last_outcome_.process_name},
-                               {"cause", last_outcome_.cause}});
-                throw;
-            }
-        }
+        for (std::size_t index = 0; index < processes.size(); ++index)
+            execute_process(index, verbose);
 
         // Sync diagnostics
         if (verbose)
@@ -408,6 +433,66 @@ namespace catchem {
     void Core::run_timestep() {
         double dt = config_mgr->data.runtime.dt;
         run_timestep(dt);
+    }
+
+    void Core::begin_interval(std::uint64_t interval_id, const TimeState& interval_time) {
+        std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+        if (shutdown_) throw std::logic_error("Cannot begin an interval after shutdown");
+        if (!selected_dispatch_) rebuild_selected_dispatch();
+        if (tainted_) {
+            if (state_mgr->current_import_generation() > last_outcome_.import_generation) tainted_ = false;
+            else throw std::runtime_error("Previous selected operation requires a new import generation");
+        }
+        if (!interval_time.valid()) throw std::out_of_range("Interval date, day-of-year, or duration is invalid");
+        state_mgr->clock() = interval_time;
+        state_mgr->validate_ready_for_execution();
+        selected_dispatch_->begin_interval(interval_id, interval_time.timestep);
+        active_interval_id_ = interval_id;
+        last_outcome_ = {};
+        last_outcome_.timestep = ++timestep_counter_;
+        last_outcome_.duration = interval_time.timestep;
+        last_outcome_.import_generation = state_mgr->current_import_generation();
+        last_outcome_.status = TimestepStatus::Running;
+        last_outcome_.state = StateClassification::Reusable;
+        diag_mgr->begin_interval(interval_id);
+    }
+
+    SelectedOperationOutcome Core::run_selected_process(const SelectedInvocationKey& key, double duration) {
+        std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+        SelectedOperationOutcome result;
+        result.process = key.process;
+        if (shutdown_) { result.cause = "Core is shut down"; return result; }
+        if (!selected_dispatch_) rebuild_selected_dispatch();
+        result.import_generation = state_mgr->current_import_generation();
+        std::size_t selected_index = processes.size();
+        for (std::size_t index = 0; index < processes.size(); ++index)
+            if (processes[index]->get_name() == key.process) { selected_index = index; break; }
+        if (selected_index == processes.size()) { result.cause = "Selected process is unavailable"; return result; }
+        result = selected_dispatch_->run(key, duration, [&] {
+            execute_process(selected_index, config_mgr && config_mgr->data.simulation.verbose_enabled);
+        });
+        result.import_generation = state_mgr->current_import_generation();
+        if (result.status == SelectedOperationStatus::Succeeded) {
+            last_outcome_.process_name = key.process;
+            last_outcome_.process_index = selected_index;
+        } else if (result.status == SelectedOperationStatus::Failed) {
+            last_outcome_.process_name = key.process;
+            last_outcome_.process_index = selected_index;
+            last_outcome_.cause = result.cause;
+        }
+        return result;
+    }
+
+    void Core::end_interval(std::uint64_t interval_id) {
+        std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+        if (shutdown_) throw std::logic_error("Cannot end an interval after shutdown");
+        if (!selected_dispatch_) throw std::logic_error("No selected interval has been opened");
+        selected_dispatch_->end_interval(interval_id);
+        if (tainted_) throw std::runtime_error("Selected process failure left Core state tainted");
+        diag_mgr->sync_to_host();
+        last_outcome_.status = TimestepStatus::Succeeded;
+        last_outcome_.state = StateClassification::Reusable;
+        active_interval_id_ = 0;
     }
 
 } // namespace catchem

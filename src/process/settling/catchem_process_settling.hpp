@@ -6,6 +6,12 @@
 
 namespace catchem {
 
+    /**
+     * @brief Runs the GOCART aerosol settling process through its Fortran bridge.
+     *
+     * The instance owns its immutable Mie-table handle and all species mappings
+     * used by its bridge calls.
+     */
     class SettlingProcess : public ProcessInterface {
     private:
         std::string active_scheme;
@@ -36,8 +42,8 @@ namespace catchem {
         // aerosol_species_names).  The Fortran bridge maps these to loaded table
         // indices; empty means unresolved and aborts initialization on the optics path.
         std::vector<char> aerosol_mie_names;
-        // True once run_settling_mie_init has loaded the tables for this process.
-        bool mie_initialized = false;
+        // Context-owned immutable Fortran table set; zero when simple_scheme is off.
+        int mie_handle = 0;
 
         // Per-process scheme diagnostics (specs: process-diagnostics-parity).
         // diagnostics_enabled mirrors processes/settling/diagnostics;
@@ -49,15 +55,25 @@ namespace catchem {
         std::vector<std::string> diagnostic_species_names; // parallel to ids, for run() lookups
 
     public:
+        /** @brief Constructs a settling process with the default scheme settings. */
         SettlingProcess();
+        /** @brief Releases any Mie-table context still owned by this process. */
+        ~SettlingProcess() override;
+        /** @brief Returns the canonical process name. */
         std::string get_name() const override { return "settling"; }
+        /** @brief Describes the host fields read and written by settling. */
         ProcessContract get_contract() const override;
+        /** @brief Derives required host inputs before contract validation. */
         void prepare_inputs(std::shared_ptr<StateManager> state) override;
+        /** @brief Reads process options and prepares immutable species and table mappings. */
         void init(std::shared_ptr<StateManager> state) override;
+        /** @brief Executes settling for the current host interval. */
         void run(std::shared_ptr<StateManager> state) override;
+        /** @brief Releases resources owned by this initialized process instance. */
         void finalize() override;
 
         // For legacy tests
+        /** @brief Installs the compatibility callback used by legacy tests. */
         void set_fortran_bridge_callback(std::function<void(void*)> cb);
     };
 

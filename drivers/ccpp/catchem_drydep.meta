@@ -1,0 +1,309 @@
+[ccpp-table-properties]
+  name = catchem_drydep_driver
+  type = scheme
+  dependencies = catchem_ccpp_adapter.F90, catchem_ccpp_context.F90, catchem_ccpp_conversion.F90
+
+[ccpp-arg-table]
+  name = catchem_drydep_driver_register
+  type = scheme
+[context_id]
+  standard_name = catchem_context_id
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int
+  intent = in
+[context_generation]
+  standard_name = catchem_context_generation
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int64_t
+  intent = in
+[constituent_props]
+  standard_name = ccpp_constituent_properties
+  units = none
+  dimensions = (number_of_ccpp_constituents)
+  type = ccpp_constituent_properties_t
+  allocatable = True
+  intent = out
+[errmsg]
+  standard_name = ccpp_error_message
+  units = none
+  dimensions = ()
+  type = character | kind = len=*
+  intent = out
+[errflg]
+  standard_name = ccpp_error_code
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = out
+
+[ccpp-arg-table]
+  name = catchem_drydep_driver_init
+  type = scheme
+[context_id]
+  standard_name = catchem_context_id
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int
+  intent = in
+[context_generation]
+  standard_name = catchem_context_generation
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int64_t
+  intent = in
+[constituent_properties]
+  standard_name = ccpp_constituent_properties
+  units = none
+  dimensions = (number_of_ccpp_constituents)
+  type = ccpp_constituent_prop_ptr_t
+  intent = in
+[errmsg]
+  standard_name = ccpp_error_message
+  units = none
+  dimensions = ()
+  type = character | kind = len=*
+  intent = out
+[errflg]
+  standard_name = ccpp_error_code
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = out
+
+[ccpp-arg-table]
+  name = catchem_drydep_driver_run
+  type = scheme
+[context_id]
+  standard_name = catchem_context_id
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int
+  intent = in
+[context_generation]
+  standard_name = catchem_context_generation
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int64_t
+  intent = in
+[interval_id]
+  standard_name = catchem_interval_id
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int64_t
+  intent = in
+[interval_token]
+  standard_name = catchem_interval_token
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int64_t
+  intent = in
+[site]
+  standard_name = catchem_coupling_site
+  units = none
+  dimensions = ()
+  type = character | kind = len=*
+  intent = in
+[subcycle]
+  standard_name = catchem_process_subcycle
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int
+  intent = in
+[duration_seconds]
+  standard_name = timestep_for_physics
+  units = s
+  dimensions = ()
+  type = real | kind = kind_phys
+  intent = in
+[constituents]
+  standard_name = ccpp_constituents
+  units = none
+  dimensions = (horizontal_dimension,vertical_layer_dimension,number_of_ccpp_constituents)
+  type = real | kind = kind_phys
+  intent = in
+[pressure]
+  standard_name = air_pressure
+  units = Pa
+  dimensions = (horizontal_dimension,vertical_layer_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[temperature]
+  standard_name = air_temperature
+  units = K
+  dimensions = (horizontal_dimension,vertical_layer_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[humidity]
+  standard_name = specific_humidity
+  units = kg kg-1
+  dimensions = (horizontal_dimension,vertical_layer_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[pressure_interface]
+  standard_name = air_pressure_at_interface
+  units = Pa
+  dimensions = (horizontal_dimension,vertical_interface_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[geopotential_interface]
+  standard_name = geopotential_at_interface
+  units = m2 s-2
+  dimensions = (horizontal_dimension,vertical_interface_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[cloud_fraction]
+  standard_name = instantaneous_3d_cloud_fraction
+  units = frac
+  dimensions = (horizontal_dimension,vertical_layer_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[surface_pressure]
+  standard_name = surface_air_pressure
+  units = Pa
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[skin_temperature]
+  standard_name = surface_skin_temperature
+  units = K
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[latitude]
+  standard_name = latitude
+  units = radian
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[longitude]
+  standard_name = longitude
+  units = radian
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[friction_velocity]
+  standard_name = surface_friction_velocity
+  units = m s-1
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[sensible_heat_flux]
+  standard_name = surface_upward_sensible_heat_flux_for_chemistry_coupling
+  units = W m-2
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[pbl_thickness]
+  standard_name = atmosphere_boundary_layer_thickness
+  units = m
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[land_use]
+  standard_name = vegetation_type_classification
+  units = index
+  dimensions = (horizontal_dimension)
+  type = integer
+  intent = in
+[leaf_area_index]
+  standard_name = leaf_area_index
+  units = none
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[snow_fraction]
+  standard_name = surface_snow_area_fraction
+  units = frac
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[shortwave_down]
+  standard_name = surface_downwelling_shortwave_flux
+  units = W m-2
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[roughness]
+  standard_name = surface_roughness_length
+  units = cm
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[lake_fraction]
+  standard_name = lake_area_fraction
+  units = frac
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[normalized_soil_wetness]
+  standard_name = normalized_soil_wetness
+  units = frac
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[land_fraction]
+  standard_name = land_area_fraction
+  units = frac
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[sea_ice_fraction]
+  standard_name = sea_ice_area_fraction_of_sea_area_fraction
+  units = frac
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[wind_u]
+  standard_name = x_wind_at_10m
+  units = m s-1
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[wind_v]
+  standard_name = y_wind_at_10m
+  units = m s-1
+  dimensions = (horizontal_dimension)
+  type = real | kind = kind_phys
+  intent = in
+[errmsg]
+  standard_name = ccpp_error_message
+  units = none
+  dimensions = ()
+  type = character | kind = len=*
+  intent = out
+[errflg]
+  standard_name = ccpp_error_code
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = out
+
+[ccpp-arg-table]
+  name = catchem_drydep_driver_final
+  type = scheme
+[context_id]
+  standard_name = catchem_context_id
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int
+  intent = in
+[context_generation]
+  standard_name = catchem_context_generation
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int64_t
+  intent = in
+[errmsg]
+  standard_name = ccpp_error_message
+  units = none
+  dimensions = ()
+  type = character | kind = len=*
+  intent = out
+[errflg]
+  standard_name = ccpp_error_code
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = out

@@ -18,6 +18,12 @@ class FailOnceProcess final : public catchem::ProcessInterface {
 public:
     bool fail = true;
     std::string get_name() const override { return "injected_failure"; }
+    /// Report that imported host state can reconstruct this test process.
+    catchem::ProcessContract get_contract() const override {
+        auto contract = catchem::make_contract(get_name());
+        contract.recovery = catchem::RecoveryCapability::Reconstructible;
+        return contract;
+    }
     void init(std::shared_ptr<catchem::StateManager>) override {}
     void run(std::shared_ptr<catchem::StateManager>) override {
         if (fail) {

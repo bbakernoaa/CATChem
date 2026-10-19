@@ -3,6 +3,8 @@
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
+#include <algorithm>
+#include <iomanip>
 #include <iostream>
 
 extern "C" {
@@ -258,6 +260,9 @@ namespace catchem {
         // 3. Extract chemical arrays & C++ allocated diagnostics
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("DryDep", "CHEM_CONC", conc_ptr);
+        const std::size_t concentration_slab = static_cast<std::size_t>(state->column_count()) * state->level_count();
+        std::vector<double> concentration_before(conc_ptr, conc_ptr +
+            concentration_slab * state->species_count());
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->column_count() * state->level_count() * state->species_count(), 0.0);
@@ -337,6 +342,32 @@ namespace catchem {
             upper_radius.data(), (bool*)is_gas.data(), conc_ptr, mock_tendency.data(),
             state->chemistry().species_names_c_arr.data(), diag_con, diag_vel, diagnostic_species_id.data(),
             diagnostic_species_id.size());
+
+        if (diagnostics_enabled && diag_con) {
+            // The GOCART diagnostic records the finite-step aerosol
+            // concentration removed in the surface layer. Close the host
+            // state change against that independently accumulated diagnostic.
+            double aerosol_removal = 0.0;
+            double diagnostic_removal = 0.0;
+            for (std::size_t slot = 0; slot < diagnostic_species_id.size(); ++slot) {
+                const int species_index = diagnostic_species_id[slot] - 1;
+                if (species_index < 0 || static_cast<std::size_t>(species_index) >= state->chemistry().species_list.size())
+                    throw std::runtime_error("DryDep mass closure received an invalid diagnostic species index");
+                if (!state->chemistry().species_list[static_cast<std::size_t>(species_index)].is_aerosol) continue;
+                const std::size_t species_offset = static_cast<std::size_t>(species_index) * concentration_slab;
+                const std::size_t diagnostic_offset = slot * static_cast<std::size_t>(state->column_count());
+                for (int column = 0; column < state->column_count(); ++column) {
+                    aerosol_removal += concentration_before[species_offset + static_cast<std::size_t>(column)] -
+                                       conc_ptr[species_offset + static_cast<std::size_t>(column)];
+                    diagnostic_removal += diag_con[diagnostic_offset + static_cast<std::size_t>(column)];
+                }
+            }
+            const double residual = std::abs(aerosol_removal - diagnostic_removal) /
+                std::max(std::abs(aerosol_removal) + std::abs(diagnostic_removal), 1.0e-30);
+            std::cout << "CATCHEM_BUDGET name=drydep_aerosol_removal RESIDUAL=" << std::scientific
+                      << std::setprecision(16) << residual << " TOTAL=" << aerosol_removal
+                      << " BIN_SUM=" << diagnostic_removal << '\n';
+        }
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();

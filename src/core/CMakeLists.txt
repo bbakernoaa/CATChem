@@ -5,6 +5,9 @@ endforeach()
 set(
   _cpp_core_srcs
   catchem_core.cpp
+  catchem_manifest.cpp
+  catchem_api_manifest.cpp
+  catchem_species_metadata.cpp
   catchem_api.cpp
   catchem_api_lifecycle.cpp
   catchem_api_state.cpp
@@ -18,6 +21,7 @@ set(
   catchem_emission_manager.cpp
   catchem_logger.cpp
   catchem_runtime_lease.cpp
+  catchem_context_mutex.cpp
   catchem_handle_registry.hpp
   catchem_boundary_guard.hpp
   catchem_physical_validation.cpp

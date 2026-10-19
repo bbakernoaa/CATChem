@@ -24,11 +24,16 @@ module SettlingScienceBridge_Mod
    ! GOCART2G_Mie is a Fortran derived type with deferred-length allocatable and
    ! pointer components, so it cannot cross the C ABI; the store therefore lives
    ! on this side and C++ only ever passes fixed-width names and paths.  The
-   ! tables are loaded once during process initialization and are read-only
-   ! afterwards, which mirrors the upstream ChemStateType%MieData ownership and
-   ! keeps every MPI rank's copy identical (same config, same files).
-   type(GOCART2G_Mie), allocatable, target, save :: mie_store(:)
-   character(len=32), allocatable, target, save :: mie_names_store(:)
+   ! Each process owns one immutable context in this registry. Handles prevent
+   ! one process from replacing or releasing another process's loaded tables.
+   !> \brief Stores instance-owned state for MieTableContext.
+   type :: MieTableContext
+      integer(c_int) :: handle = 0_c_int
+      type(GOCART2G_Mie), allocatable :: tables(:)
+      character(len=32), allocatable :: names(:)
+   end type MieTableContext
+   type(MieTableContext), allocatable, target, save :: mie_contexts(:)
+   integer(c_int), save :: next_mie_handle = 1_c_int
    ! Zero-sized target used as the scheme's Mie actual argument on the metadata
    ! path, preserving today's "no tables" behavior.
    type(GOCART2G_Mie), target, save :: empty_mie(0)
@@ -36,7 +41,14 @@ contains
    ! Compute the legacy biomass-burning AOT limiter from the shared optics
    ! cache.  The source flux is read-only and each mapped target calls this
    ! independently, preventing mapping-order attenuation.
-   subroutine run_emission_mie_factor(n_columns, n_levels, mie_name_c, emission_flux, rh, &
+  !> \brief Implements run emission mie factor for the CATChem CCPP boundary.
+  !> \param mie_handle Argument used by run_emission_mie_factor.
+  !> \param n_columns Argument used by run_emission_mie_factor.
+  !> \param n_levels Argument used by run_emission_mie_factor.
+  !> \param mie_name_c Argument used by run_emission_mie_factor.
+  !> \param emission_flux Argument used by run_emission_mie_factor.
+  !> \param rh Argument used by run_emission_mie_factor.
+   subroutine run_emission_mie_factor(mie_handle, n_columns, n_levels, mie_name_c, emission_flux, rh, &
       scale_factor, dt, factor, limiter_rc) bind(C, name='run_emission_mie_factor')
       integer(c_int), value :: n_columns, n_levels
       character(kind=c_char), intent(in) :: mie_name_c(64)
@@ -49,19 +61,21 @@ contains
       real, allocatable :: q_mass(:,:,:), rh_query(:,:,:), tau(:,:,:)
       real(c_double) :: extinction, cutoff
       character(len=64) :: mie_name
-      integer :: table_index, column, level, bin, query_rc
+      integer :: table_index, column, level, bin, query_rc, context_index
+      integer(c_int), value :: mie_handle
 
       factor = 1.0_c_double
       limiter_rc = 0_c_int
-      if (.not. allocated(mie_store) .or. .not. allocated(mie_names_store)) then
+      context_index = find_mie_context(mie_handle)
+      if (context_index == 0) then
          limiter_rc = 2_c_int
          return
       end if
 
       mie_name = c_name64_to_fortran(mie_name_c)
       table_index = 0
-      do bin = 1, size(mie_names_store)
-         if (trim(mie_names_store(bin)) == trim(mie_name)) then
+      do bin = 1, size(mie_contexts(context_index)%names)
+         if (trim(mie_contexts(context_index)%names(bin)) == trim(mie_name)) then
             table_index = bin
             exit
          end if
@@ -84,9 +98,9 @@ contains
             rh_query(1,1,level) = real(min(max(rh(column,level), 0.0_c_double), 0.99_c_double))
          end do
          extinction = 0.0_c_double
-         do bin = 1, min(2, mie_store(table_index)%nbin)
+         do bin = 1, min(2, mie_contexts(context_index)%tables(table_index)%nbin)
             tau = 0.0
-            call mie_store(table_index)%Query(550.0e-9, bin, q_mass, rh_query, tau=tau, rc=query_rc)
+            call mie_contexts(context_index)%tables(table_index)%Query(550.0e-9, bin, q_mass, rh_query, tau=tau, rc=query_rc)
             if (query_rc /= CC_SUCCESS) then
                limiter_rc = 3_c_int
                deallocate(q_mass, rh_query, tau)
@@ -99,6 +113,8 @@ contains
       end do
       deallocate(q_mass, rh_query, tau)
    contains
+  !> \brief Implements c name64 to fortran for the CATChem CCPP boundary.
+  !> \param c_name Argument used by c_name64_to_fortran.
       function c_name64_to_fortran(c_name) result(name)
          character(kind=c_char), intent(in) :: c_name(64)
          character(len=64) :: name
@@ -112,34 +128,65 @@ contains
       end function c_name64_to_fortran
    end subroutine run_emission_mie_factor
 
-   subroutine run_settling_mie_init(n_files, type_names, file_paths, init_rc) &
+  !> \brief Implements run settling mie init for the CATChem CCPP boundary.
+  !> \param n_files Argument used by run_settling_mie_init.
+  !> \param type_names Argument used by run_settling_mie_init.
+  !> \param file_paths Argument used by run_settling_mie_init.
+  !> \param mie_handle Argument used by run_settling_mie_init.
+  !> \param init_rc Argument used by run_settling_mie_init.
+   subroutine run_settling_mie_init(n_files, type_names, file_paths, mie_handle, init_rc) &
       bind(C, name='run_settling_mie_init')
       integer(c_int), value :: n_files
       character(kind=c_char), intent(in) :: type_names(32,n_files)
       character(kind=c_char), intent(in) :: file_paths(512,n_files)
+      integer(c_int), intent(out) :: mie_handle
       integer(c_int), intent(out) :: init_rc
 
-      integer :: idx, local_rc
+      integer :: idx, local_rc, slot
 
-      ! Idempotent re-initialization: drop any previous store so repeated
-      ! process init (tests, restarts) never leaves stale tables behind.
-      if (allocated(mie_store)) deallocate(mie_store)
-      if (allocated(mie_names_store)) deallocate(mie_names_store)
+      mie_handle = 0_c_int
       init_rc = 0_c_int
       if (n_files <= 0) return
-
-      allocate(mie_store(n_files), mie_names_store(n_files))
+      if (next_mie_handle <= 0_c_int .or. next_mie_handle == huge(next_mie_handle)) then
+         init_rc = -1_c_int
+         return
+      end if
+      slot = 1
+      if (allocated(mie_contexts)) then
+         do while (slot <= size(mie_contexts))
+            if (mie_contexts(slot)%handle == 0_c_int) exit
+            slot = slot + 1
+         end do
+         if (slot > size(mie_contexts)) then
+            block
+               type(MieTableContext), allocatable :: grown(:)
+               allocate(grown(size(mie_contexts)+1))
+               grown(1:size(mie_contexts)) = mie_contexts
+               call move_alloc(grown, mie_contexts)
+            end block
+         end if
+      else
+         allocate(mie_contexts(1))
+      end if
+      mie_contexts(slot)%handle = next_mie_handle
+      next_mie_handle = next_mie_handle + 1_c_int
+      allocate(mie_contexts(slot)%tables(n_files), mie_contexts(slot)%names(n_files))
       do idx = 1, n_files
-         mie_names_store(idx) = c_name_to_fortran(type_names(:,idx))
-         mie_store(idx) = GOCART2G_Mie(c_path_to_fortran(file_paths(:,idx)), rc=local_rc)
+         mie_contexts(slot)%names(idx) = c_name_to_fortran(type_names(:,idx))
+         mie_contexts(slot)%tables(idx) = GOCART2G_Mie(c_path_to_fortran(file_paths(:,idx)), rc=local_rc)
          if (local_rc /= CC_SUCCESS) then
             ! Report the 1-based index of the failing table; the GOCART reader
             ! already wrote the offending path to stderr.
             init_rc = int(idx, c_int)
+            deallocate(mie_contexts(slot)%tables, mie_contexts(slot)%names)
+            mie_contexts(slot)%handle = 0_c_int
             return
          end if
       end do
+      mie_handle = mie_contexts(slot)%handle
    contains
+  !> \brief Implements c path to fortran for the CATChem CCPP boundary.
+  !> \param c_text Argument used by c_path_to_fortran.
       function c_path_to_fortran(c_text) result(text)
          character(kind=c_char), intent(in) :: c_text(512)
          character(len=512) :: text
@@ -150,6 +197,8 @@ contains
          end do
          text = trim(adjustl(text))
       end function c_path_to_fortran
+  !> \brief Implements c name to fortran for the CATChem CCPP boundary.
+  !> \param c_text Argument used by c_name_to_fortran.
       function c_name_to_fortran(c_text) result(text)
          character(kind=c_char), intent(in) :: c_text(32)
          character(len=32) :: text
@@ -162,7 +211,40 @@ contains
       end function c_name_to_fortran
    end subroutine run_settling_mie_init
 
-   subroutine run_settling_science_bridge(n_columns, n_levels, n_aerosols, n_total_species, &
+  !> \brief Implements run settling mie release for the CATChem CCPP boundary.
+  !> \param mie_handle Argument used by run_settling_mie_release.
+   subroutine run_settling_mie_release(mie_handle) bind(C, name='run_settling_mie_release')
+      integer(c_int), value :: mie_handle
+      integer :: slot
+      slot = find_mie_context(mie_handle)
+      if (slot == 0) return
+      if (allocated(mie_contexts(slot)%tables)) deallocate(mie_contexts(slot)%tables)
+      if (allocated(mie_contexts(slot)%names)) deallocate(mie_contexts(slot)%names)
+      mie_contexts(slot)%handle = 0_c_int
+   end subroutine run_settling_mie_release
+
+  !> \brief Implements find mie context for the CATChem CCPP boundary.
+  !> \param handle Argument used by find_mie_context.
+   integer function find_mie_context(handle) result(slot)
+      integer(c_int), intent(in) :: handle
+      integer :: i
+      slot = 0
+      if (.not. allocated(mie_contexts) .or. handle == 0_c_int) return
+      do i = 1, size(mie_contexts)
+         if (mie_contexts(i)%handle == handle) then
+            slot = i
+            return
+         end if
+      end do
+   end function find_mie_context
+
+  !> \brief Implements run settling science bridge for the CATChem CCPP boundary.
+  !> \param n_columns Argument used by run_settling_science_bridge.
+  !> \param n_levels Argument used by run_settling_science_bridge.
+  !> \param n_aerosols Argument used by run_settling_science_bridge.
+  !> \param n_total_species Argument used by run_settling_science_bridge.
+  !> \param mie_handle Argument used by run_settling_science_bridge.
+   subroutine run_settling_science_bridge(n_columns, n_levels, n_aerosols, n_total_species, mie_handle, &
       dt, scale_factor, swelling_method, correction_maring, maring_dust_only, &
       airden, delp, pmid, rh, temperature, z_edge, &
       aerosol_species_names, species_names, species_is_dust, radius, density, &
@@ -170,6 +252,7 @@ contains
       diag_velocity, diag_flux, diagnostic_species_id, n_diag_species, bridge_rc) &
       bind(C, name='run_settling_science_bridge')
       integer(c_int), value :: n_columns, n_levels, n_aerosols, n_total_species
+      integer(c_int), value :: mie_handle
       integer(c_int), value :: correction_maring, maring_dust_only, swelling_method
       real(c_double), value :: dt, scale_factor
       real(c_double), intent(in) :: airden(n_columns,n_levels), delp(n_columns,n_levels)
@@ -208,7 +291,7 @@ contains
       real(fp) :: conc_2d(n_levels,n_aerosols), tend_2d(n_levels,n_aerosols)
       real(c_double), pointer :: f_diag_velocity(:,:,:), f_diag_flux(:,:)
       real(fp), allocatable :: col_velocity(:,:), col_flux(:)
-      integer :: column, species, k
+      integer :: column, species, k, context_index
 
       bridge_rc = 0_c_int
       if (n_aerosols <= 0) return
@@ -259,19 +342,20 @@ contains
          ! Optics-table path: resolve each settling species' __mie_name against
          ! the loaded table names, mirroring upstream chemstate_init_mie_data's
          ! SpcMieMap construction (trimmed comparison, 1-based, 0 = unresolved).
-         if (.not. allocated(mie_store)) then
+         context_index = find_mie_context(mie_handle)
+         if (context_index == 0) then
             ! C++ validates this at init; defensive backstop so a mis-wired
             ! caller can never reach Chem_SettlingSimple without tables.
             bridge_rc = 2_c_int
             return
          end if
-         mie_actual => mie_store
+         mie_actual => mie_contexts(context_index)%tables
          do species = 1, n_aerosols
             aerosol_mies(species) = c_name_to_fortran(aerosol_mie_names(:,species))
             species_mie_map(species) = 0
             if (len_trim(aerosol_mies(species)) == 0) cycle
-            do k = 1, size(mie_names_store)
-               if (trim(mie_names_store(k)) == trim(aerosol_mies(species))) then
+            do k = 1, size(mie_contexts(context_index)%names)
+               if (trim(mie_contexts(context_index)%names(k)) == trim(aerosol_mies(species))) then
                   species_mie_map(species) = k
                   exit
                end if
@@ -353,6 +437,8 @@ contains
 
       deallocate(col_velocity, col_flux)
    contains
+  !> \brief Implements c name to fortran for the CATChem CCPP boundary.
+  !> \param c_name Argument used by c_name_to_fortran.
       function c_name_to_fortran(c_name) result(name)
          character(kind=c_char), intent(in) :: c_name(32)
          character(len=32) :: name

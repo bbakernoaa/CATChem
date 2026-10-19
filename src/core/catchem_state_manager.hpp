@@ -113,7 +113,8 @@ namespace catchem {
 
         bool prepare_field_access(const FieldAccessContract& access) {
             const auto contract_matches = [&access](const auto& field) {
-                return field && field->contract.units == access.units && field->contract.axes == access.axes &&
+                const bool concentration = canonical_field_name(access.canonical_name) == "CONCENTRATION";
+                return field && (concentration || field->contract.units == access.units) && field->contract.axes == access.axes &&
                        field->contract.persistence == access.persistence;
             };
             const int rank = static_cast<int>(access.axes.size());
@@ -348,9 +349,15 @@ namespace catchem {
             }
         }
 
+        /**
+         * @brief Bind a host three-dimensional meteorology field with its vertical-axis contract.
+         * @param name Canonical or aliased CATChem meteorology field name.
+         * @param ptr Contiguous host pointer for the column-by-vertical data.
+         */
         void bind_met_field_3d(const std::string& name, double* ptr) {
             std::string upper_name = canonical_field_name(name);
-            const bool is_interface = upper_name == "PEDGE" || upper_name == "Z";
+            const bool is_interface = upper_name == "PEDGE" || upper_name == "Z" ||
+                                      upper_name == "PFILSAN" || upper_name == "PFLLSAN";
             bind_met_field_3d_contract(name, ptr, is_interface ? n_levels + 1 : n_levels,
                                        is_interface ? SemanticAxis::Interface : SemanticAxis::Level);
         }
@@ -396,7 +403,7 @@ namespace catchem {
                 chem.conc =
                     std::make_shared<InteropField<double, 3>>(ptr, std::vector<int>{n_cols, n_levels, n_species});
                 chem.conc->contract.canonical_name = "CONCENTRATION";
-                chem.conc->contract.units = "mol/mol";
+                chem.conc->contract.units = "species-native";
                 chem.conc->contract.axes = {SemanticAxis::Column, SemanticAxis::Level, SemanticAxis::Species};
                 chem.conc->contract.persistence = PersistencePolicy::Persistent;
             }

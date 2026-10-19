@@ -5,6 +5,7 @@
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <array>
+#include <iomanip>
 #include <iostream>
 
 extern "C" {
@@ -38,9 +39,16 @@ namespace catchem {
 
     SO4chemProcess::SO4chemProcess() : active_scheme("gocart"), diagnostics_enabled(true) {}
 
+    /** @brief Derive shared meteorology and validate the SO4Chem roughness alternative. */
     void SO4chemProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_delp();
         state->derive_airden();
+        // GOCART's surface resistance needs thermal roughness. A host may
+        // supply Z0H directly or provide momentum roughness Z0 for the
+        // documented conversion in run(); reject the case where neither is
+        // current before entering the science bridge.
+        if (!state->read_field<2>("Z0H") && !state->read_field<2>("Z0"))
+            throw std::runtime_error("SO4Chem requires current Z0H or fallback Z0 roughness input");
     }
 
     void SO4chemProcess::init(std::shared_ptr<StateManager> state) {
@@ -227,6 +235,9 @@ namespace catchem {
         // 3. Chemical and Tendency Views
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("SO4chem", "CHEM_CONC", conc_ptr);
+        const int diagnostic_slab = state->column_count() * state->level_count();
+        std::vector<double> concentration_before(
+            conc_ptr, conc_ptr + static_cast<std::size_t>(diagnostic_slab) * state->species_count());
 
 #ifdef CATCHEM_TRACE_NUOPC
         // This is deliberately immediately before the science bridge.  It
@@ -291,6 +302,41 @@ namespace catchem {
             state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(), firsttime.data(),
             nymd_last.data(), nhms_last_recycle.data(), xh2o2_init.data(), pso4_g_so2.data(), pso4_aq_so2.data(),
             pso2_dms.data(), dms_flux.data(), diag_prod_rate.data(), diag_ids, n_diag_species);
+
+        // Close GOCART's independently registered SO4 and MSA production
+        // diagnostics against the updated aerosol concentrations.  The bridge
+        // emits rates in kg/kg/s while the aerosol state is ug/kg.
+        double aerosol_change_ug_kg = 0.0;
+        double integrated_production_ug_kg = 0.0;
+        for (const char* species_name : {"so4", "msa"}) {
+            if (!state->chemistry().mechanism->contains(species_name)) continue;
+            const auto species_index = state->chemistry().mechanism->index_of(species_name);
+            if (state->chemistry().species_list[species_index].is_gas)
+                throw std::runtime_error(std::string("SO4Chem production budget requires aerosol species ") +
+                                         species_name);
+            int diagnostic_slot = -1;
+            for (int diagnostic = 0; diagnostic < n_diag_species; ++diagnostic) {
+                if (diagnostic_species_id[diagnostic] == static_cast<int>(species_index + 1)) {
+                    diagnostic_slot = diagnostic;
+                    break;
+                }
+            }
+            if (diagnostic_slot < 0)
+                throw std::runtime_error(std::string("SO4Chem production budget is missing diagnostic species ") +
+                                         species_name);
+            const std::size_t species_offset = species_index * diagnostic_slab;
+            const std::size_t diagnostic_offset = static_cast<std::size_t>(diagnostic_slot) * diagnostic_slab;
+            for (int cell = 0; cell < diagnostic_slab; ++cell) {
+                aerosol_change_ug_kg += conc_ptr[species_offset + cell] - concentration_before[species_offset + cell];
+                integrated_production_ug_kg += diag_prod_rate[diagnostic_offset + cell] * state->clock().timestep * 1.0e9;
+            }
+        }
+        const double production_budget_residual =
+            std::abs(aerosol_change_ug_kg - integrated_production_ug_kg) /
+            std::max(std::abs(aerosol_change_ug_kg) + std::abs(integrated_production_ug_kg), 1.0e-30);
+        std::cout << "CATCHEM_BUDGET name=so4chem_production RESIDUAL=" << std::scientific
+                  << std::setprecision(16) << production_budget_residual << " TOTAL=" << aerosol_change_ug_kg
+                  << " BIN_SUM=" << integrated_production_ug_kg << '\n';
 
         // 6. Map persistent column diagnostics straight to registered C++ Diagnostics Views
         if (state->diagnostic_manager() && diagnostics_enabled) {

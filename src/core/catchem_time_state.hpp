@@ -33,6 +33,24 @@ namespace catchem {
         }
 
         KOKKOS_FUNCTION
+        static bool valid_date_time(int y, int m, int d, int h, int minute_value, int second_value, int day_of_year) {
+            if (y < 1 || m < 1 || m > 12 || d < 1 || d > get_days_in_month(m, y) || h < 0 || h > 23 ||
+                minute_value < 0 || minute_value > 59 || second_value < 0 || second_value > 59)
+                return false;
+            int expected = d;
+            for (int month_value = 1; month_value < m; ++month_value) {
+                expected += get_days_in_month(month_value, y);
+            }
+            return day_of_year == expected;
+        }
+
+        KOKKOS_FUNCTION
+        bool valid() const {
+            return valid_date_time(year, month, day, hour, minute, second, doy) && std::isfinite(timestep) &&
+                   timestep > 0.0 && timestep <= 86400.0;
+        }
+
+        KOKKOS_FUNCTION
         void calculate_derived_fields() {
             // Julian Day arithmetic
             int a = (14 - month) / 12;

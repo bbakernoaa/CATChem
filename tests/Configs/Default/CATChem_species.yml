@@ -50,6 +50,12 @@
   __is_photolysis: true
   __is_advected: false
   molecular weight [kg mol-1]: 62.01e-3
+- name: o3
+  __description: Ozone
+  __is_gas: true
+  __is_advected: false
+  roles: [photolysis.ozone]
+  molecular weight [kg mol-1]: 48.00e-3
 - name: so4       #This is to match CMAQ name to use the restart file. so4 is used in GEOS-Chem.
   __description: sulfate
   __is_aerosol: true

@@ -28,6 +28,8 @@ namespace catchem {
         std::vector<std::string> unpack_labels;
         std::size_t generation = 0;
         std::size_t registration_generation = 0;
+        /// Generation in which a producer last wrote this diagnostic.
+        std::size_t last_write_generation = 0;
         AvailabilityState availability = AvailabilityState::Unavailable;
         bool generation_failed = false;
         LatestWriter latest_writer = LatestWriter::Uninitialized;
@@ -66,8 +68,18 @@ namespace catchem {
         void sync_to_device();
         void reset();
         void advance_generation(std::size_t value);
-        void mark_host_modified() { latest_writer = LatestWriter::HostCurrent; }
-        void mark_device_modified() { latest_writer = LatestWriter::DeviceCurrent; }
+        /** @brief Record that the current diagnostic generation was written on host memory. */
+        void mark_host_modified() {
+            latest_writer = LatestWriter::HostCurrent;
+            last_write_generation = generation;
+            availability = AvailabilityState::Current;
+        }
+        /** @brief Record that the current diagnostic generation was written on device memory. */
+        void mark_device_modified() {
+            latest_writer = LatestWriter::DeviceCurrent;
+            last_write_generation = generation;
+            availability = AvailabilityState::Current;
+        }
     };
 
 } // namespace catchem

@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cmath>
 #include <iostream>
+#include <iomanip>
 #include <limits>
 #include <stdexcept>
 
@@ -75,7 +76,7 @@ namespace catchem {
             fields.insert(fields.end(),
                           {host_field_soil_layer("SOILM", "m3/m3"), host_field_2d("CLAYFRAC", "1"),
                            host_field_2d("FRLAKE", "1"), host_field_2d("FRSNO", "frac"), host_field_2d("GVF", "frac"),
-                           host_field_2d("LAI", "m2/m2", FieldRequirement::Optional), host_field_2d("LWI", "1"),
+                           host_field_2d("LAI", "m2/m2"), host_field_2d("LWI", "1"),
                            host_field_2d("RDRAG", "1"), host_field_2d("SNDFRC", "1"), host_field_2d("SSM", "1"),
                            host_field_2d("TS", "K"), host_field_2d("USTAR", "m/s"),
                            host_field_2d("USTAR_THRESHOLD", "m/s"), host_field_2d("Z0", "m")});
@@ -293,6 +294,19 @@ namespace catchem {
             require_field_pointer("Dust", "V10M", v10m_ptr);
         }
 
+        if (active_scheme == "ginoux" && state->column_count() > 0) {
+            Logger::info(state.get(), "Dust Ginoux surface inputs",
+                          {{"lwi", std::to_string(static_cast<int>(lwi.front()))},
+                           {"ssm", std::to_string(ssm_ptr[0])},
+                           {"soilm", soilm_ptr ? std::to_string(soilm_ptr[0]) : "unavailable"},
+                           {"gwettop", std::to_string(gwettop_ptr[0])},
+                           {"tskin_k", std::to_string(tskin_ptr[0])},
+                           {"u10m", std::to_string(u10m_ptr[0])},
+                           {"v10m", std::to_string(v10m_ptr[0])},
+                           {"frlake", std::to_string(frlake_ptr[0])},
+                           {"frsno", std::to_string(frsno_ptr[0])}});
+        }
+
         const auto config = state->config_manager();
         if (config && config->data.simulation.verbose_enabled && Logger::enabled(Logger::Level::Debug)) {
             // DELP is level-major (index = column + level*n_cols).  Because
@@ -435,6 +449,19 @@ namespace catchem {
             upper_radius.data(), bin_species_names.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
             full_tendency.data(), diag_emission_total, diag_emission_bin, diag_horizontal_flux,
             diag_moisture_correction, diag_effective_threshold, diag_utar_threshold, diag_ids, n_diag_species);
+
+        /// Report the emitted-bin closure used by the CCPP-SCM acceptance case.
+        if (diag_emission_total && diag_emission_bin && n_diag_species > 0) {
+            double total_sum = 0.0;
+            double bin_sum = 0.0;
+            for (int column = 0; column < state->column_count(); ++column) {
+                total_sum += diag_emission_total[column];
+                for (int bin = 0; bin < n_diag_species; ++bin)
+                    bin_sum += diag_emission_bin[column + state->column_count() * bin];
+            }
+            std::clog << std::setprecision(17) << "CATCHEM_BUDGET name=dust_bin_closure RESIDUAL=" << (total_sum - bin_sum)
+                      << " TOTAL=" << total_sum << " BIN_SUM=" << bin_sum << std::endl;
+        }
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();

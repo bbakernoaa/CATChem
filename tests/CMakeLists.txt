@@ -119,6 +119,29 @@ target_link_libraries(
 catchem_add_architecture_test(test_c_api_compatibility test_c_api_compatibility.cpp "boundary;compatibility")
 catchem_add_architecture_test(test_extension_process test_extension_process.cpp "mechanism;process-contract;lifecycle;dataflow")
 catchem_add_architecture_test(test_core_construction test_core_construction.cpp "mechanism;configuration;lifecycle")
+catchem_add_architecture_test(test_ccpp_manifest test_ccpp_manifest.cpp "mechanism;configuration;boundary")
+target_include_directories(test_ccpp_manifest PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+catchem_add_architecture_test(test_selected_process_dispatch test_selected_process_dispatch.cpp "process-contract;lifecycle;boundary")
+catchem_add_architecture_test(
+  test_ccpp_photolysis_dependencies
+  test_ccpp_photolysis_dependencies.cpp
+  "ccpp;process-contract;lifecycle"
+)
+target_include_directories(
+  test_ccpp_photolysis_dependencies
+  PRIVATE ${PROJECT_SOURCE_DIR}/src/process/photolysis
+)
+target_link_libraries(
+  test_selected_process_dispatch
+  PRIVATE
+    CATChem_process_carbchem
+    CATChem_process_drydep
+    CATChem_process_dust
+    CATChem_process_seasalt
+    CATChem_process_settling
+    CATChem_process_so4chem
+    CATChem_process_wetdep
+)
 # Source paths come from the configured catchem_test_config.hpp rather than a
 # quoted -D define: the Intel MPI compiler wrappers strip the quotes when the
 # define is passed on the command line (seen in the ci-intel host profile),
@@ -186,6 +209,48 @@ if(CATCHEM_BUILD_CCPP)
     COPY ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/host_conformance
     DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
   )
+endif()
+
+if(TARGET CATChem)
+  target_compile_definitions(CATChem PRIVATE CATCHEM_CONTEXT_TESTING)
+  add_executable(test_ccpp_context
+    test_ccpp_context.F90
+    ${PROJECT_SOURCE_DIR}/drivers/ccpp/catchem_ccpp_context.F90
+    ${PROJECT_SOURCE_DIR}/drivers/ccpp/catchem_ccpp_lifecycle.F90
+  )
+  target_compile_definitions(test_ccpp_context PRIVATE CATCHEM_CONTEXT_TESTING)
+  target_link_libraries(test_ccpp_context PRIVATE CATChem)
+  set_target_properties(test_ccpp_context PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
+  )
+  target_include_directories(test_ccpp_context PRIVATE ${CMAKE_BINARY_DIR}/include)
+  add_test(NAME test_ccpp_context COMMAND test_ccpp_context)
+  set_tests_properties(test_ccpp_context PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  catchem_label_tests("ccpp;context;boundary" test_ccpp_context)
+
+  add_executable(test_catchem_api_fortran_dispatch test_catchem_api_fortran_dispatch.F90)
+  target_link_libraries(test_catchem_api_fortran_dispatch PRIVATE CATChem)
+  set_target_properties(test_catchem_api_fortran_dispatch PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+    LINKER_LANGUAGE Fortran
+  )
+  target_include_directories(test_catchem_api_fortran_dispatch PRIVATE ${CMAKE_BINARY_DIR}/include)
+  add_test(NAME test_catchem_api_fortran_dispatch COMMAND test_catchem_api_fortran_dispatch)
+  set_tests_properties(test_catchem_api_fortran_dispatch PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  catchem_label_tests("boundary;compatibility;ccpp" test_catchem_api_fortran_dispatch)
+
+  add_executable(test_ccpp_conversion test_ccpp_conversion.F90 ${PROJECT_SOURCE_DIR}/drivers/ccpp/catchem_ccpp_conversion.F90)
+  set_target_properties(test_ccpp_conversion PROPERTIES
+    Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ccpp-conversion-modules
+    LINKER_LANGUAGE Fortran
+  )
+  file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ccpp-conversion-modules)
+  target_include_directories(test_ccpp_conversion PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/ccpp-conversion-modules)
+  add_test(NAME test_ccpp_conversion COMMAND test_ccpp_conversion)
+  catchem_label_tests("ccpp;conversion;physical-validation" test_ccpp_conversion)
 endif()
 
 # Foundational Fortran testing helper library.  Restored for the spec-011 US4
@@ -769,6 +834,10 @@ endif()
 if(CATCHEM_BUILD_MUSICA)
   # Photolysis Process Unit/Integration Test
   add_executable(test_catchem_photolysis test_catchem_photolysis.cpp)
+  target_include_directories(
+    test_catchem_photolysis
+    PRIVATE ${PROJECT_SOURCE_DIR}/src/process/photolysis
+  )
   target_link_libraries(
     test_catchem_photolysis
     PRIVATE

@@ -227,6 +227,12 @@ set(
   CACHE PATH
   "Directory containing host CCPP Fortran modules"
 )
+set(
+  CATCHEM_CCPP_HOST_TARGET
+  ""
+  CACHE STRING
+  "Optional host target that exports CCPP modules and libraries"
+)
 option(CATCHEM_BUILD_TESTING "Build CATChem testing framework" ON)
 option(
   CATCHEM_ENABLE_SANITIZERS

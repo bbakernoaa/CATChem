@@ -5,6 +5,7 @@
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <cctype>
+#include <iomanip>
 #include <iostream>
 
 extern "C" {
@@ -155,6 +156,13 @@ namespace catchem {
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("CarbChem", "CHEM_CONC", conc_ptr);
 
+        // The GOCART ageing operation transfers BC/OC between hydrophobic
+        // and hydrophilic bins. Keep the pre-call inventory so the selected
+        // process can report a column-integrated carbon mass closure.
+        const std::size_t concentration_size = static_cast<std::size_t>(state->column_count()) *
+                                               state->level_count() * state->species_count();
+        std::vector<double> concentration_before(conc_ptr, conc_ptr + concentration_size);
+
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->column_count() * state->level_count() * state->species_count(), 0.0);
 
@@ -184,6 +192,33 @@ namespace catchem {
             airden_ptr, delp_ptr, pmid_ptr, t_chem_loss.data(), state->chemistry().species_names_c_arr.data(), conc_ptr,
             mock_tendency.data(), diag_prod_mass, diag_loss_flux, diag_phobic_mass, diag_phobic_flux, diag_ids,
             n_diag_species);
+
+        double carbon_mass_before = 0.0;
+        double carbon_mass_after = 0.0;
+        const std::size_t species_slab = static_cast<std::size_t>(state->column_count()) * state->level_count();
+        for (const char* carbon_species : {"BC1", "BC2", "OC1", "OC2"}) {
+            bool found = false;
+            for (std::size_t species = 0; species < state->chemistry().species_list.size(); ++species) {
+                std::string short_name = state->chemistry().species_list[species].short_name;
+                std::transform(short_name.begin(), short_name.end(), short_name.begin(),
+                               [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+                if (short_name != carbon_species) continue;
+                found = true;
+                const std::size_t offset = species * species_slab;
+                for (std::size_t cell = 0; cell < species_slab; ++cell) {
+                    carbon_mass_before += concentration_before[offset + cell];
+                    carbon_mass_after += conc_ptr[offset + cell];
+                }
+                break;
+            }
+            if (!found)
+                throw std::runtime_error(std::string("CarbChem carbon mass budget is missing species ") + carbon_species);
+        }
+        const double carbon_mass_residual = std::abs(carbon_mass_before - carbon_mass_after) /
+            std::max(std::abs(carbon_mass_before) + std::abs(carbon_mass_after), 1.0e-30);
+        std::cout << "CATCHEM_BUDGET name=carbchem_carbon_mass RESIDUAL=" << std::scientific
+                  << std::setprecision(16) << carbon_mass_residual << " TOTAL=" << carbon_mass_before
+                  << " BIN_SUM=" << carbon_mass_after << '\n';
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();

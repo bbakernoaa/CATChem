@@ -251,7 +251,7 @@ contains
    !! host-provided physical, meteorological, and land/soil grid dimensions (such as horizontal columns,
    !! vertical layers, soil layers, soil categories, and vegetation categories). It then resolves the
    !! global host-model runtime index mapping for each registered chemical species using CCPP's standard
-   !! index retrieval utility `ccpp_const_get_idx`.
+   !! full constituent property array and each property's registered constituent index.
    !!
    !! \param[in]  im Horizontal loop extent / dimension of the chunk
    !! \param[in]  kte Vertical layer dimension / number of layers
@@ -266,7 +266,6 @@ contains
    subroutine ccpp_catchem_interface_init(im, kte, nsoil, nlndcat, nsoilcat, &
                                           do_catchem, catchem_configfile_in, &
                                           constituent_props_ptr, errmsg, errflg)
-      use ccpp_const_utils, only: ccpp_const_get_idx
       implicit none
 
       integer,                           intent(in)  :: im
@@ -282,9 +281,10 @@ contains
 
       character(kind=c_char) :: c_buf(128)
       character(len=64)      :: f_name
-      integer                :: n_spec, i
+      integer                :: n_spec, i, j, property_rc, host_index
       integer(c_int)         :: status, c_count
       type(c_ptr)            :: state_mgr
+      character(len=256)     :: property_name
 
       errmsg = ''
       errflg = 0
@@ -322,9 +322,25 @@ contains
          end if
          call c_to_f_string(c_buf, f_name)
 
-         call ccpp_const_get_idx(constituent_props_ptr, trim(f_name), &
-                                 catchem_indices_constituent_props(i), errmsg, errflg)
-         if (errflg /= 0) then
+         catchem_indices_constituent_props(i) = 0
+         do j = 1, size(constituent_props_ptr)
+            call constituent_props_ptr(j)%standard_name(property_name, property_rc, errmsg)
+            if (property_rc /= 0) then
+               errflg = property_rc
+               return
+            end if
+            if (trim(property_name) /= trim(f_name)) cycle
+            call constituent_props_ptr(j)%const_index(host_index, property_rc, errmsg)
+            if (property_rc /= 0 .or. host_index <= 0) then
+               errflg = max(1, property_rc)
+               errmsg = 'CATChem Init: Invalid registered index for tracer: ' // trim(f_name)
+               return
+            end if
+            catchem_indices_constituent_props(i) = host_index
+            exit
+         end do
+         if (catchem_indices_constituent_props(i) == 0) then
+            errflg = 1
             errmsg = "CATChem Init: Missing required tracer: " // trim(f_name)
             return
          end if

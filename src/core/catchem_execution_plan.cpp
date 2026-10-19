@@ -7,6 +7,7 @@ namespace catchem {
     void ExecutionPlan::compile(const std::vector<std::shared_ptr<ProcessInterface>>& processes,
                                 const MechanismDefinition* mechanism) {
         contracts_.clear();
+        products_.clear();
         validation_ = {};
         std::unordered_map<std::string, std::pair<std::size_t, FieldAccessContract>> produced;
         for (std::size_t process_index = 0; process_index < processes.size(); ++process_index) {
@@ -45,6 +46,35 @@ namespace catchem {
             contracts_.push_back(std::move(contract));
         }
 
+        for (const auto& contract : contracts_) {
+            for (const auto& declaration : contract.produced_products) {
+                auto [it, inserted] = products_.emplace(declaration.name, ProductProvenance{
+                    contract.process_name, declaration.units, {}, 0, 0, false});
+                if (!inserted && (it->second.producer != contract.process_name ||
+                                  it->second.units != declaration.units))
+                    validation_.add({IssueSeverity::Error, "incompatible-products", contract.process_name,
+                                     "derived product " + declaration.name + " has conflicting producers or units",
+                                     "declare each product with one producer and one units contract"});
+            }
+        }
+
+        for (const auto& contract : contracts_) {
+            for (const auto& requirement : contract.products) {
+                if (!requirement.required) continue;
+                const auto producer = products_.find(requirement.name);
+                if (producer == products_.end()) {
+                    validation_.add({IssueSeverity::Error, "missing-product-producer", contract.process_name,
+                                     "required derived product " + requirement.name + " has no active producer",
+                                     "enable its producer before the consumer or remove the PHOTO dependency"});
+                } else if (!requirement.producer.empty() && producer->second.producer != requirement.producer) {
+                    validation_.add({IssueSeverity::Error, "product-producer-mismatch", contract.process_name,
+                                     "required derived product " + requirement.name + " is produced by " +
+                                         producer->second.producer + " instead of " + requirement.producer,
+                                     "declare the configured product producer in the active schedule"});
+                }
+            }
+        }
+
         for (std::size_t consumer_index = 0; consumer_index < contracts_.size(); ++consumer_index) {
             for (const auto& field : contracts_[consumer_index].fields) {
                 if (!field.reads() || field.requirement != FieldRequirement::Required)
@@ -72,6 +102,42 @@ namespace catchem {
     void ExecutionPlan::complete(std::size_t index, StateManager& state) const {
         for (const auto& access : contracts_.at(index).fields)
             state.complete_field_access(access);
+    }
+
+    void ExecutionPlan::publish_products(std::size_t index, const std::string& mechanism_identity,
+                                         std::uint64_t interval, std::size_t import_generation) {
+        const auto& process = contracts_.at(index);
+        for (const auto& declaration : process.produced_products) {
+            auto& product = products_.at(declaration.name);
+            product.mechanism_identity = mechanism_identity;
+            product.interval = interval;
+            product.import_generation = import_generation;
+            product.valid = true;
+        }
+    }
+
+    void ExecutionPlan::invalidate_products(std::size_t index) noexcept {
+        if (index >= contracts_.size()) return;
+        for (const auto& declaration : contracts_[index].produced_products) {
+            auto product = products_.find(declaration.name);
+            if (product != products_.end()) product->second.valid = false;
+        }
+    }
+
+    void ExecutionPlan::invalidate_all_products() noexcept {
+        for (auto& [name, product] : products_) product.valid = false;
+    }
+
+    bool ExecutionPlan::product_is_current(const std::string& name, const std::string& mechanism_identity,
+                                           std::uint64_t interval, std::size_t import_generation) const {
+        const auto* product = product_provenance(name);
+        return product && product->valid && product->mechanism_identity == mechanism_identity &&
+               product->interval == interval && product->import_generation == import_generation;
+    }
+
+    const ExecutionPlan::ProductProvenance* ExecutionPlan::product_provenance(const std::string& name) const noexcept {
+        const auto product = products_.find(name);
+        return product == products_.end() ? nullptr : &product->second;
     }
 
 } // namespace catchem

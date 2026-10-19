@@ -5,9 +5,22 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <map>
 #include <vector>
 
 namespace catchem {
+
+    struct SpeciesConfig;
+
+    enum class AmountType { Unspecified, MoleFraction, MassMixingRatio, NumberConcentration };
+    enum class AirBasis { Unspecified, Dry, Moist, TotalWithCondensate };
+    struct SpeciesRepresentation {
+        std::string units;
+        AmountType amount_type = AmountType::Unspecified;
+        AirBasis air_basis = AirBasis::Unspecified;
+        std::string vertical_axis = "level";
+        std::string denominator_recipe;
+    };
 
     struct SpeciesMetadata {
         // Names
@@ -16,6 +29,10 @@ namespace catchem {
         std::string description;
         std::vector<std::string> aliases;
         std::vector<std::string> roles;
+        std::string ccpp_standard_name;
+        std::string units;
+        SpeciesRepresentation host_representation;
+        std::map<std::string, SpeciesRepresentation> process_representations;
 
         // Classification switches
         bool is_gas = false;
@@ -62,6 +79,8 @@ namespace catchem {
         std::string mie_name;
     };
 
+    SpeciesMetadata make_species_metadata(const SpeciesConfig& config);
+
     inline std::string canonical_species_name(std::string name) {
         std::transform(name.begin(), name.end(), name.begin(),
                        [](unsigned char value) { return static_cast<char>(std::toupper(value)); });
@@ -72,6 +91,7 @@ namespace catchem {
     public:
         std::string identity;
         std::string source;
+        std::string fingerprint;
         std::size_t generation = 1;
         std::vector<SpeciesMetadata> species;
         std::unordered_set<std::string> capabilities;

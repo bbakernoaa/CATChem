@@ -3,6 +3,7 @@
 #include "catchem_diagnostic.hpp"
 #include <memory>
 #include <string>
+#include <cstdint>
 #include <unordered_map>
 
 namespace catchem {
@@ -49,12 +50,14 @@ namespace catchem {
         void sync_to_device();
         void reset_all();
         void begin_timestep();
+        void begin_interval(std::uint64_t interval_id);
         void mark_generation_failed();
         std::size_t generation() const noexcept { return generation_; }
         std::vector<std::string> get_registered_names() const;
 
     private:
         std::size_t generation_ = 0;
+        std::uint64_t last_interval_id_ = 0;
         /// Insertion order of field names. `fields` is an unordered_map, so this
         /// side-list is what makes get_registered_names() (and therefore the
         /// axes-driven diagnostic writer's variable order) deterministic.

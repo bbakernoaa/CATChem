@@ -760,6 +760,10 @@ namespace catchem {
             species.description = get_str(species_node, "description", "");
             species.aliases = string_vector_or_empty(species_node["aliases"]);
             species.roles = string_vector_or_empty(species_node["roles"]);
+            species.ccpp_standard_name = value_or<std::string>(species_node["ccpp_standard_name"], species.name);
+            species.units = value_or<std::string>(species_node["units"], "");
+            species.amount_type = value_or<std::string>(species_node["amount_type"], "");
+            species.air_basis = value_or<std::string>(species_node["air_basis"], "");
 
             species.is_gas = get_bool(species_node, "is_gas", false);
             species.is_aerosol = get_bool(species_node, "is_aerosol", false);

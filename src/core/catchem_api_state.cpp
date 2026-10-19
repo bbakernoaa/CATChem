@@ -188,7 +188,9 @@ int catchem_state_bind_met_3d_checked(void* state_ptr, const char* name, double*
         auto* state = static_cast<catchem::StateManager*>(state_ptr);
         std::string key(name);
         std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return std::toupper(c); });
-        const int expected_levels = (key == "PEDGE" || key == "Z") ? state->level_count() + 1 : state->level_count();
+        const int expected_levels = (key == "PEDGE" || key == "Z" || key == "PFILSAN" || key == "PFLLSAN")
+                                       ? state->level_count() + 1
+                                       : state->level_count();
         if (dim1 != state->column_count() || dim2 != expected_levels || dim3 != 1)
             return fail(catchem::BoundaryStatus::ExtentMismatch, "state_bind_met_3d", name,
                         "field extents do not match the state contract");
@@ -293,14 +295,20 @@ int catchem_state_set_time_checked(void* state_ptr, int yr, int mo, int dy, int 
         return status;
     try {
         auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        state->clock().year = yr;
-        state->clock().month = mo;
-        state->clock().day = dy;
-        state->clock().hour = hr;
-        state->clock().minute = mn;
-        state->clock().second = sc;
-        state->clock().doy = doy;
-        state->clock().timestep = tstep;
+        auto candidate = state->clock();
+        candidate.year = yr;
+        candidate.month = mo;
+        candidate.day = dy;
+        candidate.hour = hr;
+        candidate.minute = mn;
+        candidate.second = sc;
+        candidate.doy = doy;
+        candidate.timestep = tstep;
+        if (!candidate.valid())
+            return fail(catchem::BoundaryStatus::ContractViolation, "state_set_time", "time",
+                        "date, day-of-year, or timestep is invalid");
+        candidate.calculate_derived_fields();
+        state->clock() = candidate;
         return CATCHEM_SUCCESS;
     } catch (const std::exception& error) {
         return fail(catchem::BoundaryStatus::InternalError, "state_set_time", "time", error.what());

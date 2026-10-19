@@ -6,6 +6,7 @@
 #pragma once
 
 #include "catchem_precision.hpp"
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,11 +33,138 @@ enum catchem_dataflow_status {
     CATCHEM_PHYSICAL_VALIDATION_FAILURE = 17
 };
 
+/** @brief Versioned species metadata returned by manifest discovery. */
+typedef struct catchem_manifest_species_v1 {
+    uint32_t schema_version;
+    uint32_t struct_size;
+    uint32_t flags; /* bit 0 gas, bit 1 aerosol, bit 2 advected */
+    uint32_t amount_type; /* 0 unspecified, 1 mole fraction, 2 mass ratio, 3 number concentration */
+    uint32_t air_basis; /* 0 unspecified, 1 dry, 2 moist, 3 total with condensate */
+    double molecular_weight_kg_mol;
+    int name_required_len;
+    int standard_name_required_len;
+    int units_required_len;
+    int alias_count;
+    int role_count;
+} catchem_manifest_species_v1;
+
+/** @brief Versioned process availability and CCPP scheme metadata. */
+typedef struct catchem_manifest_process_v1 {
+    uint32_t schema_version;
+    uint32_t struct_size;
+    int available;
+    int name_required_len;
+    int scheme_required_len;
+} catchem_manifest_process_v1;
+
+/** @brief Host-supplied identity and duration for one selected process call. */
+typedef struct catchem_process_invocation_v1 {
+    uint32_t schema_version;
+    uint32_t struct_size;
+    uint64_t interval_id;
+    const char* site;
+    uint32_t subcycle;
+    const char* process;
+    double duration_seconds;
+} catchem_process_invocation_v1;
+
+/** @brief Host-authoritative clock and duration for a process interval. */
+typedef struct catchem_host_interval_v1 {
+    uint32_t schema_version;
+    uint32_t struct_size;
+    uint64_t interval_id;
+    int year, month, day, hour, minute, second, day_of_year;
+    double duration_seconds;
+} catchem_host_interval_v1;
+
+/** @brief Summary of a process's field, diagnostic, product, and recovery contract. */
+typedef struct catchem_process_contract_v1 {
+    uint32_t schema_version;
+    uint32_t struct_size;
+    uint32_t recovery_capability;
+    int process_name_required_len;
+    int field_count;
+    int diagnostic_count;
+    int product_requirement_count;
+    int produced_product_count;
+} catchem_process_contract_v1;
+
+/** @brief Rank, axes, access, persistence, and unit metadata for one process field. */
+typedef struct catchem_process_field_v1 {
+    uint32_t schema_version;
+    uint32_t struct_size;
+    int rank;
+    int axes[4];
+    int persistence;
+    int requirement;
+    int access;
+    int execution_space;
+    int produced;
+    int name_required_len;
+    int units_required_len;
+} catchem_process_field_v1;
+
+/** @brief Create a Core with host-provided grid and species extents. */
 int catchem_core_create_checked(int nc, int nl, int ns, void** core_out);
+/** @brief Create a Core from configuration and return its checked handle. */
 int catchem_core_create_from_config_checked(const char* config_file, void** core_out);
+/** @brief Create a configured Core sized to the host-local grid. */
 int catchem_core_create_from_config_with_grid_checked(const char* config_file, int ncols, int nlevels, void** core_out);
+/** @brief Open immutable process and species metadata from configuration. */
+int catchem_manifest_open_checked(const char* config_file, void** manifest_out);
+/** @brief Return the species count in an open manifest. */
+int catchem_manifest_get_species_count_checked(void* manifest, int* count_out);
+/** @brief Copy one species name using a caller-owned buffer. */
+int catchem_manifest_get_species_name_checked(void* manifest, int index, char* buffer, int buffer_len, int* required_len);
+/** @brief Copy one species CF standard name using a caller-owned buffer. */
+int catchem_manifest_get_species_standard_name_checked(void* manifest, int index, char* buffer, int buffer_len, int* required_len);
+/** @brief Copy a species descriptor and its name, standard name, and units. */
+int catchem_manifest_get_species_v1_checked(void* manifest, int index, catchem_manifest_species_v1* descriptor,
+                                            char* name, int name_len, char* standard_name, int standard_name_len,
+                                            char* units, int units_len);
+/** @brief Copy one alias for a species using a caller-owned buffer. */
+int catchem_manifest_get_species_alias_checked(void* manifest, int species_index, int alias_index, char* buffer,
+                                               int buffer_len, int* required_len);
+/** @brief Copy one semantic role for a species using a caller-owned buffer. */
+int catchem_manifest_get_species_role_checked(void* manifest, int species_index, int role_index, char* buffer,
+                                              int buffer_len, int* required_len);
+/** @brief Return the process count in an open manifest. */
+int catchem_manifest_get_process_count_checked(void* manifest, int* count_out);
+/** @brief Copy one process name and report its availability. */
+int catchem_manifest_get_process_checked(void* manifest, int index, char* name, int name_len, int* required_len, int* available);
+/** @brief Copy a process descriptor, name, and CCPP scheme name. */
+int catchem_manifest_get_process_v1_checked(void* manifest, int index, catchem_manifest_process_v1* descriptor,
+                                            char* name, int name_len, char* scheme, int scheme_len);
+/** @brief Copy the immutable manifest fingerprint. */
+int catchem_manifest_get_fingerprint_checked(void* manifest, char* buffer, int buffer_len, int* required_len);
+/** @brief Verify that a configuration matches the open manifest. */
+int catchem_manifest_validate_config_checked(void* manifest, const char* config_file);
+/** @brief Verify that a Core was initialized from the open manifest. */
+int catchem_manifest_validate_core_checked(void* manifest, void* core);
+/** @brief Destroy an open manifest handle. */
+int catchem_manifest_destroy_checked(void* manifest);
+/** @brief Begin a host-owned process interval with its authoritative clock. */
+int catchem_core_begin_interval_checked(void* core, const catchem_host_interval_v1* interval);
+/** @brief Run one selected process invocation and report publication eligibility. */
+int catchem_core_run_process_checked(void* core, const catchem_process_invocation_v1* invocation,
+                                     int* operation_status, int* publication_eligible,
+                                     uint64_t* import_generation_out);
+/** @brief End the matching host-owned process interval. */
+int catchem_core_end_interval_checked(void* core, uint64_t interval_id);
+/** @brief Read the contract for one configured process. */
+int catchem_core_get_process_contract_checked(void* core, int process_index,
+                                              catchem_process_contract_v1* descriptor,
+                                              char* process_name, int process_name_len);
+/** @brief Read one field contract for a configured process. */
+int catchem_core_get_process_field_checked(void* core, int process_index, int field_index,
+                                           catchem_process_field_v1* descriptor,
+                                           char* field_name, int field_name_len,
+                                           char* units, int units_len);
+/** @brief Destroy a Core handle and its owned resources. */
 int catchem_core_destroy_checked(void* core_ptr);
+/** @brief Return the StateManager handle owned by a Core. */
 int catchem_core_get_state_manager_checked(void* core_ptr, void** state_out);
+/** @brief Copy the most recent boundary error into a caller-owned buffer. */
 int catchem_get_last_error(char* buffer, int max_len);
 
 /**

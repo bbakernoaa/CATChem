@@ -1,5 +1,6 @@
 #pragma once
 #include "catchem_config_manager.hpp"
+#include "catchem_manifest.hpp"
 #include "catchem_interop_field.hpp"
 #include "catchem_species_metadata.hpp"
 #include <algorithm>
@@ -56,59 +57,11 @@ namespace catchem {
             descriptor->identity =
                 config_mgr.data.mechanism_identity.empty() ? "configured" : config_mgr.data.mechanism_identity;
             descriptor->source = config_mgr.config_file_path;
+            descriptor->fingerprint = configuration_fingerprint(config_mgr);
             for (const auto& capability : config_mgr.data.mechanism_capabilities)
                 descriptor->capabilities.insert(canonical_species_name(capability));
             for (const auto& sp : config_mgr.data.species) {
-                SpeciesMetadata meta;
-                meta.short_name = sp.name;
-                meta.long_name = sp.long_name.empty() ? sp.name : sp.long_name;
-                meta.description = sp.description;
-                meta.aliases = sp.aliases;
-                meta.roles = sp.roles;
-
-                meta.is_gas = sp.is_gas;
-                // A species explicitly declared gas is never passed to
-                // particle-only processes, even if a legacy species file
-                // also carries a stale aerosol flag.  This preserves the
-                // configured gas classification without inventing particle
-                // radius or density properties.
-                meta.is_aerosol = sp.is_aerosol && !meta.is_gas;
-                meta.is_tracer = sp.is_tracer;
-                meta.is_advected = sp.is_advected;
-                meta.is_drydep = sp.is_drydep;
-                meta.is_wetdep = sp.is_wetdep;
-                meta.do_settling = sp.do_settling && meta.is_aerosol;
-                meta.is_photolysis = sp.is_photolysis;
-                meta.is_gocart_aero = sp.is_gocart_aero && !meta.is_gas;
-                meta.is_dust = sp.is_dust && !meta.is_gas;
-                meta.is_seasalt = sp.is_seasalt && !meta.is_gas;
-                meta.is_hydrophilic = sp.is_hydrophilic;
-
-                meta.mw_g = sp.mw_g > 0.0 ? sp.mw_g : sp.molecular_weight_kg_mol * 1000.0;
-                meta.density = sp.density;
-                meta.radius = sp.radius;
-                meta.lower_radius = sp.lower_radius;
-                meta.upper_radius = sp.upper_radius;
-                meta.viscosity = sp.viscosity;
-
-                meta.dd_f0 = sp.dd_f0;
-                meta.dd_hstar = sp.dd_hstar;
-                meta.dd_DvzAerSnow = sp.dd_DvzAerSnow;
-                meta.dd_DvzMinVal_snow = sp.dd_DvzMinVal_snow;
-                meta.dd_DvzMinVal_land = sp.dd_DvzMinVal_land;
-
-                meta.henry_k0 = sp.henry_k0;
-                meta.henry_cr = sp.henry_cr;
-                meta.henry_pKa = sp.henry_pKa;
-                meta.wd_retfactor = sp.wd_retfactor;
-                meta.wd_LiqAndGas = sp.wd_LiqAndGas;
-                meta.wd_convfacI2G = sp.wd_convfacI2G;
-                meta.wd_rainouteff = sp.wd_rainouteff;
-                meta.wd_reevap_frac = sp.wd_reevap_frac;
-
-                meta.t_chem_loss = sp.t_chem_loss;
-                meta.BackgroundVV = sp.BackgroundVV;
-                meta.mie_name = sp.mie_name;
+                SpeciesMetadata meta = make_species_metadata(sp);
 
                 species_list.push_back(meta);
                 descriptor->species.push_back(meta);

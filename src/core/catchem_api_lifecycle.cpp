@@ -10,6 +10,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <cmath>
 
 using namespace catchem::api_internal;
 
@@ -43,6 +44,132 @@ int catchem_core_create_checked(int nc, int nl, int ns, void** core_out) {
     } catch (...) {
         return fail(catchem::BoundaryStatus::InternalError, "core_create", "core", "unknown exception");
     }
+}
+
+int catchem_core_begin_interval_checked(void* core_ptr, const catchem_host_interval_v1* interval) {
+    catchem::AdmissionLease admission;
+    const int admitted = admit_handle(core_ptr, catchem::HandleType::Core, "core_begin_interval", admission);
+    if (admitted != CATCHEM_SUCCESS) return admitted;
+    if (!interval) return fail(catchem::BoundaryStatus::NullArgument, "core_begin_interval", "interval", "interval descriptor is null");
+    if (interval->schema_version != 1 || interval->struct_size < sizeof(catchem_host_interval_v1))
+        return fail(catchem::BoundaryStatus::ContractViolation, "core_begin_interval", "interval", "unsupported schema version or descriptor size");
+    try {
+        catchem::TimeState time;
+        time.year=interval->year; time.month=interval->month; time.day=interval->day; time.hour=interval->hour;
+        time.minute=interval->minute; time.second=interval->second; time.doy=interval->day_of_year;
+        time.timestep=interval->duration_seconds;
+        static_cast<catchem::Core*>(core_ptr)->begin_interval(interval->interval_id, time);
+        return CATCHEM_SUCCESS;
+    }
+    catch (const std::exception& error) { return fail(catchem::BoundaryStatus::ContractViolation, "core_begin_interval", "interval", error.what()); }
+    catch (...) { return fail(catchem::BoundaryStatus::InternalError, "core_begin_interval", "interval", "unknown exception"); }
+}
+
+int catchem_core_run_process_checked(void* core_ptr, const catchem_process_invocation_v1* invocation,
+                                     int* operation_status, int* publication_eligible,
+                                     uint64_t* import_generation_out) {
+    catchem::AdmissionLease admission;
+    const int admitted = admit_handle(core_ptr, catchem::HandleType::Core, "core_run_process", admission);
+    if (admitted != CATCHEM_SUCCESS) return admitted;
+    if (!invocation || !operation_status || !publication_eligible || !import_generation_out)
+        return fail(catchem::BoundaryStatus::NullArgument, "core_run_process", "argument", "invocation and result outputs are required");
+    if (invocation->schema_version != 1 || invocation->struct_size < sizeof(catchem_process_invocation_v1) ||
+        !invocation->site || !invocation->process || !std::isfinite(invocation->duration_seconds))
+        return fail(catchem::BoundaryStatus::ContractViolation, "core_run_process", "invocation", "invalid schema, size, identity, or duration");
+    try {
+        catchem::SelectedInvocationKey key{invocation->interval_id, invocation->site, invocation->subcycle, invocation->process};
+        const auto outcome = static_cast<catchem::Core*>(core_ptr)->run_selected_process(key, invocation->duration_seconds);
+        *operation_status = static_cast<int>(outcome.status);
+        *publication_eligible = outcome.publication_eligible ? 1 : 0;
+        *import_generation_out = outcome.import_generation;
+        if (outcome.status == catchem::SelectedOperationStatus::Succeeded) return CATCHEM_SUCCESS;
+        if (outcome.status == catchem::SelectedOperationStatus::Failed)
+            return fail(catchem::BoundaryStatus::ProcessFailure, "core_run_process", invocation->process, outcome.cause.c_str());
+        return fail(catchem::BoundaryStatus::ContractViolation, "core_run_process", invocation->process, outcome.cause.c_str());
+    } catch (const std::exception& error) { return fail(catchem::BoundaryStatus::InternalError, "core_run_process", invocation->process, error.what()); }
+    catch (...) { return fail(catchem::BoundaryStatus::InternalError, "core_run_process", invocation->process, "unknown exception"); }
+}
+
+int catchem_core_end_interval_checked(void* core_ptr, uint64_t interval_id) {
+    catchem::AdmissionLease admission;
+    const int admitted = admit_handle(core_ptr, catchem::HandleType::Core, "core_end_interval", admission);
+    if (admitted != CATCHEM_SUCCESS) return admitted;
+    try { static_cast<catchem::Core*>(core_ptr)->end_interval(interval_id); return CATCHEM_SUCCESS; }
+    catch (const std::exception& error) { return fail(catchem::BoundaryStatus::ContractViolation, "core_end_interval", "interval", error.what()); }
+    catch (...) { return fail(catchem::BoundaryStatus::InternalError, "core_end_interval", "interval", "unknown exception"); }
+}
+
+int catchem_core_get_process_contract_checked(void* core_ptr, int process_index,
+                                              catchem_process_contract_v1* descriptor,
+                                              char* process_name, int process_name_len) {
+    catchem::AdmissionLease admission;
+    const int admitted = admit_handle(core_ptr, catchem::HandleType::Core, "core_get_process_contract", admission);
+    if (admitted != CATCHEM_SUCCESS) return admitted;
+    if (!descriptor || !process_name)
+        return fail(catchem::BoundaryStatus::NullArgument, "core_get_process_contract", "argument",
+                    "descriptor and process-name buffer are required");
+    if (descriptor->schema_version != 1 || descriptor->struct_size < sizeof(*descriptor))
+        return fail(catchem::BoundaryStatus::ContractViolation, "core_get_process_contract", "descriptor",
+                    "unsupported schema version or descriptor size");
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    if (process_index < 0 || static_cast<std::size_t>(process_index) >= core->get_num_processes())
+        return fail(catchem::BoundaryStatus::InvalidIndex, "core_get_process_contract", "process_index",
+                    "process index is out of range");
+    const auto& contract = core->get_process_contract(static_cast<std::size_t>(process_index));
+    descriptor->process_name_required_len = static_cast<int>(contract.process_name.size() + 1);
+    descriptor->field_count = static_cast<int>(contract.fields.size());
+    descriptor->diagnostic_count = static_cast<int>(contract.diagnostics.size());
+    descriptor->product_requirement_count = static_cast<int>(contract.products.size());
+    descriptor->produced_product_count = static_cast<int>(contract.produced_products.size());
+    descriptor->recovery_capability = static_cast<uint32_t>(contract.recovery);
+    if (process_name_len < descriptor->process_name_required_len || process_name_len <= 0)
+        return fail(catchem::BoundaryStatus::ExtentMismatch, "core_get_process_contract", "process_name",
+                    "buffer is too short; descriptor strings were not copied");
+    copy_string_to_buffer(contract.process_name, process_name, process_name_len);
+    return CATCHEM_SUCCESS;
+}
+
+int catchem_core_get_process_field_checked(void* core_ptr, int process_index, int field_index,
+                                           catchem_process_field_v1* descriptor,
+                                           char* field_name, int field_name_len,
+                                           char* units, int units_len) {
+    catchem::AdmissionLease admission;
+    const int admitted = admit_handle(core_ptr, catchem::HandleType::Core, "core_get_process_field", admission);
+    if (admitted != CATCHEM_SUCCESS) return admitted;
+    if (!descriptor || !field_name || !units)
+        return fail(catchem::BoundaryStatus::NullArgument, "core_get_process_field", "argument",
+                    "descriptor, name, and units buffers are required");
+    if (descriptor->schema_version != 1 || descriptor->struct_size < sizeof(*descriptor))
+        return fail(catchem::BoundaryStatus::ContractViolation, "core_get_process_field", "descriptor",
+                    "unsupported schema version or descriptor size");
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    if (process_index < 0 || static_cast<std::size_t>(process_index) >= core->get_num_processes())
+        return fail(catchem::BoundaryStatus::InvalidIndex, "core_get_process_field", "process_index",
+                    "process index is out of range");
+    const auto& contract = core->get_process_contract(static_cast<std::size_t>(process_index));
+    if (field_index < 0 || static_cast<std::size_t>(field_index) >= contract.fields.size())
+        return fail(catchem::BoundaryStatus::InvalidIndex, "core_get_process_field", "field_index",
+                    "field index is out of range");
+    const auto& field = contract.fields[static_cast<std::size_t>(field_index)];
+    descriptor->rank = static_cast<int>(field.axes.size());
+    if (descriptor->rank > 4)
+        return fail(catchem::BoundaryStatus::ContractViolation, "core_get_process_field", "rank",
+                    "field rank exceeds the v1 descriptor capacity");
+    for (int i = 0; i < 4; ++i) descriptor->axes[i] = i < descriptor->rank ? static_cast<int>(field.axes[i]) : -1;
+    descriptor->persistence = static_cast<int>(field.persistence);
+    descriptor->requirement = static_cast<int>(field.requirement);
+    descriptor->access = static_cast<int>(field.access);
+    descriptor->execution_space = static_cast<int>(field.execution_space);
+    descriptor->produced = field.produced ? 1 : 0;
+    descriptor->name_required_len = static_cast<int>(field.canonical_name.size() + 1);
+    descriptor->units_required_len = static_cast<int>(field.units.size() + 1);
+    if (field_name_len < descriptor->name_required_len || units_len < descriptor->units_required_len ||
+        field_name_len <= 0 || units_len <= 0)
+        return fail(catchem::BoundaryStatus::ExtentMismatch, "core_get_process_field", "buffer",
+                    "one or more buffers are too short; no field strings were copied");
+    copy_string_to_buffer(field.canonical_name, field_name, field_name_len);
+    copy_string_to_buffer(field.units, units, units_len);
+    return CATCHEM_SUCCESS;
 }
 
 void* catchem_core_create_from_config(const char* config_file) {

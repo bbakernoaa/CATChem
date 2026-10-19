@@ -9,6 +9,13 @@
 
 namespace catchem {
 
+    /// Resolve a configuration dependency against the YAML file that declares it.
+    inline std::string resolve_config_path(const std::string& config_file, const std::string& path) {
+        if (path.empty() || path.front() == '/') return path;
+        const auto slash = config_file.find_last_of("/\\");
+        return slash == std::string::npos ? path : config_file.substr(0, slash + 1) + path;
+    }
+
     enum class ValidationSeverity { Warning, Error };
 
     struct ValidationIssue {
@@ -122,6 +129,10 @@ namespace catchem {
         std::string description;
         std::vector<std::string> aliases;
         std::vector<std::string> roles;
+        std::string ccpp_standard_name;
+        std::string units;
+        std::string amount_type;
+        std::string air_basis;
 
         bool is_gas = false;
         bool is_aerosol = false;

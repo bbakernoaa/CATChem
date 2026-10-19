@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <cstdint>
 
 namespace catchem {
 
@@ -44,6 +45,43 @@ namespace catchem {
         PersistencePolicy persistence = PersistencePolicy::Timestep;
     };
 
+    struct ProductRequirement {
+        std::string name;
+        std::string producer;
+        bool required = true;
+    };
+
+    struct ProductDeclaration {
+        std::string name;
+        std::string units;
+    };
+
+    struct ProcessSpeciesRepresentation {
+        std::string species_role;
+        std::string units;
+        AmountType amount_type = AmountType::Unspecified;
+        AirBasis air_basis = AirBasis::Unspecified;
+        std::string denominator_recipe;
+    };
+
+    enum class RecoveryCapability { Reconstructible, RequiresReimport, RequiresReinitialize };
+
+    struct SelectedInvocationKey {
+        std::uint64_t interval = 0;
+        std::string site;
+        std::uint32_t subcycle = 0;
+        std::string process;
+    };
+
+    enum class SelectedOperationStatus { Succeeded, Rejected, Failed };
+    struct SelectedOperationOutcome {
+        SelectedOperationStatus status = SelectedOperationStatus::Rejected;
+        std::string process;
+        std::string cause;
+        std::uint64_t import_generation = 0;
+        bool publication_eligible = false;
+    };
+
     // Build instances with make_contract() below rather than positional braces,
     // so adding a member here never silently changes call sites.
     struct ProcessContract {
@@ -51,6 +89,12 @@ namespace catchem {
         std::vector<FieldAccessContract> fields;
         std::vector<MechanismRequirement> mechanism_requirements;
         std::vector<DiagnosticDeclaration> diagnostics;
+        std::vector<ProductRequirement> products;
+        std::vector<ProductDeclaration> produced_products;
+        std::vector<ProcessSpeciesRepresentation> native_representations;
+        std::string concentration_amount_type = "species-native";
+        std::string denominator_recipe = "configured-species-representation";
+        RecoveryCapability recovery = RecoveryCapability::RequiresReinitialize;
 
         bool structurally_valid() const noexcept {
             if (process_name.empty())
@@ -60,6 +104,14 @@ namespace catchem {
                     return false;
             for (const auto& diagnostic : diagnostics)
                 if (diagnostic.canonical_name.empty() || diagnostic.units.empty() || diagnostic.axes.empty())
+                    return false;
+            for (const auto& product : products)
+                if (product.name.empty() || (product.required && product.producer.empty())) return false;
+            for (const auto& product : produced_products)
+                if (product.name.empty() || product.units.empty()) return false;
+            for (const auto& representation : native_representations)
+                if (representation.species_role.empty() || representation.units.empty() ||
+                    representation.amount_type == AmountType::Unspecified || representation.denominator_recipe.empty())
                     return false;
             return true;
         }
@@ -116,7 +168,7 @@ namespace catchem {
 
     inline FieldAccessContract host_concentration(AccessIntent access = AccessIntent::ReadWrite) {
         return {"CONCENTRATION",
-                "mol/mol",
+                "species-native",
                 {SemanticAxis::Column, SemanticAxis::Level, SemanticAxis::Species},
                 PersistencePolicy::Persistent,
                 FieldRequirement::Required,

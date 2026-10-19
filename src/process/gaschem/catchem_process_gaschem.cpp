@@ -12,9 +12,13 @@
 namespace catchem {
 
     ProcessContract GasChemProcess::get_contract() const {
-        return make_contract(get_name(),
-                             {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
-                              host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()});
+        auto contract = make_contract(
+            get_name(),
+            {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
+             host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()});
+        for (const auto& product : photolysis_products)
+            contract.products.push_back({product, "photolysis", true});
+        return contract;
     }
 
     GasChemProcess::GasChemProcess() = default;
@@ -96,6 +100,13 @@ namespace catchem {
                                  {{"species", name}});
                 }
             }
+            photolysis_products.clear();
+            const auto rate_parameters = micm_state->GetRateParameterMap();
+            for (const auto& [parameter_name, parameter_index] : rate_parameters) {
+                (void)parameter_index;
+                if (parameter_name.rfind("PHOTO.", 0) == 0)
+                    photolysis_products.push_back("photolysis_rate_" + parameter_name.substr(6));
+            }
         } catch (const std::exception& e) {
             std::cerr << "GasChemProcess: Error: failed to initialize MICM: " << e.what() << std::endl;
             initialized = false;
@@ -147,6 +158,28 @@ namespace catchem {
 
         auto rate_param_map = micm_state->GetRateParameterMap();
         size_t n_rate_params = rate_param_map.size();
+
+        // Required PHOTO inputs are mechanism-driven. They must come from the
+        // current, successfully produced photolysis generation; a missing or
+        // stale rate is a chemistry configuration error, never a zero rate.
+        for (const auto& [param_name, i_param] : rate_param_map) {
+            (void)i_param;
+            if (param_name.rfind("PHOTO.", 0) != 0)
+                continue;
+            const std::string diag_name = "photolysis_rate_" + param_name.substr(6);
+            if (!state->diagnostic_manager() || !state->diagnostic_manager()->has_field(diag_name))
+                throw std::runtime_error("GasChem requires photolysis prerequisite '" + diag_name +
+                                         "' for mechanism parameter " + param_name);
+            const auto product = state->diagnostic_manager()->get_field(diag_name);
+            if (!product || product->availability != AvailabilityState::Current || product->generation_failed ||
+                product->generation != state->diagnostic_manager()->generation() ||
+                product->last_write_generation != product->generation)
+                throw std::runtime_error("GasChem requires a fresh successful photolysis prerequisite '" +
+                                         diag_name + "' for the current physics generation");
+            if (!state->diagnostic_manager()->get_host_read_pointer(diag_name))
+                throw std::runtime_error("GasChem photolysis prerequisite has no host-readable storage: '" +
+                                         diag_name + "'");
+        }
 
         // Dry air molecular weight in kg/mol (sourced from catchem::constants)
         constexpr double air_mw_kg = catchem::constants::AIR_MW * 1.0e-3;
@@ -204,15 +237,13 @@ namespace catchem {
                         std::string label = param_name.substr(6);
                         std::string diag_name = "photolysis_rate_" + label;
 
-                        double rate_val = 0.0;
-                        if (state->diagnostic_manager() && state->diagnostic_manager()->has_field(diag_name)) {
-                            double* diag_ptr =
-                                static_cast<double*>(state->diagnostic_manager()->get_host_pointer(diag_name));
-                            if (diag_ptr) {
-                                int diag_idx = ilev * nc + icol;
-                                rate_val = diag_ptr[diag_idx];
-                            }
-                        }
+                        const double* diag_ptr = static_cast<const double*>(
+                            state->diagnostic_manager()->get_host_read_pointer(diag_name));
+                        const int diag_idx = ilev * nc + icol;
+                        const double rate_val = diag_ptr[diag_idx];
+                        if (!std::isfinite(rate_val) || rate_val < 0.0)
+                            throw std::domain_error("GasChem received a non-physical value in prerequisite '" +
+                                                    diag_name + "'");
                         micm_rate_params[idx] = rate_val;
                     } else if (param_name.rfind("LOSS.", 0) == 0) {
                         micm_rate_params[idx] = 1.0;

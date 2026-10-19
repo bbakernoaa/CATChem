@@ -6,14 +6,22 @@
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
+#include <iomanip>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace catchem {
 
+    namespace {
+        /** @brief Serializes calls into the module-stateful GOCART bridge. */
+        std::mutex settling_bridge_mutex;
+    }
+
+    /** @brief Calls the Fortran settling kernel using one Mie context handle. */
     extern "C" void run_settling_science_bridge(
-        int n_columns, int n_levels, int n_aerosols, int n_total_species, double dt, double scale_factor,
+        int n_columns, int n_levels, int n_aerosols, int n_total_species, int mie_handle, double dt, double scale_factor,
         int swelling_method, int correction_maring, int maring_dust_only, const double* airden, const double* delp,
         const double* pmid, const double* rh, const double* temperature, const double* z_edge,
         const char* aerosol_species_names, const char* species_names, const int* species_is_dust, const double* radius,
@@ -26,10 +34,13 @@ namespace catchem {
     // entry).  init_rc receives the 1-based index of the first file that failed
     // to open, or 0 on success.  Idempotent: a second call replaces any
     // previously loaded set.
-    extern "C" void run_settling_mie_init(int n_files, const char* type_names, const char* file_paths, int* init_rc);
+    extern "C" void run_settling_mie_init(int n_files, const char* type_names, const char* file_paths, int* mie_handle,
+                                          int* init_rc);
+    /** @brief Releases only the table set identified by mie_handle. */
+    extern "C" void run_settling_mie_release(int mie_handle);
 
     namespace {
-        // Right-trim the blank padding of a fixed-width Fortran character buffer.
+        /** @brief Removes blank padding from a fixed-width Fortran string. */
         std::string trim_trailing_spaces(std::string text) {
             text.erase(text.find_last_not_of(' ') + 1);
             return text;
@@ -50,6 +61,13 @@ namespace catchem {
     }
 
     SettlingProcess::SettlingProcess() : active_scheme("c++_kokkos"), fortran_callback(nullptr) {}
+
+    SettlingProcess::~SettlingProcess() {
+        if (mie_handle > 0) {
+            std::lock_guard<std::mutex> guard(settling_bridge_mutex);
+            run_settling_mie_release(mie_handle);
+        }
+    }
 
     void SettlingProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         // DELP, AIRDEN, and RH are optional host products. GOCART settling
@@ -117,13 +135,17 @@ namespace catchem {
                 mie_type_labels.push_back(type + " -> " + path_str);
             }
             int init_rc = 0;
-            run_settling_mie_init(static_cast<int>(mie.files.size()), type_names.data(), file_paths.data(), &init_rc);
+            {
+                std::lock_guard<std::mutex> guard(settling_bridge_mutex);
+                run_settling_mie_init(static_cast<int>(mie.files.size()), type_names.data(), file_paths.data(), &mie_handle,
+                                      &init_rc);
+            }
             if (init_rc != 0) {
                 const auto& failed = mie.files[static_cast<size_t>(init_rc) - 1];
                 throw std::runtime_error("Settling optics table load failed for file #" + std::to_string(init_rc) +
                                          " ('" + failed.first + "': " + failed.second + ")");
             }
-            mie_initialized = true;
+            if (mie_handle <= 0) throw std::runtime_error("Settling optics table load returned an invalid handle");
         }
         Logger::debug(
             state.get(), "Settling scheme options",
@@ -301,8 +323,18 @@ namespace catchem {
         static const int no_diag_species = 0;
         const int* diag_ids = diagnostic_species_id.empty() ? &no_diag_species : diagnostic_species_id.data();
 
+        std::vector<double> concentration_before;
+        if (diag_flux && n_diag_species > 0) {
+            const size_t concentration_size = static_cast<size_t>(state->column_count()) * state->level_count() *
+                                              state->species_count();
+            concentration_before.assign(state->chemistry().conc->host_data(),
+                                        state->chemistry().conc->host_data() + concentration_size);
+        }
+
+        std::lock_guard<std::mutex> guard(settling_bridge_mutex);
         run_settling_science_bridge(
-            state->column_count(), state->level_count(), num_aerosols, state->species_count(), state->clock().timestep,
+            state->column_count(), state->level_count(), num_aerosols, state->species_count(), mie_handle,
+            state->clock().timestep,
             gocart_scale_factor, gocart_swelling_method, gocart_correction_maring ? 1 : 0,
             gocart_maring_dust_only ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp, pmid,
             state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
@@ -315,11 +347,46 @@ namespace catchem {
                 "Settling optics-table mapping failed: a settling species did not resolve to a loaded Mie table");
         if (bridge_rc != 0)
             throw std::runtime_error("Settling science bridge failed with status " + std::to_string(bridge_rc));
+
+        /// Compare column aerosol mass loss with integrated surface settling flux.
+        if (diag_flux && !concentration_before.empty()) {
+            constexpr double gravity = 9.80665;
+            const int ncol = state->column_count();
+            const int nlev = state->level_count();
+            const auto& aerosol_indices = state->chemistry().settling_indices;
+            double mass_loss = 0.0;
+            double boundary_flux_mass = 0.0;
+            for (int slot = 0; slot < n_diag_species; ++slot) {
+                const int local_aerosol = diagnostic_species_id[static_cast<size_t>(slot)] - 1;
+                if (local_aerosol < 0 || static_cast<size_t>(local_aerosol) >= aerosol_indices.size())
+                    throw std::runtime_error("Settling mass-budget diagnostic has an invalid aerosol index");
+                const int species = aerosol_indices[static_cast<size_t>(local_aerosol)];
+                for (int column = 0; column < ncol; ++column) {
+                    boundary_flux_mass += diag_flux[column + ncol * slot] * state->clock().timestep;
+                    for (int level = 0; level < nlev; ++level) {
+                        const size_t grid_index = static_cast<size_t>(column) + static_cast<size_t>(ncol) * level;
+                        const size_t chemistry_index = grid_index + static_cast<size_t>(ncol) * nlev * species;
+                        const double layer_air_mass = delp[grid_index] / gravity;
+                        mass_loss += (concentration_before[chemistry_index] -
+                                      state->chemistry().conc->host_data()[chemistry_index]) *
+                                     1.0e-9 * layer_air_mass;
+                    }
+                }
+            }
+            std::clog << std::setprecision(17) << "CATCHEM_BUDGET name=settling_column_mass RESIDUAL="
+                      << (mass_loss - boundary_flux_mass) << " MASS_LOSS=" << mass_loss
+                      << " BOUNDARY_FLUX_MASS=" << boundary_flux_mass << std::endl;
+        }
         state->chemistry().conc->mark_host_modified();
     }
 
     void SettlingProcess::finalize() {
         // Kokkos views will be deallocated automatically when their reference count goes to zero.
+        if (mie_handle > 0) {
+            std::lock_guard<std::mutex> guard(settling_bridge_mutex);
+            run_settling_mie_release(mie_handle);
+            mie_handle = 0;
+        }
     }
 
 } // namespace catchem

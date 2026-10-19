@@ -9,7 +9,7 @@
 #include <vector>
 
 namespace catchem {
-    enum class HandleType : std::uint32_t { Core = 1, State = 2, Diagnostic = 3, Configuration = 4, Time = 5 };
+    enum class HandleType : std::uint32_t { Core = 1, State = 2, Diagnostic = 3, Configuration = 4, Time = 5, Manifest = 6 };
     enum class HandleOwnership : std::uint8_t { Owned, Borrowed };
     struct HandleRecord {
         HandleType type = HandleType::Core;
