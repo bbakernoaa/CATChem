@@ -1,4 +1,16 @@
 // src/process/gaschem/catchem_process_gaschem.cpp
+/**
+ * @file catchem_process_gaschem.cpp
+ * @brief Implements the MUSICA MICM-backed gas-phase chemistry adapter.
+ *
+ * @details Concentrations cross the solver boundary as ppmv ↔ mol m-3 using
+ * the dry-air density derived from PMID/T/QV; photolysis rate parameters
+ * (PHOTO.*) are read from the diagnostic manager's host storage and must be
+ * fresh for the current generation — a missing or stale J-rate is a hard
+ * configuration error, never a zero rate. The MICM packed layout
+ * (group-major, species-minor, SIMD-vectorised rows) is built with explicit
+ * index math on both the input and output conversions.
+ */
 #include "catchem_process_gaschem.hpp"
 #include "catchem_constants.hpp"
 #include "catchem_diagnostic_manager.hpp"

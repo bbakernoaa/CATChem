@@ -1,3 +1,16 @@
+/**
+ * @file catchem_process_so4chem.cpp
+ * @brief Implements the GOCART sulfate-chemistry adapter and its Fortran bridge call.
+ *
+ * @details Every bridge field pointer is borrowed from StateManager and must
+ * outlive the call; the persistent oxidant/production vectors are
+ * process-owned across timesteps and round-trip through the bridge in place.
+ * Bridge diagnostics arrive in one packed [n_cols, n_levels, n_diag_species]
+ * scratch buffer that run() scatters into per-species Production_rate_<sp>
+ * fields, while PSO4/DMS products are copied straight from the persistent
+ * accumulators. Units: gases ppmv, aerosols ug/kg; production rates kg/kg/s
+ * (budget check converts with 1e9 × dt to ug/kg).
+ */
 #include "catchem_process_so4chem.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
@@ -9,6 +22,26 @@
 #include <iostream>
 
 extern "C" {
+/**
+ * @brief Flat C entry point into the Fortran sulfur-chemistry science bridge.
+ *
+ * @details Implemented in src/process/so4chem/SO4chemScienceBridge.F90, which
+ * reconstitutes the flat buffers, iterates columns, and drives the GOCART
+ * SulfateChemDriver. Met arrays are intent(in) host views over [n_cols,
+ * n_levels] (2-D surface inputs over [n_cols]); `conc` is intent(inout) and
+ * written in place with gases in ppmv and SO4/MSA in ug/kg; `tendency` is
+ * caller scratch. The c_* persistent arrays are intent(inout) cross-timestep
+ * state owned by the C++ adapter (see SO4chemProcess members) and updated in
+ * place per column, except `c_pso2_dms`, which is bound for ABI completeness
+ * but left untouched (see the member note). `c_diag_prod_rate` receives one
+ * [n_cols, n_levels] slab per diagnostic slot in GLOBAL 1-based
+ * `diagnostic_species_id` order.
+ *
+ * @note The bridge returns no status code: a scheme failure stops the run
+ *       inside Fortran. `z0h` must already be thermal roughness in metres —
+ *       run() supplies the Z0-derived fallback before the call. Calendar
+ *       components drive the scheme's daily H2O2 oxidant recycle.
+ */
 void run_so4chem_science_bridge(int n_cols, int n_levels, int n_species, double dt, int diagnostics,
                                 int gocart_update_so2, int gocart_do_drydep, int year, int month, int day, int hour,
                                 int minute, int second, double* airden, double* cldf, double* delp, double* pmid,
@@ -39,7 +72,9 @@ namespace catchem {
 
     SO4chemProcess::SO4chemProcess() : active_scheme("gocart"), diagnostics_enabled(true) {}
 
-    /** @brief Derive shared meteorology and validate the SO4Chem roughness alternative. */
+    // Documentation lives on the header declaration; this reminder preserves the
+    // derivation/validation contract locally: derive shared meteorology and
+    // validate the SO4Chem roughness alternative.
     void SO4chemProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_delp();
         state->derive_airden();
@@ -373,6 +408,14 @@ namespace catchem {
 } // namespace catchem
 
 extern "C" {
+/**
+ * @brief Register the "so4chem" process and its settings schema with the ProcessRegistry.
+ *
+ * @details Called once by the API layer's built-in registration pass. The
+ * validator accepts the two gocart/update_so2 and gocart/do_drydep options
+ * under processes.so4chem, so an unknown nested option fails at
+ * initialization instead of silently keeping its compiled default.
+ */
 void catchem_register_so4chem_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "so4chem", []() { return std::make_shared<catchem::SO4chemProcess>(); }, {},

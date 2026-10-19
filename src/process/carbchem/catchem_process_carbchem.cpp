@@ -1,3 +1,13 @@
+/**
+ * @file catchem_process_carbchem.cpp
+ * @brief Implements the GOCART carbon-chemistry adapter and its Fortran bridge call.
+ *
+ * @details All buffers handed to run_carbchem_science_bridge are borrowed host
+ * pointers owned by StateManager or by per-call local scratch vectors; the
+ * bridge mutates CONCENTRATION in place, after which the adapter snapshots a
+ * BC1/BC2/OC1/OC2 mass closure for the acceptance suite and marks the view
+ * host-modified so coupled hosts export the updated state.
+ */
 #include "catchem_process_carbchem.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
@@ -9,6 +19,27 @@
 #include <iostream>
 
 extern "C" {
+/**
+ * @brief Flat C entry point into the Fortran carbon-chemistry science bridge.
+ *
+ * @details Implemented in src/process/carbchem/CarbChemScienceBridge.F90, which
+ * reconstitutes the flat buffers into Fortran allocatables and dispatches to the
+ * GOCART scheme. Every pointer argument is a borrowed host buffer — either
+ * StateManager-owned met/concentration storage or a caller-local scratch
+ * vector — and must stay alive and un-reallocated for the whole call; the
+ * bridge writes `conc`, `tendency`, and the four `diag_*` buffers in place.
+ * Array shapes follow the Fortran column-major convention: 3-D met fields are
+ * [n_cols, n_levels], species-packed diagnostics are [n_cols, n_levels,
+ * n_diag_species] (mass) and [n_cols, n_diag_species] (flux), and species
+ * names use the blank-padded 32-characters-per-name flat layout of
+ * `species_names_char`.
+ *
+ * @note The bridge returns no status code: a scheme failure aborts inside
+ *       Fortran. `species_t_chem_loss` must be forwarded verbatim, including
+ *       negative values, which the scheme reads as its "loss disabled"
+ *       sentinel. `diagnostic_species_id` carries GLOBAL 1-based catalog
+ *       indices and is always a valid array, even when `n_diag_species` is 0.
+ */
 void run_carbchem_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* active_scheme,
                                  int diagnostics, double gocart_time_days_hydrophobic_to_hydrophilic, int year,
                                  int month, int day, int hour, int minute, int second, double* airden, double* delp,
@@ -229,6 +260,14 @@ namespace catchem {
 } // namespace catchem
 
 extern "C" {
+/**
+ * @brief Register the "carbchem" process and its settings schema with the ProcessRegistry.
+ *
+ * @details Called once by the API layer's built-in registration pass. The
+ * validator accepts only `gocart/time_days_hydrophobic_to_hydrophilic`, so an
+ * unknown nested option under processes.carbchem fails at initialization
+ * instead of silently keeping its compiled default.
+ */
 void catchem_register_carbchem_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "carbchem", []() { return std::make_shared<catchem::CarbChemProcess>(); }, {},

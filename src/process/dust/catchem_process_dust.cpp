@@ -1,3 +1,16 @@
+/**
+ * @file catchem_process_dust.cpp
+ * @brief Implements the Fengsha/Ginoux dust-emission adapter and its Fortran bridge call.
+ *
+ * @details The canonical DUST1..DUSTn bins are resolved by name through the
+ * shared anonymous-namespace helper so init()'s diagnostic ids and run()'s
+ * physics arrays use one ordering — the science kernel assigns bin physics
+ * positionally, so declaration order would silently mis-map a reordered
+ * species list. The bridge operates on the full unified concentration array
+ * and resolves bins by name; every borrowed host pointer must outlive the
+ * call, and the scheme-conditional surface inputs are enforced per active
+ * scheme before the kernel is entered.
+ */
 #include "catchem_process_dust.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
@@ -12,6 +25,38 @@
 #include <stdexcept>
 
 extern "C" {
+/**
+ * @brief Flat C entry point into the Fortran dust-emission science bridge.
+ *
+ * @details Implemented in src/process/dust/DustScienceBridge.F90, which
+ * reconstitutes the flat buffers and dispatches to the Fengsha or Ginoux
+ * emission kernel named by `active_scheme`. Met/soil arrays are intent(in)
+ * host views: 3-D over [n_cols, n_levels] (airden [kg/m3], delp [Pa]) and
+ * soil-layer SOILM [n_cols, n_soil]; 2-D surface inputs over [n_cols] with
+ * units per the process contract (CLAYFRAC/SNDFRC/GVF/LAI/SSM/GWETTOP [- or
+ * m2/m2], FRLAKE/FRSNO [frac], RDRAG [1], TS [K], USTAR/USTAR_THRESHOLD/Z0
+ * [m], U10M/V10M [m/s], lwi land-category codes). The per-bin metadata arrays
+ * (species_density [kg/m3], species_radius/lower_radius/upper_radius [µm])
+ * span only the resolved DUST bins in canonical order — the schemes' local
+ * species_idx space (1..n_dust) is defined by that sequence — while
+ * `species_names` and `conc`/`tendency` span the full catalog, bins resolved
+ * into concentration slots by name via `bin_species_names` (blank-padded,
+ * upper-cased, 32 chars per name). `conc` is intent(inout) and written in
+ * place; `tendency` is caller scratch.
+ *
+ * @note The bridge returns no status code: a scheme failure stops the run
+ *       inside Fortran. Fengsha tuning scalars/options and the Ginoux
+ *       `ginoux_ch_du` [kg s-2 m-5] multipliers are consumed by their own
+ *       scheme only; unused arguments are still forwarded. When
+ *       `n_diag_species` is 0, `diagnostic_species_id` must still be a valid
+ *       size-1 array (the caller passes a zero dummy) and no `diag_*` slot is
+ *       written; otherwise it carries 1-based LOCAL bin positions and the
+ *       `diag_*` buffers receive [n_cols] or [n_cols, n_diag_species]
+ *       column-major shapes. `diag_emission_total`/`diag_horizontal_flux`/
+ *       `diag_moisture_correction`/`diag_effective_threshold` are per-column
+ *       [n_cols,1]; `diag_emission_bin`/`diag_utar_threshold` are
+ *       [n_cols, n_diag_species].
+ */
 void run_dust_science_bridge(int n_cols, int n_levels, int n_species, int n_total_species, int n_soil, double dt,
                              const char* active_scheme, int diagnostics, double fengsha_alpha, double fengsha_gamma,
                              double fengsha_drylimit_factor, double fengsha_moisture_factor, double fengsha_kvhmax,
@@ -41,6 +86,7 @@ namespace catchem {
         /// The bin count is derived from the is_dust metadata, never
         /// hardcoded; every bin must exist by canonical name and carry valid
         /// physical properties (same throws run() has always enforced).
+        /// @return 0-based global catalog positions of DUST1..DUSTn, in bin order.
         std::vector<int> resolved_dust_bins(const std::shared_ptr<StateManager>& state) {
             std::size_t bin_count = 0;
             for (const auto& meta : state->chemistry().species_list)
@@ -472,6 +518,14 @@ namespace catchem {
 } // namespace catchem
 
 extern "C" {
+/**
+ * @brief Register the "dust" process and its settings schema with the ProcessRegistry.
+ *
+ * @details Called once by the API layer's built-in registration pass. The
+ * validator accepts the nine fengsha tuning options and ginoux/Ch_DU under
+ * processes.dust, so an unknown nested option fails at initialization instead
+ * of silently keeping its compiled default.
+ */
 void catchem_register_dust_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "dust", []() { return std::make_shared<catchem::DustProcess>(); }, {},

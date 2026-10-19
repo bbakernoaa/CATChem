@@ -1,3 +1,17 @@
+/**
+ * @file catchem_process_settling.cpp
+ * @brief Implements the GOCART aerosol settling adapter and its Fortran bridge calls.
+ *
+ * @details All field pointers handed to the bridge are borrowed from
+ * StateManager and must remain alive for the duration of the call; the kernel
+ * removes mass from the CONCENTRATION view in place (the column-mass budget
+ * check reads the concentration delta as µg/kg and converts with 1e-9 × layer
+ * air mass DELP/g to kg m-2). Because the Fortran Mie-table store and kernel
+ * carry module-level state, every entry point — optics init, settling, and
+ * release — is serialized by settling_bridge_mutex. bridge_rc is the kernel's
+ * integer status channel: 0 success, 2 optics-mapping failure, anything else a
+ * fatal bridge error surfaced as std::runtime_error.
+ */
 #include "catchem_process_settling.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
@@ -19,7 +33,22 @@ namespace catchem {
         std::mutex settling_bridge_mutex;
     }
 
-    /** @brief Calls the Fortran settling kernel using one Mie context handle. */
+    /**
+     * @brief Calls the Fortran settling kernel using one Mie context handle.
+     *
+     * @details Flat C surface implemented in SettlingScienceBridge.F90. Met
+     * arrays (airden [kg/m3], delp [Pa], pmid [Pa], rh [1], temperature [K],
+     * z_edge [m]) are intent(in) host views over [n_columns, n_levels] (z_edge
+     * over interface levels); per-aerosol arrays (species_is_dust, radius
+     * [µm], density [kg/m3], names in blank-padded 32-char packing) span only
+     * the settling subset in settling_indices order, while `species_names` and
+     * `concentration` span the full catalog with bins resolved by name.
+     * `concentration` is intent(inout) and written in place; `bridge_rc`
+     * receives the kernel status (0 ok, 2 unresolved Mie mapping).
+     * `diagnostic_species_id` carries 1-based LOCAL aerosol-subset positions
+     * and is always a valid array (size-1 zero dummy when n_diag_species is 0,
+     * matching the Fortran max(n_diag_species,1) dummy shape).
+     */
     extern "C" void run_settling_science_bridge(
         int n_columns, int n_levels, int n_aerosols, int n_total_species, int mie_handle, double dt, double scale_factor,
         int swelling_method, int correction_maring, int maring_dust_only, const double* airden, const double* delp,
@@ -28,15 +57,26 @@ namespace catchem {
         const double* density, double* concentration, int simple_scheme, const char* aerosol_mie_names,
         double* diag_velocity, double* diag_flux, const int* diagnostic_species_id, int n_diag_species, int* bridge_rc);
 
-    // Loads the aerosol optics (Mie) tables named by the top-level "mie:" section
-    // into the Fortran bridge store.  type_names/file_paths are fixed-width,
-    // blank-padded character buffers packed contiguously (32 and 512 bytes per
-    // entry).  init_rc receives the 1-based index of the first file that failed
-    // to open, or 0 on success.  Idempotent: a second call replaces any
-    // previously loaded set.
+    /**
+     * @brief Loads the aerosol optics (Mie) tables named by the top-level "mie:"
+     *        section into the Fortran bridge store.
+     *
+     * @details type_names/file_paths are fixed-width, blank-padded character
+     * buffers packed contiguously (32 and 512 bytes per entry).  init_rc
+     * receives the 1-based index of the first file that failed to open, or 0 on
+     * success.  Idempotent: a second call replaces any previously loaded set.
+     * On success mie_handle receives the context-owned immutable table-set
+     * handle used by every subsequent settling call.
+     */
     extern "C" void run_settling_mie_init(int n_files, const char* type_names, const char* file_paths, int* mie_handle,
                                           int* init_rc);
-    /** @brief Releases only the table set identified by mie_handle. */
+    /**
+     * @brief Releases only the table set identified by mie_handle.
+     *
+     * @param mie_handle Handle returned by run_settling_mie_init; sets other than
+     *                   this one are left untouched, so sibling processes sharing
+     *                   the Fortran store keep their tables.
+     */
     extern "C" void run_settling_mie_release(int mie_handle);
 
     namespace {
@@ -392,6 +432,14 @@ namespace catchem {
 } // namespace catchem
 
 extern "C" {
+/**
+ * @brief Register the "settling" process and its settings schema with the ProcessRegistry.
+ *
+ * @details Called once by the API layer's built-in registration pass. The
+ * validator accepts the five documented gocart tuning options under
+ * processes.settling, so an unknown nested option fails at initialization
+ * instead of silently keeping its compiled default.
+ */
 void catchem_register_settling_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "settling", []() { return std::make_shared<catchem::SettlingProcess>(); }, {},

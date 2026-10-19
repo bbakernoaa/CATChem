@@ -1,6 +1,12 @@
 /**
  * @file catchem_photolysis_conversion.hpp
  * @brief Unit conversions used to prepare MUSICA TUV-x profiles.
+ *
+ * @details Header-only inline conversions shared between the photolysis
+ * process and its tests. CATChem stores gas constituents as dry-air mole
+ * fractions (ppmv) while MUSICA TUV-x ozone profiles require number density
+ * (molecules cm-3); keeping the factor and its domain checks in one place
+ * guarantees both sides of the FFI agree on the conversion.
  */
 
 #pragma once

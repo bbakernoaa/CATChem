@@ -1,3 +1,16 @@
+/**
+ * @file catchem_process_wetdep.cpp
+ * @brief Implements the Jacob/GOCART wet-deposition adapters and their Fortran bridge calls.
+ *
+ * @details run() selects one of two bridge entry points by active scheme so the
+ * legacy Jacob FFI surface stays byte-identical while the GOCART2G kernel
+ * receives its additional PRECCON/PRECLSC surface rain inputs. Per-species
+ * Henry-law and washout parameters are gathered into full-catalog scratch
+ * vectors; the three-factor wd_rainouteff array is exposed through a
+ * layout_left mdspan so its memory order matches the Fortran
+ * [n_species, 3] dummy. C++ bools cross as std::vector<char> reinterpreted as
+ * Fortran logical storage, and every borrowed pointer must outlive the call.
+ */
 #include "catchem_process_wetdep.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
@@ -6,6 +19,27 @@
 #include <iostream>
 
 extern "C" {
+/**
+ * @brief Flat C entry point into the Fortran Jacob wet-deposition science bridge.
+ *
+ * @details Implemented in src/process/wetdep/WetDepScienceBridge.F90, which
+ * reconstitutes the flat buffers and runs the Jacob et al. (2000) in-cloud and
+ * below-cloud scavenging kernel. Met arrays are intent(in) host views over
+ * [n_cols, n_levels] (PEDGE/PFILSAN/PFLLSAN over interface levels); the
+ * per-species arrays (is_aerosol, is_wetdep, henry_*, wd_*, radius [µm],
+ * mw_g [g/mol]) span the FULL catalog in global order, with Fortran logical
+ * dummies received as C `bool*` materialised from std::vector<char>.
+ * `wd_rainouteff` is the flattened [n_species, 3] efficiency layout.
+ * `conc` is intent(inout) and written in place; `tendency` is caller scratch.
+ *
+ * @note The bridge returns no status code: a scheme failure stops the run
+ *       inside Fortran. `diag_mass` [kg/m2] and `diag_flux` [kg/m2/s] receive
+ *       one [n_cols, n_levels] slab per entry of `diagnostic_species_id`,
+ *       indexed by SLOT POSITION (1-based), not by global species index; the
+ *       jacob_* arguments carry the scale_factor, radius_threshold [µm],
+ *       sulfate-resuspension flag, and sulfate washout efficiency staged from
+ *       processes.wetdep.jacob.* in init().
+ */
 void run_wetdep_science_bridge(int n_cols, int n_levels, int n_species, double dt, int diagnostics,
                                double jacob_scale_factor, double jacob_radius_threshold, int jacob_so4_gocart_resusp,
                                double jacob_so4_washout_eff, double* airden_dry, double* mairden, double* pedge,
@@ -19,6 +53,24 @@ void run_wetdep_science_bridge(int n_cols, int n_levels, int n_species, double d
 // GOCART2G wet-removal entry (scheme 'gocart').  Kept separate from the Jacob
 // bridge so the Jacob FFI surface stays byte-identical; PRECCON/PRECLSC are
 // per-column surface scalars (rank-2 state fields) required by the kernel.
+/**
+ * @brief Flat C entry point into the Fortran GOCART2G wet-removal science bridge.
+ *
+ * @details Implemented in src/process/wetdep/WetDepScienceBridge.F90: the
+ * sulfate chain (DMS/SO2/SO4/MSA) routes through SU_Wet_Removal and all other
+ * aerosols through WetRemovalUFS. Argument conventions match
+ * run_wetdep_science_bridge (full-catalog species arrays, in-place `conc`,
+ * slot-position-ordered `diag_mass`/`diag_flux`), with the Jacob tuning options
+ * replaced by gocart_scale_factor, gocart_washout_tuning, and
+ * gocart_radius_threshold [µm], and `preccon`/`preclsc` [m] added as intent(in)
+ * instantaneous surface rain amounts.
+ *
+ * @note The kernel divides the rain amounts by the timestep, so the caller must
+ *       guarantee dt > 0 (enforced in run()). Returns no status code. The
+ *       packed `diag_mass`/`diag_flux` slabs follow the same selected-set
+ *       position ordering as the Jacob entry (run() scatters them back the
+ *       same way for both schemes).
+ */
 void run_wetdep_gocart_science_bridge(int n_cols, int n_levels, int n_species, double dt, int diagnostics,
                                       double gocart_scale_factor, double gocart_washout_tuning,
                                       double gocart_radius_threshold, double* mairden, double* pedge, double* pfilsan,
@@ -31,7 +83,8 @@ void run_wetdep_gocart_science_bridge(int n_cols, int n_levels, int n_species, d
 
 namespace catchem {
 
-    /** @brief Declare required host inputs, including GOCART-only rain amounts. */
+    // Documentation lives on the header declaration; this reminder preserves the
+    // contract locally: declare required host inputs, including GOCART-only rain amounts.
     ProcessContract WetDepProcess::get_contract() const {
         // PRECCON/PRECLSC are instantaneous surface rain amounts consumed only
         // by the GOCART2G wet-removal kernel.  They are declared Optional so a
@@ -57,7 +110,9 @@ namespace catchem {
 
     WetDepProcess::WetDepProcess() : active_scheme("jacob"), diagnostics_enabled(true) {}
 
-    /** @brief Derive only the meteorological products consumed by the active wet-deposition scheme. */
+    // Documentation lives on the header declaration; this reminder preserves the
+    // contract locally: derive only the meteorological products consumed by the
+    // active wet-deposition scheme.
     void WetDepProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         if (active_scheme == "jacob") {
             state->derive_reevapls();
@@ -318,6 +373,14 @@ namespace catchem {
 } // namespace catchem
 
 extern "C" {
+/**
+ * @brief Register the "wetdep" process and its settings schema with the ProcessRegistry.
+ *
+ * @details Called once by the API layer's built-in registration pass. The
+ * validator accepts the four jacob and three gocart tuning options under
+ * processes.wetdep, so an unknown nested option fails at initialization
+ * instead of silently keeping its compiled default.
+ */
 void catchem_register_wetdep_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "wetdep", []() { return std::make_shared<catchem::WetDepProcess>(); }, {},

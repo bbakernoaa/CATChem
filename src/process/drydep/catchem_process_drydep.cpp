@@ -1,3 +1,15 @@
+/**
+ * @file catchem_process_drydep.cpp
+ * @brief Implements the Wesely/GOCART/Zhang dry-deposition adapter and its Fortran bridge call.
+ *
+ * @details run() gathers ~30 host field pointers and per-species metadata
+ * vectors, materialises the 20-category land-surface arrays (FRLAI,
+ * FRLANDUSE, ILAND) into layout_left mdspans matching the Fortran column-major
+ * ABI, and forwards everything to run_drydep_science_bridge. C++ bools cross
+ * the boundary as std::vector<char> reinterpreted as Fortran logical storage;
+ * all borrowed buffers must outlive the call. The adapter then closes an
+ * aerosol-removal budget against the per-species deposition diagnostic.
+ */
 #include "catchem_process_drydep.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
@@ -8,6 +20,27 @@
 #include <iostream>
 
 extern "C" {
+/**
+ * @brief Flat C entry point into the Fortran dry-deposition science bridge.
+ *
+ * @details Implemented in src/process/drydep/DryDepScienceBridge.F90, which
+ * reconstitutes the flat buffers and dispatches to the Wesely gas scheme plus
+ * the selected GOCART or Zhang aerosol scheme. Every pointer argument is a
+ * borrowed host buffer — StateManager-owned met/storage or caller-local
+ * scratch — and must stay alive and un-reallocated for the whole call; the
+ * bridge writes `conc`, `tendency`, and the two `diag_*` buffers in place.
+ * All per-species arrays (mw_g, dd_*, density, radius, is_* flags, radii
+ * bounds) span the FULL catalog in global order, not just the drydep subset.
+ * Logical Fortran dummies are received as C `bool*` materialised from
+ * std::vector<char> on the caller side.
+ *
+ * @note The bridge returns no status code: a scheme failure aborts inside
+ *       Fortran. The `tskin` slot receives the same TS pointer as `ts` — the
+ *       schemes treat skin and surface temperature identically here — and the
+ *       `z0h` slot receives the momentum roughness Z0, matching the legacy
+ *       MetState wiring. `diagnostic_species_id` carries GLOBAL 1-based
+ *       catalog indices selected by the is_drydep flag.
+ */
 void run_drydep_science_bridge(
     int n_cols, int n_levels, int n_species, double dt, const char* gas_scheme, const char* aero_scheme,
     int diagnostics, double wesely_scale_factor, int wesely_co2_effect, double wesely_co2_level,
@@ -376,6 +409,14 @@ namespace catchem {
 } // namespace catchem
 
 extern "C" {
+/**
+ * @brief Register the "drydep" process and its settings schema with the ProcessRegistry.
+ *
+ * @details Called once by the API layer's built-in registration pass. The
+ * validator accepts the ten documented Wesely/GOCART/Zhang tuning options
+ * under processes.drydep, so an unknown nested option fails at
+ * initialization instead of silently keeping its compiled default.
+ */
 void catchem_register_drydep_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "drydep", []() { return std::make_shared<catchem::DryDepProcess>(); }, {},
