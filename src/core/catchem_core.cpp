@@ -2,12 +2,10 @@
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include <algorithm>
-#include <array>
 #include <cctype>
 #include <filesystem>
 #include <iostream>
 #include <limits>
-#include <string_view>
 #include <unordered_set>
 
 namespace {
@@ -30,26 +28,33 @@ namespace {
         config.validate_or_throw();
     }
 
-    // Diagnostic-only: reports min/max of a fixed species watch-list after each
-    // process, so a runaway species can be bisected to the introducing process
-    // without re-running the whole coupled model multiple times.
-    void log_watch_species_bounds(catchem::StateManager& state, const std::string& process_name, std::size_t step) {
+    // Diagnostic-only: reports min/max of the species named by
+    // simulation/verbose/watch_species after each process, so a runaway
+    // species can be bisected to the introducing process without re-running
+    // the whole coupled model multiple times.
+    void log_watch_species_bounds(catchem::StateManager& state, const catchem::SimulationConfig& sim,
+                                  const std::string& process_name, std::size_t step) {
         // Per-step, per-process, per-species diagnostics: keep them behind the
-        // DEBUG threshold and skip the full-array sweep when it is off.
+        // DEBUG threshold and skip the full-array sweep when it is off or when
+        // nothing is being watched.
         if (!catchem::Logger::enabled(catchem::Logger::Level::Debug))
             return;
-        static constexpr std::array<std::string_view, 18> watch = {
-            "so2",   "so4",   "dms",   "msa",   "bc1",   "bc2",   "oc1",   "oc2",   "dust1",
-            "dust2", "dust3", "dust4", "dust5", "seas1", "seas2", "seas3", "seas4", "seas5"};
+        if (!sim.watch_all_species && sim.watch_species.empty())
+            return;
         if (!state.chemistry().conc)
             return;
+        std::unordered_set<std::string> watch;
+        for (std::string name : sim.watch_species) {
+            std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
+            watch.insert(name);
+        }
         const auto view = state.chemistry().conc->mdspan();
         const int nc = state.column_count();
         const int nl = state.level_count();
         for (std::size_t ispec = 0; ispec < state.chemistry().species_list.size(); ++ispec) {
             std::string lower = state.chemistry().species_list[ispec].short_name;
             std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return std::tolower(c); });
-            if (std::find(watch.begin(), watch.end(), lower) == watch.end())
+            if (!sim.watch_all_species && watch.find(lower) == watch.end())
                 continue;
             double lo = std::numeric_limits<double>::infinity();
             double hi = -std::numeric_limits<double>::infinity();
@@ -354,7 +359,8 @@ namespace catchem {
                 }
                 processes_[index]->run(state_mgr_);
                 if (verbose) {
-                    log_watch_species_bounds(*state_mgr_, processes_[index]->get_name(), last_outcome_.timestep);
+                    log_watch_species_bounds(*state_mgr_, config_mgr_->data.simulation, processes_[index]->get_name(),
+                                             last_outcome_.timestep);
                     Logger::debug(*state_mgr_, "Core process bookkeeping",
                                   {{"step", std::to_string(last_outcome_.timestep)},
                                    {"index", std::to_string(index)},

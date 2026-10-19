@@ -14,6 +14,18 @@ int main() {
     assert(valid.data.species[0].name == "CO");
     assert(valid.data.species[1].name == "O3");
 
+    // A watch species that is not in the mechanism is a warning, not an error.
+    valid.data.simulation.watch_species = {"co", "nope"};
+    const auto& watch_report = valid.validate();
+    assert(!watch_report.has_errors());
+    bool warned = false;
+    for (const auto& issue : watch_report.issues)
+        if (issue.severity == catchem::ValidationSeverity::Warning &&
+            issue.message.find("watch species is absent from active mechanism: nope") != std::string::npos)
+            warned = true;
+    assert(warned);
+    valid.data.simulation.watch_species.clear();
+
     // Scalar-parsing contract (strict_booleans.yml): booleans are true/false
     // only; null or absent means the default; a legacy spelling or a wrong
     // type is an error, never a silent fallback.

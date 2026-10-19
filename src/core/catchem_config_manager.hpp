@@ -34,6 +34,11 @@ namespace catchem {
         std::string emission_filename;
         bool verbose_enabled = false;
         std::string log_level; ///< simulation/verbose/log_level, as written in the YAML (empty when unset)
+        /// simulation/verbose/watch_species: species whose min/max/sum the core
+        /// logs after every process at the DEBUG threshold.  A list of names
+        /// (matched case-insensitively), or the word `all`; absent means none.
+        std::vector<std::string> watch_species;
+        bool watch_all_species = false;
     };
 
     struct RuntimeConfig {

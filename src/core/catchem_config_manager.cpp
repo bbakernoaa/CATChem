@@ -565,6 +565,28 @@ namespace catchem {
                                 "simulation/verbose/log_level must be debug, info, warn, or error");
                         Logger::set_level(*level);
                     }
+                    // Optional species watch list for the per-process bounds
+                    // log (Core::run_timestep at DEBUG): a list of names, or
+                    // the scalar `all`.  Absent or null means no watch logging.
+                    const YAML::Node watch = sim["verbose"]["watch_species"];
+                    if (!is_null_scalar(watch)) {
+                        if (watch.IsScalar()) {
+                            if (lowercase(watch.Scalar()) != "all")
+                                throw_bad_scalar("a list of species names or the word all",
+                                                 "simulation/verbose/watch_species", watch);
+                            data.simulation.watch_all_species = true;
+                        } else if (watch.IsSequence()) {
+                            for (const auto& item : watch) {
+                                if (!item.IsScalar())
+                                    throw_bad_scalar("a list of species names", "simulation/verbose/watch_species",
+                                                     item);
+                                data.simulation.watch_species.push_back(item.Scalar());
+                            }
+                        } else {
+                            throw_bad_scalar("a list of species names or the word all",
+                                             "simulation/verbose/watch_species", watch);
+                        }
+                    }
                 }
                 if (sim["nx"]) {
                     data.runtime.nx = sim["nx"].as<int>();
@@ -926,6 +948,19 @@ namespace catchem {
                     add("emissions", "processes/extemis/" + category_name + "/monthly_anchor",
                         "unknown monthly_anchor value: " + category.monthly_anchor, "use one of: climatological, file");
             }
+        }
+
+        // simulation/verbose/watch_species names must exist in the loaded
+        // mechanism; a typo would otherwise log nothing and say nothing.
+        if (!data.simulation.watch_species.empty() && !data.species.empty()) {
+            std::set<std::string> mechanism;
+            for (const auto& sp : data.species)
+                mechanism.insert(lowercase(sp.name));
+            for (const auto& name : data.simulation.watch_species)
+                if (mechanism.find(lowercase(name)) == mechanism.end())
+                    add("logging", "simulation/verbose/watch_species",
+                        "watch species is absent from active mechanism: " + name,
+                        "name a mechanism species or remove it", ValidationSeverity::Warning);
         }
 
         for (const auto& [category_name, category] : data.emission_mappings) {
