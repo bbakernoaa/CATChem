@@ -34,6 +34,7 @@ module catchem_nuopc_emis_mod
    use iso_c_binding, only: c_ptr, c_char, c_int, c_double, c_null_char, c_associated, c_f_pointer
    use ESMF
    use catchem_nuopc_lengths
+   use catchem_nuopc_strings
    use NUOPC
    use aqmio
    use netcdf
@@ -272,14 +273,14 @@ contains
       extemis_activate = (catchem_config_get_yaml_bool(core_ptr, 'processes/extemis/activate' // c_null_char, 1_c_int) /= 0)
       if (.not. extemis_activate) then
 #ifdef CATCHEM_TRACE_NUOPC
-         block
-            character(len=NUOPC_MSG_LEN) :: log_msg
-            write(log_msg, '(A)') '[CATCHEM DEBUG] catchem_emis_init: extemis disabled by processes/extemis/activate=false'
-            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
-         end block
+         call ESMF_LogWrite('[CATCHEM DEBUG] catchem_emis_init: extemis disabled by processes/extemis/activate=false', ESMF_LOGMSG_DEBUG, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 #endif
          call ESMF_LogWrite(trim(pName)//': External emissions disabled (processes/extemis/activate=false)', &
             ESMF_LOGMSG_INFO, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
       end if
 
       ! Initialize ExtEmisDataType with 0 to allow push-back population
@@ -287,6 +288,8 @@ contains
       if (localrc /= CC_SUCCESS) then
          write(msg, '(A,A)') trim(pName), ': Failed to initialize ExtEmisDataType'
          call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          rc = CC_FAILURE
          return
       end if
@@ -298,6 +301,8 @@ contains
          if (catchem_config_has_emission_mapping(core_ptr) == 0) then
             write(msg, '(A,A)') trim(pName), ': Emission mapping not loaded in C++ ConfigManager'
             call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
             rc = CC_FAILURE
             return
          else
@@ -319,6 +324,8 @@ contains
                   if (localrc /= CC_SUCCESS) then
                      write(msg, '(A,A,A)') trim(pName), ': Failed to populate category ', trim(category_name)
                      call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+                     if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                        line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                      rc = CC_FAILURE
                      return
                   end if
@@ -328,6 +335,8 @@ contains
                   if (localrc /= CC_SUCCESS) then
                      write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed timing setup for category: ', trim(category_name)
                      call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+                     if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                        line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                      rc = CC_FAILURE
                      return
                   end if
@@ -337,15 +346,16 @@ contains
       end if
 
 #ifdef CATCHEM_TRACE_NUOPC
-      block
-         character(len=NUOPC_MSG_LEN) :: log_msg
-         write(log_msg, '(A,I0)') '[CATCHEM DEBUG] catchem_emis_init: n_categories=', ext_emis_data%n_categories
-         call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
-      end block
+      call ESMF_LogWrite('[CATCHEM DEBUG] catchem_emis_init: n_categories=' // &
+         int_to_string(ext_emis_data%n_categories), ESMF_LOGMSG_DEBUG, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 #endif
 
       call ESMF_LogWrite(trim(pName)//': Emission initialization completed', &
          ESMF_LOGMSG_INFO, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
    end subroutine catchem_emis_init
 
@@ -446,6 +456,8 @@ contains
             call ESMF_LogWrite(trim(pName)//': reading emission for '// &
                trim(ext_emis_data%categories(i)%category_name)// &
                " @ "//trim(timeString), ESMF_LOGMSG_DEBUG, rc=localrc)
+            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
             if (ext_emis_data%categories(i)%n_times == 0 .and. &
                index(trim(ext_emis_data%categories(i)%source_file), '%') == 0) then
@@ -458,6 +470,8 @@ contains
                write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed to read data for category: ', &
                   trim(ext_emis_data%categories(i)%category_name)
                call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                rc = CC_FAILURE
                return
             end if
@@ -471,6 +485,8 @@ contains
                write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed to blend time for category: ', &
                   trim(ext_emis_data%categories(i)%category_name)
                call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                rc = CC_FAILURE
                return
             end if
@@ -481,6 +497,8 @@ contains
             write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed to apply emissions for category: ', &
                trim(ext_emis_data%categories(i)%category_name)
             call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
             rc = CC_FAILURE
             return
          end if
@@ -488,6 +506,8 @@ contains
 
       call ESMF_LogWrite(trim(pName)//': Emission data updated', &
          ESMF_LOGMSG_DEBUG, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
    end subroutine catchem_emis_update
 
@@ -630,6 +650,8 @@ contains
       if (is_null_filename(filename)) then
          write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: No valid source file specified for category: ', trim(category_name)
          call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          rc = CC_FAILURE
          return
       end if
@@ -639,6 +661,8 @@ contains
       if (.not. file_exists) then
          write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Source file not found: ', trim(filename)
          call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          rc = CC_FAILURE
          return
       end if
@@ -666,15 +690,12 @@ contains
       call catchem_emis_detect_field_ranks(category, filename, localrc)
 #ifdef CATCHEM_TRACE_NUOPC
       do ifield = 1, category%n_fields
-         block
-            character(len=NUOPC_MSG_LEN) :: log_msg
-            write(log_msg, '(A,A,A,A,A,A,A,L1,A,I0)') '[CATCHEM DEBUG] AQMIO rank category=', trim(category_name), &
-               ' file=', trim(filename), &
-               ' field=', trim(category%fields(ifield)%field_name), &
-               ' is_2d=', category%fields(ifield)%is_2d, &
-               ' nlev_file=', category%fields(ifield)%nlev_file
-            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
-         end block
+         call ESMF_LogWrite('[CATCHEM DEBUG] AQMIO rank category=' // trim(category_name) // ' file=' // &
+            trim(filename) // ' field=' // trim(category%fields(ifield)%field_name) // ' is_2d=' // &
+            logical_to_string(category%fields(ifield)%is_2d) // ' nlev_file=' // &
+            int_to_string(category%fields(ifield)%nlev_file), ESMF_LOGMSG_DEBUG, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
       end do
 #endif
 
@@ -692,6 +713,8 @@ contains
                ': regrid_method set but lat_name/lon_name missing for category: ', &
                trim(category_name)
             call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
             rc = CC_FAILURE
             return
          end if
@@ -726,13 +749,10 @@ contains
          if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__,  file=__FILE__,  rcToReturn=rc)) then
             ! Clean up field before returning
-            block
-               integer :: destroy_rc
-               ! A failed destroy is logged; rc keeps the error that caused the bail-out.
-               call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
-               if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__)) continue
-            end block
+            ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+            call ESMF_FieldDestroy(esmf_field, rc=localrc)
+            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__)) continue
             return  ! bail out
          end if
 
@@ -742,13 +762,10 @@ contains
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__,  file=__FILE__,  rcToReturn=rc)) then
                ! Clean up field before returning
-               block
-                  integer :: destroy_rc
-                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
-                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
-                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__)) continue
-               end block
+               ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__)) continue
                return  ! bail out
             end if
             !!TODO: We should check unit conversion in the future. Here we make sure the gridded emission is in kg/m2/s already
@@ -759,13 +776,10 @@ contains
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__,  file=__FILE__,  rcToReturn=rc)) then
                ! Clean up field before returning
-               block
-                  integer :: destroy_rc
-                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
-                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
-                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__)) continue
-               end block
+               ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__)) continue
                return  ! bail out
             end if
             !!TODO: We should check unit conversion in the future. Here we make sure the gridded emission is in kg/m2/s already
@@ -778,16 +792,14 @@ contains
 
          category%fields(ifield)%is_loaded = .true.   !set to true; otherwise diagnostics will not be saved.
 #ifdef CATCHEM_TRACE_NUOPC
-         block
-            character(len=NUOPC_MSG_LEN) :: log_msg
-            write(log_msg, '(A,A,A,A,A,L1,A,L1,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] AQMIO read category=', trim(category_name), &
-               ' field=', trim(category%fields(ifield)%field_name), &
-               ' emission_data=', allocated(category%fields(ifield)%emission_data), &
-               ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1), &
-               ' min=', minval(category%fields(ifield)%emission_data), &
-               ' max=', maxval(category%fields(ifield)%emission_data)
-            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
-         end block
+         call ESMF_LogWrite('[CATCHEM DEBUG] AQMIO read category=' // trim(category_name) // ' field=' // &
+            trim(category%fields(ifield)%field_name) // ' emission_data=' // &
+            logical_to_string(allocated(category%fields(ifield)%emission_data)) // ' interp_t1=' // &
+            logical_to_string(allocated(category%fields(ifield)%interp_data_t1)) // ' min=' // &
+            real_to_string_sci(minval(category%fields(ifield)%emission_data)) // ' max=' // &
+            real_to_string_sci(maxval(category%fields(ifield)%emission_data)), ESMF_LOGMSG_DEBUG, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 #endif
 
          ! Clean up ESMF field after data transfer
@@ -804,6 +816,8 @@ contains
       write(msg, '(A,A,A)') trim(pName), ': Successfully read emission data for category ', &
          trim(category_name)
       call ESMF_LogWrite(msg, ESMF_LOGMSG_DEBUG, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
    end subroutine catchem_emis_read
 
@@ -916,6 +930,8 @@ contains
                write(msg, '(A,A,A)') trim(pName), &
                   ': next-period file not found, disabling time_interp: ', trim(filename_next)
                call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_WARNING, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                do_time_interp = .false.
                multi_file_interp = .false.
             else
@@ -923,6 +939,8 @@ contains
                   ': multi-file time_interp for ', trim(category_name), &
                   ' next_file='//trim(filename_next)
                call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_DEBUG, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
             end if
          else
             ! Same-file interpolation
@@ -936,6 +954,8 @@ contains
                ': time_interp read for ', trim(category_name), &
                category%irec, '  and next=', irec_next
             call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_DEBUG, rc=localrc)
+            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          end if
       end if
 
@@ -965,6 +985,8 @@ contains
                      ': could not read time coord from next file, using calendar interp: ', &
                      trim(filename_next)
                   call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_WARNING, rc=localrc)
+                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                end if
                if (allocated(d2a)) deallocate(d2a)
                if (allocated(s2a)) deallocate(s2a)
@@ -995,26 +1017,20 @@ contains
                rc        = localrc)
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-               block
-                  integer :: destroy_rc
-                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
-                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
-                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__)) continue
-               end block
+               ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__)) continue
                return
             end if
 
             call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=localrc)
             if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-               block
-                  integer :: destroy_rc
-                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
-                  call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
-                  if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__)) continue
-               end block
+               ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+               call ESMF_FieldDestroy(esmf_field, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__)) continue
                return
             end if
 
@@ -1055,13 +1071,10 @@ contains
                end if
                if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                  block
-                     integer :: destroy_rc
-                     ! A failed destroy is logged; rc keeps the error that caused the bail-out.
-                     call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
-                     if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                        line=__LINE__, file=__FILE__)) continue
-                  end block
+                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                  call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) continue
                   return
                end if
 
@@ -1098,26 +1111,20 @@ contains
                   rc        = localrc)
                if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                  block
-                     integer :: destroy_rc
-                     ! A failed destroy is logged; rc keeps the error that caused the bail-out.
-                     call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
-                     if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                        line=__LINE__, file=__FILE__)) continue
-                  end block
+                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                  call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) continue
                   return
                end if
 
                call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=localrc)
                if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                   line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                  block
-                     integer :: destroy_rc
-                     ! A failed destroy is logged; rc keeps the error that caused the bail-out.
-                     call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
-                     if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                        line=__LINE__, file=__FILE__)) continue
-                  end block
+                  ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                  call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__)) continue
                   return
                end if
 
@@ -1158,13 +1165,10 @@ contains
                   end if
                   if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
                      line=__LINE__, file=__FILE__, rcToReturn=rc)) then
-                     block
-                        integer :: destroy_rc
-                        ! A failed destroy is logged; rc keeps the error that caused the bail-out.
-                        call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
-                        if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-                           line=__LINE__, file=__FILE__)) continue
-                     end block
+                     ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+                     call ESMF_FieldDestroy(esmf_field, rc=localrc)
+                     if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                        line=__LINE__, file=__FILE__)) continue
                      return
                   end if
 
@@ -1196,14 +1200,12 @@ contains
 
          category%fields(ifield)%is_loaded = .true.
 #ifdef CATCHEM_TRACE_NUOPC
-         block
-            character(len=NUOPC_MSG_LEN) :: log_msg
-            write(log_msg, '(A,A,A,A,A,L1,A,L1)') '[CATCHEM DEBUG] AQMIO regrid read category=', trim(category_name), &
-               ' field=', trim(category%fields(ifield)%field_name), &
-               ' emission_data=', allocated(category%fields(ifield)%emission_data), &
-               ' interp_t1=', allocated(category%fields(ifield)%interp_data_t1)
-            call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
-         end block
+         call ESMF_LogWrite('[CATCHEM DEBUG] AQMIO regrid read category=' // trim(category_name) // ' field=' // &
+            trim(category%fields(ifield)%field_name) // ' emission_data=' // &
+            logical_to_string(allocated(category%fields(ifield)%emission_data)) // ' interp_t1=' // &
+            logical_to_string(allocated(category%fields(ifield)%interp_data_t1)), ESMF_LOGMSG_DEBUG, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 #endif
 
          call ESMF_FieldDestroy(esmf_field, rc=localrc)
@@ -1216,6 +1218,8 @@ contains
       write(msg, '(A,A,A)') trim(pName), &
          ': Successfully read & regridded emission data for category ', trim(category_name)
       call ESMF_LogWrite(msg, ESMF_LOGMSG_DEBUG, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
    end subroutine catchem_emis_read_regrid
 
@@ -1244,7 +1248,7 @@ contains
    !! \param[in] met_state Meteorological state (DELP, AIRDEN, PBLH)
    !! \param[in] vertical_dist Distribution method name
    !! \param[in] nx,ny,nz Grid dimensions
-   subroutine distribute_emissions_vertical(emission_flux, delp, airden, pblh, vertical_dist, nx, ny, nz)
+   subroutine distribute_emissions_vertical(emission_flux, delp, airden, pblh, vertical_dist, nx, ny, nz, rc)
       implicit none
 
       real(fp), intent(inout) :: emission_flux(:,:,:)
@@ -1274,6 +1278,10 @@ contains
 
       ! UFS/FV3 convention: k=1 = surface, k=nz = top of atmosphere
       ! Return immediately if no distribution needed
+      integer, intent(out) :: rc
+      integer :: localrc
+
+      rc = CC_SUCCESS
       select case (trim(vertical_dist))
        case ('none', 'NONE', 'None', '')
          return
@@ -1286,7 +1294,9 @@ contains
        case default
          call ESMF_LogWrite('distribute_emissions_vertical: Unrecognized vertical_dist option: '// &
             trim(vertical_dist)//'; skipping vertical distribution', &
-            ESMF_LOGMSG_WARNING)
+            ESMF_LOGMSG_WARNING, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          return
       end select
 
@@ -1787,6 +1797,8 @@ contains
       if (.not. c_associated(c_pedge) .or. .not. c_associated(c_airden)) then
          write(msg, '(A,A)') trim(pName), ': Failed to get PEDGE or AIRDEN_DRY pointers'
          call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          rc = CC_FAILURE
          return
       end if
@@ -1827,10 +1839,14 @@ contains
          if (trim(category%vertical_dist) /= 'none' .and. trim(category%vertical_dist) /= '') then
             if (c_associated(c_pblh)) then
                call distribute_emissions_vertical(emission_flux, f_delp, real(f_airden, fp), real(f_pblh, fp), &
-                  category%vertical_dist, nx, ny, nz)
+                  category%vertical_dist, nx, ny, nz, localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
             else
                write(msg, '(A,A)') trim(pName), ': Missing PBLH for vertical distribution'
                call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
             end if
          end if
 
@@ -1882,6 +1898,8 @@ contains
                   write(msg, '(A,A,A,A)') trim(pName), ': Mie fire limiter unavailable for target ', &
                      trim(mapped_species_name), ' (emission retained)'
                   call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_WARNING, rc=localrc)
+                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                end if
             else if (apply_bb_factor) then
                if (.not. allocated(f_bb)) allocate(f_bb(nx, ny))
@@ -1919,6 +1937,8 @@ contains
                            write(msg, '(A,A,A)') trim(pName), ': Unrecognized emission field units: ', &
                               trim(category%fields(ifield)%units)
                            call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
+                           if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                              line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                            dqa = 0.0_c_double
                         end select
 
@@ -1936,14 +1956,12 @@ contains
 
 #ifdef CATCHEM_TRACE_NUOPC
             if (emis_lower(trim(mapped_species_name)) == 'bc1') then
-               block
-                  character(len=NUOPC_MSG_LEN) :: log_msg
-                  write(log_msg, '(A,A,A,A,A,ES12.4,A,ES12.4,A,ES12.4)') &
-                     '[CATCHEM TRACE] BC1 after emission category=', trim(category_name), &
-                     ' field=', trim(field_name), ' min=', minval(f_conc), &
-                     ' max=', maxval(f_conc), ' sum=', sum(f_conc)
-                  call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
-               end block
+               call ESMF_LogWrite('[CATCHEM TRACE] BC1 after emission category=' // trim(category_name) // &
+                  ' field=' // trim(field_name) // ' min=' // real_to_string_sci(minval(f_conc)) // ' max=' // &
+                  real_to_string_sci(maxval(f_conc)) // ' sum=' // &
+                  real_to_string_sci(sum(f_conc)), ESMF_LOGMSG_DEBUG, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
             end if
 #endif
 
@@ -2060,6 +2078,8 @@ contains
       if (.not. file_exists) then
          call ESMF_LogWrite(trim(pName)//': point file not found (holding last data): '// &
             trim(filename), ESMF_LOGMSG_WARNING, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          return
       end if
 
@@ -2070,6 +2090,8 @@ contains
       if (ios /= 0) then
          call ESMF_LogWrite(trim(pName)//': cannot open point file: '//trim(filename), &
             ESMF_LOGMSG_ERROR, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          rc = CC_FAILURE
          return
       end if
@@ -2095,6 +2117,8 @@ contains
       if (npts <= 0) then
          call ESMF_LogWrite(trim(pName)//': no points found in block "'//trim(label)// &
             '" of '//trim(filename), ESMF_LOGMSG_WARNING, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          close(iounit)
          return
       end if
@@ -2120,6 +2144,8 @@ contains
             if (ios /= 0) then
                call ESMF_LogWrite(trim(pName)//': skipping malformed row: '//trim(line), &
                   ESMF_LOGMSG_WARNING, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                cycle
             end if
             n = n + 1
@@ -2158,6 +2184,8 @@ contains
 
       write(msg, '(A,I0,A,A)') trim(pName)//': read ', npts, ' point sources from ', trim(filename)
       call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_DEBUG, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
    end subroutine catchem_emis_read_points
 
@@ -2378,6 +2406,8 @@ contains
       if (.not. c_associated(c_lat) .or. .not. c_associated(c_lon) .or. .not. c_associated(c_area) .or. &
          .not. c_associated(c_pedge) .or. .not. c_associated(c_z)) then
          call ESMF_LogWrite(trim(pName)//': Missing pointers for points emission.', ESMF_LOGMSG_ERROR, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          rc = CC_FAILURE
          return
       end if
@@ -2407,6 +2437,8 @@ contains
                category%fields(ifield)%jp, localrc)
             if (localrc /= CC_SUCCESS) then
                call ESMF_LogWrite(trim(pName)//': point-to-grid mapping failed', ESMF_LOGMSG_ERROR, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                rc = CC_FAILURE
                return
             end if
@@ -2456,6 +2488,8 @@ contains
                if (i < 1 .or. i > nx .or. j < 1 .or. j > ny) then
                   call ESMF_LogWrite(trim(pName)//': invalid local point-source mapping', &
                      ESMF_LOGMSG_ERROR, rc=localrc)
+                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                   rc = CC_FAILURE
                   return
                end if
@@ -2531,6 +2565,8 @@ contains
       if (.not. ext_emis_data%diagnostic) then
          call ESMF_LogWrite(trim(pName)//': Global emission diagnostics disabled', &
             ESMF_LOGMSG_DEBUG, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          return
       end if
 
@@ -2580,17 +2616,23 @@ contains
                write(msg, '(A,A,A,A,A)') trim(pName), ': Failed to write emission field ', &
                   trim(field_name), ' from category ', trim(category_name)
                call ESMF_LogWrite(msg, ESMF_LOGMSG_WARNING, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
                ! Continue with other fields
             else
                write(msg, '(A,A,A,A,A)') trim(pName), ': Wrote emission field ', &
                   trim(field_name), ' from category ', trim(category_name)
                call ESMF_LogWrite(msg, ESMF_LOGMSG_DEBUG, rc=localrc)
+               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
             end if
          end do
       end do
 
       call ESMF_LogWrite(trim(pName)//': Emission diagnostics written to '//trim(filename), &
          ESMF_LOGMSG_INFO, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
    end subroutine catchem_emis_write_diagnostics
 
@@ -2627,6 +2669,7 @@ contains
       real(ESMF_KIND_R4), pointer :: field_data_2d(:,:) => null()
       !character(len=*), parameter :: pName = 'write_emission_field_2d'
 
+      integer :: localrc
       rc = CC_SUCCESS
 
       ! Create 2D ESMF field
@@ -2637,22 +2680,23 @@ contains
       if (rc /= ESMF_SUCCESS) return
 
       ! Set field metadata
-      call ESMF_InfoGetFromHost(esmf_field, info, rc=rc)
-      if (rc == ESMF_SUCCESS) then
-         call ESMF_InfoSet(info, "units", trim(units), rc=rc)
-         call ESMF_InfoSet(info, "description", trim(description), rc=rc)
-      end if
+      call ESMF_InfoGetFromHost(esmf_field, info, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      call ESMF_InfoSet(info, "units", trim(units), rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      call ESMF_InfoSet(info, "description", trim(description), rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
       ! Get field data pointer and copy emission data
       call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=rc)
       if (rc /= ESMF_SUCCESS) then
-         block
-            integer :: destroy_rc
-            ! A failed destroy is logged; rc keeps the error that caused the bail-out.
-            call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
-            if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__)) continue
-         end block
+         ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+         call ESMF_FieldDestroy(esmf_field, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__)) continue
          return
       end if
 
@@ -2666,7 +2710,9 @@ contains
          iofmt=AQMIO_FMT_NETCDF, rc=rc)
 
       ! Clean up
-      call ESMF_FieldDestroy(esmf_field, rc=rc)
+      call ESMF_FieldDestroy(esmf_field, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
    end subroutine write_emission_field_2d
 
@@ -2703,6 +2749,7 @@ contains
       real(ESMF_KIND_R4), pointer :: field_data_3d(:,:,:) => null()
       !character(len=*), parameter :: pName = 'write_emission_field_3d'
 
+      integer :: localrc
       rc = CC_SUCCESS
 
       ! Create 3D ESMF field
@@ -2715,22 +2762,23 @@ contains
       if (rc /= ESMF_SUCCESS) return
 
       ! Set field metadata
-      call ESMF_InfoGetFromHost(esmf_field, info, rc=rc)
-      if (rc == ESMF_SUCCESS) then
-         call ESMF_InfoSet(info, "units", trim(units), rc=rc)
-         call ESMF_InfoSet(info, "description", trim(description), rc=rc)
-      end if
+      call ESMF_InfoGetFromHost(esmf_field, info, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      call ESMF_InfoSet(info, "units", trim(units), rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      call ESMF_InfoSet(info, "description", trim(description), rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
       ! Get field data pointer and copy emission data
       call ESMF_FieldGet(esmf_field, farrayPtr=field_data_3d, rc=rc)
       if (rc /= ESMF_SUCCESS) then
-         block
-            integer :: destroy_rc
-            ! A failed destroy is logged; rc keeps the error that caused the bail-out.
-            call ESMF_FieldDestroy(esmf_field, rc=destroy_rc)
-            if (ESMF_LogFoundError(rcToCheck=destroy_rc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__)) continue
-         end block
+         ! A failed destroy is logged; rc keeps the error that caused the bail-out.
+         call ESMF_FieldDestroy(esmf_field, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__)) continue
          return
       end if
 
@@ -2744,7 +2792,9 @@ contains
          iofmt=AQMIO_FMT_NETCDF, rc=rc)
 
       ! Clean up
-      call ESMF_FieldDestroy(esmf_field, rc=rc)
+      call ESMF_FieldDestroy(esmf_field, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
    end subroutine write_emission_field_3d
 
@@ -2773,6 +2823,8 @@ contains
       if (localrc /= CC_SUCCESS) then
          call ESMF_LogWrite(trim(pName)//': Warning - ExtEmisDataType cleanup failed', &
             ESMF_LOGMSG_WARNING, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
       end if
 
       ! Clean up regrid route-handle cache
@@ -2780,6 +2832,8 @@ contains
 
       call ESMF_LogWrite(trim(pName)//': Emission data finalized', &
          ESMF_LOGMSG_INFO, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
    end subroutine catchem_emis_finalize
 
@@ -2935,6 +2989,8 @@ contains
          write(msg, '(A,A,A)') 'parse_emission_category: FATAL ERROR: unknown monthly_anchor "', &
             trim(category%monthly_anchor), '" for category (allowed: climatological, file)'
          call ESMF_LogWrite(msg, ESMF_LOGMSG_ERROR, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          rc = CC_FAILURE
          return
       end if
@@ -2998,12 +3054,10 @@ contains
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
 #ifdef CATCHEM_TRACE_NUOPC
-            block
-               character(len=NUOPC_MSG_LEN) :: log_msg
-               write(log_msg, '(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate category=', trim(category_name), &
-                  ' field=', trim(field_name)
-               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
-            end block
+            call ESMF_LogWrite('[CATCHEM DEBUG] AQMIO populate category=' // trim(category_name) // ' field=' // &
+               trim(field_name), ESMF_LOGMSG_DEBUG, rc=localrc)
+            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 #endif
             if (ext_emis_data%diagnostic .and. new_category%diagnostic) then
                if (allocated(diag_species_list)) then
@@ -3046,12 +3100,10 @@ contains
          if (localrc == CC_SUCCESS) then
             new_field%long_name = trim(field_name)
 #ifdef CATCHEM_TRACE_NUOPC
-            block
-               character(len=NUOPC_MSG_LEN) :: log_msg
-               write(log_msg, '(A,A,A,A)') '[CATCHEM DEBUG] AQMIO populate species-list category=', trim(category_name), &
-                  ' field=', trim(field_name)
-               call ESMF_LogWrite(trim(log_msg), ESMF_LOGMSG_DEBUG)
-            end block
+            call ESMF_LogWrite('[CATCHEM DEBUG] AQMIO populate species-list category=' // trim(category_name) // &
+               ' field=' // trim(field_name), ESMF_LOGMSG_DEBUG, rc=localrc)
+            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 #endif
             call new_category%add_field(new_field, localrc)
          end if
@@ -3111,6 +3163,8 @@ contains
          category%irec = max(0, curr_month - 1)
       else if (trim(category%frequency) == "yearmonth") then
          call ESMF_TimeGet(currTime, yy=curr_year, mm=curr_month, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          call ESMF_TimeGet(startTime, yy=start_year, mm=start_month, rc=localrc)
          if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__, rcToReturn=rc)) return
@@ -3258,6 +3312,8 @@ contains
       if (is_null_filename(filename)) then
          write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: No valid filename specified for category: ', trim(category%category_name)
          call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          rc = CC_FAILURE
          return
       end if
@@ -3266,6 +3322,8 @@ contains
       if (.not. file_exists) then
          write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: File not found for time coord: ', trim(filename)
          call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          rc = CC_FAILURE
          return
       end if
@@ -3274,6 +3332,8 @@ contains
       if (localrc /= ESMF_SUCCESS) then
          write(msg, '(A,A,A)') trim(pName), ': FATAL ERROR: Failed reading time coord from: ', trim(filename)
          call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_ERROR, rc=localrc)
+         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
          rc = CC_FAILURE
          return
       end if
@@ -3292,6 +3352,8 @@ contains
 
       write(msg, '(A,A,I0,A,A)') trim(pName), ': Cached ', nt, ' time slices from ', trim(filename)
       call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_DEBUG, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
 
    end subroutine catchem_emis_read_time_coord
 
@@ -3527,14 +3589,19 @@ contains
    !! These adapters only unpack ESMF_Time: curr_key is the strict datetime ordering
    !! key (yyyymmdd*1e5 + secs, 8-byte because the product exceeds int32) and
    !! curr_dn the fractional day-of-year on the fixed 365-day climatological axis.
-   subroutine emis_time_args(curr_time, curr_key, curr_dn)
+   subroutine emis_time_args(curr_time, curr_key, curr_dn, rc)
       type(ESMF_Time), intent(in)  :: curr_time
       integer(8),      intent(out) :: curr_key
       real(fp),        intent(out) :: curr_dn
 
+      integer, intent(out) :: rc
       integer :: yy, mm, dd, hh, mn, ss
+      integer :: localrc
 
-      call ESMF_TimeGet(curr_time, yy=yy, mm=mm, dd=dd, h=hh, m=mn, s=ss)
+      rc = CC_SUCCESS
+      call ESMF_TimeGet(curr_time, yy=yy, mm=mm, dd=dd, h=hh, m=mn, s=ss, rc=localrc)
+      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
       curr_key = int(yy * 10000 + mm * 100 + dd, 8) * 100000_8 + &
          int(hh * 3600 + mn * 60 + ss, 8)
       curr_dn = catchem_emis_doy_fraction(mm, dd, hh * 3600 + mn * 60 + ss)
@@ -3566,7 +3633,8 @@ contains
       w_next = 0.0_fp
       if (category%n_times < 2 .or. .not. allocated(category%tc_dates)) return
 
-      call emis_time_args(curr_time, curr_key, curr_dn)
+      call emis_time_args(curr_time, curr_key, curr_dn, rc)
+      if (rc /= CC_SUCCESS) return
       call catchem_emis_file_time_bracket(curr_key, curr_dn, category%n_times, &
          category%tc_dates, category%tc_secs, lo_rec, w_next)
    end subroutine emis_file_time_bracket
@@ -3585,7 +3653,8 @@ contains
       real(fp) :: curr_dn
 
       rc = CC_SUCCESS
-      call emis_time_args(curr_time, curr_key, curr_dn)
+      call emis_time_args(curr_time, curr_key, curr_dn, rc)
+      if (rc /= CC_SUCCESS) return
       call catchem_emis_time_weight(curr_dn, d1, s1, d2, s2, w_next)
    end subroutine emis_time_weight
 

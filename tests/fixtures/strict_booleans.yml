@@ -1,6 +1,7 @@
 # Scalar-parsing contract: booleans are `true`/`false` only (any case);
-# `yes`, `on`, and `1` are not booleans and fall back to the default with a
-# warning; a non-integer scalar is not an int.  Used by test_config_validation.
+# `yes`, `on`, `1`, and `0` are not booleans and reading them is an error, as
+# is reading `1.0` as an int or `abc` as a number; `~` is null and means the
+# default.  Used by test_config_validation.
 simulation:
   name: strict-booleans
   species_filename: platform_integrity_species.yml

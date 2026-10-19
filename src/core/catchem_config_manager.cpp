@@ -68,6 +68,25 @@ namespace catchem {
             return std::nullopt;
         }
 
+        // A value that is present but not of the requested type is a
+        // configuration error, never a silent fallback to the default: a typo
+        // in a boolean must not quietly select the default behaviour.
+        [[noreturn]] void throw_bad_scalar(const char* expected, std::string_view path, const YAML::Node& node) {
+            throw std::invalid_argument("Configuration value is not " + std::string(expected) + ": " +
+                                        std::string(path) + " = " +
+                                        (node.IsScalar() ? node.Scalar() : std::string("<non-scalar>")));
+        }
+
+        // Boolean with the strict true/false contract; null or absent means
+        // the default, anything else throws.
+        bool bool_or(const YAML::Node& node, bool default_value, std::string_view path) {
+            if (is_null_scalar(node))
+                return default_value;
+            if (const auto parsed = parse_bool_scalar(node))
+                return *parsed;
+            throw_bad_scalar("a boolean (true or false)", path, node);
+        }
+
         YAML::Node safe_get_map_child(const YAML::Node& node, std::string_view key) {
             if (!node.IsDefined() || !node.IsMap()) {
                 return YAML::Node();
@@ -173,8 +192,8 @@ namespace catchem {
                 const std::string name = process.first.as<std::string>();
                 const YAML::Node node = process.second;
                 ProcessConfig config;
-                config.activate = value_or<bool>(node["activate"], false);
-                config.diagnostics = value_or<bool>(node["diagnostics"], false);
+                config.activate = bool_or(node["activate"], false, "processes/" + name + "/activate");
+                config.diagnostics = bool_or(node["diagnostics"], false, "processes/" + name + "/diagnostics");
                 if (node["scheme"]) {
                     config.scheme = node["scheme"].as<std::string>();
                 }
@@ -202,7 +221,8 @@ namespace catchem {
                     continue;
                 EmissionCategory category;
                 category.category_name = category_name;
-                category.daily_hold = value_or<bool>(entry.second["daily_hold"], false);
+                category.daily_hold =
+                    bool_or(entry.second["daily_hold"], false, "processes/extemis/" + category_name + "/daily_hold");
                 category.monthly_anchor = value_or<std::string>(entry.second["monthly_anchor"], "climatological");
                 if (entry.second["frequency"])
                     category.frequency = entry.second["frequency"].as<std::string>();
@@ -220,9 +240,7 @@ namespace catchem {
             return default_val;
         if (const auto parsed = parse_bool_scalar(val))
             return *parsed;
-        Logger::warn("Process option is not a boolean; using the default",
-                     {{"key", key}, {"value", val.IsScalar() ? val.Scalar() : "<non-scalar>"}});
-        return default_val;
+        throw_bad_scalar("a boolean (true or false)", key, val);
     }
 
     double ProcessConfig::get_double(std::string_view key, double default_val) const {
@@ -232,9 +250,7 @@ namespace catchem {
         try {
             return val.as<double>();
         } catch (const YAML::Exception&) {
-            Logger::warn("Process option is not a number; using the default",
-                         {{"key", key}, {"value", val.IsScalar() ? val.Scalar() : "<non-scalar>"}});
-            return default_val;
+            throw_bad_scalar("a number", key, val);
         }
     }
 
@@ -245,16 +261,16 @@ namespace catchem {
         try {
             return val.as<int>();
         } catch (const YAML::Exception&) {
-            Logger::warn("Process option is not an integer; using the default",
-                         {{"key", key}, {"value", val.IsScalar() ? val.Scalar() : "<non-scalar>"}});
-            return default_val;
+            throw_bad_scalar("an integer", key, val);
         }
     }
 
     std::string ProcessConfig::get_string(std::string_view key, std::string_view default_val) const {
         YAML::Node val = resolve_yaml_path(settings_node_, key);
-        if (is_null_scalar(val) || !val.IsScalar())
+        if (is_null_scalar(val))
             return std::string(default_val);
+        if (!val.IsScalar())
+            throw_bad_scalar("a string", key, val);
         return val.Scalar();
     }
 
@@ -320,9 +336,7 @@ namespace catchem {
             return default_val;
         if (const auto parsed = parse_bool_scalar(node))
             return *parsed;
-        Logger::warn("Configuration value is not a boolean; using the default",
-                     {{"path", path}, {"value", node.IsScalar() ? node.Scalar() : "<non-scalar>"}});
-        return default_val;
+        throw_bad_scalar("a boolean (true or false)", path, node);
     }
 
     double ConfigManager::get_double(std::string_view path, double default_val) const {
@@ -346,9 +360,7 @@ namespace catchem {
         try {
             return node.as<double>();
         } catch (const YAML::Exception&) {
-            Logger::warn("Configuration value is not a number; using the default",
-                         {{"path", path}, {"value", node.IsScalar() ? node.Scalar() : "<non-scalar>"}});
-            return default_val;
+            throw_bad_scalar("a number", path, node);
         }
     }
 
@@ -373,9 +385,7 @@ namespace catchem {
         try {
             return node.as<int>();
         } catch (const YAML::Exception&) {
-            Logger::warn("Configuration value is not an integer; using the default",
-                         {{"path", path}, {"value", node.IsScalar() ? node.Scalar() : "<non-scalar>"}});
-            return default_val;
+            throw_bad_scalar("an integer", path, node);
         }
     }
 
@@ -404,8 +414,10 @@ namespace catchem {
             }
         }
         YAML::Node node = resolve_yaml_path(root_node_, path);
-        if (is_null_scalar(node) || !node.IsScalar())
+        if (is_null_scalar(node))
             return std::string(default_val);
+        if (!node.IsScalar())
+            throw_bad_scalar("a string", path, node);
         const std::string str_val = node.Scalar();
         if (path.find("source_file") != std::string_view::npos || path.find("filename") != std::string_view::npos) {
             return resolve_relative_config_path(config_file_path, str_val);
@@ -429,7 +441,7 @@ namespace catchem {
                             if (item.IsScalar()) {
                                 results.push_back(item.Scalar());
                             } else {
-                                Logger::warn("Ignoring non-scalar entry in a configuration list", {{"path", path}});
+                                throw_bad_scalar("a list of scalars", path, item);
                             }
                         }
                         return results;
@@ -443,7 +455,7 @@ namespace catchem {
                 if (item.IsScalar()) {
                     results.push_back(item.Scalar());
                 } else {
-                    Logger::warn("Ignoring non-scalar entry in a configuration list", {{"path", path}});
+                    throw_bad_scalar("a list of scalars", path, item);
                 }
             }
         }
@@ -540,7 +552,8 @@ namespace catchem {
                     data.simulation.emission_filename = sim["emission_filename"].as<std::string>();
                 }
                 if (sim["verbose"]) {
-                    data.simulation.verbose_enabled = value_or<bool>(sim["verbose"]["activate"], false);
+                    data.simulation.verbose_enabled =
+                        bool_or(sim["verbose"]["activate"], false, "simulation/verbose/activate");
                     // Optional explicit logger threshold.  When present it
                     // always wins over the CATCHEM_LOG_LEVEL environment
                     // variable; when absent the previous setting is kept.
@@ -678,32 +691,35 @@ namespace catchem {
             return;
         }
 
+        // Species attributes follow the same contract as the runtime options:
+        // null or absent means the default, a wrong type is an error.
         auto get_bool = [](const YAML::Node& n, const std::string& key, bool def) {
             for (const std::string& k : {"__" + key, key}) {
-                if (!n[k])
+                if (is_null_scalar(n[k]))
                     continue;
-                if (const auto parsed = parse_bool_scalar(n[k]))
-                    return *parsed;
-                Logger::warn("Species attribute is not a boolean; using the default", {{"attribute", k}});
+                return bool_or(n[k], def, "species attribute " + k);
             }
             return def;
         };
         auto get_double = [](const YAML::Node& n, const std::string& key, double def) {
             for (const std::string& k : {"__" + key, key}) {
-                if (!n[k])
+                if (is_null_scalar(n[k]))
                     continue;
                 try {
                     return n[k].as<double>();
                 } catch (const YAML::Exception&) {
-                    Logger::warn("Species attribute is not a number; using the default", {{"attribute", k}});
+                    throw_bad_scalar("a number", "species attribute " + k, n[k]);
                 }
             }
             return def;
         };
         auto get_str = [](const YAML::Node& n, const std::string& key, const std::string& def) {
             for (const std::string& k : {"__" + key, key}) {
-                if (n[k] && n[k].IsScalar())
-                    return n[k].Scalar();
+                if (is_null_scalar(n[k]))
+                    continue;
+                if (!n[k].IsScalar())
+                    throw_bad_scalar("a string", "species attribute " + k, n[k]);
+                return n[k].Scalar();
             }
             return def;
         };

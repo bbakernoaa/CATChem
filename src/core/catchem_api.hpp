@@ -300,13 +300,29 @@ int catchem_state_get_species_count(void* state_ptr);
 int catchem_state_get_species_count_checked(void* state_ptr, int* count_out);
 int catchem_state_get_species_index_checked(void* state_ptr, const char* name, int* index_out);
 
-// Categorized counts and list getters.  `category` is the integer value of
-// catchem::SpeciesCategory (0 Gas, 1 Aerosol, 2 Settling, 3 Tracer, 4 Advected,
-// 5 DryDep, 6 WetDep, 7 Photolysis, 8 Dust, 9 SeaSalt).  The count getter
-// returns -1 for a bad state or category.  The index getter writes up to
-// `max_count` 1-based indices and returns the category's full count (so a
-// return value above `max_count` means the buffer was too small), or -1 for a
-// bad state, category, or null buffer.
+// Species categories for the category getters below.  These are the C view of
+// catchem::SpeciesCategory; static_asserts in catchem_api_config.cpp keep the
+// two enums identical, so a category added to one without the other fails the
+// build instead of silently returning the wrong list.
+enum catchem_species_category {
+    CATCHEM_SPECIES_CATEGORY_GAS = 0,
+    CATCHEM_SPECIES_CATEGORY_AEROSOL,
+    CATCHEM_SPECIES_CATEGORY_SETTLING,
+    CATCHEM_SPECIES_CATEGORY_TRACER,
+    CATCHEM_SPECIES_CATEGORY_ADVECTED,
+    CATCHEM_SPECIES_CATEGORY_DRYDEP,
+    CATCHEM_SPECIES_CATEGORY_WETDEP,
+    CATCHEM_SPECIES_CATEGORY_PHOTOLYSIS,
+    CATCHEM_SPECIES_CATEGORY_DUST,
+    CATCHEM_SPECIES_CATEGORY_SEASALT,
+    CATCHEM_SPECIES_CATEGORY_COUNT
+};
+
+// Categorized counts and list getters.  `category` is a catchem_species_category
+// value.  The count getter returns -1 for a bad state or category.  The index
+// getter writes up to `max_count` 1-based indices and returns the category's
+// full count (so a return value above `max_count` means the buffer was too
+// small), or -1 for a bad state, category, or null buffer.
 int catchem_state_get_category_species_count(void* state_ptr, int category);
 int catchem_state_get_category_indices(void* state_ptr, int category, int* indices_out, int max_count);
 int catchem_state_get_gas_species_count(void* state_ptr);

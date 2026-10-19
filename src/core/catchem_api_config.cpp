@@ -15,6 +15,23 @@
 
 using namespace catchem::api_internal;
 
+// The C enum in catchem_api.hpp must mirror catchem::SpeciesCategory exactly.
+#define CATCHEM_ASSERT_CATEGORY(c_name, cpp_name)                                                                      \
+    static_assert(CATCHEM_SPECIES_CATEGORY_##c_name == static_cast<int>(catchem::SpeciesCategory::cpp_name),           \
+                  "catchem_species_category and catchem::SpeciesCategory disagree on " #cpp_name)
+CATCHEM_ASSERT_CATEGORY(GAS, Gas);
+CATCHEM_ASSERT_CATEGORY(AEROSOL, Aerosol);
+CATCHEM_ASSERT_CATEGORY(SETTLING, Settling);
+CATCHEM_ASSERT_CATEGORY(TRACER, Tracer);
+CATCHEM_ASSERT_CATEGORY(ADVECTED, Advected);
+CATCHEM_ASSERT_CATEGORY(DRYDEP, DryDep);
+CATCHEM_ASSERT_CATEGORY(WETDEP, WetDep);
+CATCHEM_ASSERT_CATEGORY(PHOTOLYSIS, Photolysis);
+CATCHEM_ASSERT_CATEGORY(DUST, Dust);
+CATCHEM_ASSERT_CATEGORY(SEASALT, SeaSalt);
+CATCHEM_ASSERT_CATEGORY(COUNT, Count);
+#undef CATCHEM_ASSERT_CATEGORY
+
 extern "C" {
 int catchem_state_load_species_config(void* state_ptr, const char* filename) {
     if (!state_ptr || !filename)
@@ -91,25 +108,23 @@ int catchem_state_get_category_indices(void* state_ptr, int category, int* indic
 }
 
 int catchem_state_get_gas_species_count(void* state_ptr) {
-    return catchem_state_get_category_species_count(state_ptr, static_cast<int>(catchem::SpeciesCategory::Gas));
+    return catchem_state_get_category_species_count(state_ptr, CATCHEM_SPECIES_CATEGORY_GAS);
 }
 
 void catchem_state_get_gas_indices(void* state_ptr, int* indices_out) {
     // Legacy getter: the caller sized the buffer from the count getter.
     const int count = catchem_state_get_gas_species_count(state_ptr);
-    (void)catchem_state_get_category_indices(state_ptr, static_cast<int>(catchem::SpeciesCategory::Gas), indices_out,
-                                             count);
+    (void)catchem_state_get_category_indices(state_ptr, CATCHEM_SPECIES_CATEGORY_GAS, indices_out, count);
 }
 
 int catchem_state_get_aerosol_species_count(void* state_ptr) {
-    return catchem_state_get_category_species_count(state_ptr, static_cast<int>(catchem::SpeciesCategory::Aerosol));
+    return catchem_state_get_category_species_count(state_ptr, CATCHEM_SPECIES_CATEGORY_AEROSOL);
 }
 
 void catchem_state_get_aerosol_indices(void* state_ptr, int* indices_out) {
     // Legacy getter: the caller sized the buffer from the count getter.
     const int count = catchem_state_get_aerosol_species_count(state_ptr);
-    (void)catchem_state_get_category_indices(state_ptr, static_cast<int>(catchem::SpeciesCategory::Aerosol),
-                                             indices_out, count);
+    (void)catchem_state_get_category_indices(state_ptr, CATCHEM_SPECIES_CATEGORY_AEROSOL, indices_out, count);
 }
 
 double catchem_state_get_species_mw(void* state_ptr, int index) {

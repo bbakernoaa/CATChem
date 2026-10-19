@@ -393,9 +393,9 @@ int main(int argc, char* argv[]) {
 
             // 6. Generic category getters agree with the legacy gas/aerosol ones,
             //    honour the buffer capacity, and reject bad arguments.
-            const int cat_gas = static_cast<int>(catchem::SpeciesCategory::Gas);
-            const int cat_aerosol = static_cast<int>(catchem::SpeciesCategory::Aerosol);
-            const int cat_settling = static_cast<int>(catchem::SpeciesCategory::Settling);
+            const int cat_gas = CATCHEM_SPECIES_CATEGORY_GAS;
+            const int cat_aerosol = CATCHEM_SPECIES_CATEGORY_AEROSOL;
+            const int cat_settling = CATCHEM_SPECIES_CATEGORY_SETTLING;
             assert(catchem_state_get_category_species_count(state, cat_gas) == gas_count);
             std::vector<int> gas_again(gas_count, 0);
             assert(catchem_state_get_category_indices(state, cat_gas, gas_again.data(), gas_count) == gas_count);
@@ -428,8 +428,7 @@ int main(int argc, char* argv[]) {
             assert(one[1] == -7);
             assert(catchem_state_get_category_indices(state, cat_gas, one.data(), 0) == gas_count);
 
-            assert(catchem_state_get_category_species_count(state, static_cast<int>(catchem::SpeciesCategory::Count)) ==
-                   -1);
+            assert(catchem_state_get_category_species_count(state, CATCHEM_SPECIES_CATEGORY_COUNT) == -1);
             assert(catchem_state_get_category_species_count(state, -1) == -1);
             assert(catchem_state_get_category_species_count(nullptr, cat_gas) == -1);
             assert(catchem_state_get_category_indices(state, cat_gas, nullptr, 1) == -1);
