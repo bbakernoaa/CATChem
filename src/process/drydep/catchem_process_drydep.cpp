@@ -17,6 +17,7 @@
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 
 extern "C" {
@@ -382,6 +383,7 @@ namespace catchem {
         }
 
         // 5. Invoke flat science bridge (casting char* vectors to bool* pointers)
+        std::cerr << "drydep trace: science bridge begin\n";
         run_drydep_science_bridge(
             state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
             gas_scheme.c_str(), aero_scheme.c_str(), diagnostics_enabled ? 1 : 0, wesely_scale_factor,
@@ -402,6 +404,7 @@ namespace catchem {
             upper_radius.data(), (bool*)is_gas.data(), conc_ptr, mock_tendency.data(),
             state->chemistry().species_names_c_arr.data(), diag_con, diag_vel, diagnostic_species_id.data(),
             diagnostic_species_id.size());
+        std::cerr << "drydep trace: science bridge complete\n";
 
         // Kernel interfaces operate over the full catalog; only explicitly
         // participating species may publish their result back to the model.
@@ -416,6 +419,7 @@ namespace catchem {
         // publish unit-homogeneous gas and aerosol views for consumers that
         // need a physically meaningful unit and dry-air basis.
         if (diagnostics_enabled && diag_con) {
+            std::cerr << "drydep trace: typed diagnostic publication begin\n";
             int gas_slot = 0;
             int aerosol_slot = 0;
             const std::size_t ncol = static_cast<std::size_t>(state->column_count());
@@ -434,9 +438,11 @@ namespace catchem {
                     typed_output[static_cast<std::size_t>(typed_slot) * ncol + column] =
                         diag_con[packed_slot * ncol + column];
             }
+            std::cerr << "drydep trace: typed diagnostic publication complete\n";
         }
 
         if (diagnostics_enabled && diag_con) {
+            std::cerr << "drydep trace: budget calculation begin\n";
             // Convert independently diagnosed surface removal to the same
             // pressure-coordinate inventory used by the GOCART column kernels.
             for (std::size_t slot = 0; slot < diagnostic_species_id.size(); ++slot) {
@@ -479,10 +485,12 @@ namespace catchem {
                           << std::setprecision(16) << residual << " TOTAL=" << aerosol_removal
                           << " BIN_SUM=" << diagnostic_removal;
             Logger::info(state.get(), budget_record.str());
+            std::cerr << "drydep trace: budget calculation complete\n";
         }
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();
+        std::cerr << "drydep trace: process body complete\n";
     }
 
 } // namespace catchem

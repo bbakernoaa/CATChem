@@ -52,6 +52,9 @@ jobs:
       - name: Configure
         run: cmake -B $BUILD_DIR -DCATCHEM_BUILD_NUOPC=OFF -DCATCHEM_ENABLE_KOKKOS=ON -DCATCHEM_BUILD_MUSICA=ON
           -DCMAKE_PREFIX_PATH="${{ github.workspace }}/kokkos-install"
+          -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer"
+          -DCMAKE_Fortran_FLAGS="-fsanitize=address -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address"
         env:
           FC: gfortran-${{ matrix.gcc-version }}
           CC: gcc-${{ matrix.gcc-version }}
@@ -62,3 +65,5 @@ jobs:
 
       - name: Test
         run: ctest --test-dir ${BUILD_DIR}/tests --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=0

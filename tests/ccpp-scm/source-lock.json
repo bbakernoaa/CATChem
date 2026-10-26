@@ -31,6 +31,6 @@
   "data": {
     "scm_release": "v7.0.0",
     "checksums_file": "tests/ccpp-scm/data-lock.json",
-    "checksums_file_sha256": "02a5faef8e8c9b9be1c8edd3ae59aa1e7850567583fe5f719c912bc1211cc298"
+    "checksums_file_sha256": "78678c6cee8f08099d2b88e4c832bed6900b9fecc98ea105090cbda2c7c49ee1"
   }
 }
