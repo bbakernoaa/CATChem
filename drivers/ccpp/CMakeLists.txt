@@ -1,6 +1,7 @@
 set(_srcs
   ccpp_catchem_interface.F90
   catchem_ccpp_context.F90
+  catchem_ccpp_layout.F90
   catchem_ccpp_conversion.F90
   catchem_ccpp_adapter.F90
   catchem_ccpp_lifecycle.F90
@@ -18,7 +19,7 @@ set(_srcs
   catchem_photolysis_ps.F90
   catchem_gaschem.F90
   catchem_gaschem_ps.F90
-  ${PROJECT_SOURCE_DIR}/integrations/ccpp-scm/host/catchem_apply_tendency.F90
+  catchem_apply_tendency.F90
 )
 
 # The retained monolithic compatibility prototype intentionally accepts host

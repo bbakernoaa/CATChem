@@ -464,6 +464,31 @@ module catchem_nuopc_interface
 
 contains
 
+   !> Return the one-based Gregorian day-of-year for a calendar date.
+   !! @param year Calendar year, using the proleptic Gregorian leap-year rule.
+   !! @param month Calendar month in 1..12.
+   !! @param day Day within the selected month.
+   !! @return One-based day-of-year, or zero when month/day is invalid.
+   pure integer function calendar_day_of_year(year, month, day)
+      integer, intent(in) :: year, month, day
+      integer, parameter :: days_in_month(12) = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+      integer :: month_index
+
+      calendar_day_of_year = 0
+      if (year < 1 .or. month < 1 .or. month > 12) return
+      if (day < 1 .or. day > days_in_month(month)) then
+         if (.not. (month == 2 .and. day == 29 .and. &
+            (mod(year, 400) == 0 .or. (mod(year, 4) == 0 .and. mod(year, 100) /= 0)))) return
+      end if
+      calendar_day_of_year = day
+      do month_index = 1, month - 1
+         calendar_day_of_year = calendar_day_of_year + days_in_month(month_index)
+         if (month_index == 2 .and. &
+            (mod(year, 400) == 0 .or. (mod(year, 4) == 0 .and. mod(year, 100) /= 0))) &
+            calendar_day_of_year = calendar_day_of_year + 1
+      end do
+   end function calendar_day_of_year
+
    pure function lowercase(value) result(lower)
       character(len=*), intent(in) :: value
       character(len=len(value)) :: lower
@@ -628,6 +653,7 @@ contains
 
       ! Local variables
       integer :: nx, ny, num_processes, stat, i, j
+      integer :: clock_year, clock_month, clock_day, clock_hour, clock_minute, clock_second, clock_doy
       integer(c_int) :: catchem_status, species_index, is_gas, is_aerosol
       real(c_double) :: molecular_weight, conversion_factor
       integer(ESMF_KIND_I8) :: tstep_seconds
@@ -965,8 +991,24 @@ contains
       if (present(timeStep)) then
          cc_wrap%timeStep = timeStep
          call ESMF_TimeIntervalGet(timeStep, s_i8=tstep_seconds, rc=rc)
+         if (present(startTime)) then
+            call ESMF_TimeGet(startTime, yy=clock_year, mm=clock_month, dd=clock_day, &
+               h=clock_hour, m=clock_minute, s=clock_second, rc=rc)
+            if (rc /= ESMF_SUCCESS) return
+            clock_doy = calendar_day_of_year(clock_year, clock_month, clock_day)
+         else
+            clock_year = 2000
+            clock_month = 1
+            clock_day = 1
+            clock_doy = 1
+            clock_hour = 0
+            clock_minute = 0
+            clock_second = 0
+         end if
          catchem_status = catchem_state_set_time_checked(cc_wrap%catchem_model%state_mgr_ptr, &
-            0_c_int, 0_c_int, 0_c_int, 0_c_int, 0_c_int, 0_c_int, 0_c_int, real(tstep_seconds, c_double))
+            int(clock_year, c_int), int(clock_month, c_int), int(clock_day, c_int), &
+            int(clock_hour, c_int), int(clock_minute, c_int), int(clock_second, c_int), &
+            int(clock_doy, c_int), real(tstep_seconds, c_double))
          if (catchem_status /= 0_c_int) then
             call ESMF_LogWrite("Failed to set CATChem time state: "// &
                trim(cc_wrap%catchem_model%last_error), ESMF_LOGMSG_ERROR, rc=rc)
@@ -1492,7 +1534,7 @@ contains
       type(ESMF_Field) :: field
       logical, allocatable :: set_required_met(:)
       integer(ESMF_KIND_I8) :: timestep_seconds
-      integer :: year, month, day, hour, minute, second
+      integer :: year, month, day, day_of_year, hour, minute, second
       integer :: i, n, n_met
       logical :: required_from_import
       integer(c_int) :: catchem_status
@@ -1506,13 +1548,19 @@ contains
       end if
 
       ! assign time to catchem model's time state
-      call ESMF_TimeGet(currTime, yy=year, mm=month, dd=day, &
-         h=hour, m=minute, s=second, rc=rc)
+      call ESMF_TimeGet(currTime, yy=year, mm=month, dd=day, h=hour, m=minute, s=second, rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      day_of_year = calendar_day_of_year(year, month, day)
       call ESMF_TimeIntervalGet(cc_wrap%timeStep, s_i8=timestep_seconds, rc=rc)
+      if (rc /= ESMF_SUCCESS .or. day_of_year == 0) then
+         call ESMF_LogWrite("Invalid NUOPC calendar date or timestep", ESMF_LOGMSG_ERROR, rc=rc)
+         rc = ESMF_FAILURE
+         return
+      end if
       catchem_status = catchem_state_set_time_checked(cc_wrap%catchem_model%state_mgr_ptr, &
          int(year, c_int), int(month, c_int), int(day, c_int), &
          int(hour, c_int), int(minute, c_int), int(second, c_int), &
-         0_c_int, real(timestep_seconds, c_double))
+         int(day_of_year, c_int), real(timestep_seconds, c_double))
       if (catchem_status /= 0_c_int) then
          call ESMF_LogWrite("Failed to set CATChem time state", ESMF_LOGMSG_ERROR, rc=rc)
          rc = ESMF_FAILURE

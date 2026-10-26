@@ -51,6 +51,15 @@ int main() {
     assert(duplicate.status == SelectedOperationStatus::Rejected && admitted_calls == 1);
     auto consumer = ledger.run({1, "gas-after-photo", 0, "gaschem"}, 30.0, [&] { ++admitted_calls; gas_called = true; });
     assert(consumer.status == SelectedOperationStatus::Succeeded && gas_called && admitted_calls == 2);
+    auto consumer_subcycle = ledger.run({1, "gas-after-photo", 1, "gaschem"}, 30.0,
+                                        [&] { ++admitted_calls; });
+    assert(consumer_subcycle.status == SelectedOperationStatus::Succeeded && admitted_calls == 3);
+    auto second_subcycle = ledger.run({1, "gas-after-photo", 2, "gaschem"}, 30.0,
+                                      [&] { ++admitted_calls; });
+    assert(second_subcycle.status == SelectedOperationStatus::Succeeded && admitted_calls == 4);
+    auto repeated_subcycle = ledger.run({1, "gas-after-photo", 1, "gaschem"}, 30.0,
+                                        [&] { ++admitted_calls; });
+    assert(repeated_subcycle.status == SelectedOperationStatus::Rejected && admitted_calls == 4);
     auto failure = ledger.run({1, "bad", 0, "photolysis"}, 30.0, [] { throw std::runtime_error("physics failed"); });
     assert(failure.status == SelectedOperationStatus::Failed && !failure.publication_eligible);
     assert(failure.cause == "physics failed");
@@ -133,6 +142,12 @@ int main() {
                                             &import_generation) == CATCHEM_CONTRACT_VIOLATION);
     assert(operation_status == static_cast<int>(SelectedOperationStatus::Rejected) && publish == 0);
     assert(catchem_core_end_interval_checked(api_core, 501) == CATCHEM_SUCCESS);
+    assert(catchem_core_begin_interval_checked(api_core, &host_interval) == CATCHEM_CONTRACT_VIOLATION);
+    host_interval.interval_id = 502;
+    host_interval.hour = 13;
+    host_interval.duration_seconds = 45.0;
+    assert(catchem_core_begin_interval_checked(api_core, &host_interval) == CATCHEM_SUCCESS);
+    assert(catchem_core_end_interval_checked(api_core, 502) == CATCHEM_SUCCESS);
     assert(catchem_core_destroy_checked(api_core) == CATCHEM_SUCCESS);
 
     void* interface_core = nullptr;

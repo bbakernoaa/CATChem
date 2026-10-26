@@ -1,0 +1,34 @@
+diff --git a/scm/src/suite_info.py b/scm/src/suite_info.py
+--- a/scm/src/suite_info.py
++++ b/scm/src/suite_info.py
+@@ -81,6 +81,30 @@
+ suite_list.append(suite('SCM_GFS_v16_gfdlmpv3',  'tracers_GFS_v16.txt',                  'input_GFS_v16_gfdlmpv3.nml',        600.0, 1800.0, False))
+ 
+ 
++# CATChem suites use the locked GFS v17 tracer definitions and physics defaults.
++# They are explicit integration choices and do not join SCM's stock supported run list.
++_catchem_suite_defaults = {
++    "Dust": "input_GFS_v17_p8_ugwpv1",
++    "SeaSalt": "input_GFS_v17_p8_ugwpv1",
++    "Settling": "input_GFS_v17_p8_ugwpv1",
++    "WetDep": "input_CATChem_WetDep",
++    "DryDep": "input_CATChem_DryDep",
++    "SO4Chem": "input_CATChem_SO4Chem",
++    "CarbChem": "input_CATChem_CarbChem",
++    "Photolysis": "input_CATChem_PhotolysisGasChem",
++    "GasChem": "input_CATChem_PhotolysisGasChem",
++    "PhotolysisGasChem": "input_CATChem_PhotolysisGasChem",
++    "PhotolysisGasChemSubcycle": "input_CATChem_PhotolysisGasChem",
++    "EmissionChemistryRemoval": "input_CATChem_EmissionChemistryRemoval",
++}
++for _catchem_name, _catchem_namelist in _catchem_suite_defaults.items():
++    for _catchem_suffix in ("", "_ps"):
++        suite_list.append(suite(
++            "CATChem_" + _catchem_name + _catchem_suffix,
++            "tracers_GFS_v17_p8_ugwpv1.txt",
++            _catchem_namelist + _catchem_suffix + ".nml", 600.0, 600.0, False))
++
++
+ def main():
+     # find which compiler is being used
+     parser = argparse.ArgumentParser()

@@ -19,7 +19,8 @@ public:
     catchem::ProcessContract get_contract() const override {
         catchem::ProcessContract contract;
         contract.process_name = get_name();
-        contract.produced_products.push_back({"photolysis_rate_jfoo", "s-1"});
+        contract.fields.push_back(catchem::host_field_3d("T", "K"));
+        contract.produced_products.push_back({"photolysis_rate_jfoo", "s-1", true});
         return contract;
     }
 };
@@ -100,12 +101,27 @@ int main() {
     plan.compile(photo_schedule, nullptr);
     assert(!plan.validation().has_errors());
     assert(plan.product_provenance("photolysis_rate_jfoo") != nullptr);
-    assert(!plan.product_is_current("photolysis_rate_jfoo", "chapman", 7, 11));
-    plan.publish_products(0, "chapman", 7, 11);
-    assert(plan.product_is_current("photolysis_rate_jfoo", "chapman", 7, 11));
+    catchem::StateManager state(1, 1, 1);
+    double temperature = 280.0;
+    state.bind_field_3d("T", &temperature);
+    const auto original_inputs = plan.input_fingerprint(0, state);
+    assert(!plan.product_is_current("photolysis_rate_jfoo", "chapman", 7, 11, original_inputs));
+    plan.publish_products(0, "chapman", 7, 11, original_inputs);
+    assert(plan.product_is_current("photolysis_rate_jfoo", "chapman", 7, 11, original_inputs));
     assert(!plan.product_is_current("photolysis_rate_jfoo", "other-mechanism", 7, 11));
     assert(!plan.product_is_current("photolysis_rate_jfoo", "chapman", 8, 11));
-    assert(!plan.product_is_current("photolysis_rate_jfoo", "chapman", 7, 12));
+    // Host wrappers may re-import identical interval inputs between physics calls.
+    state.begin_import_generation();
+    assert(plan.product_is_current("photolysis_rate_jfoo", "chapman", 7, 12, original_inputs));
+    temperature += 1.0;
+    const auto changed_inputs = plan.input_fingerprint(0, state);
+    assert(changed_inputs != original_inputs);
+    assert(!plan.product_is_current("photolysis_rate_jfoo", "chapman", 7, 12, changed_inputs));
+    temperature -= 1.0;
+    ++state.clock().hour;
+    const auto changed_clock = plan.input_fingerprint(0, state);
+    assert(changed_clock != original_inputs);
+    assert(!plan.product_is_current("photolysis_rate_jfoo", "chapman", 7, 12, changed_clock));
     plan.invalidate_products(0);
     assert(!plan.product_is_current("photolysis_rate_jfoo", "chapman", 7, 11));
 

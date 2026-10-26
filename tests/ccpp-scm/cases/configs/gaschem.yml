@@ -1,0 +1,28 @@
+simulation:
+  name: ccpp_scm_gaschem
+  species_filename: ../../../../tests/Configs/Default/CATChem_species.yml
+  verbose:
+    activate: true
+grid:
+  number_of_levels: 64
+timesteps:
+  transport_timestep_in_s: 600
+  chemistry_timestep_in_s: 600
+run_phases:
+  ccpp_selected_process:
+    description: Run only the CCPP-selected GasChem process
+    processes:
+      - photolysis
+      - gaschem
+processes:
+  photolysis:
+    activate: true
+    diagnostics: true
+    config_file: ../../../../../src/external/musica/configs/tuvx/tuv_5_4.yml
+  gaschem:
+    activate: true
+    diagnostics: true
+    relative_tolerance: 1.0e-6
+    absolute_tolerance_mol_m3: 1.0e-14
+    max_solver_steps: 20000
+    config_file: ../../../../../tests/ccpp-scm/cases/configs/gaschem_chapman.yml

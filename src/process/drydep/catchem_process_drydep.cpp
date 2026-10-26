@@ -17,7 +17,7 @@
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <iomanip>
-#include <iostream>
+#include <sstream>
 
 extern "C" {
 /**
@@ -173,16 +173,37 @@ namespace catchem {
         if (n_diag > 0) {
             std::vector<int> dims_2d = {state->column_count(), n_diag};
             std::vector<std::string> drydep_labels;
+            std::vector<std::string> gas_labels;
+            std::vector<std::string> aerosol_labels;
             drydep_labels.reserve(diagnostic_species_id.size());
-            for (const int gid : diagnostic_species_id)
-                drydep_labels.push_back(state->chemistry().species_list[static_cast<size_t>(gid) - 1].short_name);
+            for (const int gid : diagnostic_species_id) {
+                const auto& species = state->chemistry().species_list[static_cast<size_t>(gid) - 1];
+                drydep_labels.push_back(species.short_name);
+                if (species.is_gas)
+                    gas_labels.push_back(species.short_name);
+                else
+                    aerosol_labels.push_back(species.short_name);
+            }
             const std::vector<SemanticAxis> axes_2d = {SemanticAxis::Column, SemanticAxis::Species};
             state->diagnostic_manager()->register_field_contract(
-                "drydep_con_per_species", "Deposition Concentration", "ug/kg", DiagType::FIELD_2D, dims_2d,
+                "drydep_con_per_species", "Deposition Concentration (species-native units)", "species-specific",
+                DiagType::FIELD_2D, dims_2d,
                 DiagnosticPolicy::Instantaneous, 0.0, axes_2d, drydep_labels);
             state->diagnostic_manager()->register_field_contract(
                 "drydep_velocity_per_species", "Deposition Velocity", "m/s", DiagType::FIELD_2D, dims_2d,
                 DiagnosticPolicy::Instantaneous, 0.0, axes_2d, drydep_labels);
+            if (!gas_labels.empty()) {
+                const std::vector<int> gas_dims = {state->column_count(), static_cast<int>(gas_labels.size())};
+                state->diagnostic_manager()->register_field_contract(
+                    "drydep_con_gas_ppmv_dry", "Gas deposition concentration loss", "ppmv dry-air basis",
+                    DiagType::FIELD_2D, gas_dims, DiagnosticPolicy::Instantaneous, 0.0, axes_2d, gas_labels);
+            }
+            if (!aerosol_labels.empty()) {
+                const std::vector<int> aerosol_dims = {state->column_count(), static_cast<int>(aerosol_labels.size())};
+                state->diagnostic_manager()->register_field_contract(
+                    "drydep_con_aerosol_ug_kg_dry", "Aerosol deposition concentration loss", "ug kg-1 dry-air basis",
+                    DiagType::FIELD_2D, aerosol_dims, DiagnosticPolicy::Instantaneous, 0.0, axes_2d, aerosol_labels);
+            }
         }
     }
 
@@ -304,6 +325,8 @@ namespace catchem {
         // bridge accepts null diagnostic storage in concentration-only runs.
         double* diag_con = nullptr;
         double* diag_vel = nullptr;
+        double* gas_diag_con = nullptr;
+        double* aerosol_diag_con = nullptr;
         if (diagnostics_enabled) {
             // The Fortran bridge fills these buffers in place.  Use the write
             // accessor so the diagnostic manager records the host as the
@@ -313,6 +336,12 @@ namespace catchem {
                 static_cast<double*>(state->diagnostic_manager()->get_host_write_pointer("drydep_con_per_species"));
             diag_vel = static_cast<double*>(
                 state->diagnostic_manager()->get_host_write_pointer("drydep_velocity_per_species"));
+            if (state->diagnostic_manager()->has_field("drydep_con_gas_ppmv_dry"))
+                gas_diag_con = static_cast<double*>(
+                    state->diagnostic_manager()->get_host_write_pointer("drydep_con_gas_ppmv_dry"));
+            if (state->diagnostic_manager()->has_field("drydep_con_aerosol_ug_kg_dry"))
+                aerosol_diag_con = static_cast<double*>(
+                    state->diagnostic_manager()->get_host_write_pointer("drydep_con_aerosol_ug_kg_dry"));
         }
 
         // 4. Retrieve species configuration properties from ChemState
@@ -376,7 +405,52 @@ namespace catchem {
             state->chemistry().species_names_c_arr.data(), diag_con, diag_vel, diagnostic_species_id.data(),
             diagnostic_species_id.size());
 
+        // Kernel interfaces operate over the full catalog; only explicitly
+        // participating species may publish their result back to the model.
+        for (std::size_t species = 0; species < state->chemistry().species_list.size(); ++species) {
+            if (state->chemistry().species_list[species].is_drydep) continue;
+            std::copy_n(concentration_before.data() + species * concentration_slab, concentration_slab,
+                        conc_ptr + species * concentration_slab);
+        }
+
+        // Keep the historical packed diagnostic for API compatibility, and
+        // publish unit-homogeneous gas and aerosol views for consumers that
+        // need a physically meaningful unit and dry-air basis.
         if (diagnostics_enabled && diag_con) {
+            int gas_slot = 0;
+            int aerosol_slot = 0;
+            const std::size_t ncol = static_cast<std::size_t>(state->column_count());
+            for (std::size_t packed_slot = 0; packed_slot < diagnostic_species_id.size(); ++packed_slot) {
+                const int species_index = diagnostic_species_id[packed_slot] - 1;
+                if (species_index < 0 || static_cast<std::size_t>(species_index) >= state->chemistry().species_list.size())
+                    throw std::runtime_error("DryDep typed diagnostic received an invalid species index");
+                const bool is_gas_species = state->chemistry().species_list[static_cast<std::size_t>(species_index)].is_gas;
+                double* typed_output = is_gas_species ? gas_diag_con : aerosol_diag_con;
+                const int typed_slot = is_gas_species ? gas_slot++ : aerosol_slot++;
+                if (!typed_output) continue;
+                for (std::size_t column = 0; column < ncol; ++column)
+                    typed_output[static_cast<std::size_t>(typed_slot) * ncol + column] =
+                        diag_con[packed_slot * ncol + column];
+            }
+        }
+
+        if (diagnostics_enabled && diag_con) {
+            // Convert independently diagnosed surface removal to the same
+            // pressure-coordinate inventory used by the GOCART column kernels.
+            for (std::size_t slot = 0; slot < diagnostic_species_id.size(); ++slot) {
+                const auto species = static_cast<std::size_t>(diagnostic_species_id[slot] - 1);
+                const auto& metadata = state->chemistry().species_list.at(species);
+                const double amount_scale = metadata.is_gas
+                    ? 1.0e-6 * metadata.mw_g / 28.9647 : 1.0e-9;
+                double sink = 0.0;
+                for (int column = 0; column < state->column_count(); ++column)
+                    sink += diag_con[slot * state->column_count() + column] * amount_scale *
+                            (pedge_ptr[column] - pedge_ptr[state->column_count() + column]) / 9.80665;
+                std::ostringstream record;
+                record << std::setprecision(17) << "CATCHEM_COLUMN_TERM process=drydep species="
+                       << metadata.short_name << " source=0 sink=" << sink << " units=kg_m-2";
+                Logger::info(state.get(), record.str());
+            }
             // The GOCART diagnostic records the finite-step aerosol
             // concentration removed in the surface layer. Close the host
             // state change against that independently accumulated diagnostic.
@@ -397,9 +471,11 @@ namespace catchem {
             }
             const double residual = std::abs(aerosol_removal - diagnostic_removal) /
                 std::max(std::abs(aerosol_removal) + std::abs(diagnostic_removal), 1.0e-30);
-            std::cout << "CATCHEM_BUDGET name=drydep_aerosol_removal RESIDUAL=" << std::scientific
-                      << std::setprecision(16) << residual << " TOTAL=" << aerosol_removal
-                      << " BIN_SUM=" << diagnostic_removal << '\n';
+            std::ostringstream budget_record;
+            budget_record << "CATCHEM_BUDGET name=drydep_aerosol_removal RESIDUAL=" << std::scientific
+                          << std::setprecision(16) << residual << " TOTAL=" << aerosol_removal
+                          << " BIN_SUM=" << diagnostic_removal;
+            Logger::info(state.get(), budget_record.str());
         }
 
         if (state->chemistry().conc)

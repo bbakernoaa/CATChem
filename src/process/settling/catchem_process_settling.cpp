@@ -19,8 +19,8 @@
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <filesystem>
-#include <iostream>
 #include <iomanip>
+#include <sstream>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -401,8 +401,10 @@ namespace catchem {
                 if (local_aerosol < 0 || static_cast<size_t>(local_aerosol) >= aerosol_indices.size())
                     throw std::runtime_error("Settling mass-budget diagnostic has an invalid aerosol index");
                 const int species = aerosol_indices[static_cast<size_t>(local_aerosol)];
+                double species_boundary_loss = 0.0;
                 for (int column = 0; column < ncol; ++column) {
                     boundary_flux_mass += diag_flux[column + ncol * slot] * state->clock().timestep;
+                    species_boundary_loss += diag_flux[column + ncol * slot] * state->clock().timestep;
                     for (int level = 0; level < nlev; ++level) {
                         const size_t grid_index = static_cast<size_t>(column) + static_cast<size_t>(ncol) * level;
                         const size_t chemistry_index = grid_index + static_cast<size_t>(ncol) * nlev * species;
@@ -412,10 +414,17 @@ namespace catchem {
                                      1.0e-9 * layer_air_mass;
                     }
                 }
+                std::ostringstream record;
+                record << std::setprecision(17) << "CATCHEM_COLUMN_TERM process=settling species="
+                       << state->chemistry().species_list[species].short_name
+                       << " source=0 sink=" << species_boundary_loss << " units=kg_m-2";
+                Logger::info(state.get(), record.str());
             }
-            std::clog << std::setprecision(17) << "CATCHEM_BUDGET name=settling_column_mass RESIDUAL="
-                      << (mass_loss - boundary_flux_mass) << " MASS_LOSS=" << mass_loss
-                      << " BOUNDARY_FLUX_MASS=" << boundary_flux_mass << std::endl;
+            std::ostringstream budget_record;
+            budget_record << std::setprecision(17) << "CATCHEM_BUDGET name=settling_column_mass RESIDUAL="
+                          << (mass_loss - boundary_flux_mass) << " MASS_LOSS=" << mass_loss
+                          << " BOUNDARY_FLUX_MASS=" << boundary_flux_mass;
+            Logger::info(state.get(), budget_record.str());
         }
         state->chemistry().conc->mark_host_modified();
     }

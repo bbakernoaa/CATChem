@@ -5,6 +5,7 @@
 
 # species (gas dey dep set to false to test GOCART only for now):
 - name: so2
+  __units: "kg kg-1"
   __description: Sulfur dioxide
   __is_gas: true
   __is_drydep: true
@@ -25,6 +26,7 @@
   __wd_rainouteff: [1.0, 0.0, 1.0]
   __wd_reevap_frac: 1.0  #GOCART resuspends full re-evaporated fraction (GEOS-Chem/Luo default 0.5)
 - name: h2o2
+  __units: "kg kg-1"
   __description: Hydrogen peroxide
   __is_gas: true
   __is_drydep: false   #turn off for now due to climatology reading from GOCART inputs.
@@ -40,23 +42,27 @@
   __wd_LiqAndGas: true
   __wd_convfacI2G: 4.36564e-1
 - name: oh
+  __units: "kg kg-1"
   __description: Hydroxyl radical
   __is_gas: true
   __is_advected: false
   molecular weight [kg mol-1]: 17.01e-3
 - name: no3
+  __units: "kg kg-1"
   __description: Nitrate radical
   __is_gas: true
   __is_photolysis: true
   __is_advected: false
   molecular weight [kg mol-1]: 62.01e-3
 - name: o3
+  __units: "kg kg-1"
   __description: Ozone
   __is_gas: true
   __is_advected: false
   roles: [photolysis.ozone]
   molecular weight [kg mol-1]: 48.00e-3
 - name: so4       #This is to match CMAQ name to use the restart file. so4 is used in GEOS-Chem.
+  __units: "kg kg-1"
   __description: sulfate
   __is_aerosol: true
   __is_drydep: true
@@ -75,6 +81,7 @@
   __wd_reevap_frac: 1.0  #GOCART resuspends full re-evaporated fraction (GEOS-Chem/Luo default 0.5)
   __mie_name: SU
 - name: dms
+  __units: "kg kg-1"
   __description: Dimethyl sulfide
   molecular weight [kg mol-1]: 62.13e-3
   __is_gas: true   #gocart treat it as a gas without dry and wet deposition
@@ -85,11 +92,13 @@
   __henry_cr: 3100.0
   __mie_name: SU
 - name: dms_in
+  __units: "kg kg-1"
   __description: Dimethyl sulfide in ocean water (climatology for emissions calculation)
   __is_advected: false
   molecular weight [kg mol-1]: 62.13e-3
   __radius: 8.7e-2
 - name: msa
+  __units: "kg kg-1"
   __description: methanesulphonic acid
   # The GOCART SO4 chemistry interface carries MSA with aerosol mass units
   # (ug/kg), alongside SO4.  It must remain an aerosol through the CATChem
@@ -118,6 +127,7 @@
   __wd_rainouteff: [1.0, 0.0, 1.0]
   __mie_name: SU
 - name: bc1
+  __units: "kg kg-1"
   __description: BC1
   __is_aerosol: true
   __is_drydep: true
@@ -141,6 +151,7 @@
   __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: BC
 - name: bc2
+  __units: "kg kg-1"
   __description: BC2
   __is_aerosol: true
   __is_drydep: true
@@ -160,6 +171,7 @@
   __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: BC
 - name: oc1
+  __units: "kg kg-1"
   __description: OC1
   __is_aerosol: true
   __is_drydep: true
@@ -178,6 +190,7 @@
   __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: OC
 - name: oc2
+  __units: "kg kg-1"
   __description: OC2
   __is_aerosol: true
   __is_drydep: true
@@ -196,6 +209,7 @@
   __t_chem_loss: -1.0  #Rate of chemical destruction of carbon species [days]; Note -1 (any negative value) means carbon loss is turned off by default.
   __mie_name: OC
 - name: dust1
+  __units: "kg kg-1"
   __long_name: dust1
   __description: dust1
   __lower_radius: 0.1
@@ -217,6 +231,7 @@
   __wd_rainouteff: [0.8, 0.8, 0.8]
   __mie_name: DU
 - name: dust2
+  __units: "kg kg-1"
   __long_name: dust2
   __description: dust2
   __lower_radius: 1.0
@@ -234,6 +249,7 @@
   __wd_rainouteff: [0.8, 0.8, 0.8]
   __mie_name: DU
 - name: dust3
+  __units: "kg kg-1"
   __long_name: dust3
   __description: dust3
   __lower_radius: 1.8
@@ -251,6 +267,7 @@
   __wd_rainouteff: [0.8, 0.8, 0.8]
   __mie_name: DU
 - name: dust4
+  __units: "kg kg-1"
   __long_name: dust4
   __description: dust4
   __lower_radius: 3.0
@@ -268,6 +285,7 @@
   __wd_rainouteff: [1.0, 1.0, 1.0]
   __mie_name: DU
 - name: dust5
+  __units: "kg kg-1"
   __long_name: dust5
   __description: dust5
   __lower_radius: 6.0
@@ -285,6 +303,7 @@
   __wd_rainouteff: [1.0, 1.0, 1.0]
   __mie_name: DU
 - name: seas1
+  __units: "kg kg-1"
   __long_name: seas1
   __description: seas1
   __lower_radius: 0.03
@@ -301,6 +320,7 @@
   __wd_rainouteff: [1.0, 1.0, 1.0]
   __mie_name: SS
 - name: seas2
+  __units: "kg kg-1"
   __long_name: seas2
   __description: seas2
   __lower_radius: 0.1
@@ -317,6 +337,7 @@
   __wd_rainouteff: [1.0, 1.0, 1.0]
   __mie_name: SS
 - name: seas3
+  __units: "kg kg-1"
   __long_name: seas3
   __description: seas3
   __lower_radius: 0.5
@@ -333,6 +354,7 @@
   __wd_rainouteff: [1.0, 1.0, 1.0]
   __mie_name: SS
 - name: seas4
+  __units: "kg kg-1"
   __long_name: seas4
   __description: seas4
   __lower_radius: 1.5
@@ -349,6 +371,7 @@
   __wd_rainouteff: [1.0, 1.0, 1.0]
   __mie_name: SS
 - name: seas5
+  __units: "kg kg-1"
   __long_name: seas5
   __description: seas5
   __lower_radius: 5.0

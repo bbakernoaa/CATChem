@@ -37,7 +37,7 @@ namespace {
     struct Fixture {
         int n_cols = 4;
         int n_levels = 5;
-        int n_species = 22;
+        int n_species = 23;
         std::vector<double> lat, lon, ps, ustar, ts, pblh, z0h, hflux, obk, dluse, lai, frsno, swgdn, frlake, gwettop,
             lwi, u10m, v10m, z0, salinity, cldfrc, suncosmid;
         std::vector<double> temperature, airden, qv, pmid, cldf, bxheight, rh, delp;
@@ -89,7 +89,7 @@ namespace {
         }
         state->attach_config_manager(runtime_config);
 
-        // The parity oracle uses the Default 22-species inventory.
+        // The parity oracle uses the Default 23-species inventory.
         const std::string species_name = "Configs/Default/CATChem_species.yml";
         std::string species_path = "CATChem_species.yml";
         for (const std::string& candidate : {species_name, "tests/" + species_name, "../tests/" + species_name,
@@ -217,8 +217,17 @@ int main(int argc, char* argv[]) {
             auto drydep = catchem::ProcessRegistry::get_instance().create("drydep");
             drydep->prepare_inputs(state);
             drydep->init(state);
+            const auto initial_concentrations = fix.chem_conc;
             drydep->run(state);
             state->sync_to_host();
+            const std::size_t slab = static_cast<std::size_t>(fix.n_cols) * fix.n_levels;
+            for (std::size_t species = 0; species < state->chemistry().species_list.size(); ++species) {
+                if (state->chemistry().species_list[species].is_drydep) continue;
+                check(std::equal(initial_concentrations.begin() + species * slab,
+                                 initial_concentrations.begin() + (species + 1) * slab,
+                                 fix.chem_conc.begin() + species * slab),
+                      "drydep-disabled species remain bitwise unchanged");
+            }
 
             auto* diag = state->diagnostic_manager().get();
             check(diag != nullptr && diag->has_field("drydep_velocity_per_species"),
@@ -330,6 +339,10 @@ int main(int argc, char* argv[]) {
             auto run_case = [](const YAML::Node& options, Fixture& fix) {
                 auto core = std::make_shared<catchem::Core>(fix.n_cols, fix.n_levels, fix.n_species);
                 auto state = bind_state(core, fix, F_ALL, options);
+                // MSA is disabled in the ordinary catalog. Enable it only in
+                // this routing fixture so the sulfate skip test is non-vacuous.
+                for (auto& species : state->chemistry().species_list)
+                    if (species.short_name == "msa") species.is_drydep = true;
                 state->clock().timestep = 3600.0;
                 auto drydep = catchem::ProcessRegistry::get_instance().create("drydep");
                 drydep->prepare_inputs(state);
@@ -361,7 +374,7 @@ int main(int argc, char* argv[]) {
 
             // Default catalog order (tests/Configs/Default/CATChem_species.yml).
             const double initial = 1.0e-8;
-            const int idx_so2 = 0, idx_oh = 2, idx_so4 = 4, idx_msa = 7, idx_seas1 = 17;
+            const int idx_so2 = 0, idx_oh = 2, idx_so4 = 5, idx_msa = 8, idx_seas1 = 18;
 
             Fixture base_fix;
             auto base_state = run_case(YAML::Node(), base_fix);

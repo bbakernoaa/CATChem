@@ -254,10 +254,32 @@ namespace catchem {
             const auto interval_identity = active_interval_id_ ? active_interval_id_ : timestep_counter_;
             for (const auto& requirement : execution_plan_.contract(index).products) {
                 if (!requirement.required || !execution_plan_.product_provenance(requirement.name)) continue;
+                const auto current_fingerprint = execution_plan_.product_input_fingerprint(requirement.name, *state_mgr);
                 if (!execution_plan_.product_is_current(requirement.name, mechanism_identity, interval_identity,
-                                                        state_mgr->current_import_generation()))
+                                                        state_mgr->current_import_generation(), current_fingerprint)) {
+                    const auto* provenance = execution_plan_.product_provenance(requirement.name);
+                    const auto current_fields = execution_plan_.product_input_field_fingerprints(requirement.name, *state_mgr);
+                    std::string changed_fields;
+                    for (const auto& [field, fingerprint] : current_fields) {
+                        const auto previous = provenance->input_field_fingerprints.find(field);
+                        if (previous == provenance->input_field_fingerprints.end() || previous->second != fingerprint) {
+                            if (!changed_fields.empty()) changed_fields += ",";
+                            changed_fields += field;
+                        }
+                    }
                     throw std::runtime_error("Process " + processes.at(index)->get_name() +
-                                             " requires unavailable or stale derived product " + requirement.name);
+                                             " requires unavailable or stale derived product " + requirement.name +
+                                             " (published mechanism=" + provenance->mechanism_identity +
+                                             ", interval=" + std::to_string(provenance->interval) +
+                                             ", import=" + std::to_string(provenance->import_generation) +
+                                             ", input_fingerprint=" + std::to_string(provenance->input_fingerprint) +
+                                             ", versioned=" + (provenance->input_versioned ? "true" : "false") +
+                                             "; current mechanism=" + mechanism_identity +
+                                             ", interval=" + std::to_string(interval_identity) +
+                                             ", import=" + std::to_string(state_mgr->current_import_generation()) +
+                                             ", input_fingerprint=" + std::to_string(current_fingerprint) +
+                                             ", changed_inputs=" + changed_fields + ")");
+                }
             }
             if (verbose) {
                 Logger::debug(state_mgr.get(), "Core process prepare",
@@ -283,7 +305,9 @@ namespace catchem {
             execution_plan_.complete(index, *state_mgr);
             execution_plan_.publish_products(index, mechanism_identity,
                                              interval_identity,
-                                             state_mgr->current_import_generation());
+                                             state_mgr->current_import_generation(),
+                                             execution_plan_.input_fingerprint(index, *state_mgr),
+                                             execution_plan_.input_field_fingerprints(index, *state_mgr));
             if (verbose)
                 Logger::debug(state_mgr.get(), "Core process complete",
                               {{"step", std::to_string(last_outcome_.timestep)},
@@ -410,7 +434,10 @@ namespace catchem {
         if (shutdown_)
             throw std::logic_error("Cannot run a timestep after shutdown");
         if (tainted_) {
-            if (state_mgr->current_import_generation() > last_outcome_.import_generation) {
+            if (last_outcome_.state == StateClassification::RequiresReinitialize) {
+                throw std::runtime_error(
+                    "Previous timestep requires Core reinitialization; importing host state is insufficient");
+            } else if (state_mgr->current_import_generation() > last_outcome_.import_generation) {
                 tainted_ = false;
             } else {
                 throw std::runtime_error(
@@ -474,6 +501,9 @@ namespace catchem {
         if (shutdown_) throw std::logic_error("Cannot begin an interval after shutdown");
         if (!selected_dispatch_) rebuild_selected_dispatch();
         if (tainted_) {
+            if (last_outcome_.state == StateClassification::RequiresReinitialize)
+                throw std::runtime_error(
+                    "Previous selected operation requires Core reinitialization; importing host state is insufficient");
             if (state_mgr->current_import_generation() > last_outcome_.import_generation) tainted_ = false;
             else throw std::runtime_error("Previous selected operation requires a new import generation");
         }
@@ -503,7 +533,19 @@ namespace catchem {
             if (processes[index]->get_name() == key.process) { selected_index = index; break; }
         if (selected_index == processes.size()) { result.cause = "Selected process is unavailable"; return result; }
         result = selected_dispatch_->run(key, duration, [&] {
-            execute_process(selected_index, config_mgr && config_mgr->data.simulation.verbose_enabled);
+            // Science bridges consume clock().timestep.  Expose this admitted
+            // invocation's duration while retaining the host calendar and
+            // restoring the enclosing interval duration on every exit path.
+            auto& clock = state_mgr->clock();
+            const double host_duration = clock.timestep;
+            clock.timestep = duration;
+            try {
+                execute_process(selected_index, config_mgr && config_mgr->data.simulation.verbose_enabled);
+            } catch (...) {
+                clock.timestep = host_duration;
+                throw;
+            }
+            clock.timestep = host_duration;
         });
         result.import_generation = state_mgr->current_import_generation();
         if (result.status == SelectedOperationStatus::Succeeded) {

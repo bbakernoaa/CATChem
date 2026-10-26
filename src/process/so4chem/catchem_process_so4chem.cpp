@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <iomanip>
-#include <iostream>
+#include <sstream>
 
 extern "C" {
 /**
@@ -338,12 +338,14 @@ namespace catchem {
             nymd_last.data(), nhms_last_recycle.data(), xh2o2_init.data(), pso4_g_so2.data(), pso4_aq_so2.data(),
             pso2_dms.data(), dms_flux.data(), diag_prod_rate.data(), diag_ids, n_diag_species);
 
-        // Close GOCART's independently registered SO4 and MSA production
-        // diagnostics against the updated aerosol concentrations.  The bridge
-        // emits rates in kg/kg/s while the aerosol state is ug/kg.
-        double aerosol_change_ug_kg = 0.0;
-        double integrated_production_ug_kg = 0.0;
+        // Close each selected GOCART SO4/MSA production diagnostic against
+        // that species' updated aerosol concentration. The bridge emits rates
+        // in kg/kg/s while aerosol state is ug/kg. An explicit diagnostic
+        // subset may omit one product, so only close products with a matching
+        // registered diagnostic slot.
         for (const char* species_name : {"so4", "msa"}) {
+            if (!diagnostics_enabled)
+                break;
             if (!state->chemistry().mechanism->contains(species_name)) continue;
             const auto species_index = state->chemistry().mechanism->index_of(species_name);
             if (state->chemistry().species_list[species_index].is_gas)
@@ -356,22 +358,37 @@ namespace catchem {
                     break;
                 }
             }
-            if (diagnostic_slot < 0)
-                throw std::runtime_error(std::string("SO4Chem production budget is missing diagnostic species ") +
-                                         species_name);
+            if (diagnostic_slot < 0) continue;
             const std::size_t species_offset = species_index * diagnostic_slab;
             const std::size_t diagnostic_offset = static_cast<std::size_t>(diagnostic_slot) * diagnostic_slab;
+            double aerosol_change_ug_kg = 0.0;
+            double integrated_production_ug_kg = 0.0;
+            double column_production_kg_m2 = 0.0;
             for (int cell = 0; cell < diagnostic_slab; ++cell) {
                 aerosol_change_ug_kg += conc_ptr[species_offset + cell] - concentration_before[species_offset + cell];
                 integrated_production_ug_kg += diag_prod_rate[diagnostic_offset + cell] * state->clock().timestep * 1.0e9;
+                column_production_kg_m2 += diag_prod_rate[diagnostic_offset + cell] * state->clock().timestep *
+                                           delp_ptr[cell] / 9.80665;
             }
+            std::ostringstream record;
+            record << std::setprecision(17) << "CATCHEM_COLUMN_TERM process=so4chem species=" << species_name
+                   << " source=" << column_production_kg_m2 << " sink=0 units=kg_m-2";
+            Logger::info(state.get(), record.str());
+            constexpr double production_budget_absolute_tolerance_ug_kg = 1.0e-10;
+            const double production_budget_absolute_error_ug_kg =
+                std::abs(aerosol_change_ug_kg - integrated_production_ug_kg);
+            const double production_budget_scale_ug_kg =
+                std::abs(aerosol_change_ug_kg) + std::abs(integrated_production_ug_kg);
+            const double production_budget_residual =
+                production_budget_absolute_error_ug_kg / std::max(production_budget_scale_ug_kg, 1.0e-30);
+            std::ostringstream budget_record;
+            budget_record << "CATCHEM_BUDGET name=so4chem_production species=" << species_name << " RESIDUAL="
+                          << std::scientific << std::setprecision(16) << production_budget_residual
+                          << " TOTAL=" << aerosol_change_ug_kg << " BIN_SUM=" << integrated_production_ug_kg
+                          << " ABS_ERROR=" << production_budget_absolute_error_ug_kg
+                          << " ABS_TOLERANCE=" << production_budget_absolute_tolerance_ug_kg;
+            Logger::info(state.get(), budget_record.str());
         }
-        const double production_budget_residual =
-            std::abs(aerosol_change_ug_kg - integrated_production_ug_kg) /
-            std::max(std::abs(aerosol_change_ug_kg) + std::abs(integrated_production_ug_kg), 1.0e-30);
-        std::cout << "CATCHEM_BUDGET name=so4chem_production RESIDUAL=" << std::scientific
-                  << std::setprecision(16) << production_budget_residual << " TOTAL=" << aerosol_change_ug_kg
-                  << " BIN_SUM=" << integrated_production_ug_kg << '\n';
 
         // 6. Map persistent column diagnostics straight to registered C++ Diagnostics Views
         if (state->diagnostic_manager() && diagnostics_enabled) {

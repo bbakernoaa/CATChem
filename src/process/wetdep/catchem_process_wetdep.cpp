@@ -16,7 +16,8 @@
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
-#include <iostream>
+#include <iomanip>
+#include <sstream>
 
 extern "C" {
 /**
@@ -353,6 +354,20 @@ namespace catchem {
                 std::string flux_name = "wetdep_flux_" + meta.short_name;
                 double* mass_ptr = (double*)state->diagnostic_manager()->get_host_pointer(mass_name);
                 double* num_ptr = (double*)state->diagnostic_manager()->get_host_pointer(flux_name);
+                // JACOB's vertical diagnostics are cumulative downward fluxes;
+                // the surface element supplies column boundary loss, not their sum.
+                double surface_loss = 0.0;
+                for (int col = 0; col < state->column_count(); ++col)
+                    for (int level = 0; level < (active_scheme == "gocart" ? state->level_count() : 1); ++level)
+                        surface_loss += diag_flux_bin[position * state->column_count() * state->level_count() +
+                                                      level * state->column_count() + col] * state->clock().timestep;
+                // GOCART uses 28.9644 g/mol; the CCPP gas conversion uses
+                // 28.9647 g/mol. Reconcile the diagnosed mass to the host basis.
+                if (meta.is_gas) surface_loss *= 28.9644 / 28.9647;
+                std::ostringstream record;
+                record << std::setprecision(17) << "CATCHEM_COLUMN_TERM process=wetdep species=" << meta.short_name
+                       << " source=0 sink=" << surface_loss << " units=kg_m-2";
+                Logger::info(state.get(), record.str());
                 for (int col = 0; col < state->column_count(); ++col) {
                     for (int lvl = 0; lvl < state->level_count(); ++lvl) {
                         const int idx =

@@ -1,0 +1,23 @@
+simulation:
+  name: ccpp_scm_carbchem
+  species_filename: ../../../../tests/Configs/Default/CATChem_species.yml
+  verbose:
+    activate: true
+grid:
+  number_of_levels: 64
+timesteps:
+  transport_timestep_in_s: 600
+  chemistry_timestep_in_s: 600
+run_phases:
+  ccpp_selected_process:
+    description: Run only the CCPP-selected CarbChem process
+    processes:
+      - carbchem
+processes:
+  carbchem:
+    activate: true
+    scheme: gocart
+    diagnostics: true
+    diag_species: [bc1, bc2, oc1, oc2]
+    gocart:
+      time_days_hydrophobic_to_hydrophilic: 1.0

@@ -896,14 +896,22 @@ contains
       rc = CC_SUCCESS
    end subroutine model_initialize
 
-   ! Finalize model and release memory
+   !> @brief Finalize the model and release its Core.
+   !> @param this Model object whose Core is being destroyed.
+   !> @param rc CC_SUCCESS unless process cleanup reports an error.
    subroutine model_finalize(this, rc)
       class(CATChem_Model), intent(inout) :: this
       integer, intent(out) :: rc
+      integer(c_int) :: c_status
 
       if (c_associated(this%cpp_core_ptr)) then
-         call catchem_core_destroy(this%cpp_core_ptr)
-         rc = CC_SUCCESS
+         c_status = catchem_core_destroy_checked(this%cpp_core_ptr)
+         if (c_status /= 0_c_int) then
+            call capture_boundary_error(this)
+            rc = CC_FAILURE
+         else
+            rc = CC_SUCCESS
+         end if
          this%cpp_core_ptr = c_null_ptr
          this%state_mgr_ptr = c_null_ptr
       else

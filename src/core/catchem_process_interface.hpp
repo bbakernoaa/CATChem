@@ -96,6 +96,7 @@ namespace catchem {
     struct ProductDeclaration {
         std::string name;  ///< Product name; must be unique per producer/units pair.
         std::string units; ///< Units the producer guarantees.
+        bool input_versioned = false; ///< Product freshness follows producer read values, not import sequence alone.
     };
 
     /**

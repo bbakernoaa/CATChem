@@ -111,6 +111,18 @@
   dimensions = ()
   type = integer | kind = c_int
   intent = in
+[loop_counter]
+  standard_name = ccpp_loop_counter
+  units = index
+  dimensions = ()
+  type = integer | kind = c_int
+  intent = in
+[loop_extent]
+  standard_name = ccpp_loop_extent
+  units = count
+  dimensions = ()
+  type = integer | kind = c_int
+  intent = in
 [duration_seconds]
   standard_name = timestep_for_physics
   units = s
@@ -202,7 +214,7 @@
   type = integer
   intent = in
 [z0]
-  standard_name = surface_roughness_length_over_land
+  standard_name = surface_roughness_length
   units = cm
   dimensions = (horizontal_dimension)
   type = real | kind = kind_phys

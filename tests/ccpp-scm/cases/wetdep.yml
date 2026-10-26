@@ -1,0 +1,47 @@
+schema_version: 1
+case_id: wetdep-twpice
+scm_case: twpice
+processes:
+  - wetdep
+acceptance_fixture:
+  aerosol_mixing_ratio_kg_kg: 1.0e-8
+  large_scale_precipitation_amount_m: 0.001
+  large_scale_precipitation_flux_kg_m2_s: 1.0e-4
+  species: dust1..dust5, seas1..seas5, so4, msa, bc1..bc2, oc1..oc2
+  basis: uniform initial host mass mixing ratio in the full CCPP constituent array, with declared uniform large-scale rain amount and flux for the wet-removal acceptance check
+inputs:
+  - name: ccpp_constituents
+    units: scheme-declared
+    basis: full framework constituent array, mapped by constituent properties
+  - name: precipitation_flux_interfaces
+    units: kg m-2 s-1
+    basis: linear pressure-coordinate interpolation of GFS v17 ice and liquid layer-center fluxes to interfaces; endpoint values use nearest-pair extrapolation
+  - name: invocation_precipitation_amounts
+    units: m
+    basis: PRECCON from rainc_cpl and PRECLSC from max(0, rain_cpl-rainc_cpl); both coupling accumulations are enabled by cplchm in the case namelist
+outputs:
+  - name: wetdep_species_removal
+    signal_name: wetdep_flux_dust1
+    units: host representation per second
+    basis: species-resolved constituent tendency
+    must_be_nonzero: true
+reference:
+  method: native_parity
+  description: Matched native Jacob WetDep replay from the exact TWPICE GFS v17 process-input ledger and pre-update 23-species CCPP state. All 2,921 mapped species-level values compare at the same 600 s interval and host-update boundary; maximum absolute and relative errors are both zero.
+  source_revision: 900ec02691ae9a4ef250183ec86f7050b1d2d6b9
+  evidence:
+    - build/ccpp-scm-phase6-clean/native-replay/wetdep-twpice-parity.json
+tolerances:
+  - quantity: wetdep_constituent_state_after_update
+    absolute: 1.0e-12
+    relative: 1.0e-6
+    rationale: Frozen before comparison using the established full-state native replay limit; all 2,921 values passed with zero observed error.
+    rationale: Provisional native-comparison limit; applicability awaits a same-input native reference run.
+budgets:
+  - quantity: wetdep_column_mass
+    equation: integrated species tendency equals diagnosed column removal
+    units: kg m-2 s-1
+    basis: species mass and host interface precipitation
+    residual_tolerance: 1.0e-10
+    rationale: Wet-removal mass closes against the diagnosed precipitation flux and host layer mass.
+frozen_before_candidate_comparison: true

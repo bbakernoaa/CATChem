@@ -6,19 +6,20 @@ OPTIMIZE_FOR_FORTRAN = YES
 
 INPUT = doxygen/index.md \
         ../src/core \
-        ../src/process/drydep \
-        ../src/process/dust \
-        ../src/process/plumerise \
-        ../src/process/seasalt \
+        ../src/process \
         ../src/api
-USE_MDFILE_AS_MAINPAGE = index.md
-FILE_PATTERNS = *.F90
+EXCLUDE_PATTERNS = */external/*
+EXCLUDE = ../src/api/catchem_musica_registration.cpp
+USE_MDFILE_AS_MAINPAGE = doxygen/index.md
+FILE_PATTERNS = *.F90 *.hpp *.cpp
 RECURSIVE = YES
 
+WARN_IF_UNDOCUMENTED = YES
+WARN_IF_DOC_ERROR = YES
+WARN_NO_PARAMDOC = YES
+
 # Doxygen Awesome
-HTML_EXTRA_STYLESHEET = ../docs2/static/doxygen-awesome.css \
-                        ../docs2/static/doxygen-awesome-sidebar-only.css \
-                        tweaks.css
+HTML_EXTRA_STYLESHEET = tweaks.css
 HTML_COLORSTYLE = LIGHT
 
 # Doxysphinx required
@@ -33,7 +34,6 @@ GENERATE_LATEX = NO
 SEARCHENGINE = NO
 GENERATE_TAGFILE = ./doxygen/html/tagfile.xml
 DOT_IMAGE_FORMAT = svg
-DOT_TRANSPARENT = YES
 INTERACTIVE_SVG = YES
 ALIASES = "rst=\verbatim embed:rst:leading-asterisk" \
           endrst=\endverbatim

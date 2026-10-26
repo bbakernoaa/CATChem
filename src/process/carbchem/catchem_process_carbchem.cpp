@@ -16,7 +16,7 @@
 #include <algorithm>
 #include <cctype>
 #include <iomanip>
-#include <iostream>
+#include <sstream>
 
 extern "C" {
 /**
@@ -227,6 +227,25 @@ namespace catchem {
         double carbon_mass_before = 0.0;
         double carbon_mass_after = 0.0;
         const std::size_t species_slab = static_cast<std::size_t>(state->column_count()) * state->level_count();
+        if (diag_phobic_mass && diag_prod_mass) {
+            for (std::size_t slot = 0; slot < diagnostic_species_id.size(); ++slot) {
+                const auto& metadata = state->chemistry().species_list.at(diagnostic_species_id[slot] - 1);
+                std::string name = metadata.short_name;
+                std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
+                if (name != "bc1" && name != "bc2" && name != "oc1" && name != "oc2") continue;
+                double transfer = 0.0, chemical_loss = 0.0;
+                for (std::size_t cell = 0; cell < species_slab; ++cell) {
+                    transfer += diag_phobic_mass[slot * species_slab + cell] * delp_ptr[cell] / 9.80665;
+                    chemical_loss += diag_prod_mass[slot * species_slab + cell] * delp_ptr[cell] / 9.80665;
+                }
+                const bool donor = name.back() == '1';
+                std::ostringstream record;
+                record << std::setprecision(17) << "CATCHEM_COLUMN_TERM process=carbchem species=" << name
+                       << " source=" << (donor ? 0.0 : transfer)
+                       << " sink=" << (chemical_loss + (donor ? transfer : 0.0)) << " units=kg_m-2";
+                Logger::info(state.get(), record.str());
+            }
+        }
         for (const char* carbon_species : {"BC1", "BC2", "OC1", "OC2"}) {
             bool found = false;
             for (std::size_t species = 0; species < state->chemistry().species_list.size(); ++species) {
@@ -247,9 +266,11 @@ namespace catchem {
         }
         const double carbon_mass_residual = std::abs(carbon_mass_before - carbon_mass_after) /
             std::max(std::abs(carbon_mass_before) + std::abs(carbon_mass_after), 1.0e-30);
-        std::cout << "CATCHEM_BUDGET name=carbchem_carbon_mass RESIDUAL=" << std::scientific
-                  << std::setprecision(16) << carbon_mass_residual << " TOTAL=" << carbon_mass_before
-                  << " BIN_SUM=" << carbon_mass_after << '\n';
+        std::ostringstream budget_record;
+        budget_record << "CATCHEM_BUDGET name=carbchem_carbon_mass RESIDUAL=" << std::scientific
+                      << std::setprecision(16) << carbon_mass_residual << " TOTAL=" << carbon_mass_before
+                      << " BIN_SUM=" << carbon_mass_after;
+        Logger::info(state.get(), budget_record.str());
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();

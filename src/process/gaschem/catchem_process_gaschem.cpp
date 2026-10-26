@@ -18,11 +18,15 @@
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
-#include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <string_view>
 
 namespace catchem {
 
+    /** @brief Declare GasChem's concentration, thermodynamic, and fresh photolysis requirements. */
     ProcessContract GasChemProcess::get_contract() const {
         auto contract = make_contract(
             get_name(),
@@ -36,6 +40,9 @@ namespace catchem {
     GasChemProcess::GasChemProcess() = default;
     GasChemProcess::~GasChemProcess() = default;
 
+    /** @brief Build MICM with configured solver tolerances before allocating its persistent state.
+     * @param state Mechanism, configuration, and grid owned by this Core.
+     */
     void GasChemProcess::init(std::shared_ptr<StateManager> state) {
         Logger::debug(state.get(), "GasChemProcess::init started");
 
@@ -97,9 +104,37 @@ namespace catchem {
         // 2. Initialize MICM and State using musica library
         try {
             micm_instance = std::make_unique<musica::MICM>(micm_config_path, musica::RosenbrockStandardOrder);
+            if (state->config_manager()) {
+                const auto& config = *state->config_manager();
+                const double absolute_tolerance = config.get_double(
+                    "processes/gaschem/absolute_tolerance_mol_m3", -1.0);
+                const double relative_tolerance = config.get_double("processes/gaschem/relative_tolerance", -1.0);
+                const int max_solver_steps = config.get_int("processes/gaschem/max_solver_steps", 1000);
+                if (absolute_tolerance != -1.0 || relative_tolerance != -1.0 || max_solver_steps != 1000) {
+                    auto parameters = micm_instance->GetRosenbrockSolverParameters();
+                    if (max_solver_steps <= 0)
+                        throw std::invalid_argument("GasChem max_solver_steps must be positive");
+                    parameters.max_number_of_steps = static_cast<std::size_t>(max_solver_steps);
+                    if (absolute_tolerance != -1.0) {
+                        if (!std::isfinite(absolute_tolerance) || absolute_tolerance <= 0.0)
+                            throw std::invalid_argument("GasChem absolute_tolerance_mol_m3 must be finite and positive");
+                        parameters.absolute_tolerances.assign(micm_instance->GetSpeciesOrdering().size(), absolute_tolerance);
+                    }
+                    if (relative_tolerance != -1.0) {
+                        if (!std::isfinite(relative_tolerance) || relative_tolerance <= 0.0)
+                            throw std::invalid_argument("GasChem relative_tolerance must be finite and positive");
+                        parameters.relative_tolerance = relative_tolerance;
+                    }
+                    micm_instance->SetSolverParameters(parameters);
+                    Logger::debug(state.get(), "GasChem solver tolerances configured",
+                                  {{"relative", std::to_string(parameters.relative_tolerance)},
+                                   {"absolute_mol_m3", std::to_string(absolute_tolerance)},
+                                   {"max_steps", std::to_string(parameters.max_number_of_steps)}});
+                }
+            }
             micm_state = std::make_unique<musica::State>(*micm_instance, state->column_count() * state->level_count());
             initialized = true;
-            std::clog << "[INFO] GasChemProcess: initialized MICM successfully!" << std::endl;
+            Logger::info(state.get(), "GasChemProcess initialized MICM successfully");
 
             // Validate that all active CATChem species are mapped inside the MICM solver
             auto variable_map = micm_state->GetVariableMap();
@@ -120,15 +155,19 @@ namespace catchem {
                     photolysis_products.push_back("photolysis_rate_" + parameter_name.substr(6));
             }
         } catch (const std::exception& e) {
-            std::cerr << "GasChemProcess: Error: failed to initialize MICM: " << e.what() << std::endl;
+            Logger::error(state.get(), "GasChemProcess failed to initialize MICM", {{"error", e.what()}});
             initialized = false;
             throw std::runtime_error(std::string("GasChemProcess: failed to initialize MICM: ") + e.what());
         }
     }
 
+    /**
+     * @brief Run one GasChem solver interval against CATChem's bound staging state.
+     * @param state Active CATChem process state with current meteorology and chemistry inputs.
+     */
     void GasChemProcess::run(std::shared_ptr<StateManager> state) {
         if (!initialized) {
-            std::cerr << "GasChemProcess: Warning: skipped run because solver is not initialized." << std::endl;
+            Logger::warn(state.get(), "GasChemProcess skipped run because the solver is not initialized");
             return;
         }
 
@@ -270,6 +309,29 @@ namespace catchem {
             Logger::error(state.get(), "Invalid timestep encountered", {{"timestep", std::to_string(tstep)}});
             throw std::runtime_error("GasChemProcess: timestep must be greater than zero.");
         }
+        // This diagnostic ledger is mechanism-neutral. Acceptance manifests
+        // choose which species and weighted inventories they use for budgets.
+        const bool trace_solver_state = std::getenv("CATCHEM_BOUNDARY_LEDGER") != nullptr;
+        std::vector<std::pair<std::string, size_t>> ledger_species;
+        std::vector<double> initial_solver_state;
+        const auto solver_index = [&](int cell, size_t species_index) {
+            return (static_cast<size_t>(cell) / vector_size_ * n_micm_species + species_index) * vector_size_ +
+                   static_cast<size_t>(cell) % vector_size_;
+        };
+        if (trace_solver_state) {
+            ledger_species.reserve(variable_map.size());
+            for (const auto& [name, index] : variable_map)
+                ledger_species.emplace_back(name, index);
+            std::sort(ledger_species.begin(), ledger_species.end(),
+                      [](const auto& left, const auto& right) { return left.first < right.first; });
+            initial_solver_state.reserve(static_cast<size_t>(nc) * nl * ledger_species.size());
+            for (int cell = 0; cell < nc * nl; ++cell) {
+                for (const auto& [name, index] : ledger_species) {
+                    (void)name;
+                    initial_solver_state.push_back(micm_concs[solver_index(cell, index)]);
+                }
+            }
+        }
         auto solver_result = micm_instance->Solve(micm_state.get(), tstep);
         if (solver_result.state_ != micm::SolverState::Converged &&
             solver_result.state_ != micm::SolverState::AcceptingUnconvergedIntegration) {
@@ -277,6 +339,20 @@ namespace catchem {
                           {{"final_state", micm::SolverStateToString(solver_result.state_)}});
             throw std::runtime_error("GasChemProcess: MICM Solver failed to reach convergence or acceptable state: " +
                                      micm::SolverStateToString(solver_result.state_));
+        }
+
+        if (trace_solver_state) {
+            for (int cell = 0; cell < nc * nl; ++cell) {
+                for (size_t species = 0; species < ledger_species.size(); ++species) {
+                    const auto& [name, index] = ledger_species[species];
+                    std::ostringstream record;
+                    record << std::setprecision(17) << "CATCHEM_GASCHEM_STATE column=" << cell % nc + 1
+                           << " level=" << cell / nc + 1 << " species=" << name
+                           << " initial=" << initial_solver_state[static_cast<size_t>(cell) * ledger_species.size() + species]
+                           << " final=" << micm_concs[solver_index(cell, index)] << " units=mol_m-3";
+                    Logger::info(state.get(), record.str());
+                }
+            }
         }
 
         // 5. Convert output concentrations back: mol/m3 -> ppmv
@@ -312,13 +388,25 @@ namespace catchem {
         // 6. Sync back to device
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();
+
+#if defined(CATCHEM_ENABLE_ACCEPTANCE_FAILURE_INJECTION)
+        // The opt-in acceptance probe throws after solver output has changed
+        // CATChem's staging state, but before the CCPP cap can publish it.
+        const char* injected_process = std::getenv("CATCHEM_ACCEPTANCE_FAIL_AFTER_PROCESS");
+        if (injected_process != nullptr && std::string_view(injected_process) == "gaschem") {
+            Logger::error(state.get(), "CATCHEM_ACCEPTANCE_PROCESS_FAILURE_INJECTED process=gaschem stage=after_state_mutation");
+            throw std::runtime_error("Injected acceptance failure after GasChem staging-state mutation");
+        }
+#endif
     }
 
+    /** @brief Complete process teardown; solver storage is owned by the process instance. */
     void GasChemProcess::finalize() {}
 
 } // namespace catchem
 
 extern "C" {
+/** @brief Register the MICM-backed GasChem factory for configured Core schedules. */
 void catchem_register_gaschem_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         std::string(catchem::ProcessNames::GasChem), []() { return std::make_shared<catchem::GasChemProcess>(); });

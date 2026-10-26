@@ -15,8 +15,8 @@
 #include "catchem_process_registry.hpp"
 #include <array>
 #include <cctype>
-#include <iostream>
 #include <iomanip>
+#include <sstream>
 
 extern "C" {
 /**
@@ -351,8 +351,10 @@ namespace catchem {
                 for (int bin = 0; bin < n_diag_species; ++bin)
                     bin_sum += diag_mass_bin_ptr[column + state->column_count() * bin];
             }
-            std::clog << std::setprecision(17) << "CATCHEM_BUDGET name=seasalt_bin_closure RESIDUAL=" << (total_sum - bin_sum)
-                      << " TOTAL=" << total_sum << " BIN_SUM=" << bin_sum << std::endl;
+            std::ostringstream budget_record;
+            budget_record << std::setprecision(17) << "CATCHEM_BUDGET name=seasalt_bin_closure RESIDUAL="
+                          << (total_sum - bin_sum) << " TOTAL=" << total_sum << " BIN_SUM=" << bin_sum;
+            Logger::info(state.get(), budget_record.str());
         }
 
         if (state->chemistry().conc)

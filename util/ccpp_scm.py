@@ -15,18 +15,34 @@ import sys
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_LOCK = ROOT / "integrations/ccpp-scm/source-lock.json"
+DEFAULT_LOCK = ROOT / "tests/ccpp-scm/source-lock.json"
 COMPONENTS = ("scm", "framework", "physics", "catchem", "gocart", "musica")
 HEX40 = set("0123456789abcdef")
+REQUIRED_BUILD_TESTS = ("test_ccpp_context", "test_ccpp_conversions", "test_ccpp_layout",
+                        "test_ccpp_time_splitting", "test_ccpp_operation_recovery")
+SUITE_TO_PROCESS = {"CATChem_Dust": "dust", "CATChem_SeaSalt": "seasalt",
+                    "CATChem_DryDep": "drydep", "CATChem_WetDep": "wetdep",
+                    "CATChem_Settling": "settling", "CATChem_SO4Chem": "so4chem",
+                    "CATChem_CarbChem": "carbchem", "CATChem_Photolysis": "photolysis",
+                    "CATChem_GasChem": "gaschem"}
+
+
+def all_catchem_suites() -> list[str]:
+    """Return all tracked individual, coupled, and subcycle suite variants for one cap."""
+    return sorted(path.stem.removeprefix('suite_') for path in
+                  (ROOT / 'tests/ccpp/suites').glob('suite_CATChem_*.xml'))
 
 
 class MissingInputError(RuntimeError):
     """Raised when external, required SCM test data have not been staged."""
 
 
-def run(command: list[str], *, cwd: Path | None = None) -> str:
-    result = subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, check=False)
+def run(command: list[str], *, cwd: Path | None = None, timeout: int = 3600) -> str:
+    try:
+        result = subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, check=False, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"Command timed out after {timeout} seconds: {command!r}") from exc
     if result.returncode:
         raise RuntimeError(f"Command failed ({result.returncode}): {command!r}\n{result.stdout}")
     return result.stdout.strip()
@@ -57,6 +73,21 @@ def compiler_info() -> dict:
         info[lang] = {"requested": executable, "path": str(Path(resolved).resolve()), "version": version}
     # A mixed compiler family is allowed when the platform toolchain requires it, but captured.
     return info
+
+
+def validate_required_tests(cmake_file: Path, tests_dir: Path) -> None:
+    """Fail closed when a required CCPP regression is absent or unregistered."""
+    cmake_tests = cmake_file.read_text()
+    missing = [name for name in REQUIRED_BUILD_TESTS
+               if not (tests_dir / f"{name}.cpp").is_file()
+               and not (tests_dir / f"{name}.F90").is_file()]
+    unregistered = [name for name in REQUIRED_BUILD_TESTS
+                    if f"add_test(NAME {name} " not in cmake_tests
+                    and f"add_test(\n    NAME {name}" not in cmake_tests
+                    and f"catchem_add_architecture_test({name} " not in cmake_tests]
+    if missing or unregistered:
+        raise RuntimeError(f"Required CCPP tests are absent or unregistered: missing={missing}, "
+                           f"unregistered={unregistered}")
 
 
 def clone_locked(url: str, revision: str, destination: Path, commands: list[list[str]]) -> None:
@@ -175,7 +206,25 @@ def prepare(args: argparse.Namespace) -> None:
             source_data = local_scm / "scm/data" / name
             target_data = target / "scm/data" / name
             if source_data.is_dir():
-                shutil.copytree(source_data, target_data, dirs_exist_ok=True)
+                # Large locked SCM data (notably the 12-month GOCART climatology)
+                # may already be staged elsewhere in this workspace. Link those
+                # files by relative path to avoid duplicating many gigabytes in a
+                # clean source tree. Data outside the workspace is copied so its
+                # path remains available in the mounted container.
+                try:
+                    source_data.resolve().relative_to(ROOT.resolve())
+                    link_workspace_data = True
+                except ValueError:
+                    link_workspace_data = False
+                if link_workspace_data:
+                    for original in sorted(p for p in source_data.rglob("*") if p.is_file()):
+                        relative = original.relative_to(source_data)
+                        staged = target_data / relative
+                        staged.parent.mkdir(parents=True, exist_ok=True)
+                        if not staged.exists() and not staged.is_symlink():
+                            staged.symlink_to(os.path.relpath(original, staged.parent))
+                else:
+                    shutil.copytree(source_data, target_data, dirs_exist_ok=True)
                 for file_path in sorted(p for p in target_data.rglob("*") if p.is_file()):
                     hasher = hashlib.sha256()
                     with file_path.open("rb") as staged_file:
@@ -203,7 +252,7 @@ def prepare(args: argparse.Namespace) -> None:
         if actual_submodule != expected:
             raise RuntimeError(f"CATChem {subpath} gitlink mismatch: expected {expected}, got {actual_submodule}")
 
-    patch_root = ROOT / "integrations/ccpp-scm/patches"
+    patch_root = ROOT / "tests/ccpp-scm/patches"
     overlay_digest = hashlib.sha256()
     overlay_files = sorted(p for p in patch_root.rglob("*") if p.is_file()) if patch_root.exists() else []
     for patch_file in overlay_files:
@@ -323,7 +372,11 @@ def baseline(args: argparse.Namespace) -> None:
                      'test -n "$VIEW" || { echo "Spack view not found"; exit 2; }; '
                      'export PATH="$VIEW/bin:$PATH" LD_LIBRARY_PATH="$VIEW/lib" '
                      'CMAKE_PREFIX_PATH="$VIEW" CC=gcc CXX=g++ FC=gfortran; ')
-            configure = (f'cmake -S "{source_in_container}" -B /build/baseline-build '
+            # The named Docker volume can be reused with a different work-dir.
+            # Its generated CMake cache embeds the old source path, so always
+            # rebuild this disposable directory for the requested source tree.
+            configure = (f'rm -rf /build/baseline-build && '
+                         f'cmake -S "{source_in_container}" -B /build/baseline-build '
                          f'-DCCPP_SUITES={cmake_suites} -DCMAKE_BUILD_TYPE={args.build_type}')
             execute_container("configure", setup + configure, work / "logs/baseline-configure.log")
             # The pinned host metadata contains case-variant duplicate module producers, so
@@ -363,7 +416,7 @@ def baseline(args: argparse.Namespace) -> None:
 
 
 def overlay_hash() -> str | None:
-    patch_root = ROOT / "integrations/ccpp-scm/patches"
+    patch_root = ROOT / "tests/ccpp-scm/patches"
     patch_files = sorted(p for p in patch_root.rglob("*") if p.is_file()) if patch_root.exists() else []
     if not patch_files:
         return None
@@ -449,7 +502,7 @@ def probe(args: argparse.Namespace) -> None:
         if actual_framework != revisions["framework"]:
             raise RuntimeError(f"Framework revision mismatch: expected {revisions['framework']}, "
                                f"got {actual_framework}")
-        patch_file = ROOT / "integrations/ccpp-scm/patches/0001-constituent-probe.patch"
+        patch_file = ROOT / "tests/ccpp-scm/patches/0001-constituent-probe.patch"
         check_cmd = ["git", "-C", str(framework), "apply", "--check", str(patch_file)]
         commands.append(check_cmd)
         check_result = subprocess.run(check_cmd, text=True, stdout=subprocess.PIPE,
@@ -508,7 +561,8 @@ def probe(args: argparse.Namespace) -> None:
                                 "fortran": compiler_lines[2]}
 
         source_in_container = "/workspace/" + (framework / "end-to-end-tests").relative_to(ROOT).as_posix()
-        setup = f"cmake -S {source_in_container} -B /build/constituent-probe " \
+        setup = f"rm -rf /build/constituent-probe && " \
+                f"cmake -S {source_in_container} -B /build/constituent-probe " \
                 "-DOPENMP=OFF -DCMAKE_Fortran_COMPILER=gfortran " \
                 "-DCMAKE_Fortran_FLAGS='-ffree-line-length-none -cpp' -DCMAKE_BUILD_TYPE=Debug"
         execute_container("configure", setup)
@@ -590,6 +644,166 @@ def probe(args: argparse.Namespace) -> None:
         raise
 
 
+def _run_case_command(args: argparse.Namespace, process: str, case: str, suite: str | None = None,
+                     *, build_only: bool = False, science_profile: str | None = None,
+                      keep_existing: bool = False, processes: list[str] | None = None,
+                      case_group: str | None = None, suite_set: list[str] | None = None,
+                      process_set: list[str] | None = None,
+                      shared_build_dir: Path | None = None) -> None:
+    """Run one process through the shared locked SCM case driver."""
+    command = [sys.executable, str(ROOT / "tests/ccpp-scm/run_case.py"),
+               "--work-dir", str(Path(args.work_dir).resolve()), "--process", process,
+               "--case", case, "--runtime", str(args.runtime), "--timestep", str(args.timestep),
+               "--jobs", str(args.jobs), "--science-profile", science_profile or args.science_profile]
+    if suite:
+        command.extend(["--suite", suite])
+    if processes:
+        command.extend(["--processes", ",".join(processes)])
+    if case_group:
+        command.extend(["--case-group", case_group])
+    if suite_set:
+        command.extend(["--suite-set", ",".join(suite_set)])
+    if process_set:
+        command.extend(["--process-set", ",".join(process_set)])
+    if shared_build_dir:
+        command.extend(["--shared-build-dir", str(shared_build_dir)])
+    if args.docker_image:
+        command.extend(["--docker-image", args.docker_image])
+    if args.registry_order:
+        command.extend(["--registry-order", args.registry_order])
+    if build_only:
+        command.append("--build-only")
+    if keep_existing:
+        command.append("--keep-existing")
+    if args.emit_boundary_ledger:
+        command.append("--emit-boundary-ledger")
+    if args.emit_met_ledger:
+        command.append("--emit-met-ledger")
+    run(command)
+
+
+def build(args: argparse.Namespace) -> None:
+    """Configure and compile each requested real SCM process cap."""
+    validate_required_tests(ROOT / "tests/CMakeLists.txt", ROOT / "tests")
+    processes = args.processes.split(",")
+    if not processes or any(process not in {"dust", "seasalt", "drydep", "wetdep", "settling",
+                                            "so4chem", "carbchem", "photolysis", "gaschem"}
+                            for process in processes):
+        raise ValueError("--processes must be a comma-separated list of CATChem process names")
+    if args.cases == "coupled":
+        groups = {
+            "CATChem_EmissionChemistryRemoval": ("emission-chemistry-removal", "gabls3_noahmp"),
+            "CATChem_PhotolysisGasChem": ("photolysis-gaschem", "arm_sgp_summer_1997_A"),
+        }
+        selected_groups = ([name.strip().removeprefix("suite_") for name in args.suite.split(",") if name.strip()]
+                           if args.suite else list(groups))
+        unknown = [name for name in selected_groups if name not in groups]
+        if unknown:
+            raise ValueError("coupled build suites must be one of " + ", ".join(groups))
+        group_processes = {
+            "CATChem_EmissionChemistryRemoval": ("dust", "seasalt", "wetdep", "settling", "drydep", "so4chem", "carbchem"),
+            "CATChem_PhotolysisGasChem": ("photolysis", "gaschem"),
+        }
+        selected_processes = tuple(
+            dict.fromkeys(process for name in selected_groups for process in group_processes[name]))
+        suite_set = (all_catchem_suites() if not args.suite else
+                     [variant for name in selected_groups for variant in (name, f"{name}_ps")])
+        shared_build_dir = Path(args.work_dir).resolve() / "cases" / "coupled-shared-cap" / "build"
+        anchor = selected_groups[0]
+        group, default_case = groups[anchor]
+        _run_case_command(args, "dust" if group == "emission-chemistry-removal" else "photolysis",
+                          args.case or default_case, anchor, build_only=True,
+                          science_profile=args.science_profile,
+                          keep_existing=True, processes=list(group_processes[anchor]), case_group=group,
+                          suite_set=suite_set, process_set=list(selected_processes),
+                          shared_build_dir=shared_build_dir)
+        return
+    suites = [name.strip() for name in args.suite.split(",") if name.strip()] if args.suite else []
+    if suites:
+        unknown = [name for name in suites if name not in SUITE_TO_PROCESS]
+        if unknown:
+            raise ValueError("--suite accepts comma-separated individual suite names; unknown: " + ", ".join(unknown))
+        selected = [(SUITE_TO_PROCESS[suite], suite) for suite in suites]
+    else:
+        selected = [(process, None) for process in processes]
+    defaults = {"dust": "arm_sgp_summer_1997_A", "seasalt": "COMBLE", "drydep": "arm_sgp_summer_1997_A",
+                "wetdep": "twpice", "settling": "bomex", "so4chem": "arm_sgp_summer_1997_A",
+                "carbchem": "bomex", "photolysis": "arm_sgp_summer_1997_A",
+                "gaschem": "arm_sgp_summer_1997_A"}
+    for process, suite in selected[:1]:
+        case = args.case or defaults[process]
+        # Only Photolysis and GasChem consume MUSICA. Keep the required Kokkos/
+        # MUSICA profile for those caps without rebuilding unrelated third-party
+        # chemistry and radiation libraries for every other process suite.
+        _run_case_command(args, process, case, suite, build_only=True, science_profile='all',
+                          keep_existing=True, suite_set=all_catchem_suites(),
+                          process_set=list(SUITE_TO_PROCESS.values()),
+                          shared_build_dir=Path(args.work_dir).resolve() / 'cases/coupled-shared-cap/build')
+
+
+def run_cases(args: argparse.Namespace) -> None:
+    """Execute required individual or coupled case groups using the real SCM host."""
+    if args.cases == "coupled":
+        groups = {
+            "CATChem_EmissionChemistryRemoval": (
+                "emission-chemistry-removal", "gabls3_noahmp",
+                ["dust", "seasalt", "wetdep", "settling", "drydep", "so4chem", "carbchem"]),
+            "CATChem_PhotolysisGasChem": (
+                "photolysis-gaschem", "arm_sgp_summer_1997_A", ["photolysis", "gaschem"]),
+        }
+        selected_groups = ([name.strip().removeprefix("suite_") for name in args.suite.split(",") if name.strip()]
+                           if args.suite else list(groups))
+        unknown = [name for name in selected_groups if name not in groups]
+        if unknown:
+            raise ValueError("coupled run suites must be one of " + ", ".join(groups))
+        # Default validation uses the combined cap. An explicit suite selection
+        # builds only that suite family and its process wrappers for focused CI.
+        group_processes = {
+            "CATChem_EmissionChemistryRemoval": ["dust", "seasalt", "wetdep", "settling", "drydep", "so4chem", "carbchem"],
+            "CATChem_PhotolysisGasChem": ["photolysis", "gaschem"],
+        }
+        selected_processes = (list(SUITE_TO_PROCESS.values()) if not args.suite else
+                              list(dict.fromkeys(process for name in selected_groups for process in group_processes[name])))
+        suite_set = (all_catchem_suites() if not args.suite else
+                     [variant for name in selected_groups for variant in (name, f"{name}_ps")])
+        shared_build_dir = Path(args.work_dir).resolve() / "cases" / "coupled-shared-cap" / "build"
+        for suite in selected_groups:
+            group, default_case, processes = groups[suite]
+            cases = [args.case or default_case]
+            if group == "photolysis-gaschem":
+                cases = ([args.case] if args.case else
+                         ["arm_sgp_summer_1997_A", "arm_sgp_summer_1997_A_night"])
+            for selected_case in cases:
+                _run_case_command(args, processes[0], selected_case, suite,
+                                  science_profile=args.science_profile, keep_existing=True,
+                                  processes=processes, case_group=group, suite_set=suite_set,
+                                  process_set=selected_processes, shared_build_dir=shared_build_dir)
+        return
+    defaults = {"dust": "arm_sgp_summer_1997_A", "seasalt": "COMBLE", "drydep": "arm_sgp_summer_1997_A",
+                "wetdep": "twpice", "settling": "bomex", "so4chem": "arm_sgp_summer_1997_A",
+                "carbchem": "bomex", "photolysis": "arm_sgp_summer_1997_A",
+                "gaschem": "arm_sgp_summer_1997_A"}
+    if args.suite:
+        suites = [name.strip() for name in args.suite.split(",") if name.strip()]
+        unknown = [name for name in suites if name not in SUITE_TO_PROCESS]
+        if unknown:
+            raise ValueError("--suite accepts comma-separated individual suite names; unknown: " + ", ".join(unknown))
+        selected = [(SUITE_TO_PROCESS[name], defaults[SUITE_TO_PROCESS[name]], name) for name in suites]
+    else:
+        selected = [(name, args.case or case, None) for name, case in defaults.items()]
+    for process, case, suite in selected:
+        _run_case_command(args, process, case, suite, science_profile='all', keep_existing=True,
+                          suite_set=all_catchem_suites(), process_set=list(SUITE_TO_PROCESS.values()),
+                          shared_build_dir=Path(args.work_dir).resolve() / 'cases/coupled-shared-cap/build')
+
+
+def verify(args: argparse.Namespace) -> None:
+    """Fail closed unless every required manifest has frozen, passing SCM evidence."""
+    script = ROOT / "tests/verify_ccpp_science.py"
+    run([sys.executable, str(script), "--work-dir", str(Path(args.work_dir).resolve()),
+         "--cases", args.cases])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -616,6 +830,25 @@ def main() -> int:
     p.add_argument("--docker-build-volume", default="catchem-ccpp-baseline-build",
                    help="Docker volume for generated CCPP sources and Fortran modules")
     p.set_defaults(func=probe)
+    for name, function, help_text in (("build", build, "configure and build required SCM process suites"),
+                                      ("run", run_cases, "run a required SCM case group"),
+                                      ("verify", verify, "verify frozen science acceptance evidence")):
+        command = sub.add_parser(name, help=help_text)
+        command.add_argument("--work-dir", required=True)
+        command.add_argument("--docker-image", default="sha256:40f52f1034c182b9da330f544d469974e2abad3be24b5afb18e0351ec7164628")
+        command.add_argument("--suite", help="explicit comma-separated SCM suite names")
+        command.add_argument("--case", help="override the default SCM case for build")
+        command.add_argument("--runtime", type=int, default=600)
+        command.add_argument("--timestep", type=int, default=600)
+        command.add_argument("--jobs", type=int, default=1)
+        command.add_argument("--science-profile", choices=("process", "all"), default="all")
+        command.add_argument("--registry-order", choices=("manifest", "reverse"), default="manifest")
+        command.add_argument("--emit-boundary-ledger", action="store_true")
+        command.add_argument("--emit-met-ledger", action="store_true")
+        command.add_argument("--cases", choices=("individual", "coupled"), default="individual")
+        if name == "build":
+            command.add_argument("--processes", default="dust,seasalt,drydep,wetdep,settling,so4chem,carbchem,photolysis,gaschem")
+        command.set_defaults(func=function)
     args = parser.parse_args()
     try:
         args.func(args)

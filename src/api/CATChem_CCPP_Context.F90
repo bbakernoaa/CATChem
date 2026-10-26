@@ -28,7 +28,6 @@ module CATChem_Context_Registry
     logical :: interval_open = .false.
     integer(c_int64_t) :: interval_token = 0_c_int64_t
     integer(c_int64_t) :: contribution_token = 0_c_int64_t
-    integer(c_int64_t) :: last_applied_token = 0_c_int64_t
     type(CATChem_Model) :: model
     type(CATChem_Manifest) :: manifest
     logical :: manifest_bound = .false.
@@ -64,7 +63,7 @@ module CATChem_Context_Registry
   public :: ccpp_context_get_buffers
   public :: ccpp_context_bind_manifest, ccpp_context_initialize_model
   public :: ccpp_context_get_manifest_species, ccpp_context_manifest_species_count, ccpp_context_get_model
-  public :: ccpp_context_set_species_map, ccpp_context_get_species_map
+  public :: ccpp_context_set_species_map, ccpp_context_get_species_map, ccpp_context_clear_species_map
   public :: ccpp_context_stage_tendency, ccpp_context_apply_tendency, ccpp_context_cancel_tendency
 #ifdef CATCHEM_CONTEXT_TESTING
   public :: ccpp_context_exhaust_generations_for_test
@@ -93,6 +92,22 @@ contains
     end if
     call slots(i)%manifest%species_count(count,status)
     if (status /= 0_c_int) status = CCPP_CTX_INVALID
+  end subroutine
+
+  !> \brief Clear the context's CCPP index map before validating a replacement.
+  !> \param handle Context whose old mapping must no longer be used.
+  !> \param status CCPP_CTX_OK on success, or a stale/invalid status.
+  subroutine ccpp_context_clear_species_map(handle, status)
+    type(ccpp_context_handle), intent(in) :: handle
+    integer(c_int), intent(out) :: status
+    type(registry_guard) :: guard
+    integer :: i
+    call guard%acquire()
+    i = checked_slot(handle)
+    status = CCPP_CTX_STALE
+    if (i == 0) return
+    if (allocated(slots(i)%host_species_index)) deallocate(slots(i)%host_species_index)
+    status = CCPP_CTX_OK
   end subroutine
 
   !> \brief Implements acquire registry guard for the CATChem CCPP boundary.
@@ -151,7 +166,6 @@ contains
       slots(i)%interval_open = .false.
       slots(i)%interval_token = 0_c_int64_t
       slots(i)%contribution_token = 0_c_int64_t
-      slots(i)%last_applied_token = 0_c_int64_t
       slots(i)%manifest_bound = .false.
       slots(i)%config_path = ''
       if (allocated(slots(i)%manifest_fingerprint)) deallocate(slots(i)%manifest_fingerprint)
@@ -230,7 +244,6 @@ contains
     slots(i)%interval_open = .false.
     slots(i)%interval_token = 0_c_int64_t
     slots(i)%contribution_token = 0_c_int64_t
-    slots(i)%last_applied_token = 0_c_int64_t
     slots(i)%scheme_initialized = .false.
     slots(i)%ncol = 0
     slots(i)%nlev = 0
@@ -616,10 +629,11 @@ contains
   !> \param handle Argument used by ccpp_context_set_species_map.
   !> \param host_indices Argument used by ccpp_context_set_species_map.
   !> \param status Argument used by ccpp_context_set_species_map.
-  subroutine ccpp_context_set_species_map(handle, host_indices, status)
+  subroutine ccpp_context_set_species_map(handle, host_indices, status, host_registry_extent)
     type(ccpp_context_handle), intent(in) :: handle
     integer, intent(in) :: host_indices(:)
     integer(c_int), intent(out) :: status
+    integer, optional, intent(in) :: host_registry_extent
     type(registry_guard) :: guard
     integer :: i, j
     call guard%acquire()
@@ -630,7 +644,29 @@ contains
       status = CCPP_CTX_INVALID
       return
     end if
+    ! A different index map means the host registry changed.  Retire the
+    ! complete binding so callers cannot keep using a subset of stale slots.
+    if (allocated(slots(i)%host_species_index)) then
+      if (size(slots(i)%host_species_index) == size(host_indices)) then
+        if (all(slots(i)%host_species_index == host_indices)) then
+          status = CCPP_CTX_OK
+          return
+        end if
+      end if
+      deallocate(slots(i)%host_species_index)
+      status = CCPP_CTX_INVALID
+      return
+    end if
     if (size(host_indices) /= size(slots(i)%baseline,3) .or. any(host_indices <= 0)) then
+      status = CCPP_CTX_INVALID
+      return
+    end if
+    if (present(host_registry_extent)) then
+      if (host_registry_extent <= 0 .or. any(host_indices > host_registry_extent)) then
+        status = CCPP_CTX_INVALID
+        return
+      end if
+    else if (any(host_indices > size(slots(i)%baseline,3))) then
       status = CCPP_CTX_INVALID
       return
     end if
@@ -640,14 +676,6 @@ contains
         return
       end if
     end do
-    if (allocated(slots(i)%host_species_index)) then
-      if (all(slots(i)%host_species_index == host_indices)) then
-        status = CCPP_CTX_OK
-      else
-        status = CCPP_CTX_INVALID
-      end if
-      return
-    end if
     allocate(slots(i)%host_species_index(size(host_indices)))
     slots(i)%host_species_index = host_indices
     status = CCPP_CTX_OK
@@ -674,6 +702,10 @@ contains
   end subroutine
 
   !> \brief Implements ccpp context stage tendency for the CATChem CCPP boundary.
+  !> A consumed contribution does not close the host interval: a later, distinct
+  !> Core-ledger invocation may stage another contribution under the same token.
+  !> The invocation ledger, not this interval-level container, rejects duplicate
+  !> (interval, site, subcycle, process) execution keys.
   !> \param handle Argument used by ccpp_context_stage_tendency.
   !> \param token Argument used by ccpp_context_stage_tendency.
   !> \param contribution Argument used by ccpp_context_stage_tendency.
@@ -690,8 +722,7 @@ contains
     status = CCPP_CTX_STALE
     if (i == 0) return
     if (token <= 0_c_int64_t .or. .not. slots(i)%interval_open .or. token /= slots(i)%interval_token .or. &
-        slots(i)%contribution_pending .or. &
-        token == slots(i)%last_applied_token) then
+        slots(i)%contribution_pending) then
       status = CCPP_CTX_PENDING
       return
     end if
@@ -707,6 +738,8 @@ contains
   end subroutine
 
   !> \brief Implements ccpp context apply tendency for the CATChem CCPP boundary.
+  !> Each pending contribution is consumed once. Further contributions may be
+  !> staged and applied before the interval is closed.
   !> \param handle Argument used by ccpp_context_apply_tendency.
   !> \param token Argument used by ccpp_context_apply_tendency.
   !> \param duration_seconds Argument used by ccpp_context_apply_tendency.
@@ -726,8 +759,7 @@ contains
     status = CCPP_CTX_STALE
     if (i == 0) return
     if (.not. slots(i)%interval_open .or. token /= slots(i)%interval_token .or. &
-        .not. slots(i)%contribution_pending .or. token /= slots(i)%contribution_token .or. &
-        token == slots(i)%last_applied_token) then
+        .not. slots(i)%contribution_pending .or. token /= slots(i)%contribution_token) then
       status = CCPP_CTX_PENDING
       return
     end if
@@ -759,7 +791,6 @@ contains
       return
     end if
     host_tendency = candidate
-    slots(i)%last_applied_token = token
     slots(i)%contribution_token = 0_c_int64_t
     slots(i)%contribution_pending = .false.
     status = CCPP_CTX_OK

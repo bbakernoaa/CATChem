@@ -780,15 +780,16 @@ namespace catchem {
             species.description = get_str(species_node, "description", "");
             species.aliases = string_vector_or_empty(species_node["aliases"]);
             species.roles = string_vector_or_empty(species_node["roles"]);
-            species.ccpp_standard_name = value_or<std::string>(species_node["ccpp_standard_name"], species.name);
-            species.units = value_or<std::string>(species_node["units"], "");
-            species.amount_type = value_or<std::string>(species_node["amount_type"], "");
-            species.air_basis = value_or<std::string>(species_node["air_basis"], "");
+            species.ccpp_standard_name = get_str(species_node, "ccpp_standard_name", species.name);
+            species.units = get_str(species_node, "units", "");
+            species.amount_type = get_str(species_node, "amount_type", "");
+            species.air_basis = get_str(species_node, "air_basis", "");
 
             species.is_gas = get_bool(species_node, "is_gas", false);
             species.is_aerosol = get_bool(species_node, "is_aerosol", false);
             species.is_tracer = get_bool(species_node, "is_tracer", false);
-            species.is_advected = get_bool(species_node, "is_advected", true);
+            species.is_advected = get_bool(species_node, "is_advected",
+                                           get_bool(species_node, "__is_advected", true));
             species.is_drydep = get_bool(species_node, "is_drydep", false);
             species.is_wetdep = get_bool(species_node, "is_wetdep", false);
             species.is_drydep = get_bool(species_node, "do_drydep", species.is_drydep);

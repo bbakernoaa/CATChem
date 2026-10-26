@@ -1,0 +1,24 @@
+simulation:
+  name: ccpp_scm_so4chem
+  species_filename: ../../../../tests/Configs/Default/CATChem_species.yml
+  verbose:
+    activate: true
+grid:
+  number_of_levels: 64
+timesteps:
+  transport_timestep_in_s: 600
+  chemistry_timestep_in_s: 600
+run_phases:
+  ccpp_selected_process:
+    description: Run only the CCPP-selected SO4Chem process
+    processes:
+      - so4chem
+processes:
+  so4chem:
+    activate: true
+    scheme: gocart
+    diagnostics: true
+    diag_species: [so2, so4, msa]
+    gocart:
+      update_so2: true
+      do_drydep: false

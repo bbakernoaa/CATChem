@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <iostream>
 #include <musica/tuvx/grid.hpp>
 #include <musica/tuvx/grid_map.hpp>
 #include <musica/tuvx/profile.hpp>
@@ -37,7 +36,7 @@ namespace catchem {
         for (std::size_t index = 0; index < photo_mappings.size_; ++index) {
             const char* reaction_name = photo_mappings.mappings_[index].name_.value_;
             if (reaction_name && reaction_name[0] != '\0')
-                contract.produced_products.push_back({"photolysis_rate_" + std::string(reaction_name), "s-1"});
+                contract.produced_products.push_back({"photolysis_rate_" + std::string(reaction_name), "s-1", true});
         }
         return contract;
     }
@@ -169,8 +168,8 @@ namespace catchem {
         tuvx_instance = musica::CreateTuvx(config_path.c_str(), grids, profiles, radiators, &err);
 
         if (err.code_ != 0) {
-            std::cerr << "PhotolysisProcess: Error: Failed to initialize TUV-x! "
-                      << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
+            Logger::error(state.get(), "PhotolysisProcess failed to initialize TUV-x",
+                          {{"error", err.message_.value_ ? err.message_.value_ : "Unknown Error"}});
             return;
         }
 
@@ -229,8 +228,8 @@ namespace catchem {
         Logger::debug(state.get(), "Fetching ProfileMap from TUVX instance");
         musica::ProfileMap* loaded_profiles = musica::GetProfileMap(tuvx_instance, &err);
         if (err.code_ != 0) {
-            std::cerr << "PhotolysisProcess: Error getting ProfileMap: "
-                      << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
+            Logger::error(state.get(), "PhotolysisProcess failed to get ProfileMap",
+                          {{"error", err.message_.value_ ? err.message_.value_ : "Unknown Error"}});
             return;
         }
 

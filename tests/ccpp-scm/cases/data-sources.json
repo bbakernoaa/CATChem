@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "policy": "Entries identify candidate sources. Every staged file is SHA-256 recorded; required missing data blocks the requested case. No external data are redistributed by this manifest.",
+  "sources": [
+    {
+      "id": "scm-bomex-stock",
+      "description": "Stock CCPP-SCM BOMEX case and SCM_GFS_v17_p8_ugwpv1 baseline inputs",
+      "repository": "https://github.com/NCAR/ccpp-scm.git",
+      "revision": "47db8cd920aa010cefd70511be9adc33e5245974",
+      "source_path": "scm/etc/case_config/bomex.nml; scm/data/raw_case_input/BOMEX",
+      "sha256": null,
+      "license": "CCPP-SCM repository license applies; confirm case data terms before redistribution",
+      "staging_destination": "baseline-source/scm/etc/case_config and baseline-source/scm/data",
+      "required": true,
+      "checksum_status": "per-file SHA-256 is written to data-input-checksums.json during prepare"
+    },
+    {
+      "id": "gfs-v17-gocart-aerosol-climatology",
+      "description": "FV3 GOCART climatology required by the SCM_GFS_v17_p8_ugwpv1 default namelist (iaer=1011)",
+      "repository": "https://github.com/NCAR/ccpp-scm/releases/tag/v7.0.0",
+      "revision": "v7.0.0 release assets",
+      "source_path": "FV3_aeroclim1.tar.gz; FV3_aeroclim2.tar.gz; FV3_aeroclim3.tar.gz; FV3_aeroclim_optics.tar.gz",
+      "source_url": "https://github.com/NCAR/ccpp-scm/releases/download/v7.0.0/",
+      "sha256": null,
+      "license": "CCPP-SCM release asset terms; confirm before redistribution",
+      "staging_destination": "scm/data/physics_input_data/",
+      "required": true,
+      "size_note": "OMD SCM guide describes this dataset as approximately 12 GB",
+      "checksum_status": "extracted climatology files are staged in baseline-source and recorded in its data-input-checksums.json; run_case verifies their hashes and links them into overlay-source"
+    },
+    {
+      "id": "catchem-meteorology-profiles",
+      "description": "Existing native meteorological profile starting points; not yet CCPP acceptance forcing",
+      "repository": "https://github.com/GEOS-ESM/CATChem",
+      "revision": "900ec02691ae9a4ef250183ec86f7050b1d2d6b9",
+      "source_path": "tests/MetProfiles/*.csv",
+      "sha256": null,
+      "license": "CATChem repository license applies",
+      "staging_destination": "cases/data/native-profiles/",
+      "required": false,
+      "file_checksums": {
+        "tests/MetProfiles/Profile_AMAZON_Aug_06z.csv": "18128ccde65f236158138a9a4e251102b761356374160968113fe866c32adcbd",
+        "tests/MetProfiles/Profile_AMAZON_Aug_12z.csv": "882a5d2ddf299d1d35ff575a262abd29d9c3c843f8c21717e5e09b54bfe3efde",
+        "tests/MetProfiles/Profile_AMAZON_Aug_18z.csv": "27b4a175eb2228c3f916e1fff77e36863b8a8c96d63bfefa1aaad82f40d239bc",
+        "tests/MetProfiles/Profile_NCWCP.csv": "284ec0841a0aaffaff99519258803c7cdb78c880c1ca27c460fb52022f45470e",
+        "tests/MetProfiles/Profile_NCWCP_Aug_06z.csv": "97e7a10f68040501b8161c6a825d81b4e4da3fabcd2242bda5352ce7367fd2b5",
+        "tests/MetProfiles/Profile_NCWCP_Aug_12z.csv": "98089916636b96a1596c144323962926dac411bc89ae41aa064b95f568cf1830",
+        "tests/MetProfiles/Profile_NCWCP_Aug_18z.csv": "3735e925042d61bb724f1cc49fe9643ef2a295d7718a57163ec557760b88431c",
+        "tests/MetProfiles/Profile_SAHARA.csv": "c853b29bc7f0bff1ebe0df435454368743d6589226b1a24eecced86a58bb7e06",
+        "tests/MetProfiles/Profile_SAHARA_Aug_06z.csv": "f341d8c4c14a13782d63d5cda231b5c616e7fc7a48715a118173952666401291",
+        "tests/MetProfiles/Profile_SAHARA_Aug_12z.csv": "df2a085b723c88356a3e474ec8cbb6acc588bfccd17d13fdbac912a85020f210",
+        "tests/MetProfiles/Profile_SAHARA_Aug_18z.csv": "29256b7f021db13c2ad4e06f00dcb4e70830ae39af490da753b852e64e2f0644"
+      }
+    },
+    {
+      "id": "catchem-default-mechanism-and-species",
+      "description": "Native configured species and mechanism files for designing process fixtures",
+      "repository": "https://github.com/GEOS-ESM/CATChem",
+      "revision": "900ec02691ae9a4ef250183ec86f7050b1d2d6b9",
+      "source_path": "tests/Configs/Default/CATChem_species.yml; src/external/musica/configs/mechanisms",
+      "sha256": null,
+      "license": "CATChem and MUSICA repository licenses apply; mechanism-specific terms must be reviewed",
+      "staging_destination": "cases/data/native-config/",
+      "required": false,
+      "file_checksums": {
+        "/Users/barry/Documents/catchem-ccpp/tests/Configs/Default/CATChem_species.yml": "3b2b0d8cd6194a63fc5e0227a0de9af07f34bc45ff2a3c91f6c3f464ca0bb8bb",
+        "tests/fixtures/mechanisms/ambiguous-scalars.yml": "5d0644733a4c4bdc55fb8a9345eb5339e65eca007f69a0098fc456ed0ef31333",
+        "tests/fixtures/mechanisms/chapman.yml": "fdcdcb2ddffb6a5445a0c19fe8b6aa68a7bc0bcefaec488313cec06a6a924387",
+        "tests/fixtures/mechanisms/unfamiliar.yml": "6f35f7ccb38585f3a46b9a124ad8399c7dffb900545bdcc74ed7ad3006b5efc6"
+      }
+    },
+    {
+      "id": "ccpp-scm-case-data",
+      "description": "Upstream case datasets selected by SCM case configuration",
+      "repository": "https://github.com/NCAR/ccpp-scm.git",
+      "revision": "47db8cd920aa010cefd70511be9adc33e5245974",
+      "source_path": "scm/data/ (case-specific files resolved by SCM input namelists)",
+      "sha256": null,
+      "license": "Per-file upstream terms; inspect before redistribution",
+      "staging_destination": "work-tree SCM data tree",
+      "required": false,
+      "checksum_status": "per-file SHA-256 is written to data-input-checksums.json during prepare"
+    }
+  ],
+  "process_fixture_candidates": [
+    {
+      "process": "dust",
+      "native_reference": "tests/test_catchem_dust.cpp",
+      "candidate_inputs": [
+        "tests/MetProfiles/Profile_SAHARA.csv",
+        "tests/Configs/Default/CATChem_species.yml"
+      ],
+      "acceptance_case_status": "not yet scientifically frozen"
+    },
+    {
+      "process": "seasalt",
+      "native_reference": "tests/test_catchem_seasalt.cpp",
+      "candidate_inputs": [
+        "tests/MetProfiles/Profile_NCWCP.csv",
+        "tests/Configs/Default/CATChem_species.yml"
+      ],
+      "acceptance_case_status": "not yet scientifically frozen"
+    },
+    {
+      "process": "drydep",
+      "native_reference": "tests/test_catchem_drydep.cpp",
+      "candidate_inputs": [
+        "tests/MetProfiles/Profile_NCWCP.csv",
+        "tests/Configs/Default/CATChem_species.yml"
+      ],
+      "acceptance_case_status": "not yet scientifically frozen"
+    },
+    {
+      "process": "wetdep",
+      "native_reference": "tests/test_catchem_wetdep.cpp",
+      "candidate_inputs": [
+        "tests/MetProfiles/Profile_NCWCP.csv",
+        "tests/Configs/Default/CATChem_species.yml"
+      ],
+      "acceptance_case_status": "not yet scientifically frozen"
+    },
+    {
+      "process": "settling",
+      "native_reference": "tests/test_catchem_settling.cpp",
+      "candidate_inputs": [
+        "tests/Configs/Default/CATChem_species.yml",
+        "tests/test_catchem_settling_optics.cpp (external optics tables unavailable)"
+      ],
+      "acceptance_case_status": "not yet scientifically frozen"
+    },
+    {
+      "process": "so4chem",
+      "native_reference": "tests/test_catchem_so4chem.cpp",
+      "candidate_inputs": [
+        "tests/Configs/Default/CATChem_species.yml",
+        "tests/fixtures/mechanisms/chapman.yml"
+      ],
+      "acceptance_case_status": "not yet scientifically frozen"
+    },
+    {
+      "process": "carbchem",
+      "native_reference": "tests/test_catchem_carbchem.cpp",
+      "candidate_inputs": [
+        "tests/Configs/Default/CATChem_species.yml",
+        "tests/fixtures/mechanisms/chapman.yml"
+      ],
+      "acceptance_case_status": "not yet scientifically frozen"
+    },
+    {
+      "process": "photolysis",
+      "native_reference": "tests/test_catchem_photolysis.cpp",
+      "candidate_inputs": [
+        "tests/fixtures/mechanisms/chapman.yml",
+        "src/external/musica/configs/v1/chapman/config.yaml"
+      ],
+      "acceptance_case_status": "not yet scientifically frozen"
+    },
+    {
+      "process": "gaschem",
+      "native_reference": "tests/test_catchem_gaschem.cpp",
+      "candidate_inputs": [
+        "tests/fixtures/mechanisms/chapman.yml",
+        "tests/Configs/Default/CATChem_species.yml"
+      ],
+      "acceptance_case_status": "not yet scientifically frozen"
+    }
+  ]
+}

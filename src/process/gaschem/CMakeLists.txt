@@ -1,5 +1,12 @@
 add_library(catchem_process_gaschem STATIC catchem_process_gaschem.cpp)
 
+if(CATCHEM_ENABLE_ACCEPTANCE_FAILURE_INJECTION)
+  target_compile_definitions(
+    catchem_process_gaschem
+    PRIVATE CATCHEM_ENABLE_ACCEPTANCE_FAILURE_INJECTION=1
+  )
+endif()
+
 target_include_directories(
   catchem_process_gaschem
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/core

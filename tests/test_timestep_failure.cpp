@@ -69,5 +69,6 @@ int main() {
     assert(first->runs == 2 && never->runs == 1);
     assert(core->get_timestep_outcome().status == catchem::TimestepStatus::Succeeded);
     assert(catchem_core_destroy_checked(handle) == CATCHEM_SUCCESS);
+
     return 0;
 }

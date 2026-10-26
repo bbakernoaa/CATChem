@@ -1,0 +1,66 @@
+schema_version: 1
+case_id: photolysis-gaschem-gfs-v17
+processes: [photolysis, gaschem]
+mechanism:
+  config: tests/ccpp-scm/cases/configs/gaschem_chapman.yml
+  compatibility: PHOTO mechanism includes the ozone Chapman photolysis channel consumed by the gas-chemistry bridge
+acceptance_fixture:
+  scm_cases: [arm_sgp_summer_1997_A, arm_sgp_summer_1997_A_night]
+  surface_treatment: ARM land case with the CCPP-SCM prescribed-flux suite; set sfc_type=1 and sfc_flux_spec=true and retain the case's 10 cm roughness
+  ozone_profile_source: locked ARM SGP case o3 tracer through its forcing top; CCPP-SCM mid-latitude summer standard atmosphere fills the upper levels
+  ozone_profile: use the SCM-initialized vertical profile in the full CCPP constituent array; do not replace it with a uniform seed
+  conditions: [daytime, nighttime]
+  species: ozone and configured mechanism constituents in the full CCPP constituent array
+  basis: SCM-initialized level-resolved host ozone constituent and GFS v17 radiation, thermodynamic, location and clock fields
+  regime_expectations:
+    daytime: O3 photolysis is nonzero and the immediately following GasChem state change is nonzero.
+    nighttime: O3 photolysis rates are zero; any GasChem state change must match the same-boundary native near-zero result within the frozen species tolerance.
+suite_variants: [suite_CATChem_PhotolysisGasChem, suite_CATChem_PhotolysisGasChem_ps]
+schedule:
+  phys_ts: [photolysis, gaschem, apply_tendency]
+  rate_provenance: Photolysis publishes rates for the exact interval, mechanism and relevant input values; GasChem consumes them before the combined chemistry tendency is applied, while any changed ozone, meteorology, radiation or time input invalidates the rates.
+inputs:
+  - name: ccpp_constituents
+    units: species-declared
+    basis: complete framework constituent array, including ozone mapping
+  - name: gfs_v17_photolysis_meteorology
+    units: K, Pa, m2 s-2, degrees, m s-1
+    basis: pinned GFS v17 fields and host physics interval clock
+outputs:
+  - name: gaschem_state_change
+    signal_name: gaschem_constituent_max_abs_delta
+    units: host constituent representation
+    basis: GasChem update using immediately preceding fresh photolysis rates; nonzero in the daytime case, native near-zero match in the nighttime case
+    must_be_nonzero: true
+reference:
+  method: native_same_boundary_process_replay
+  description: Compare all CCPP-mapped species after the 600-second host update and every Photolysis reaction's rate-profile maximum and sum against a native sequential Photolysis/GasChem replay initialized from the exact CCPP pre-update state, process met ledger and SCM clock. The first replay was exploratory; frozen tolerances below govern the acceptance reruns.
+  source_revision: 900ec02691ae9a4ef250183ec86f7050b1d2d6b9
+  native_runner: tests/default_parity_candidate_runner built with CATCHEM_BUILD_MUSICA=ON and CATCHEM_ENABLE_KOKKOS=ON
+  evidence:
+    - build/ccpp-scm-phase6-clean/native-replay/chapman-day-state-parity.json
+    - build/ccpp-scm-phase6-clean/native-replay/chapman-day-rate-parity.json
+    - build/ccpp-scm-phase6-clean/native-replay/chapman-night-state-parity.json
+    - build/ccpp-scm-phase6-clean/native-replay/chapman-night-rate-parity.json
+  exploratory_outputs_excluded_from_acceptance: true
+  tolerances:
+    photolysis_rate_profile_metrics:
+      relative: 1.0e-12
+      absolute_s-1: 1.0e-15
+      rationale: The native and CCPP caps execute the same pinned TUV-x process with identical converted inputs; this allows small floating-point differences while requiring matching full-profile maxima and integrated sums.
+    mapped_species_after_host_update:
+      relative: 1.0e-6
+      absolute: 1.0e-30
+      rationale: Existing process-native acceptance uses 1e-6 for the complete CCPP state array; the absolute floor covers values near zero in the host mass-ratio representation.
+budgets:
+  - quantity: odd_oxygen
+    equation: initial odd oxygen plus production minus diagnosed losses equals final odd oxygen
+    units: mol m-2
+    basis: configured Chapman mechanism species and radiation-dependent photolysis over one host interval
+    state_weights: {O: 1.0, O1D: 1.0, O3: 1.0}
+    exchange_weights: {O2: 1.0, O3: 1.0}
+    exchange_factor: 2.0
+    exchange_definition: Net production/loss is diagnosed from twice the change in the configured exchange inventory.
+    residual_tolerance: 1.0e-6
+    rationale: Match MICM's configured relative solver tolerance (1e-6). Integrate Ox=O+O1D+O3 over the actual layer heights and independently diagnose net production/loss from -2*change(O2+O3), the companion molecular reservoir. Normalize the closure residual by initial plus final inventory plus diagnosed exchanges. This bound is frozen before the instrumented acceptance reruns.
+frozen_before_candidate_comparison: true

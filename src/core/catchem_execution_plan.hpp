@@ -40,6 +40,9 @@ namespace catchem {
             std::string mechanism_identity;   ///< Mechanism fingerprint at publication; empty until published.
             std::uint64_t interval = 0;       ///< Interval identity (host id, or Core step counter) at publication.
             std::size_t import_generation = 0; ///< State import generation the inputs belonged to.
+            std::uint64_t input_fingerprint = 0; ///< Fingerprint of producer read inputs when input_versioned.
+            bool input_versioned = false;       ///< Whether freshness follows relevant read values.
+            std::unordered_map<std::string, std::uint64_t> input_field_fingerprints; ///< Per-input values at publication.
             bool valid = false;               ///< False after any invalidation until the producer republishes.
         };
         /**
@@ -84,7 +87,9 @@ namespace catchem {
          *       products instead when the process throws.
          */
         void publish_products(std::size_t index, const std::string& mechanism_identity,
-                              std::uint64_t interval, std::size_t import_generation);
+                              std::uint64_t interval, std::size_t import_generation,
+                              std::uint64_t input_fingerprint = 0,
+                              const std::unordered_map<std::string, std::uint64_t>& input_fields = {});
         /**
          * @brief Invalidate products declared by one process.
          * @param index 0-based contract index; an out-of-range index is ignored.
@@ -106,7 +111,18 @@ namespace catchem {
          *         matches all three; false for unknown names or stale data.
          */
         bool product_is_current(const std::string& name, const std::string& mechanism_identity,
-                                std::uint64_t interval, std::size_t import_generation) const;
+                                std::uint64_t interval, std::size_t import_generation,
+                                std::uint64_t input_fingerprint = 0) const;
+        /** @brief Fingerprint the values read by a producer contract. */
+        std::uint64_t input_fingerprint(std::size_t index, StateManager& state) const;
+        /** @brief Fingerprint individual inputs read by one producer contract. */
+        std::unordered_map<std::string, std::uint64_t> input_field_fingerprints(std::size_t index,
+                                                                                StateManager& state) const;
+        /** @brief Fingerprint the declared producer's current inputs for a product. */
+        std::uint64_t product_input_fingerprint(const std::string& name, StateManager& state) const;
+        /** @brief Return individual current input fingerprints for a product's producer. */
+        std::unordered_map<std::string, std::uint64_t> product_input_field_fingerprints(
+            const std::string& name, StateManager& state) const;
         /**
          * @brief Return product provenance, or null when the schedule has no producer.
          * @param name Product name as declared in a contract.

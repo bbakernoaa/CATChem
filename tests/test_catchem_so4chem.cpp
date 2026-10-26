@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
 
         int n_cols = 4;
         int n_levels = 5;
-        int n_species = 22;
+        int n_species = 23;
 
         auto core = std::make_shared<catchem::Core>(n_cols, n_levels, n_species);
         auto state = core->get_state_manager();
@@ -132,7 +132,7 @@ int main(int argc, char* argv[]) {
     {
         int n_cols = 4;
         int n_levels = 5;
-        int n_species = 22;
+        int n_species = 23;
 
         auto run_case = [&](bool do_drydep, std::vector<double>& conc_out) {
             auto core = std::make_shared<catchem::Core>(n_cols, n_levels, n_species);
@@ -217,7 +217,7 @@ int main(int argc, char* argv[]) {
         run_case(false, off_conc);
         run_case(true, on_conc);
 
-        // Default catalog slots: so2=0, h2o2=1, oh=2, no3=3, so4=4, msa=7.
+        // Local process fixture slots: so2=0, h2o2=1, oh=2, no3=3, so4=4, msa=7.
         // Chemistry layout is species-outermost column-major: element
         // (col, level, species) = species*n_cols*n_levels + level*n_cols + col,
         // so each species occupies a contiguous block of n_cols*n_levels.

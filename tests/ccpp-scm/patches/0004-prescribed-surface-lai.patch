@@ -1,0 +1,33 @@
+diff --git a/ccpp/physics/physics/Interstitials/UFS_SCM_NEPTUNE/GFS_phys_time_vary.scm.F90 b/ccpp/physics/physics/Interstitials/UFS_SCM_NEPTUNE/GFS_phys_time_vary.scm.F90
+--- a/ccpp/physics/physics/Interstitials/UFS_SCM_NEPTUNE/GFS_phys_time_vary.scm.F90
++++ b/ccpp/physics/physics/Interstitials/UFS_SCM_NEPTUNE/GFS_phys_time_vary.scm.F90
+@@ -596,6 +596,28 @@
+            endif noahmp_init
+          endif lsm_init
+ 
++         ! Prescribed-surface SCM cases can use NoahMP vegetation properties
++         ! without a NoahMP cold start.  In that configuration the surface
++         ! fluxes are prescribed, but a missing LAI would otherwise remain at
++         ! the SCM fill value and break CATChem's land deposition schemes.
++         ! Use the same monthly NoahMP LAI climatology and vegetation-category
++         ! mapping as the NoahMP cold-start initialization above.
++         if (lsm == lsm_noahmp .and. present(xlaixy)) then
++           imn = idate(2)
++           do ix = 1, im
++             if (xlaixy(ix) >= 1.0e20_kind_phys) then
++               vegtyp = vtype(ix)
++               if (vegtyp == 0) vegtyp = 7
++               if ((vegtyp == isbarren_table) .or. (vegtyp == isice_table) .or. &
++                   (vegtyp == isurban_table) .or. (vegtyp == iswater_table)) then
++                 xlaixy(ix) = zero
++               else
++                 xlaixy(ix) = max(laim_table(vegtyp, imn), 0.05_kind_phys)
++               endif
++             endif
++           enddo
++         endif
++
+ !Lake model
+          if(lkm>0 .and. iopt_lake>0) then
+            ! A lake model is enabled.
+

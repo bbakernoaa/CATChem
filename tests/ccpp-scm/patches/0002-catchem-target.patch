@@ -1,0 +1,992 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 435130ec..703d8da8 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -281,3 +281,87 @@ endif()
+ 
++if(CATCHEM_BUILD_MUSICA OR (DEFINED CATCHEM_CCPP_PROCESSES AND CATCHEM_CCPP_PROCESSES MATCHES "photolysis|gaschem") OR (DEFINED CATCHEM_CCPP_PROCESS AND (CATCHEM_CCPP_PROCESS STREQUAL "photolysis" OR CATCHEM_CCPP_PROCESS STREQUAL "gaschem")))
++  enable_language(CXX)
++endif()
++if(DEFINED CATCHEM_CCPP_PROCESSES)
++  set(_catchem_process_list ${CATCHEM_CCPP_PROCESSES})
++elseif(DEFINED CATCHEM_CCPP_PROCESS)
++  set(_catchem_process_list ${CATCHEM_CCPP_PROCESS})
++endif()
++if(DEFINED _catchem_process_list)
++  foreach(_catchem_process IN LISTS _catchem_process_list)
++    if(NOT _catchem_process MATCHES "^(dust|seasalt|drydep|wetdep|settling|so4chem|carbchem|photolysis|gaschem)$")
++      message(FATAL_ERROR "Unsupported CATChem process '${_catchem_process}'")
++    endif()
++  endforeach()
++endif()
+ add_subdirectory(ccpp)
+ add_subdirectory(scm/src)
++
++# Optional CATChem process integration is enabled by the explicit
++# acceptance runner. CCPP host modules come from scm-ccpp's usage
++# requirements, and the host executable links the adapter and CATChem targets.
++if(DEFINED _catchem_process_list)
++  if(NOT CATCHEM_SOURCE_DIR OR NOT EXISTS "${CATCHEM_SOURCE_DIR}/CMakeLists.txt")
++    message(FATAL_ERROR "CATCHEM_SOURCE_DIR must point to the CATChem checkout")
++  endif()
++  set(CATCHEM_BUILD_CCPP ON CACHE BOOL "Build CATChem's CCPP adapter" FORCE)
++  set(CATCHEM_BUILD_TESTING OFF CACHE BOOL "Disable nested CATChem tests" FORCE)
++  set(CATCHEM_CCPP_HOST_MODULE_DIR "${CMAKE_BINARY_DIR}/ccpp/include" CACHE PATH
++      "SCM generated and host Fortran modules" FORCE)
++  file(MAKE_DIRECTORY "${CATCHEM_CCPP_HOST_MODULE_DIR}")
++  set(CATCHEM_CCPP_HOST_TARGET scm-ccpp CACHE STRING "SCM CCPP module and library target" FORCE)
++  set(_scm_fortran_flags "${CMAKE_Fortran_FLAGS}")
++  string(REPLACE "-fdefault-real-8" "" CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
++  string(REPLACE "-fdefault-double-8" "" CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
++  add_subdirectory("${CATCHEM_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/catchem")
++  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/catchem/src/external/musica/mod_fortran")
++  # SCM enables the DEBUG preprocessor macro globally; TUV-x has a Fortran
++  # variable with the same name, so undefine it only for the TUV-x sources.
++  if((CATCHEM_BUILD_MUSICA OR "photolysis" IN_LIST _catchem_process_list OR "gaschem" IN_LIST _catchem_process_list) AND TARGET tuvx_object)
++    target_compile_options(tuvx_object PRIVATE -UDEBUG)
++    set(_catchem_tuvx_mod_dir "${CMAKE_BINARY_DIR}/tuvx-modules")
++    file(MAKE_DIRECTORY "${_catchem_tuvx_mod_dir}")
++    set_target_properties(tuvx_object PROPERTIES Fortran_MODULE_DIRECTORY "${_catchem_tuvx_mod_dir}")
++    target_include_directories(tuvx_object PUBLIC "$<BUILD_INTERFACE:${_catchem_tuvx_mod_dir}>")
++    if(TARGET musica)
++      target_include_directories(musica PRIVATE "${_catchem_tuvx_mod_dir}")
++      add_dependencies(musica tuvx_object)
++    endif()
++  endif()
++  set(CMAKE_Fortran_FLAGS "${_scm_fortran_flags}")
++  add_dependencies(scm-ccpp CATChem)
++  target_link_libraries(scm-ccpp CATChem)
++  add_dependencies(CCPP_CATChem_interface scm-ccpp)
++  target_sources(scm-ccpp PRIVATE
++    "${CMAKE_CURRENT_SOURCE_DIR}/ccpp/framework/capgen/src/ccpp_hashable.F90"
++    "${CMAKE_CURRENT_SOURCE_DIR}/ccpp/framework/capgen/src/ccpp_hash_table.F90"
++    "${CMAKE_CURRENT_SOURCE_DIR}/ccpp/framework/capgen/src/ccpp_constituent_prop_mod.F90")
++  target_link_libraries(CCPP_CATChem_interface PUBLIC scm-ccpp)
++  target_link_libraries(scm CCPP_CATChem_interface)
++  target_link_libraries(scm stdc++)
++  target_link_options(scm PRIVATE -Wl,--no-as-needed)
++  target_include_directories(scm PRIVATE "${CMAKE_BINARY_DIR}/catchem/include")
++  add_dependencies(scm CCPP_CATChem_interface)
++  if(NOT TARGET CCPP_CATChem_interface)
++    message(FATAL_ERROR "CATChem CCPP interface target was not created")
++  endif()
++  file(GLOB_RECURSE _catchem_generated_caps "${CMAKE_BINARY_DIR}/ccpp/*cap.F90")
++  foreach(_catchem_process IN LISTS _catchem_process_list)
++    if(NOT EXISTS "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_${_catchem_process}.meta")
++      message(FATAL_ERROR "CATChem CCPP metadata is missing for ${_catchem_process}")
++    endif()
++    set(_catchem_process_cap_found FALSE)
++    foreach(_catchem_cap IN LISTS _catchem_generated_caps)
++      file(READ "${_catchem_cap}" _catchem_cap_source)
++      string(FIND "${_catchem_cap_source}" "catchem_${_catchem_process}_driver_run" _catchem_run_call)
++      if(NOT _catchem_run_call EQUAL -1)
++        set(_catchem_process_cap_found TRUE)
++      endif()
++    endforeach()
++    if(NOT _catchem_process_cap_found)
++      message(FATAL_ERROR "CCPP generated no cap calling catchem_${_catchem_process}_driver_run")
++    endif()
++  endforeach()
++  string(JOIN "," _catchem_process_names ${_catchem_process_list})
++  file(WRITE "${CMAKE_BINARY_DIR}/CATCHEM_CCPP_CAP_READY" "${_catchem_process_names}\n")
++endif()
+diff --git a/ccpp/CMakeLists.txt b/ccpp/CMakeLists.txt
+index ac058bd1..24c04e88 100644
+--- a/ccpp/CMakeLists.txt
++++ b/ccpp/CMakeLists.txt
+@@ -124,6 +124,17 @@ set(SCHEME_METADATA_FILES
+   "${SCHEME_FILES_DIR}/PBL/YSU/ysuvdif.meta"
+   "${SCHEME_FILES_DIR}/PBL/SATMEDMF/canopy_driver.meta"
+ )
++if(DEFINED _catchem_process_list)
++  list(APPEND SCHEME_METADATA_FILES
++    "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_ccpp_lifecycle.meta"
++    "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_apply_tendency.meta")
++  foreach(_catchem_process IN LISTS _catchem_process_list)
++    list(APPEND SCHEME_METADATA_FILES "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_${_catchem_process}.meta")
++    if(EXISTS "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_${_catchem_process}_ps.meta")
++      list(APPEND SCHEME_METADATA_FILES "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_${_catchem_process}_ps.meta")
++    endif()
++  endforeach()
++endif()
+ 
+ # Create list of scheme source files from metadata files
+ ccpp_source_files(SCHEME_FORTRAN_FILES ${SCHEME_METADATA_FILES})
+@@ -253,6 +262,26 @@ ccpp_datafile(DATATABLE "${OUTPUT_ROOT}/datatable.xml"
+               REPORT_NAME "--capgen-files")
+ set(CAPGEN_FILES ${CCPP_FILES})
+ 
++# The SCM host sources are already present in the capgen dependency closure.
++# Drop their metadata-derived lower-case copies to avoid compiling the same
++# Fortran modules twice (e.g., GFS_typedefs.F90 and GFS_typedefs.f90).
++set(_scm_existing_sources ${CAPGEN_DEPENDENCIES} ${SCHEME_FORTRAN_FILES} ${CAPGEN_FILES})
++foreach(_host_source IN LISTS HOST_FORTRAN_FILES)
++  get_filename_component(_host_stem "${_host_source}" NAME_WE)
++  string(TOLOWER "${_host_stem}" _host_stem_lower)
++  foreach(_existing_source IN LISTS _scm_existing_sources)
++    get_filename_component(_existing_stem "${_existing_source}" NAME_WE)
++    string(TOLOWER "${_existing_stem}" _existing_stem_lower)
++    if(_host_stem_lower STREQUAL _existing_stem_lower)
++      list(REMOVE_ITEM HOST_FORTRAN_FILES "${_host_source}")
++      break()
++    endif()
++  endforeach()
++endforeach()
++list(REMOVE_ITEM HOST_FORTRAN_FILES
++  "${HOST_FILES_DIR}/CCPP_typedefs.f90"
++  "${HOST_FILES_DIR}/GFS_typedefs.f90")
++
+ message(STATUS "List of capgen dependencies: ${CAPGEN_DEPENDENCIES}")
+ message(STATUS "List of filtered scheme files: ${SCHEME_FORTRAN_FILES}")
+ message(STATUS "List of capgen-generated files: ${CAPGEN_FILES}")
+diff --git a/scm/src/scm_type_defs.F90 b/scm/src/scm_type_defs.F90
+index f78790dc..e1e33dde 100644
+--- a/scm/src/scm_type_defs.F90
++++ b/scm/src/scm_type_defs.F90
+@@ -8,6 +11,7 @@ module scm_type_defs
+ !!
+ 
+   use iso_fortran_env, only: error_unit
++  use iso_c_binding, only: c_int, c_int64_t
+   use scm_kinds, only: sp, dp, qp
+   use GFS_typedefs,   only: GFS_control_type,      &
+                             GFS_statein_type,      &
+@@ -34,6 +38,15 @@ module scm_type_defs
+   real(kind=dp), parameter :: real_one = 1.0
+ 
+   character(len = character_length) :: clear_char = ''
++  integer(c_int) :: catchem_context_id = 0_c_int
++  integer(c_int64_t) :: catchem_context_generation = 0_c_int64_t
++  integer(c_int64_t) :: catchem_interval_id = 0_c_int64_t
++  integer(c_int64_t) :: catchem_interval_token = 0_c_int64_t
++  integer :: catchem_year = 2000, catchem_month = 1, catchem_day = 1
++  integer :: catchem_hour = 0, catchem_minute = 0, catchem_second = 0, catchem_day_of_year = 1
++  real(kind=kind_phys) :: catchem_duration_seconds = 3600.0_kind_phys
++  integer(c_int) :: catchem_process_subcycle = 1_c_int
++  character(len=256) :: catchem_coupling_site = ''
+ 
+ 
+   type scm_state_type
+diff --git a/scm/src/scm_type_defs.meta b/scm/src/scm_type_defs.meta
+index 8ae0605a..f8b75787 100644
+--- a/scm/src/scm_type_defs.meta
++++ b/scm/src/scm_type_defs.meta
+@@ -7,6 +10,91 @@
+ [ccpp-arg-table]
+   name = scm_type_defs
+   type = host
++[catchem_context_id]
++  standard_name = catchem_context_id
++  long_name = SCM-owned CATChem context slot
++  units = 1
++  dimensions = ()
++  type = integer | kind = c_int
++[catchem_context_generation]
++  standard_name = catchem_context_generation
++  long_name = SCM-owned CATChem context generation
++  units = 1
++  dimensions = ()
++  type = integer | kind = c_int64_t
++[catchem_interval_id]
++  standard_name = catchem_interval_id
++  long_name = SCM host physics interval identity
++  units = 1
++  dimensions = ()
++  type = integer | kind = c_int64_t
++[catchem_interval_token]
++  standard_name = catchem_interval_token
++  long_name = SCM host physics interval token
++  units = 1
++  dimensions = ()
++  type = integer | kind = c_int64_t
++[catchem_year]
++  standard_name = catchem_year
++  long_name = Current host year for CATChem's selected interval
++  units = 1
++  dimensions = ()
++  type = integer
++[catchem_month]
++  standard_name = catchem_month
++  long_name = Current host month for CATChem's selected interval
++  units = 1
++  dimensions = ()
++  type = integer
++[catchem_day]
++  standard_name = catchem_day
++  long_name = Current host day for CATChem's selected interval
++  units = 1
++  dimensions = ()
++  type = integer
++[catchem_hour]
++  standard_name = catchem_hour
++  long_name = Current host hour for CATChem's selected interval
++  units = 1
++  dimensions = ()
++  type = integer
++[catchem_minute]
++  standard_name = catchem_minute
++  long_name = Current host minute for CATChem's selected interval
++  units = 1
++  dimensions = ()
++  type = integer
++[catchem_second]
++  standard_name = catchem_second
++  long_name = Current host second for CATChem's selected interval
++  units = 1
++  dimensions = ()
++  type = integer
++[catchem_day_of_year]
++  standard_name = catchem_day_of_year
++  long_name = Current host day of year for CATChem's selected interval
++  units = 1
++  dimensions = ()
++  type = integer
++[catchem_duration_seconds]
++  standard_name = catchem_duration_seconds
++  long_name = Duration of the current host interval
++  units = s
++  dimensions = ()
++  type = real
++  kind = kind_phys
++[catchem_process_subcycle]
++  standard_name = catchem_process_subcycle
++  long_name = CATChem process invocation subcycle
++  units = 1
++  dimensions = ()
++  type = integer | kind = c_int
++[catchem_coupling_site]
++  standard_name = catchem_coupling_site
++  long_name = CATChem host coupling site name
++  units = none
++  dimensions = ()
++  type = character | kind = len=256
+ [physics]
+   standard_name = physics_type_instance
+   long_name = instance of derived data type physics_type
+diff --git a/scm/src/scm.F90 b/scm/src/scm.F90
+index b0d0fd70..ef0a0d29 100644
+--- a/scm/src/scm.F90
++++ b/scm/src/scm.F90
+@@ -17,10 +17,19 @@ subroutine scm_main_sub()
+   use scm_output
+   use scm_type_defs
+   use mpi_f08
++  use machine, only: kind_phys
++  use iso_c_binding, only: c_int, c_int64_t
++  use ccpp_constituent_prop_mod, only: ccpp_constituent_properties_t
++  use CATChem_API, only: CATChem_Manifest
++  use CATChem_Context_Registry, only: ccpp_context_handle, ccpp_context_create, &
++    ccpp_context_bind_manifest, ccpp_context_initialize_model, ccpp_context_destroy, CCPP_CTX_OK
++  use ccpp_host_constituents, only: ccpp_register_constituents, ccpp_initialize_constituents, &
++    ccpp_deallocate_dynamic_constituents
+ 
+   ! Import CCPP control variables from scm_time_integration
+   ! and define CPP directive for fixed control values.
+-  use scm_time_integration, only: errmsg, errflg
++  use scm_time_integration, only: errmsg, errflg, catchem_sync_tracers_to_constituents, &
++    catchem_seed_acceptance_unrelated
+ #define CCPP_PHYSICS_STATIC_ARGS lb=1, ub=1, nphys_threads=1
+ #define CCPP_PHYSICS_NPHYS_THREADS 1
+ 
+@@ -45,6 +54,15 @@ subroutine scm_main_sub()
+   integer      :: i, j, kdt_rad, idtend, itrac, n_tasks
+   real(kind=8) :: rinc(5) !(DAYS, HOURS, MINUTES, SECONDS, MILLISECONDS)
+   integer      :: jdat(1:8)
++  integer      :: catchem_species_count, catchem_manifest_status, catchem_errcode
++  integer(c_int) :: catchem_status
++  type(ccpp_context_handle) :: catchem_handle
++  type(CATChem_Manifest) :: catchem_manifest_state
++  type(ccpp_constituent_properties_t), allocatable :: catchem_host_constituents(:)
++  integer :: catchem_host_constituent_status
++  character(len=512) :: catchem_host_constituent_message
++  character(len=1024) :: catchem_config_path
++  character(len=32) :: catchem_init_stage
+ 
+   character(len=16) :: logfile_name
+   logical :: in_spinup
+@@ -171,6 +189,46 @@ subroutine scm_main_sub()
+   call physics%associate(scm_state)
+   call physics%set(scm_input_instance, scm_state)
+ 
++  catchem_config_path = ''
++  call get_environment_variable('CATCHEM_CONFIG', catchem_config_path, status=catchem_manifest_status)
++  if (catchem_manifest_status /= 0 .or. len_trim(catchem_config_path) == 0) then
++    write(error_unit,'(a)') 'CATCHEM_CONFIG must name the CATChem mechanism/configuration YAML.'
++    error stop
++  end if
++  call catchem_manifest_state%open(trim(catchem_config_path), catchem_manifest_status)
++  if (catchem_manifest_status /= 0) then
++    write(error_unit,'(a)') 'Unable to read CATChem manifest: '//trim(catchem_manifest_state%last_error)
++    error stop
++  end if
++  call catchem_manifest_state%species_count(catchem_species_count, catchem_manifest_status)
++  if (catchem_manifest_status /= 0 .or. catchem_species_count <= 0) then
++    write(error_unit,'(a)') 'CATChem configuration has no valid species manifest.'
++    error stop
++  end if
++  call ccpp_context_create(scm_state%n_cols, scm_state%n_levels, catchem_species_count, &
++                           catchem_handle, catchem_status)
++  catchem_init_stage = 'context_create'
++  if (catchem_status == CCPP_CTX_OK) then
++    catchem_init_stage = 'manifest_bind'
++    call ccpp_context_bind_manifest(catchem_handle, trim(catchem_config_path), catchem_status)
++  end if
++  if (catchem_status == CCPP_CTX_OK) then
++    catchem_init_stage = 'model_initialize'
++    call ccpp_context_initialize_model(catchem_handle, scm_state%n_cols, scm_state%n_levels, catchem_status)
++  end if
++  if (catchem_status /= CCPP_CTX_OK) then
++    write(error_unit,'(a,a,a,i0)') 'Unable to initialize CATChem context at ', &
++      trim(catchem_init_stage), ', status=', catchem_status
++    error stop
++  end if
++  catchem_context_id = catchem_handle%id
++  catchem_context_generation = catchem_handle%generation
++  call catchem_manifest_state%close(catchem_manifest_status)
++  if (catchem_manifest_status /= 0) then
++    write(error_unit,'(a)') 'Unable to close temporary CATChem manifest reader.'
++    error stop
++  end if
++
+   ! When asked to calculate 3-dim. tendencies, set Stateout variables to
+   ! Statein variables here in order to capture the first call to dycore
+   if (physics%Model%ldiag3d) then
+@@ -187,6 +245,41 @@ subroutine scm_main_sub()
+       write(error_unit,'(a,i0,a)') 'An error occurred in ccpp_register: ' // trim(errmsg) // '. Exiting...'
+       error stop
+   end if
++  allocate(catchem_host_constituents(1))
++  call catchem_host_constituents(1)%instantiate( &
++      std_name='catchem_acceptance_unrelated_tracer', &
++      long_name='CATChem acceptance unrelated nonadvected tracer', &
++      diag_name='catchem_acceptance_unrelated_tracer', units='kg kg-1', &
++      vertical_dim='vertical_layer_dimension', advected=.false., &
++      default_value=0.0_kind_phys, errcode=catchem_host_constituent_status, &
++      errmsg=catchem_host_constituent_message)
++  if (catchem_host_constituent_status /= 0) then
++      write(error_unit,'(a)') 'Unable to declare the unrelated CATChem acceptance tracer: '// &
++          trim(catchem_host_constituent_message)
++      error stop
++  end if
++  call ccpp_register_constituents(host_constituents=catchem_host_constituents, &
++      errmsg=errmsg, errcode=catchem_errcode)
++  if (catchem_errcode /= 0) then
++      write(error_unit,'(a)') 'Unable to merge CATChem and SCM CCPP constituent registrations: '//trim(errmsg)
++      error stop
++  end if
++  call ccpp_initialize_constituents(ncols=scm_state%n_cols, num_layers=scm_state%n_levels, &
++      errmsg=errmsg, errcode=catchem_errcode)
++  if (catchem_errcode /= 0) then
++      write(error_unit,'(a)') 'Unable to allocate the merged CCPP constituent state: '//trim(errmsg)
++      error stop
++  end if
++  call catchem_seed_acceptance_unrelated(errmsg, errflg)
++  if (errflg /= 0) then
++    write(error_unit,'(a)') 'Unable to seed the unrelated CCPP acceptance constituent: '//trim(errmsg)
++    error stop
++  end if
++  call catchem_sync_tracers_to_constituents(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
++  if (errflg /= 0) then
++    write(error_unit,'(a)') 'Unable to seed CCPP constituents from SCM tracers: '//trim(errmsg)
++    error stop
++  end if
+ 
+   call ccpp_init(suite_name=scm_state%physics_suite_name, errmsg=errmsg, errflg=errflg)
+   if (errflg/=0) then
+@@ -472,6 +565,15 @@ subroutine scm_main_sub()
+       write(error_unit,'(a,i0,a)') 'An error occurred in ccpp_final: ' // trim(errmsg) // '. Exiting...'
+       error stop
+   end if
++  call ccpp_deallocate_dynamic_constituents()
++  deallocate(catchem_host_constituents)
++  call ccpp_context_destroy(catchem_handle, catchem_status)
++  if (catchem_status /= CCPP_CTX_OK) then
++    write(error_unit,'(a,i0)') 'Unable to destroy CATChem context, status=', catchem_status
++    error stop
++  end if
++  catchem_context_id = 0_c_int
++  catchem_context_generation = 0_c_int64_t
+ 
+   call MPI_FINALIZE(errflg)
+   if (errflg/=0) then
+diff --git a/scm/src/scm_time_integration.F90 b/scm/src/scm_time_integration.F90
+index c7cc65ec..112351dd 100644
+--- a/scm/src/scm_time_integration.F90
++++ b/scm/src/scm_time_integration.F90
+@@ -6,11 +6,21 @@ module scm_time_integration
+ use iso_fortran_env, only: error_unit
+ use scm_kinds, only: sp, dp, qp
+ use scm_forcing
++use scm_type_defs, only: catchem_interval_id, catchem_interval_token, catchem_process_subcycle, catchem_coupling_site, &
++  catchem_year, catchem_month, catchem_day, catchem_hour, catchem_minute, catchem_second, &
++  catchem_day_of_year, catchem_duration_seconds
++use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
++use ccpp_host_constituents, only: ccpp_model_constituents_obj
++use machine, only: kind_phys
++use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+ 
+ use :: scm_ccpp_cap,                  &
+        only: ccpp_physics_timestep_init, &
+              ccpp_physics_run,           &
+-             ccpp_physics_timestep_final
++             ccpp_physics_timestep_final, &
++             ccpp_constituents_array,     &
++             ccpp_const_get_index,        &
++             ccpp_model_const_properties
+ 
+ implicit none
+ 
+@@ -20,10 +29,400 @@ implicit none
+   ! Fixed CCPP control values are passed via a CPP directive.
+   character(len=512) :: errmsg
+   integer :: errflg
++  logical :: catchem_acceptance_aerosols_seeded = .false.
++  integer :: catchem_acceptance_unrelated_index = 0
++  real(kind=kind_phys) :: catchem_acceptance_unrelated_value = 0.0_kind_phys
++  real(kind=kind_phys) :: catchem_acceptance_unrelated_tendency_value = 0.0_kind_phys
++  logical :: catchem_acceptance_unrelated_reported = .false.
+ #define CCPP_PHYSICS_STATIC_ARGS lb=1, ub=1, nphys_threads=1
+ 
++  public :: catchem_sync_tracers_to_constituents, catchem_sync_constituents_to_tracers
++  public :: catchem_seed_acceptance_unrelated
++  public :: catchem_seed_acceptance_unrelated_tendency, catchem_verify_acceptance_unrelated_tendency
++
+ contains
+ 
++!> Return the Gregorian ordinal day for the SCM host clock.
++!! @param year Four-digit calendar year.
++!! @param month Calendar month in the range 1 through 12.
++!! @param day Day of month.
++pure integer function catchem_ordinal_day(year, month, day)
++  integer, intent(in) :: year, month, day
++  integer :: month_index
++  integer :: month_lengths(12)
++  month_lengths = [31,28,31,30,31,30,31,31,30,31,30,31]
++  if (mod(year,4) == 0 .and. (mod(year,100) /= 0 .or. mod(year,400) == 0)) month_lengths(2) = 29
++  catchem_ordinal_day = day
++  do month_index = 1, month - 1
++    if (month_index >= 1 .and. month_index <= 12) catchem_ordinal_day = catchem_ordinal_day + month_lengths(month_index)
++  end do
++end function catchem_ordinal_day
++
++!> Copy the current SCM tracer state into the framework-owned CCPP constituent array.
++!! Species are matched by the CCPP constituent diagnostic name and SCM tracer name.
++!! Constituents without an SCM tracer keep their framework-owned values.
++!! @param tracer_values SCM qgrs array in (column, layer, tracer) order.
++!! @param tracer_names SCM tracer names in the final qgrs dimension order.
++!! @param errmsg Actionable error detail when the array binding is invalid.
++!! @param errflg Zero on success; nonzero on a property or shape failure.
++subroutine catchem_sync_tracers_to_constituents(tracer_values, tracer_names, errmsg, errflg)
++  real(kind=kind_phys), intent(inout) :: tracer_values(:,:,:)
++  character(len=*), intent(in) :: tracer_names(:)
++  character(len=*), intent(out) :: errmsg
++  integer, intent(out) :: errflg
++  call catchem_sync_constituents(tracer_values, tracer_names, .true., errmsg, errflg)
++  if (errflg /= 0) return
++  if (.not. catchem_acceptance_aerosols_seeded) then
++    call catchem_seed_acceptance_aerosols(errmsg, errflg)
++    if (errflg /= 0) return
++    catchem_acceptance_aerosols_seeded = .true.
++  end if
++end subroutine catchem_sync_tracers_to_constituents
++
++!> Seed declared aerosol constituents for a case-specific nonzero SCM acceptance fixture.
++!! The seed is opt-in and is supplied by the case manifests;
++!! it never changes ordinary SCM runs. The CCPP array remains authoritative.
++!! @param errmsg Actionable detail if the environment or framework registry is invalid.
++!! @param errflg Zero on success; nonzero on malformed property access.
++subroutine catchem_seed_acceptance_aerosols(errmsg, errflg)
++  character(len=*), intent(out) :: errmsg
++  integer, intent(out) :: errflg
++  type(ccpp_constituent_prop_ptr_t), pointer :: properties(:)
++  real(kind=kind_phys), pointer :: constituents(:,:,:)
++  character(len=32) :: seed_text
++  character(len=256) :: species_name, property_message
++  integer :: environment_status, property_status, constituent_index, i
++  real(kind=kind_phys) :: seed_value
++  errmsg = ''
++  errflg = 0
++  properties => ccpp_model_const_properties()
++  constituents => ccpp_constituents_array()
++  if (.not. associated(properties) .or. .not. associated(constituents)) then
++    errmsg = 'Cannot seed acceptance constituents before CCPP constituent registration.'
++    errflg = 1
++    return
++  end if
++  call get_environment_variable('CATCHEM_ACCEPTANCE_AEROSOL_MIXING_RATIO', seed_text, status=environment_status)
++  if (environment_status == 0 .and. len_trim(seed_text) > 0) then
++    read(seed_text, *, iostat=environment_status) seed_value
++    if (environment_status /= 0 .or. .not. ieee_is_finite(seed_value) .or. seed_value <= 0.0_kind_phys) then
++      errmsg = 'CATCHEM_ACCEPTANCE_AEROSOL_MIXING_RATIO must be a finite positive numeric kg kg-1 value.'
++      errflg = 1
++      return
++    end if
++    do i = 1, size(properties)
++    call properties(i)%diagnostic_name(species_name, property_status, property_message)
++    if (property_status /= 0) then
++      errmsg = 'Unable to inspect an acceptance constituent: '//trim(property_message)
++      errflg = property_status
++      return
++    end if
++    if (.not. catchem_is_acceptance_aerosol(species_name)) cycle
++    call properties(i)%const_index(constituent_index, property_status, property_message)
++    if (property_status /= 0 .or. constituent_index < 1 .or. constituent_index > size(constituents,3)) then
++      errmsg = 'Acceptance aerosol has an invalid CCPP array index: '//trim(species_name)
++      errflg = max(1,property_status)
++      return
++    end if
++    constituents(:,:,constituent_index) = seed_value
++    write(*,'(a,a,a,es14.6,a)') 'CATCHEM_ACCEPTANCE_SEED name=',trim(species_name), &
++      ' VALUE=',real(seed_value,kind=kind_phys),' UNITS=kg kg-1'
++    end do
++  end if
++  call catchem_seed_acceptance_gas('CATCHEM_ACCEPTANCE_SO2_PPMV','so2',properties,constituents,errmsg,errflg)
++  if (errflg /= 0) return
++  call catchem_seed_acceptance_gas('CATCHEM_ACCEPTANCE_DMS_PPMV','dms',properties,constituents,errmsg,errflg)
++  if (errflg /= 0) return
++  call catchem_seed_acceptance_gas('CATCHEM_ACCEPTANCE_H2O2_PPMV','h2o2',properties,constituents,errmsg,errflg)
++  if (errflg /= 0) return
++  call catchem_seed_acceptance_gas('CATCHEM_ACCEPTANCE_OH_PPMV','oh',properties,constituents,errmsg,errflg)
++  if (errflg /= 0) return
++  call catchem_seed_acceptance_gas('CATCHEM_ACCEPTANCE_NO3_PPMV','no3',properties,constituents,errmsg,errflg)
++  if (errflg /= 0) return
++  call get_environment_variable('CATCHEM_ACCEPTANCE_O3_PPMV', seed_text, status=environment_status)
++  if (environment_status == 0 .and. len_trim(seed_text) > 0) then
++    call catchem_seed_acceptance_gas('CATCHEM_ACCEPTANCE_O3_PPMV','o3',properties,constituents,errmsg,errflg)
++    if (errflg /= 0) return
++  end if
++  call get_environment_variable('CATCHEM_ACCEPTANCE_O3_USE_SCM_PROFILE', seed_text, status=environment_status)
++  if (environment_status == 0 .and. len_trim(seed_text) > 0) then
++    call catchem_verify_scm_ozone_profile(properties,constituents,errmsg,errflg)
++    if (errflg /= 0) return
++  end if
++end subroutine catchem_seed_acceptance_aerosols
++
++!> Seed one explicitly declared gas constituent in ppmv for acceptance.
++!! @param environment_name Name of the opt-in case environment variable.
++!! @param species_name Lowercase CCPP diagnostic species name.
++!! @param properties Full framework property registry.
++!! @param constituents Framework-owned constituent array.
++!! @param errmsg Actionable failure detail.
++!! @param errflg Zero on success.
++subroutine catchem_seed_acceptance_gas(environment_name,species_name,properties,constituents,errmsg,errflg)
++  character(len=*), intent(in) :: environment_name,species_name
++  type(ccpp_constituent_prop_ptr_t), intent(in) :: properties(:)
++  real(kind=kind_phys), intent(inout) :: constituents(:,:,:)
++  character(len=*), intent(out) :: errmsg
++  integer, intent(out) :: errflg
++  character(len=32) :: value_text
++  character(len=256) :: name,property_message
++  real(kind=kind_phys) :: value, host_mass_ratio, molecular_weight
++  real(kind=kind_phys), parameter :: dry_air_molecular_weight = 28.97e-3_kind_phys
++  integer :: env_status,property_status,index,i
++  errmsg=''
++  errflg=0
++  call get_environment_variable(environment_name,value_text,status=env_status)
++  if (env_status /= 0 .or. len_trim(value_text)==0) return
++  read(value_text,*,iostat=env_status) value
++  if (env_status /= 0 .or. .not. ieee_is_finite(value) .or. value <= 0.0_kind_phys) then
++    errmsg=trim(environment_name)//' must be a finite positive numeric ppmv value.'
++    errflg=1
++    return
++  end if
++  do i=1,size(properties)
++    call properties(i)%diagnostic_name(name,property_status,property_message)
++    if (property_status /= 0) then
++      errmsg='Unable to inspect gas acceptance constituent: '//trim(property_message)
++      errflg=property_status
++      return
++    end if
++    if (trim(adjustl(name)) /= trim(species_name)) cycle
++    call properties(i)%const_index(index,property_status,property_message)
++    if (property_status /= 0 .or. index < 1 .or. index > size(constituents,3)) then
++      errmsg='Gas acceptance constituent has an invalid CCPP array index: '//trim(species_name)
++      errflg=max(1,property_status)
++      return
++    end if
++    call properties(i)%molar_mass(molecular_weight,property_status,property_message)
++    if (property_status /= 0 .or. molecular_weight <= 0.0_kind_phys) then
++      errmsg='Gas acceptance constituent has invalid molar mass: '//trim(species_name)
++      errflg=max(1,property_status)
++      return
++    end if
++    host_mass_ratio = value * 1.0e-6_kind_phys * molecular_weight / dry_air_molecular_weight
++    constituents(:,:,index)=host_mass_ratio
++    write(*,'(a,a,a,es14.6,a,es14.6,a)') 'CATCHEM_ACCEPTANCE_SEED name=',trim(species_name), &
++      ' VALUE=',real(value,kind=kind_phys),' ppmv HOST_MASS_RATIO=',host_mass_ratio,' kg kg-1'
++    return
++  end do
++  errmsg='Gas acceptance species is not registered: '//trim(species_name)
++  errflg=1
++end subroutine catchem_seed_acceptance_gas
++
++!> Verify and report the SCM-initialized vertical ozone profile in CCPP state.
++!! @param properties Full framework constituent property registry.
++!! @param constituents Framework-owned constituent array.
++!! @param errmsg Actionable error detail when ozone is absent or invalid.
++!! @param errflg Zero on success; nonzero when the profile is not usable.
++subroutine catchem_verify_scm_ozone_profile(properties,constituents,errmsg,errflg)
++  type(ccpp_constituent_prop_ptr_t), intent(in) :: properties(:)
++  real(kind=kind_phys), intent(in) :: constituents(:,:,:)
++  character(len=*), intent(out) :: errmsg
++  integer, intent(out) :: errflg
++  character(len=256) :: name,property_message
++  real(kind=kind_phys) :: profile_min,profile_max
++  integer :: i,index,property_status
++  errmsg=''
++  errflg=0
++  do i=1,size(properties)
++    call properties(i)%diagnostic_name(name,property_status,property_message)
++    if (property_status /= 0) then
++      errmsg='Unable to inspect SCM ozone constituent: '//trim(property_message)
++      errflg=property_status
++      return
++    end if
++    if (trim(adjustl(name))/='o3') cycle
++    call properties(i)%const_index(index,property_status,property_message)
++    if (property_status /= 0 .or. index<1 .or. index>size(constituents,3)) then
++      errmsg='SCM ozone profile has an invalid CCPP constituent index.'
++      errflg=max(1,property_status)
++      return
++    end if
++    profile_min=minval(constituents(:,:,index))
++    profile_max=maxval(constituents(:,:,index))
++    write(*,'(a,es14.6,a,es14.6,a,i0)') 'CATCHEM_SCM_O3_PROFILE_CHECK min=',profile_min, &
++      ' max=',profile_max,' levels=',size(constituents,2)
++    if (.not. all(ieee_is_finite(constituents(:,:,index))) .or. profile_min<0.0_kind_phys .or. profile_max<=0.0_kind_phys .or. &
++        profile_max<=profile_min) then
++      errmsg='SCM ozone CCPP constituent must contain a finite nonnegative, vertically varying profile with positive abundance.'
++      errflg=1
++      return
++    end if
++    write(*,'(a,i0,a,es14.6,a,es14.6,a)') 'CATCHEM_SCM_O3_PROFILE levels=',size(constituents,2), &
++      ' MIN_HOST_MASS_RATIO=',profile_min,' MAX_HOST_MASS_RATIO=',profile_max,' kg kg-1'
++    return
++  end do
++  errmsg='SCM ozone profile is not registered in the CCPP constituent array.'
++  errflg=1
++end subroutine catchem_verify_scm_ozone_profile
++
++!> Identify aerosol species included in the compact first-stage SCM fixture.
++!! @param name CCPP constituent diagnostic name.
++!! @return True for aerosol bins, sulfate, MSA, black carbon, or organic carbon.
++pure logical function catchem_is_acceptance_aerosol(name)
++  character(len=*), intent(in) :: name
++  character(len=32) :: key
++  integer :: i, code
++  key = adjustl(name)
++  do i = 1, len_trim(key)
++    code = iachar(key(i:i))
++    if (code >= iachar('A') .and. code <= iachar('Z')) key(i:i) = achar(code+32)
++  end do
++  catchem_is_acceptance_aerosol = index(key,'dust') == 1 .or. index(key,'seas') == 1 .or. &
++    index(key,'so4') == 1 .or. index(key,'msa') == 1 .or. index(key,'bc') == 1 .or. index(key,'oc') == 1
++end function catchem_is_acceptance_aerosol
++
++!> Copy framework-owned CCPP constituent values back into matching SCM tracers.
++!! @param tracer_values SCM qgrs array in (column, layer, tracer) order.
++!! @param tracer_names SCM tracer names in the final qgrs dimension order.
++!! @param errmsg Actionable error detail when the array binding is invalid.
++!! @param errflg Zero on success; nonzero on a property or shape failure.
++subroutine catchem_sync_constituents_to_tracers(tracer_values, tracer_names, errmsg, errflg)
++  real(kind=kind_phys), intent(inout) :: tracer_values(:,:,:)
++  character(len=*), intent(in) :: tracer_names(:)
++  character(len=*), intent(out) :: errmsg
++  integer, intent(out) :: errflg
++  call catchem_sync_constituents(tracer_values, tracer_names, .false., errmsg, errflg)
++end subroutine catchem_sync_constituents_to_tracers
++
++!> Seed a deliberately unrelated, nonadvected host constituent for conformance runs.
++!! @param errmsg Actionable error detail when its framework slot cannot be resolved.
++!! @param errflg Zero on success; nonzero on malformed registry access.
++subroutine catchem_seed_acceptance_unrelated(errmsg, errflg)
++  character(len=*), intent(out) :: errmsg
++  integer, intent(out) :: errflg
++  real(kind=kind_phys), pointer :: constituents(:,:,:)
++  integer :: status
++  errmsg = ''
++  errflg = 0
++  constituents => ccpp_constituents_array()
++  if (.not. associated(constituents)) then
++    errmsg = 'CCPP constituent storage is unavailable while seeding the unrelated host constituent.'
++    errflg = 1
++    return
++  end if
++  call ccpp_const_get_index(stdname='catchem_acceptance_unrelated_tracer', &
++      const_index=catchem_acceptance_unrelated_index, errcode=status, errmsg=errmsg)
++  if (status /= 0 .or. catchem_acceptance_unrelated_index < 1 .or. &
++      catchem_acceptance_unrelated_index > size(constituents,3)) then
++    errmsg = 'Unrelated acceptance constituent has an invalid CCPP slot: '//trim(errmsg)
++    errflg = max(1,status)
++    return
++  end if
++  catchem_acceptance_unrelated_value = 7.654321e-7_kind_phys
++  constituents(:,:,catchem_acceptance_unrelated_index) = catchem_acceptance_unrelated_value
++  write(*,'(a,i0,a,es14.6)') 'CATCHEM_UNRELATED_SEEDED slot=', &
++    catchem_acceptance_unrelated_index, ' VALUE=', catchem_acceptance_unrelated_value
++end subroutine catchem_seed_acceptance_unrelated
++
++!> Seed a prior host contribution in the unrelated slot before CATChem runs.
++!! @param errmsg Actionable error detail when the tendency array or slot is unavailable.
++!! @param errflg Zero on success; nonzero on invalid framework state.
++subroutine catchem_seed_acceptance_unrelated_tendency(errmsg, errflg)
++  character(len=*), intent(out) :: errmsg
++  integer, intent(out) :: errflg
++  errmsg = ''
++  errflg = 0
++  if (.not. allocated(ccpp_model_constituents_obj)) then
++    errmsg = 'CCPP model constituent storage is unavailable while seeding a prior tendency.'
++    errflg = 1
++    return
++  end if
++  if (size(ccpp_model_constituents_obj) /= 1) then
++    errmsg = 'CCPP host updater fixture expects one SCM model constituent instance.'
++    errflg = 1
++    return
++  end if
++  if (.not. allocated(ccpp_model_constituents_obj(1)%vars_layer_tend)) then
++    errmsg = 'CCPP tendency storage is unavailable while seeding a prior contribution.'
++    errflg = 1
++    return
++  end if
++  if (catchem_acceptance_unrelated_index < 1 .or. &
++      catchem_acceptance_unrelated_index > size(ccpp_model_constituents_obj(1)%vars_layer_tend,3)) then
++    errmsg = 'CCPP unrelated constituent index is outside the tendency array extent.'
++    errflg = 1
++    return
++  end if
++  catchem_acceptance_unrelated_tendency_value = 2.468013e-9_kind_phys
++  ccpp_model_constituents_obj(1)%vars_layer_tend(:,:,catchem_acceptance_unrelated_index) = &
++    catchem_acceptance_unrelated_tendency_value
++  write(*,'(a,i0,a,es14.6)') 'CATCHEM_UNRELATED_TENDENCY_SEEDED slot=', &
++    catchem_acceptance_unrelated_index, ' VALUE=', catchem_acceptance_unrelated_tendency_value
++end subroutine catchem_seed_acceptance_unrelated_tendency
++
++!> Require the unrelated host tendency contribution to survive the CATChem host update.
++!! @param errmsg Actionable error detail when another writer changed the seeded value.
++!! @param errflg Zero on success; nonzero when the prior contribution was not preserved.
++subroutine catchem_verify_acceptance_unrelated_tendency(errmsg, errflg)
++  character(len=*), intent(out) :: errmsg
++  integer, intent(out) :: errflg
++  errmsg = ''
++  errflg = 0
++  if (.not. allocated(ccpp_model_constituents_obj)) then
++    errmsg = 'CCPP model constituent storage is unavailable while checking a prior tendency.'
++    errflg = 1
++    return
++  end if
++  if (size(ccpp_model_constituents_obj) /= 1) then
++    errmsg = 'CCPP host updater fixture expects one SCM model constituent instance.'
++    errflg = 1
++    return
++  end if
++  if (.not. allocated(ccpp_model_constituents_obj(1)%vars_layer_tend)) then
++    errmsg = 'CCPP tendency storage was deallocated before the prior-contribution check.'
++    errflg = 1
++    return
++  end if
++  if (any(ccpp_model_constituents_obj(1)%vars_layer_tend(:,:,catchem_acceptance_unrelated_index) /= &
++      catchem_acceptance_unrelated_tendency_value)) then
++    errmsg = 'CATChem changed a preexisting unrelated CCPP constituent tendency.'
++    errflg = 1
++    return
++  end if
++  write(*,'(a,i0,a,es14.6)') 'CATCHEM_UNRELATED_TENDENCY_PRESERVED slot=', &
++    catchem_acceptance_unrelated_index, ' VALUE=', catchem_acceptance_unrelated_tendency_value
++end subroutine catchem_verify_acceptance_unrelated_tendency
++
++!> Synchronize matching species between qgrs and the registered CCPP constituent state.
++!! @param tracer_values SCM qgrs array in (column, layer, tracer) order.
++!! @param tracer_names SCM tracer names in the final qgrs dimension order.
++!! @param to_constituents True imports qgrs; false exports CCPP state to qgrs.
++!! @param errmsg Actionable error detail when the CCPP array or property registry is invalid.
++!! @param errflg Zero on success; nonzero when binding or property lookup fails.
++subroutine catchem_sync_constituents(tracer_values, tracer_names, to_constituents, errmsg, errflg)
++  real(kind=kind_phys), intent(inout) :: tracer_values(:,:,:)
++  character(len=*), intent(in) :: tracer_names(:)
++  logical, intent(in) :: to_constituents
++  character(len=*), intent(out) :: errmsg
++  integer, intent(out) :: errflg
++  type(ccpp_constituent_prop_ptr_t), pointer :: properties(:)
++  real(kind=kind_phys), pointer :: constituents(:,:,:)
++  character(len=256) :: species_name, property_message
++  integer :: property_status, constituent_index, species_index, i
++
++  errmsg = ''
++  errflg = 0
++  constituents => ccpp_constituents_array()
++  properties => ccpp_model_const_properties()
++  if (.not. associated(constituents) .or. .not. associated(properties)) then
++    errmsg = 'CCPP constituent storage or property registry is not initialized.'
++    errflg = 1
++    return
++  end if
++  if (size(tracer_values,1) /= size(constituents,1) .or. &
++      size(tracer_values,2) /= size(constituents,2) .or. &
++      size(tracer_values,3) /= size(tracer_names)) then
++    errmsg = 'SCM tracer and CCPP constituent array extents do not agree.'
++    errflg = 1
++    return
++  end if
++
++  do i = 1, size(properties)
++    call properties(i)%diagnostic_name(species_name, property_status, property_message)
++    if (property_status /= 0) then
++      errmsg = 'Unable to read a registered CCPP constituent diagnostic name: '//trim(property_message)
++      errflg = property_status
++      return
++    end if
++    call properties(i)%const_index(constituent_index, property_status, property_message)
++    if (property_status /= 0 .or. constituent_index < 1 .or. constituent_index > size(constituents,3)) then
++      errmsg = 'A CCPP constituent has an invalid framework index: '//trim(species_name)
++      errflg = max(1, property_status)
++      return
++    end if
++
++    do species_index = 1, size(tracer_names)
++      if (.not. catchem_same_species_name(species_name, tracer_names(species_index))) cycle
++      if (catchem_is_ozone_identifier(species_name) .and. catchem_is_ozone_identifier(tracer_names(species_index))) then
++        write(*,'(a,a,a,a,a,es14.6,a,es14.6)') 'CATCHEM_O3_MAP constituent=',trim(species_name), &
++          ' tracer=',trim(tracer_names(species_index)),' min=',minval(tracer_values(:,:,species_index)), &
++          ' max=',maxval(tracer_values(:,:,species_index))
++      end if
++      if (to_constituents) then
++        constituents(:,:,constituent_index) = tracer_values(:,:,species_index)
++      else
++        tracer_values(:,:,species_index) = constituents(:,:,constituent_index)
++      end if
++      exit
++    end do
++  end do
++  if (.not. to_constituents .and. catchem_acceptance_unrelated_index > 0) then
++    if (any(constituents(:,:,catchem_acceptance_unrelated_index) /= catchem_acceptance_unrelated_value)) then
++      errmsg = 'An unrelated nonadvected CCPP host constituent changed during CATChem execution.'
++      errflg = 1
++      return
++    end if
++    if (.not. catchem_acceptance_unrelated_reported) then
++      write(*,'(a,i0,a,es14.6)') 'CATCHEM_UNRELATED_PRESERVED slot=', &
++        catchem_acceptance_unrelated_index, ' VALUE=', catchem_acceptance_unrelated_value
++      catchem_acceptance_unrelated_reported = .true.
++    end if
++  end if
++end subroutine catchem_sync_constituents
++
++!> Compare species identifiers without depending on the case used by SCM or CATChem.
++!! @param left First species identifier.
++!! @param right Second species identifier.
++!! @return True when trimmed identifiers match case-insensitively.
++logical function catchem_same_species_name(left, right)
++  character(len=*), intent(in) :: left, right
++  integer :: i, left_char, right_char
++  catchem_same_species_name = .false.
++  if (catchem_is_ozone_identifier(left) .and. catchem_is_ozone_identifier(right)) then
++    catchem_same_species_name = .true.
++    return
++  end if
++  if (len_trim(left) /= len_trim(right)) return
++  do i = 1, len_trim(left)
++    left_char = iachar(left(i:i))
++    right_char = iachar(right(i:i))
++    if (left_char >= iachar('a') .and. left_char <= iachar('z')) left_char = left_char - 32
++    if (right_char >= iachar('a') .and. right_char <= iachar('z')) right_char = right_char - 32
++    if (left_char /= right_char) return
++  end do
++  catchem_same_species_name = .true.
++end function catchem_same_species_name
++
++!> Recognize CATChem O3 and GFS SCM ozone tracer identifiers as aliases.
++!! @param name Constituent or tracer identifier.
++!! @return True for CCPP O3, GFS tracer o3mr, or ozone_mixing_ratio.
++pure logical function catchem_is_ozone_identifier(name)
++  character(len=*), intent(in) :: name
++  character(len=32) :: key
++  integer :: i, code
++  key=adjustl(name)
++  do i=1,len_trim(key)
++    code=iachar(key(i:i))
++    if (code>=iachar('A') .and. code<=iachar('Z')) key(i:i)=achar(code+32)
++  end do
++  catchem_is_ozone_identifier=trim(key)=='o3' .or. trim(key)=='o3mr' .or. &
++    trim(key)=='ozone_mixing_ratio'
++end function catchem_is_ozone_identifier
++
+ !> \ingroup SCM
+ !! @{
+ !! \defgroup time_integration scm_time_integration
+@@ -138,6 +533,20 @@ subroutine do_time_step(scm_state, physics, in_spinup)
+     endif
+   enddo
+ 
++  if (catchem_interval_id == huge(catchem_interval_id)) error stop 'CATChem interval identifier exhausted'
++  catchem_interval_id = catchem_interval_id + 1
++  catchem_interval_token = catchem_interval_id
++  catchem_process_subcycle = 1
++  catchem_coupling_site = 'catchem-processes'
++  catchem_year = physics%Model%jdat(1)
++  catchem_month = physics%Model%jdat(2)
++  catchem_day = physics%Model%jdat(3)
++  catchem_hour = physics%Model%jdat(5)
++  catchem_minute = physics%Model%jdat(6)
++  catchem_second = physics%Model%jdat(7)
++  catchem_day_of_year = catchem_ordinal_day(catchem_year,catchem_month,catchem_day)
++  catchem_duration_seconds = physics%Model%dtp
++
+   call ccpp_physics_timestep_init(suite_name=scm_state%physics_suite_name, group_name='all', &
+           errflg=errflg, errmsg=errmsg, CCPP_PHYSICS_STATIC_ARGS)
+   if (errflg/=0) then
+@@ -145,6 +553,7 @@ subroutine do_time_step(scm_state, physics, in_spinup)
+       error stop trim(errmsg)
+   end if
+ 
++
+   !--- determine if radiation diagnostics buckets need to be cleared
+   if (nint(physics%Model%fhzero*3600) >= nint(max(physics%Model%fhswr,physics%Model%fhlwr))) then
+     if (mod(physics%Model%kdt,physics%Model%nszero) == 1 .or. physics%Model%nszero == 1) then
+@@ -165,7 +574,9 @@ subroutine do_time_step(scm_state, physics, in_spinup)
+   !CCPP run phase
+   ! time_vary group doesn't have any run phase (omitted)
+   ! radiation group
+-  
++
++  call catchem_sync_tracers_to_constituents(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
++  if (errflg /= 0) error stop 'Unable to import SCM tracers before radiation: '//trim(errmsg)
+   call physics%Interstitial(1)%create(ixs=1, ixe=1, model=physics%Model)  
+   call ccpp_physics_run(suite_name=scm_state%physics_suite_name, group_name="radiation", &
+           errflg=errflg, errmsg=errmsg, CCPP_PHYSICS_STATIC_ARGS)
+@@ -173,21 +584,35 @@ subroutine do_time_step(scm_state, physics, in_spinup)
+       write(error_unit,'(a,i0,a)') 'An error occurred in ccpp_physics_run for group radiation: ' // trim(errmsg) // '. Exiting...'
+       error stop
+   end if
++  call catchem_sync_constituents_to_tracers(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
++  if (errflg /= 0) error stop 'Unable to export CCPP constituents after radiation: '//trim(errmsg)
+   ! process-split physics
+   call physics%Interstitial(1)%reset(physics%Model)
++  call catchem_sync_tracers_to_constituents(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
++  if (errflg /= 0) error stop 'Unable to import SCM tracers before process-split physics: '//trim(errmsg)
++  call catchem_seed_acceptance_unrelated_tendency(errmsg, errflg)
++  if (errflg /= 0) error stop 'Unable to seed unrelated host tendency: '//trim(errmsg)
+   call ccpp_physics_run(suite_name=scm_state%physics_suite_name, group_name="phys_ps", &
+           errflg=errflg, errmsg=errmsg, CCPP_PHYSICS_STATIC_ARGS)
+   if (errflg/=0) then
+       write(error_unit,'(a,i0,a)') 'An error occurred in ccpp_physics_run for group phys_ps: ' // trim(errmsg) // '. Exiting...'
+       error stop
+   end if
++  call catchem_verify_acceptance_unrelated_tendency(errmsg, errflg)
++  if (errflg /= 0) error stop 'Unrelated host tendency was not preserved: '//trim(errmsg)
++  call catchem_sync_constituents_to_tracers(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
++  if (errflg /= 0) error stop 'Unable to export CCPP constituents after process-split physics: '//trim(errmsg)
+   ! time-split physics
++  call catchem_sync_tracers_to_constituents(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
++  if (errflg /= 0) error stop 'Unable to import SCM tracers before time-split physics: '//trim(errmsg)
+   call ccpp_physics_run(suite_name=scm_state%physics_suite_name, group_name="phys_ts", &
+           errflg=errflg, errmsg=errmsg, CCPP_PHYSICS_STATIC_ARGS)
+   if (errflg/=0) then
+       write(error_unit,'(a,i0,a)') 'An error occurred in ccpp_physics_run for group phys_ts: ' // trim(errmsg) // '. Exiting...'
+       error stop
+   end if
++  call catchem_sync_constituents_to_tracers(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
++  if (errflg /= 0) error stop 'Unable to export CCPP constituents after time-split physics: '//trim(errmsg)
+   call ccpp_physics_timestep_final(suite_name=scm_state%physics_suite_name, group_name='all', &
+           errflg=errflg, errmsg=errmsg, CCPP_PHYSICS_STATIC_ARGS)
+   if (errflg/=0) then
