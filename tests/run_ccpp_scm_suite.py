@@ -371,6 +371,11 @@ def main() -> int:
         parser.error("--work-dir must be a generated directory beneath the repository root")
     if args.offline and args.data_dir is None and args.file_dir is None:
         parser.error("--offline requires --data-dir or --file_dir")
+    gocart_checkout = ROOT / "src/external/GOCART/Process_Library/GOCART2G_Process.F90"
+    if not gocart_checkout.is_file():
+        run(["git", "submodule", "update", "--init", "src/external/GOCART"])
+    if not gocart_checkout.is_file():
+        raise RuntimeError("The CATChem GOCART source submodule is unavailable")
     evidence_dir = work / "evidence"
     evidence_dir.mkdir(parents=True, exist_ok=True)
 

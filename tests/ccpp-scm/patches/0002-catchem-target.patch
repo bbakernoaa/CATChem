@@ -26,8 +26,8 @@ index 435130ec..703d8da8 100644
 +# acceptance runner. CCPP host modules come from scm-ccpp's usage
 +# requirements, and the host executable links the adapter and CATChem targets.
 +if(DEFINED _catchem_process_list)
-+  if(NOT CATCHEM_SOURCE_DIR OR NOT EXISTS "${CATCHEM_SOURCE_DIR}/CMakeLists.txt")
-+    message(FATAL_ERROR "CATCHEM_SOURCE_DIR must point to the CATChem checkout")
++  if(NOT CATCHEM_CHECKOUT_DIR OR NOT EXISTS "${CATCHEM_CHECKOUT_DIR}/CMakeLists.txt")
++    message(FATAL_ERROR "CATCHEM_CHECKOUT_DIR must point to the CATChem checkout")
 +  endif()
 +  set(CATCHEM_BUILD_CCPP ON CACHE BOOL "Build CATChem's CCPP adapter" FORCE)
 +  set(CATCHEM_BUILD_TESTING OFF CACHE BOOL "Disable nested CATChem tests" FORCE)
@@ -38,7 +38,7 @@ index 435130ec..703d8da8 100644
 +  set(_scm_fortran_flags "${CMAKE_Fortran_FLAGS}")
 +  string(REPLACE "-fdefault-real-8" "" CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
 +  string(REPLACE "-fdefault-double-8" "" CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
-+  add_subdirectory("${CATCHEM_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/catchem")
++  add_subdirectory("${CATCHEM_CHECKOUT_DIR}" "${CMAKE_BINARY_DIR}/catchem")
 +  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/catchem/src/external/musica/mod_fortran")
 +  # SCM enables the DEBUG preprocessor macro globally; TUV-x has a Fortran
 +  # variable with the same name, so undefine it only for the TUV-x sources.
@@ -72,7 +72,7 @@ index 435130ec..703d8da8 100644
 +  endif()
 +  file(GLOB_RECURSE _catchem_generated_caps "${CMAKE_BINARY_DIR}/ccpp/*cap.F90")
 +  foreach(_catchem_process IN LISTS _catchem_process_list)
-+    if(NOT EXISTS "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_${_catchem_process}.meta")
++    if(NOT EXISTS "${CATCHEM_CHECKOUT_DIR}/drivers/ccpp/catchem_${_catchem_process}.meta")
 +      message(FATAL_ERROR "CATChem CCPP metadata is missing for ${_catchem_process}")
 +    endif()
 +    set(_catchem_process_cap_found FALSE)
@@ -100,12 +100,12 @@ index ac058bd1..24c04e88 100644
  )
 +if(DEFINED _catchem_process_list)
 +  list(APPEND SCHEME_METADATA_FILES
-+    "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_ccpp_lifecycle.meta"
-+    "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_apply_tendency.meta")
++    "${CATCHEM_CHECKOUT_DIR}/drivers/ccpp/catchem_ccpp_lifecycle.meta"
++    "${CATCHEM_CHECKOUT_DIR}/drivers/ccpp/catchem_apply_tendency.meta")
 +  foreach(_catchem_process IN LISTS _catchem_process_list)
-+    list(APPEND SCHEME_METADATA_FILES "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_${_catchem_process}.meta")
-+    if(EXISTS "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_${_catchem_process}_ps.meta")
-+      list(APPEND SCHEME_METADATA_FILES "${CATCHEM_SOURCE_DIR}/drivers/ccpp/catchem_${_catchem_process}_ps.meta")
++    list(APPEND SCHEME_METADATA_FILES "${CATCHEM_CHECKOUT_DIR}/drivers/ccpp/catchem_${_catchem_process}.meta")
++    if(EXISTS "${CATCHEM_CHECKOUT_DIR}/drivers/ccpp/catchem_${_catchem_process}_ps.meta")
++      list(APPEND SCHEME_METADATA_FILES "${CATCHEM_CHECKOUT_DIR}/drivers/ccpp/catchem_${_catchem_process}_ps.meta")
 +    endif()
 +  endforeach()
 +endif()

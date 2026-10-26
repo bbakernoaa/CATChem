@@ -822,7 +822,8 @@ def run_case(args: argparse.Namespace) -> None:
         catchem_processes.insert(0, "photolysis")
     configure = ["cmake", "-S", str(source), "-B", str(build),
                  f"-DCCPP_SUITES={','.join(build_suite_names)}", f"-DCMAKE_BUILD_TYPE={args.build_type}",
-                 f"-DCATCHEM_SOURCE_DIR={ROOT}", f"-DCATCHEM_CCPP_PROCESSES={';'.join(catchem_processes)}",
+                 f"-DCATCHEM_CHECKOUT_DIR={ROOT}",
+                 f"-DCATCHEM_CCPP_PROCESSES={';'.join(catchem_processes)}",
                  "-DCATCHEM_CCPP_TEST_STUBS=OFF",
                  f"-DCATCHEM_ENABLE_ACCEPTANCE_FAILURE_INJECTION={'ON' if args.inject_process_failure else 'OFF'}"]
     if args.science_profile == "all" or any(item in {"photolysis", "gaschem"} for item in catchem_processes):
