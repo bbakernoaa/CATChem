@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include "catchem_process_interface.hpp"
 #include <cmath>
 #include <cstdint>
 #include <functional>
@@ -26,7 +27,6 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include "catchem_process_interface.hpp"
 
 namespace catchem {
 
@@ -34,8 +34,8 @@ namespace catchem {
      * @brief One schedule entry as the ledger sees it.
      */
     struct SelectedProcessSpec {
-        std::string name;                           ///< Process name; must be non-empty.
-        bool active = false;                        ///< Only active names may be selected.
+        std::string name;                            ///< Process name; must be non-empty.
+        bool active = false;                         ///< Only active names may be selected.
         std::vector<std::string> required_producers; ///< Must complete before this process may run.
     };
 
@@ -78,7 +78,8 @@ namespace catchem {
          *         std::invalid_argument on a repeated/zero id or bad duration.
          */
         void begin_interval(std::uint64_t id, double duration) {
-            if (open_) throw std::logic_error("A selected-process interval is already open");
+            if (open_)
+                throw std::logic_error("A selected-process interval is already open");
             if (id == 0 || id == last_interval_ || !std::isfinite(duration) || duration <= 0.0)
                 throw std::invalid_argument("Interval identity must be new and duration must be positive and finite");
             interval_ = id;
@@ -113,9 +114,11 @@ namespace catchem {
                                      const std::function<void()>& selected_body) {
             SelectedOperationOutcome result;
             result.process = key.process;
-            if (!open_) return rejected(result, "No host interval is open");
+            if (!open_)
+                return rejected(result, "No host interval is open");
             if (!std::isfinite(duration) || duration <= 0.0 || duration > duration_)
-                return rejected(result, "Invocation duration must be positive, finite, and no longer than its interval");
+                return rejected(result,
+                                "Invocation duration must be positive, finite, and no longer than its interval");
             if (key.interval != interval_ || key.site.empty() || key.process.empty() || !selected_body)
                 return rejected(result, "Invocation identity or selected operation is incomplete");
             const auto found = specs_.find(key.process);
@@ -153,7 +156,8 @@ namespace catchem {
          *         rejects an immediate reuse.
          */
         void end_interval(std::uint64_t id) {
-            if (!open_ || id != interval_) throw std::logic_error("Interval close does not match the open interval");
+            if (!open_ || id != interval_)
+                throw std::logic_error("Interval close does not match the open interval");
             open_ = false;
             last_interval_ = interval_;
         }
@@ -172,16 +176,16 @@ namespace catchem {
             result.cause = std::move(cause);
             return result;
         }
-        std::map<std::string, SelectedProcessSpec> specs_;             ///< Schedule entries by process name.
-        std::set<std::string> ambiguous_; ///< Names registered more than once; always rejected.
+        std::map<std::string, SelectedProcessSpec> specs_; ///< Schedule entries by process name.
+        std::set<std::string> ambiguous_;                  ///< Names registered more than once; always rejected.
         /// Invocation keys already admitted in this interval, for uniqueness.
         std::set<std::tuple<std::uint64_t, std::string, std::uint32_t, std::string>> invocations_;
         std::set<std::string> completed_; ///< Processes that succeeded this interval.
-        std::uint64_t interval_ = 0;                                   ///< Identity of the open interval.
+        std::uint64_t interval_ = 0;      ///< Identity of the open interval.
         std::uint64_t last_interval_ = 0; ///< The most recently closed interval id.
-        double duration_ = 0.0;                                        ///< Open interval's duration [s].
-        std::size_t interval_count_ = 0;                               ///< Intervals opened since construction.
-        bool open_ = false;                                            ///< Whether an interval is currently open.
+        double duration_ = 0.0;           ///< Open interval's duration [s].
+        std::size_t interval_count_ = 0;  ///< Intervals opened since construction.
+        bool open_ = false;               ///< Whether an interval is currently open.
     };
 
 } // namespace catchem

@@ -2,9 +2,9 @@
 program benchmark_ccpp_exchange
    use iso_c_binding, only: c_double, c_int, c_int64_t, c_ptr, c_loc, c_associated
    use catchem_ccpp_context, only: ccpp_context_handle, catchem_ccpp_context_create, &
-                                   catchem_ccpp_context_destroy, catchem_ccpp_context_begin_exchange, &
-                                   catchem_ccpp_context_stage, catchem_ccpp_context_commit, catchem_ccpp_context_buffers, &
-                                   catchem_ccpp_context_bind, catchem_ccpp_context_set_mapping, catchem_ccpp_context_get_mapping
+      catchem_ccpp_context_destroy, catchem_ccpp_context_begin_exchange, &
+      catchem_ccpp_context_stage, catchem_ccpp_context_commit, catchem_ccpp_context_buffers, &
+      catchem_ccpp_context_bind, catchem_ccpp_context_set_mapping, catchem_ccpp_context_get_mapping
    implicit none
    integer, parameter :: ncol = 64, nlev = 32, nspec = 3, warmup = 20, samples = 2000
    integer(c_int), parameter :: ok = 0_c_int
@@ -72,8 +72,8 @@ contains
       call catchem_ccpp_context_buffers(handle, baseline, working, tendency, cstatus)
       call require(cstatus == ok, 'retrieve reusable buffers')
       if (.not. c_associated(baseline_address, c_loc(baseline(1, 1, 1))) .or. &
-          .not. c_associated(working_address, c_loc(working(1, 1, 1))) .or. &
-          .not. c_associated(tendency_address, c_loc(tendency(1, 1, 1)))) &
+         .not. c_associated(working_address, c_loc(working(1, 1, 1))) .or. &
+         .not. c_associated(tendency_address, c_loc(tendency(1, 1, 1)))) &
          error stop 'steady-state CCPP exchange changed a buffer address'
       candidate = working
       call catchem_ccpp_context_stage(handle, candidate, cstatus)

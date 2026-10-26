@@ -34,9 +34,9 @@ namespace catchem {
 
     /// The three callbacks one scheme registers under its process name.
     struct ProcessRegistryEntry {
-        ProcessCreator creator;                             ///< Instantiates the wrapper.
-        ProcessContractFactory contract_factory;            ///< Optional contract probe without an instance.
-        ProcessSettingsValidator settings_validator;        ///< Optional strict-option checker.
+        ProcessCreator creator;                      ///< Instantiates the wrapper.
+        ProcessContractFactory contract_factory;     ///< Optional contract probe without an instance.
+        ProcessSettingsValidator settings_validator; ///< Optional strict-option checker.
     };
 
     /**

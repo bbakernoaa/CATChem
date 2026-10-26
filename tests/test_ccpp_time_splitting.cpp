@@ -9,32 +9,33 @@
 
 namespace {
 
-/** @brief A minimal selected process that records the clock at each site call. */
-class ClockProcess final : public catchem::ProcessInterface {
-public:
-    /** @brief Create a process with an execution ledger. */
-    explicit ClockProcess(std::vector<std::string>& ledger) : ledger_(ledger) {}
-    /** @brief Return the process name used in selected invocation keys. */
-    std::string get_name() const override { return "clock_probe"; }
-    /** @brief Declare an empty contract so the test isolates interval orchestration. */
-    catchem::ProcessContract get_contract() const override { return catchem::make_contract("clock_probe"); }
-    /** @brief Initialize the test process. */
-    void init(std::shared_ptr<catchem::StateManager>) override {}
-    /** @brief Record the current host physics clock and invocation boundary. */
-    void run(std::shared_ptr<catchem::StateManager> state) override {
-        const auto& clock = state->clock();
-        ledger_.push_back(std::to_string(clock.year) + "-" + std::to_string(clock.month) + "-" +
-                          std::to_string(clock.day) + "T" + std::to_string(clock.hour) + ":" +
-                          std::to_string(clock.minute) + ":" + std::to_string(clock.second) + "/" +
-                          std::to_string(clock.doy) + "/" + std::to_string(clock.timestep));
-    }
-    /** @brief Finalize the test process. */
-    void finalize() override {}
-private:
-    std::vector<std::string>& ledger_;
-};
+    /** @brief A minimal selected process that records the clock at each site call. */
+    class ClockProcess final : public catchem::ProcessInterface {
+    public:
+        /** @brief Create a process with an execution ledger. */
+        explicit ClockProcess(std::vector<std::string>& ledger) : ledger_(ledger) {}
+        /** @brief Return the process name used in selected invocation keys. */
+        std::string get_name() const override { return "clock_probe"; }
+        /** @brief Declare an empty contract so the test isolates interval orchestration. */
+        catchem::ProcessContract get_contract() const override { return catchem::make_contract("clock_probe"); }
+        /** @brief Initialize the test process. */
+        void init(std::shared_ptr<catchem::StateManager>) override {}
+        /** @brief Record the current host physics clock and invocation boundary. */
+        void run(std::shared_ptr<catchem::StateManager> state) override {
+            const auto& clock = state->clock();
+            ledger_.push_back(std::to_string(clock.year) + "-" + std::to_string(clock.month) + "-" +
+                              std::to_string(clock.day) + "T" + std::to_string(clock.hour) + ":" +
+                              std::to_string(clock.minute) + ":" + std::to_string(clock.second) + "/" +
+                              std::to_string(clock.doy) + "/" + std::to_string(clock.timestep));
+        }
+        /** @brief Finalize the test process. */
+        void finalize() override {}
 
-}
+    private:
+        std::vector<std::string>& ledger_;
+    };
+
+} // namespace
 
 /** @brief Check host-controlled interval identity, clock, repeated site, and diagnostic boundaries. */
 int main() {
@@ -108,8 +109,11 @@ int main() {
     invalid.day = 30;
     invalid.doy = 61;
     bool invalid_rejected = false;
-    try { core.begin_interval(103, invalid); }
-    catch (const std::out_of_range&) { invalid_rejected = true; }
+    try {
+        core.begin_interval(103, invalid);
+    } catch (const std::out_of_range&) {
+        invalid_rejected = true;
+    }
     assert(invalid_rejected);
     core.end_interval(102);
     core.shutdown();

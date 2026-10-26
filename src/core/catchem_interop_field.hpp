@@ -51,14 +51,16 @@ namespace catchem {
      */
     template <typename DataType, int Rank> class InteropField {
     public:
-        using MdspanType = typename MdspanTypeHelper<DataType, Rank>::type; ///< LayoutLeft mdspan view over the field's memory.
-        std::array<std::size_t, Rank> immutable_extents{}; ///< Per-axis sizes fixed at construction; never resized.
-        FieldContract contract;                            ///< Semantic description (name, units, extents, axes, persistence).
-        std::size_t generation = 0;                        ///< Import generation stamped by set_generation().
+        using MdspanType =
+            typename MdspanTypeHelper<DataType, Rank>::type; ///< LayoutLeft mdspan view over the field's memory.
+        std::array<std::size_t, Rank> immutable_extents{};   ///< Per-axis sizes fixed at construction; never resized.
+        FieldContract contract;     ///< Semantic description (name, units, extents, axes, persistence).
+        std::size_t generation = 0; ///< Import generation stamped by set_generation().
         AvailabilityState availability = AvailabilityState::Current; ///< Data validity state for the current import.
-        LatestWriter latest_writer = LatestWriter::HostCurrent;      ///< Side holding the newest values; drives sync decisions.
-        std::size_t host_to_device_sync_count = 0;         ///< Cumulative host-to-device transfers (statistics).
-        std::size_t device_to_host_sync_count = 0;         ///< Cumulative device-to-host transfers (statistics).
+        LatestWriter latest_writer =
+            LatestWriter::HostCurrent;             ///< Side holding the newest values; drives sync decisions.
+        std::size_t host_to_device_sync_count = 0; ///< Cumulative host-to-device transfers (statistics).
+        std::size_t device_to_host_sync_count = 0; ///< Cumulative device-to-host transfers (statistics).
 
         /// Record that the host buffer now holds the newest values (no data movement).
         void mark_host_modified() { latest_writer = LatestWriter::HostCurrent; }
@@ -141,7 +143,8 @@ namespace catchem {
         }
 
     private:
-        /// Validate dims (exactly Rank positive entries), cache them as immutable_extents, and mirror them into contract.extents.
+        /// Validate dims (exactly Rank positive entries), cache them as immutable_extents, and mirror them into
+        /// contract.extents.
         void validate_dimensions(const std::vector<int>& dims) {
             if (dims.size() != static_cast<std::size_t>(Rank))
                 throw std::invalid_argument("InteropField dimension rank mismatch");
@@ -155,8 +158,8 @@ namespace catchem {
 
     public:
 #ifdef CATCHEM_ENABLE_KOKKOS
-        using HostSpace = Kokkos::HostSpace;                                  ///< Space of the caller-owned host buffer.
-        using DeviceSpace = Kokkos::DefaultExecutionSpace::memory_space;     ///< Space of the managed device mirror.
+        using HostSpace = Kokkos::HostSpace;                             ///< Space of the caller-owned host buffer.
+        using DeviceSpace = Kokkos::DefaultExecutionSpace::memory_space; ///< Space of the managed device mirror.
 
         /// Selects the Kokkos View type for element type T, rank R (1-3), memory Space, and Unmanaged ownership.
         template <typename T, int R, typename Space, bool Unmanaged> struct ViewType;
@@ -182,8 +185,10 @@ namespace catchem {
                 Kokkos::View<T***, Kokkos::LayoutLeft, Space>>;
         };
 
-        using HostViewType = typename ViewType<DataType, Rank, HostSpace, true>::type;   ///< Unmanaged LayoutLeft view over host memory.
-        using DeviceViewType = typename ViewType<DataType, Rank, DeviceSpace, false>::type; ///< Kokkos-owned device mirror.
+        using HostViewType =
+            typename ViewType<DataType, Rank, HostSpace, true>::type; ///< Unmanaged LayoutLeft view over host memory.
+        using DeviceViewType =
+            typename ViewType<DataType, Rank, DeviceSpace, false>::type; ///< Kokkos-owned device mirror.
 
         HostViewType host_view;     ///< Contiguous host layout left view mapping raw pointer.
         DeviceViewType device_view; ///< Dedicated device view managed by Kokkos execution space.

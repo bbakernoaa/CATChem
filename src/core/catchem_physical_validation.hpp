@@ -20,8 +20,8 @@
 namespace catchem {
     /// What the derive_* kernels do when an input fails a physical range rule.
     enum class PhysicalValidationPolicy {
-        Reject,         ///< Throw std::domain_error before mutating any output field.
-        WarnAndClamp,   ///< Keep going; kernels clamp invalid values and the report is retained.
+        Reject,          ///< Throw std::domain_error before mutating any output field.
+        WarnAndClamp,    ///< Keep going; kernels clamp invalid values and the report is retained.
         CountAndContinue ///< Same clamp behaviour as WarnAndClamp in the current kernels; distinguished only by intent.
     };
     /**
@@ -34,7 +34,7 @@ namespace catchem {
     struct PhysicalIssue {
         std::string field, rule; ///< Field and rule, e.g. "PEDGE" / "positive-descending".
         std::size_t count = 0;   ///< Violating values observed for this pair.
-        double observed_min = std::numeric_limits<double>::infinity(); ///< Smallest violating value [field units].
+        double observed_min = std::numeric_limits<double>::infinity();  ///< Smallest violating value [field units].
         double observed_max = -std::numeric_limits<double>::infinity(); ///< Largest violating value [field units].
         std::vector<std::size_t> locations; ///< First 16 violating flat indices (col + level*n_cols); capped.
         std::string correction;             ///< Kernel fallback note (clamp/skip) for the operator.

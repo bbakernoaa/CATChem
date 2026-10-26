@@ -1,4 +1,5 @@
-set(_srcs
+set(
+  _srcs
   ccpp_catchem_interface.F90
   catchem_ccpp_context.F90
   catchem_ccpp_layout.F90
@@ -28,8 +29,10 @@ set(_srcs
 # for the new adapters.
 set_property(
   SOURCE ccpp_catchem_interface.F90
-  APPEND PROPERTY COMPILE_OPTIONS
-  "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Wno-unused-dummy-argument>"
+  APPEND
+  PROPERTY
+    COMPILE_OPTIONS
+      "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Wno-unused-dummy-argument>"
 )
 
 if(CATCHEM_CCPP_TEST_STUBS)
@@ -60,10 +63,13 @@ if(CATCHEM_CCPP_TEST_STUBS)
     PRIVATE ${CMAKE_BINARY_DIR}/ccpp-test-modules
   )
 else()
-target_include_directories(${_lib} PRIVATE ${CATCHEM_CCPP_HOST_MODULE_DIR})
+  target_include_directories(${_lib} PRIVATE ${CATCHEM_CCPP_HOST_MODULE_DIR})
   if(CATCHEM_CCPP_HOST_TARGET)
     if(NOT TARGET ${CATCHEM_CCPP_HOST_TARGET})
-      message(FATAL_ERROR "CATCHEM_CCPP_HOST_TARGET='${CATCHEM_CCPP_HOST_TARGET}' is not a CMake target")
+      message(
+        FATAL_ERROR
+        "CATCHEM_CCPP_HOST_TARGET='${CATCHEM_CCPP_HOST_TARGET}' is not a CMake target"
+      )
     endif()
     target_link_libraries(${_lib} PUBLIC ${CATCHEM_CCPP_HOST_TARGET})
   endif()

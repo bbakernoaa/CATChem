@@ -30,15 +30,15 @@ namespace catchem {
      * accumulate.
      */
     struct TimeState {
-        int year = 2000;      ///< Calendar year (CE), minimum 1.
-        int month = 1;        ///< Month of year, 1-12.
-        int day = 1;          ///< Day of month, 1 through get_days_in_month().
-        int hour = 0;         ///< Hour of day, 0-23 UTC.
-        int minute = 0;       ///< Minute of hour, 0-59.
-        int second = 0;       ///< Whole second of minute, 0-59.
+        int year = 2000;          ///< Calendar year (CE), minimum 1.
+        int month = 1;            ///< Month of year, 1-12.
+        int day = 1;              ///< Day of month, 1 through get_days_in_month().
+        int hour = 0;             ///< Hour of day, 0-23 UTC.
+        int minute = 0;           ///< Minute of hour, 0-59.
+        int second = 0;           ///< Whole second of minute, 0-59.
         double timestep = 3600.0; ///< Current step length [s]; must satisfy 0 < dt <= 86400.
         double julian_date = 0.0; ///< Julian day number at the current clock (derived, -0.5 at midnight).
-        int doy = 1;          ///< Day of year, 1-366 (derived).
+        int doy = 1;              ///< Day of year, 1-366 (derived).
 
         /**
          * @brief Gregorian leap-year test.

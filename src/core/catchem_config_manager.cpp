@@ -59,7 +59,8 @@ namespace catchem {
             return YAML::Node();
         }
 
-        /// Walk a '/'-separated path through nested YAML maps; returns an undefined node at the first missing, null, or non-map segment.
+        /// Walk a '/'-separated path through nested YAML maps; returns an undefined node at the first missing, null, or
+        /// non-map segment.
         YAML::Node resolve_yaml_path(const YAML::Node& root, std::string_view path) {
             if (!root.IsDefined() || root.IsNull() || path.empty()) {
                 return YAML::Node();
@@ -84,7 +85,8 @@ namespace catchem {
             return chain.back();
         }
 
-        /// Join a relative dependency path to the declaring config file's directory; absolute paths and the placeholders none/NONE/null/NULL pass through unchanged.
+        /// Join a relative dependency path to the declaring config file's directory; absolute paths and the
+        /// placeholders none/NONE/null/NULL pass through unchanged.
         std::string resolve_relative_config_path(const std::string& config_file, const std::string& path) {
             if (path.empty() || path.front() == '/' || path == "none" || path == "NONE" || path == "null" ||
                 path == "NULL")
@@ -97,7 +99,8 @@ namespace catchem {
             return config_file.substr(0, slash + 1) + path;
         }
 
-        /// Extract a file path from a scalar or from the first of source_file/input_file/filename/file/path; boolean and placeholder scalars return empty.
+        /// Extract a file path from a scalar or from the first of source_file/input_file/filename/file/path; boolean
+        /// and placeholder scalars return empty.
         std::string extract_file_setting(const YAML::Node& node) {
             if (!node)
                 return "";
@@ -788,8 +791,7 @@ namespace catchem {
             species.is_gas = get_bool(species_node, "is_gas", false);
             species.is_aerosol = get_bool(species_node, "is_aerosol", false);
             species.is_tracer = get_bool(species_node, "is_tracer", false);
-            species.is_advected = get_bool(species_node, "is_advected",
-                                           get_bool(species_node, "__is_advected", true));
+            species.is_advected = get_bool(species_node, "is_advected", get_bool(species_node, "__is_advected", true));
             species.is_drydep = get_bool(species_node, "is_drydep", false);
             species.is_wetdep = get_bool(species_node, "is_wetdep", false);
             species.is_drydep = get_bool(species_node, "do_drydep", species.is_drydep);

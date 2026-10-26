@@ -30,17 +30,24 @@
 namespace catchem {
     /// The C++ object a registry handle wraps. Each checked entry point names
     /// the type it expects, so a mismatch is reported instead of mis-cast.
-    enum class HandleType : std::uint32_t { Core = 1, State = 2, Diagnostic = 3, Configuration = 4, Time = 5, Manifest = 6 };
+    enum class HandleType : std::uint32_t {
+        Core = 1,
+        State = 2,
+        Diagnostic = 3,
+        Configuration = 4,
+        Time = 5,
+        Manifest = 6
+    };
     /// Whether destroying the handle also deletes the object it points at.
     /// Owned: created by a catchem_*_create/open entry point. Borrowed: an
     /// accessor result such as a Core's StateManager, deleted by its parent.
     enum class HandleOwnership : std::uint8_t { Owned, Borrowed };
     /// Static identity of one registered handle, fixed at registration.
     struct HandleRecord {
-        HandleType type = HandleType::Core;             ///< Object kind the pointer wraps.
-        std::uint32_t contract_version = 1;             ///< API struct version the handle was created with.
-        std::uint64_t generation = 0;                   ///< Mutation counter checked by acquire().
-        const void* owner = nullptr;                    ///< Parent handle borrowed from; null for standalone handles.
+        HandleType type = HandleType::Core; ///< Object kind the pointer wraps.
+        std::uint32_t contract_version = 1; ///< API struct version the handle was created with.
+        std::uint64_t generation = 0;       ///< Mutation counter checked by acquire().
+        const void* owner = nullptr;        ///< Parent handle borrowed from; null for standalone handles.
         HandleOwnership ownership = HandleOwnership::Borrowed; ///< Whether the close path deletes the pointee.
     };
 
@@ -57,11 +64,11 @@ namespace catchem {
     class AdmissionLease {
         struct Control {
             explicit Control(HandleRecord value) : record(std::move(value)) {}
-            HandleRecord record;               ///< Immutable identity of the handle.
-            std::mutex mutex;                  ///< Guards active/closing.
-            std::condition_variable drained;   ///< Signalled when a closing control reaches zero active leases.
-            std::size_t active = 0;            ///< Number of leases currently held.
-            bool closing = false;              ///< Set by close_and_wait() to refuse new admissions.
+            HandleRecord record;             ///< Immutable identity of the handle.
+            std::mutex mutex;                ///< Guards active/closing.
+            std::condition_variable drained; ///< Signalled when a closing control reaches zero active leases.
+            std::size_t active = 0;          ///< Number of leases currently held.
+            bool closing = false;            ///< Set by close_and_wait() to refuse new admissions.
         };
         friend class HandleRegistry;
         std::vector<std::shared_ptr<Control>> controls_; ///< Leased controls, parent first.
@@ -277,7 +284,7 @@ namespace catchem {
         }
 
     private:
-        mutable std::mutex mutex_;                                        ///< Guards the records_ map.
+        mutable std::mutex mutex_;                                          ///< Guards the records_ map.
         std::unordered_map<const void*, std::shared_ptr<Control>> records_; ///< Handle pointer to its control block.
     };
 } // namespace catchem

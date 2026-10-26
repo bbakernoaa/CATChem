@@ -19,11 +19,11 @@
 #include "catchem_state_manager.hpp"
 #include "catchem_unit_conversion.hpp"
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <vector>
-#include <cmath>
 
 using namespace catchem::api_internal;
 
@@ -62,20 +62,31 @@ int catchem_core_create_checked(int nc, int nl, int ns, void** core_out) {
 int catchem_core_begin_interval_checked(void* core_ptr, const catchem_host_interval_v1* interval) {
     catchem::AdmissionLease admission;
     const int admitted = admit_handle(core_ptr, catchem::HandleType::Core, "core_begin_interval", admission);
-    if (admitted != CATCHEM_SUCCESS) return admitted;
-    if (!interval) return fail(catchem::BoundaryStatus::NullArgument, "core_begin_interval", "interval", "interval descriptor is null");
+    if (admitted != CATCHEM_SUCCESS)
+        return admitted;
+    if (!interval)
+        return fail(catchem::BoundaryStatus::NullArgument, "core_begin_interval", "interval",
+                    "interval descriptor is null");
     if (interval->schema_version != 1 || interval->struct_size < sizeof(catchem_host_interval_v1))
-        return fail(catchem::BoundaryStatus::ContractViolation, "core_begin_interval", "interval", "unsupported schema version or descriptor size");
+        return fail(catchem::BoundaryStatus::ContractViolation, "core_begin_interval", "interval",
+                    "unsupported schema version or descriptor size");
     try {
         catchem::TimeState time;
-        time.year=interval->year; time.month=interval->month; time.day=interval->day; time.hour=interval->hour;
-        time.minute=interval->minute; time.second=interval->second; time.doy=interval->day_of_year;
-        time.timestep=interval->duration_seconds;
+        time.year = interval->year;
+        time.month = interval->month;
+        time.day = interval->day;
+        time.hour = interval->hour;
+        time.minute = interval->minute;
+        time.second = interval->second;
+        time.doy = interval->day_of_year;
+        time.timestep = interval->duration_seconds;
         static_cast<catchem::Core*>(core_ptr)->begin_interval(interval->interval_id, time);
         return CATCHEM_SUCCESS;
+    } catch (const std::exception& error) {
+        return fail(catchem::BoundaryStatus::ContractViolation, "core_begin_interval", "interval", error.what());
+    } catch (...) {
+        return fail(catchem::BoundaryStatus::InternalError, "core_begin_interval", "interval", "unknown exception");
     }
-    catch (const std::exception& error) { return fail(catchem::BoundaryStatus::ContractViolation, "core_begin_interval", "interval", error.what()); }
-    catch (...) { return fail(catchem::BoundaryStatus::InternalError, "core_begin_interval", "interval", "unknown exception"); }
 }
 
 int catchem_core_run_process_checked(void* core_ptr, const catchem_process_invocation_v1* invocation,
@@ -83,41 +94,60 @@ int catchem_core_run_process_checked(void* core_ptr, const catchem_process_invoc
                                      uint64_t* import_generation_out) {
     catchem::AdmissionLease admission;
     const int admitted = admit_handle(core_ptr, catchem::HandleType::Core, "core_run_process", admission);
-    if (admitted != CATCHEM_SUCCESS) return admitted;
+    if (admitted != CATCHEM_SUCCESS)
+        return admitted;
     if (!invocation || !operation_status || !publication_eligible || !import_generation_out)
-        return fail(catchem::BoundaryStatus::NullArgument, "core_run_process", "argument", "invocation and result outputs are required");
+        return fail(catchem::BoundaryStatus::NullArgument, "core_run_process", "argument",
+                    "invocation and result outputs are required");
     if (invocation->schema_version != 1 || invocation->struct_size < sizeof(catchem_process_invocation_v1) ||
         !invocation->site || !invocation->process || !std::isfinite(invocation->duration_seconds))
-        return fail(catchem::BoundaryStatus::ContractViolation, "core_run_process", "invocation", "invalid schema, size, identity, or duration");
+        return fail(catchem::BoundaryStatus::ContractViolation, "core_run_process", "invocation",
+                    "invalid schema, size, identity, or duration");
     try {
-        catchem::SelectedInvocationKey key{invocation->interval_id, invocation->site, invocation->subcycle, invocation->process};
-        const auto outcome = static_cast<catchem::Core*>(core_ptr)->run_selected_process(key, invocation->duration_seconds);
+        catchem::SelectedInvocationKey key{invocation->interval_id, invocation->site, invocation->subcycle,
+                                           invocation->process};
+        const auto outcome =
+            static_cast<catchem::Core*>(core_ptr)->run_selected_process(key, invocation->duration_seconds);
         *operation_status = static_cast<int>(outcome.status);
         *publication_eligible = outcome.publication_eligible ? 1 : 0;
         *import_generation_out = outcome.import_generation;
-        if (outcome.status == catchem::SelectedOperationStatus::Succeeded) return CATCHEM_SUCCESS;
+        if (outcome.status == catchem::SelectedOperationStatus::Succeeded)
+            return CATCHEM_SUCCESS;
         if (outcome.status == catchem::SelectedOperationStatus::Failed)
-            return fail(catchem::BoundaryStatus::ProcessFailure, "core_run_process", invocation->process, outcome.cause.c_str());
-        return fail(catchem::BoundaryStatus::ContractViolation, "core_run_process", invocation->process, outcome.cause.c_str());
-    } catch (const std::exception& error) { return fail(catchem::BoundaryStatus::InternalError, "core_run_process", invocation->process, error.what()); }
-    catch (...) { return fail(catchem::BoundaryStatus::InternalError, "core_run_process", invocation->process, "unknown exception"); }
+            return fail(catchem::BoundaryStatus::ProcessFailure, "core_run_process", invocation->process,
+                        outcome.cause.c_str());
+        return fail(catchem::BoundaryStatus::ContractViolation, "core_run_process", invocation->process,
+                    outcome.cause.c_str());
+    } catch (const std::exception& error) {
+        return fail(catchem::BoundaryStatus::InternalError, "core_run_process", invocation->process, error.what());
+    } catch (...) {
+        return fail(catchem::BoundaryStatus::InternalError, "core_run_process", invocation->process,
+                    "unknown exception");
+    }
 }
 
 int catchem_core_end_interval_checked(void* core_ptr, uint64_t interval_id) {
     catchem::AdmissionLease admission;
     const int admitted = admit_handle(core_ptr, catchem::HandleType::Core, "core_end_interval", admission);
-    if (admitted != CATCHEM_SUCCESS) return admitted;
-    try { static_cast<catchem::Core*>(core_ptr)->end_interval(interval_id); return CATCHEM_SUCCESS; }
-    catch (const std::exception& error) { return fail(catchem::BoundaryStatus::ContractViolation, "core_end_interval", "interval", error.what()); }
-    catch (...) { return fail(catchem::BoundaryStatus::InternalError, "core_end_interval", "interval", "unknown exception"); }
+    if (admitted != CATCHEM_SUCCESS)
+        return admitted;
+    try {
+        static_cast<catchem::Core*>(core_ptr)->end_interval(interval_id);
+        return CATCHEM_SUCCESS;
+    } catch (const std::exception& error) {
+        return fail(catchem::BoundaryStatus::ContractViolation, "core_end_interval", "interval", error.what());
+    } catch (...) {
+        return fail(catchem::BoundaryStatus::InternalError, "core_end_interval", "interval", "unknown exception");
+    }
 }
 
 int catchem_core_get_process_contract_checked(void* core_ptr, int process_index,
-                                              catchem_process_contract_v1* descriptor,
-                                              char* process_name, int process_name_len) {
+                                              catchem_process_contract_v1* descriptor, char* process_name,
+                                              int process_name_len) {
     catchem::AdmissionLease admission;
     const int admitted = admit_handle(core_ptr, catchem::HandleType::Core, "core_get_process_contract", admission);
-    if (admitted != CATCHEM_SUCCESS) return admitted;
+    if (admitted != CATCHEM_SUCCESS)
+        return admitted;
     if (!descriptor || !process_name)
         return fail(catchem::BoundaryStatus::NullArgument, "core_get_process_contract", "argument",
                     "descriptor and process-name buffer are required");
@@ -143,12 +173,12 @@ int catchem_core_get_process_contract_checked(void* core_ptr, int process_index,
 }
 
 int catchem_core_get_process_field_checked(void* core_ptr, int process_index, int field_index,
-                                           catchem_process_field_v1* descriptor,
-                                           char* field_name, int field_name_len,
+                                           catchem_process_field_v1* descriptor, char* field_name, int field_name_len,
                                            char* units, int units_len) {
     catchem::AdmissionLease admission;
     const int admitted = admit_handle(core_ptr, catchem::HandleType::Core, "core_get_process_field", admission);
-    if (admitted != CATCHEM_SUCCESS) return admitted;
+    if (admitted != CATCHEM_SUCCESS)
+        return admitted;
     if (!descriptor || !field_name || !units)
         return fail(catchem::BoundaryStatus::NullArgument, "core_get_process_field", "argument",
                     "descriptor, name, and units buffers are required");
@@ -168,7 +198,8 @@ int catchem_core_get_process_field_checked(void* core_ptr, int process_index, in
     if (descriptor->rank > 4)
         return fail(catchem::BoundaryStatus::ContractViolation, "core_get_process_field", "rank",
                     "field rank exceeds the v1 descriptor capacity");
-    for (int i = 0; i < 4; ++i) descriptor->axes[i] = i < descriptor->rank ? static_cast<int>(field.axes[i]) : -1;
+    for (int i = 0; i < 4; ++i)
+        descriptor->axes[i] = i < descriptor->rank ? static_cast<int>(field.axes[i]) : -1;
     descriptor->persistence = static_cast<int>(field.persistence);
     descriptor->requirement = static_cast<int>(field.requirement);
     descriptor->access = static_cast<int>(field.access);

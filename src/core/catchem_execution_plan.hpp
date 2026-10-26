@@ -15,8 +15,8 @@
 
 #include "catchem_process_interface.hpp"
 #include "catchem_validation.hpp"
-#include <memory>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -35,15 +35,16 @@ namespace catchem {
     public:
         /** @brief Provenance attached to a successfully published derived product. */
         struct ProductProvenance {
-            std::string producer;             ///< Process that declared the product.
-            std::string units;                ///< Declared units of the product value.
-            std::string mechanism_identity;   ///< Mechanism fingerprint at publication; empty until published.
-            std::uint64_t interval = 0;       ///< Interval identity (host id, or Core step counter) at publication.
-            std::size_t import_generation = 0; ///< State import generation the inputs belonged to.
+            std::string producer;                ///< Process that declared the product.
+            std::string units;                   ///< Declared units of the product value.
+            std::string mechanism_identity;      ///< Mechanism fingerprint at publication; empty until published.
+            std::uint64_t interval = 0;          ///< Interval identity (host id, or Core step counter) at publication.
+            std::size_t import_generation = 0;   ///< State import generation the inputs belonged to.
             std::uint64_t input_fingerprint = 0; ///< Fingerprint of producer read inputs when input_versioned.
-            bool input_versioned = false;       ///< Whether freshness follows relevant read values.
-            std::unordered_map<std::string, std::uint64_t> input_field_fingerprints; ///< Per-input values at publication.
-            bool valid = false;               ///< False after any invalidation until the producer republishes.
+            bool input_versioned = false;        ///< Whether freshness follows relevant read values.
+            std::unordered_map<std::string, std::uint64_t>
+                input_field_fingerprints; ///< Per-input values at publication.
+            bool valid = false;           ///< False after any invalidation until the producer republishes.
         };
         /**
          * @brief Validate active process contracts and build product indexes.
@@ -86,9 +87,8 @@ namespace catchem {
          * @note Call only after complete() succeeded; Core invalidates all
          *       products instead when the process throws.
          */
-        void publish_products(std::size_t index, const std::string& mechanism_identity,
-                              std::uint64_t interval, std::size_t import_generation,
-                              std::uint64_t input_fingerprint = 0,
+        void publish_products(std::size_t index, const std::string& mechanism_identity, std::uint64_t interval,
+                              std::size_t import_generation, std::uint64_t input_fingerprint = 0,
                               const std::unordered_map<std::string, std::uint64_t>& input_fields = {});
         /**
          * @brief Invalidate products declared by one process.
@@ -110,9 +110,8 @@ namespace catchem {
          * @return true only when a producer exists and its valid provenance
          *         matches all three; false for unknown names or stale data.
          */
-        bool product_is_current(const std::string& name, const std::string& mechanism_identity,
-                                std::uint64_t interval, std::size_t import_generation,
-                                std::uint64_t input_fingerprint = 0) const;
+        bool product_is_current(const std::string& name, const std::string& mechanism_identity, std::uint64_t interval,
+                                std::size_t import_generation, std::uint64_t input_fingerprint = 0) const;
         /** @brief Fingerprint the values read by a producer contract. */
         std::uint64_t input_fingerprint(std::size_t index, StateManager& state) const;
         /** @brief Fingerprint individual inputs read by one producer contract. */
@@ -121,8 +120,8 @@ namespace catchem {
         /** @brief Fingerprint the declared producer's current inputs for a product. */
         std::uint64_t product_input_fingerprint(const std::string& name, StateManager& state) const;
         /** @brief Return individual current input fingerprints for a product's producer. */
-        std::unordered_map<std::string, std::uint64_t> product_input_field_fingerprints(
-            const std::string& name, StateManager& state) const;
+        std::unordered_map<std::string, std::uint64_t> product_input_field_fingerprints(const std::string& name,
+                                                                                        StateManager& state) const;
         /**
          * @brief Return product provenance, or null when the schedule has no producer.
          * @param name Product name as declared in a contract.
@@ -133,8 +132,8 @@ namespace catchem {
         const ProductProvenance* product_provenance(const std::string& name) const noexcept;
 
     private:
-        std::vector<ProcessContract> contracts_;                  ///< Compiled contracts in execution order.
-        ValidationIssueReport validation_;                        ///< Issues found by the last compile().
+        std::vector<ProcessContract> contracts_;                      ///< Compiled contracts in execution order.
+        ValidationIssueReport validation_;                            ///< Issues found by the last compile().
         std::unordered_map<std::string, ProductProvenance> products_; ///< Product name to latest provenance.
     };
 

@@ -1,9 +1,9 @@
 // src/process/photolysis/catchem_process_photolysis.cpp
 #include "catchem_process_photolysis.hpp"
-#include "catchem_photolysis_conversion.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
+#include "catchem_photolysis_conversion.hpp"
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <array>
@@ -22,17 +22,17 @@
 namespace catchem {
 
     ProcessContract PhotolysisProcess::get_contract() const {
-        auto contract = make_contract(
-            get_name(),
-            {host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                           PersistencePolicy::Persistent),
-             host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                           PersistencePolicy::Persistent),
-             host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
-             host_field_interface("PEDGE", "Pa", FieldRequirement::Optional), host_field_3d("BXHEIGHT", "m"),
-             host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-             host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()},
-            {{"photolysis.ozone", "", true}});
+        auto contract =
+            make_contract(get_name(),
+                          {host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                                         PersistencePolicy::Persistent),
+                           host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                                         PersistencePolicy::Persistent),
+                           host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
+                           host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
+                           host_field_3d("BXHEIGHT", "m"), host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
+                           host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()},
+                          {{"photolysis.ozone", "", true}});
         for (std::size_t index = 0; index < photo_mappings.size_; ++index) {
             const char* reaction_name = photo_mappings.mappings_[index].name_.value_;
             if (reaction_name && reaction_name[0] != '\0')
@@ -362,8 +362,7 @@ namespace catchem {
             // TUV-x computes reaction rates at layer interfaces. Populate edge
             // values as well as midpoints; host-updated profiles otherwise
             // retain zero edge values from their initial allocation.
-            const auto midpoint_to_edges = [](const std::vector<double>& midpoints,
-                                              std::vector<double>& edges) {
+            const auto midpoint_to_edges = [](const std::vector<double>& midpoints, std::vector<double>& edges) {
                 edges.front() = midpoints.front();
                 edges.back() = midpoints.back();
                 for (std::size_t i = 1; i < midpoints.size(); ++i)
@@ -385,8 +384,9 @@ namespace catchem {
                 !std::is_sorted(height_edges.begin(), height_edges.end()) ||
                 std::adjacent_find(height_edges.begin(), height_edges.end(), std::greater_equal<double>()) !=
                     height_edges.end()) {
-                throw std::runtime_error("Photolysis received a non-finite profile or invalid increasing height grid in column " +
-                                         std::to_string(i_col));
+                throw std::runtime_error(
+                    "Photolysis received a non-finite profile or invalid increasing height grid in column " +
+                    std::to_string(i_col));
             }
 
             if (dbg_column)
@@ -424,7 +424,8 @@ namespace catchem {
                                   {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_temp, temp_profile.data(), state->level_count(), &err);
                 if (err.code_ == 0)
-                    musica::SetProfileEdgeValues(profile_temp, temp_edge_profile.data(), temp_edge_profile.size(), &err);
+                    musica::SetProfileEdgeValues(profile_temp, temp_edge_profile.data(), temp_edge_profile.size(),
+                                                 &err);
             }
             if (err.code_ != 0) {
                 const char* detail = err.message_.value_ ? err.message_.value_ : "Unknown Error";
@@ -435,8 +436,7 @@ namespace catchem {
             std::vector<double> edge_photolysis_rates((state->level_count() + 1) * num_reactions, 0.0);
             // TUV-x maps this buffer unconditionally, even when the configured
             // heating-rate count is zero. Keep data() non-null for that case.
-            const std::size_t heating_rate_count =
-                static_cast<std::size_t>(tuvx_instance->GetHeatingRateCount());
+            const std::size_t heating_rate_count = static_cast<std::size_t>(tuvx_instance->GetHeatingRateCount());
             std::vector<double> edge_heating_rates(
                 std::max<std::size_t>(1, (state->level_count() + 1) * heating_rate_count), 0.0);
 
@@ -447,18 +447,19 @@ namespace catchem {
 
             if (err.code_ != 0) {
                 const char* detail = err.message_.value_ ? err.message_.value_ : "Unknown Error";
-                throw std::runtime_error("PhotolysisProcess: TUV-x failed in column " + std::to_string(i_col) +
-                                         ": " + detail);
+                throw std::runtime_error("PhotolysisProcess: TUV-x failed in column " + std::to_string(i_col) + ": " +
+                                         detail);
             }
             if (!finite_profile(edge_photolysis_rates)) {
                 std::ostringstream detail;
                 detail << "Photolysis TUV-x returned non-finite reaction rates in column " << i_col
                        << " (SZA=" << sza_rad * 180.0 / std::acos(-1.0) << " deg, height=" << height_edges.front()
-                       << ".." << height_edges.back() << " km, air=" << *std::min_element(air_profile.begin(), air_profile.end())
-                       << ".." << *std::max_element(air_profile.begin(), air_profile.end())
+                       << ".." << height_edges.back()
+                       << " km, air=" << *std::min_element(air_profile.begin(), air_profile.end()) << ".."
+                       << *std::max_element(air_profile.begin(), air_profile.end())
                        << " molecule cm-3, temperature=" << *std::min_element(temp_profile.begin(), temp_profile.end())
-                       << ".." << *std::max_element(temp_profile.begin(), temp_profile.end()) << " K, O3="
-                       << *std::min_element(o3_profile.begin(), o3_profile.end()) << ".."
+                       << ".." << *std::max_element(temp_profile.begin(), temp_profile.end())
+                       << " K, O3=" << *std::min_element(o3_profile.begin(), o3_profile.end()) << ".."
                        << *std::max_element(o3_profile.begin(), o3_profile.end()) << " molecule cm-3)";
                 throw std::runtime_error(detail.str());
             }

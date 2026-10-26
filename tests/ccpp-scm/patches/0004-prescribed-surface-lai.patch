@@ -4,7 +4,7 @@ diff --git a/ccpp/physics/physics/Interstitials/UFS_SCM_NEPTUNE/GFS_phys_time_va
 @@ -596,6 +596,28 @@
             endif noahmp_init
           endif lsm_init
- 
+
 +         ! Prescribed-surface SCM cases can use NoahMP vegetation properties
 +         ! without a NoahMP cold start.  In that configuration the surface
 +         ! fluxes are prescribed, but a missing LAI would otherwise remain at
@@ -30,4 +30,3 @@ diff --git a/ccpp/physics/physics/Interstitials/UFS_SCM_NEPTUNE/GFS_phys_time_va
  !Lake model
           if(lkm>0 .and. iopt_lake>0) then
             ! A lake model is enabled.
-

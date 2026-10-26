@@ -93,7 +93,7 @@ contains
 
    !> \brief Instantiates a contract-test constituent descriptor.
    subroutine instantiate(self, std_name, long_name, diag_name, units, vertical_dim, advected, default_value, min_value, &
-                          molar_mass, water_species, mixing_ratio_type, errcode, errmsg)
+      molar_mass, water_species, mixing_ratio_type, errcode, errmsg)
       class(ccpp_constituent_properties_t), intent(inout) :: self
       character(len=*), intent(in) :: std_name, long_name, diag_name, units, vertical_dim
       logical, optional, intent(in) :: advected, water_species

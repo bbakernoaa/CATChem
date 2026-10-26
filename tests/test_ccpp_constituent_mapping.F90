@@ -2,7 +2,7 @@
 module test_ccpp_constituent_mapping
    use iso_c_binding, only: c_int
    use CATChem_Context_Registry, only: ccpp_context_handle, ccpp_context_set_species_map, &
-                                       ccpp_context_get_species_map, CCPP_CTX_OK, CCPP_CTX_INVALID
+      ccpp_context_get_species_map, CCPP_CTX_OK, CCPP_CTX_INVALID
    implicit none
    private
    public :: run_registry_mapping_cases

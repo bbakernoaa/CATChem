@@ -52,9 +52,10 @@ namespace catchem {
         // the optics-table (Mie) path; when true the tables named by the
         // top-level "mie:" section are loaded during init and every settling
         // species must resolve one through its __mie_name.
-        double gocart_scale_factor = 1.0; //!< Settling velocity multiplier [1]; parity option, unused on the metadata path.
-        bool gocart_simple_scheme = false; //!< Select the Mie optics-table path instead of species metadata.
-        int gocart_swelling_method = 1;    //!< Swelling scheme: 1 Fitzgerald 1975, 2 Gerber 1985.
+        double gocart_scale_factor =
+            1.0; //!< Settling velocity multiplier [1]; parity option, unused on the metadata path.
+        bool gocart_simple_scheme = false;     //!< Select the Mie optics-table path instead of species metadata.
+        int gocart_swelling_method = 1;        //!< Swelling scheme: 1 Fitzgerald 1975, 2 Gerber 1985.
         bool gocart_correction_maring = false; //!< Apply the Maring et al. (2003) settling-velocity correction.
         bool gocart_maring_dust_only = true;   //!< Restrict the Maring correction to dust species.
 
@@ -62,9 +63,9 @@ namespace catchem {
         // the full chemistry species list.  Do not pass C++ indices across
         // this language boundary: C++ is zero-based and Fortran is one-based.
         std::vector<char> aerosol_species_names; //!< Settling-subset species names, 32-byte blank-padded fixed width.
-        std::vector<double> host_radius_dry;     //!< Dry particle radius [µm], as configured (µm → m inside the scheme).
-        std::vector<double> host_rhop_dry;       //!< Dry particle density [kg/m3], as configured.
-        std::vector<int> host_is_dust;           //!< 0/1 dust flag per settling species (integer ABI, not logical).
+        std::vector<double> host_radius_dry; //!< Dry particle radius [µm], as configured (µm → m inside the scheme).
+        std::vector<double> host_rhop_dry;   //!< Dry particle density [kg/m3], as configured.
+        std::vector<int> host_is_dust;       //!< 0/1 dust flag per settling species (integer ABI, not logical).
         /// Per settling species' __mie_name (32-byte fixed width, same packing as
         /// aerosol_species_names).  The Fortran bridge maps these to loaded table
         /// indices; empty means unresolved and aborts initialization on the optics path.
@@ -77,9 +78,10 @@ namespace catchem {
         // diagnostic_species_id holds 1-based LOCAL positions within the
         // aerosol subset the bridge gathers (species_mie_map order), matching
         // the species_idx the scheme loops over.
-        bool diagnostics_enabled = false;  //!< Mirrors processes/settling/diagnostics; gates diagnostic pointer handoff.
-        std::vector<int> diagnostic_species_id;    //!< Selected diagnostic slots in 1-based LOCAL aerosol-subset space.
-        std::vector<std::string> diagnostic_species_names; //!< Short names parallel to ids, used for run() field lookups.
+        bool diagnostics_enabled = false; //!< Mirrors processes/settling/diagnostics; gates diagnostic pointer handoff.
+        std::vector<int> diagnostic_species_id; //!< Selected diagnostic slots in 1-based LOCAL aerosol-subset space.
+        std::vector<std::string>
+            diagnostic_species_names; //!< Short names parallel to ids, used for run() field lookups.
 
     public:
         /** @brief Constructs a settling process with the default scheme settings. */

@@ -52,24 +52,32 @@ extern "C" {
  * C boundary.
  */
 enum catchem_dataflow_status {
-    CATCHEM_SUCCESS = 0,                             ///< Operation completed; outputs are valid.
-    CATCHEM_NULL_ARGUMENT = 1,                       ///< A required pointer (handle, buffer, name, descriptor, output) was null.
-    CATCHEM_MISSING_FIELD = 2,                       ///< The named state or diagnostic field is not registered.
-    CATCHEM_RANK_MISMATCH = 3,                       ///< A diagnostic register call used a rank other than 2 or 3.
-    CATCHEM_EXTENT_MISMATCH = 4,                     ///< Declared extents disagree with the state, or a caller buffer is shorter than the required length.
-    CATCHEM_INVALID_INDEX = 5,                       ///< A species, process, field, alias or slot index is out of range for its container.
-    CATCHEM_STALE_GENERATION = 6,                    ///< A registered handle's generation differs from the requested one.
-    CATCHEM_DUPLICATE_MAPPING = 7,                   ///< Reserved: no code path currently returns it.
-    CATCHEM_INVALID_STATE = 8,                       ///< Prerequisite state absent or invalid (no active mechanism, bad axis ordinal, rejected config-driven create), or a rejected std::invalid_argument at the boundary.
-    CATCHEM_INTERNAL_ERROR = 9,                      ///< An unexpected exception escaped the operation, or handle registration failed.
-    CATCHEM_INVALID_HANDLE = 10,                     ///< Handle is unregistered (destroyed or never created), owned elsewhere, or its parent is gone.
-    CATCHEM_WRONG_HANDLE_TYPE = 11,                  ///< Handle is valid but registered under a different type than the call expects.
-    CATCHEM_RUNTIME_UNAVAILABLE = 12,                ///< Reserved: no code path currently returns it.
-    CATCHEM_CONTRACT_VIOLATION = 13,                 ///< A versioned descriptor has an unsupported schema_version/struct_size, an interval or invocation is malformed, or a manifest/Core cross-validation fingerprint mismatched.
-    CATCHEM_INVALID_CONFIGURATION = 14,              ///< A configuration or mechanism file failed to parse or validate.
-    CATCHEM_PROCESS_FAILURE = 15,                    ///< A selected process threw during catchem_core_run_process_checked (see the operation_status out-param).
-    CATCHEM_SHUTDOWN_FAILURE = 16,                   ///< A process finalize() threw during core destroy; remaining finalizers still ran and the Core was released.
-    CATCHEM_PHYSICAL_VALIDATION_FAILURE = 17         ///< Derived meteorology failed physical domain checks (e.g. negative pressure in a log/exp kernel).
+    CATCHEM_SUCCESS = 0,       ///< Operation completed; outputs are valid.
+    CATCHEM_NULL_ARGUMENT = 1, ///< A required pointer (handle, buffer, name, descriptor, output) was null.
+    CATCHEM_MISSING_FIELD = 2, ///< The named state or diagnostic field is not registered.
+    CATCHEM_RANK_MISMATCH = 3, ///< A diagnostic register call used a rank other than 2 or 3.
+    CATCHEM_EXTENT_MISMATCH =
+        4, ///< Declared extents disagree with the state, or a caller buffer is shorter than the required length.
+    CATCHEM_INVALID_INDEX = 5,    ///< A species, process, field, alias or slot index is out of range for its container.
+    CATCHEM_STALE_GENERATION = 6, ///< A registered handle's generation differs from the requested one.
+    CATCHEM_DUPLICATE_MAPPING = 7, ///< Reserved: no code path currently returns it.
+    CATCHEM_INVALID_STATE = 8,     ///< Prerequisite state absent or invalid (no active mechanism, bad axis ordinal,
+                               ///< rejected config-driven create), or a rejected std::invalid_argument at the boundary.
+    CATCHEM_INTERNAL_ERROR = 9, ///< An unexpected exception escaped the operation, or handle registration failed.
+    CATCHEM_INVALID_HANDLE =
+        10, ///< Handle is unregistered (destroyed or never created), owned elsewhere, or its parent is gone.
+    CATCHEM_WRONG_HANDLE_TYPE = 11,   ///< Handle is valid but registered under a different type than the call expects.
+    CATCHEM_RUNTIME_UNAVAILABLE = 12, ///< Reserved: no code path currently returns it.
+    CATCHEM_CONTRACT_VIOLATION =
+        13, ///< A versioned descriptor has an unsupported schema_version/struct_size, an interval or invocation is
+            ///< malformed, or a manifest/Core cross-validation fingerprint mismatched.
+    CATCHEM_INVALID_CONFIGURATION = 14, ///< A configuration or mechanism file failed to parse or validate.
+    CATCHEM_PROCESS_FAILURE =
+        15, ///< A selected process threw during catchem_core_run_process_checked (see the operation_status out-param).
+    CATCHEM_SHUTDOWN_FAILURE = 16, ///< A process finalize() threw during core destroy; remaining finalizers still ran
+                                   ///< and the Core was released.
+    CATCHEM_PHYSICAL_VALIDATION_FAILURE =
+        17 ///< Derived meteorology failed physical domain checks (e.g. negative pressure in a log/exp kernel).
 };
 
 /**
@@ -83,73 +91,79 @@ enum catchem_dataflow_status {
  * caller-owned-buffer protocol documented at the top of this file.
  */
 typedef struct catchem_manifest_species_v1 {
-    uint32_t schema_version;                 ///< Must be 1 on input.
-    uint32_t struct_size;                    ///< Must be sizeof(*this) on input.
-    uint32_t flags;                          ///< Bit 0: gas, bit 1: aerosol, bit 2: advected.
-    uint32_t amount_type;                    ///< AmountType ordinal: 0 unspecified, 1 mole fraction, 2 mass ratio, 3 number concentration (catchem_species_metadata.hpp).
-    uint32_t air_basis;                      ///< AirBasis ordinal: 0 unspecified, 1 dry, 2 moist, 3 total with condensate (catchem_species_metadata.hpp).
-    double molecular_weight_kg_mol;          ///< Molecular weight [kg mol-1].
-    int name_required_len;                   ///< Buffer size (incl. NUL) needed for the short name.
-    int standard_name_required_len;          ///< Buffer size (incl. NUL) needed for the CF standard name.
-    int units_required_len;                  ///< Buffer size (incl. NUL) needed for the units string.
-    int alias_count;                         ///< Number of aliases readable via catchem_manifest_get_species_alias_checked().
-    int role_count;                          ///< Number of semantic roles readable via catchem_manifest_get_species_role_checked().
+    uint32_t schema_version; ///< Must be 1 on input.
+    uint32_t struct_size;    ///< Must be sizeof(*this) on input.
+    uint32_t flags;          ///< Bit 0: gas, bit 1: aerosol, bit 2: advected.
+    uint32_t amount_type; ///< AmountType ordinal: 0 unspecified, 1 mole fraction, 2 mass ratio, 3 number concentration
+                          ///< (catchem_species_metadata.hpp).
+    uint32_t air_basis;   ///< AirBasis ordinal: 0 unspecified, 1 dry, 2 moist, 3 total with condensate
+                          ///< (catchem_species_metadata.hpp).
+    double molecular_weight_kg_mol; ///< Molecular weight [kg mol-1].
+    int name_required_len;          ///< Buffer size (incl. NUL) needed for the short name.
+    int standard_name_required_len; ///< Buffer size (incl. NUL) needed for the CF standard name.
+    int units_required_len;         ///< Buffer size (incl. NUL) needed for the units string.
+    int alias_count;                ///< Number of aliases readable via catchem_manifest_get_species_alias_checked().
+    int role_count; ///< Number of semantic roles readable via catchem_manifest_get_species_role_checked().
 } catchem_manifest_species_v1;
 
 /** @brief Versioned process availability and CCPP scheme metadata. */
 typedef struct catchem_manifest_process_v1 {
-    uint32_t schema_version;    ///< Must be 1 on input (see catchem_manifest_species_v1 for the convention).
-    uint32_t struct_size;       ///< Must be sizeof(*this) on input.
-    int available;              ///< Non-zero when the process is compiled into this build and registrable.
-    int name_required_len;      ///< Buffer size (incl. NUL) needed for the process name.
-    int scheme_required_len;    ///< Buffer size (incl. NUL) needed for the active CCPP scheme name.
+    uint32_t schema_version; ///< Must be 1 on input (see catchem_manifest_species_v1 for the convention).
+    uint32_t struct_size;    ///< Must be sizeof(*this) on input.
+    int available;           ///< Non-zero when the process is compiled into this build and registrable.
+    int name_required_len;   ///< Buffer size (incl. NUL) needed for the process name.
+    int scheme_required_len; ///< Buffer size (incl. NUL) needed for the active CCPP scheme name.
 } catchem_manifest_process_v1;
 
 /** @brief Host-supplied identity and duration for one selected process call. */
 typedef struct catchem_process_invocation_v1 {
-    uint32_t schema_version;    ///< Must be 1 on input (see catchem_manifest_species_v1 for the convention).
-    uint32_t struct_size;       ///< Must be sizeof(*this) on input.
-    uint64_t interval_id;       ///< Must equal the id of the currently open host interval.
-    const char* site;           ///< Host grid-tile/column identifier; non-empty, not retained after the call.
-    uint32_t subcycle;          ///< Host sub-cycle ordinal within the interval.
-    const char* process;        ///< Process name as reported by manifest discovery; not retained after the call.
-    double duration_seconds;    ///< Integration duration for this invocation [s]; must be positive.
+    uint32_t schema_version; ///< Must be 1 on input (see catchem_manifest_species_v1 for the convention).
+    uint32_t struct_size;    ///< Must be sizeof(*this) on input.
+    uint64_t interval_id;    ///< Must equal the id of the currently open host interval.
+    const char* site;        ///< Host grid-tile/column identifier; non-empty, not retained after the call.
+    uint32_t subcycle;       ///< Host sub-cycle ordinal within the interval.
+    const char* process;     ///< Process name as reported by manifest discovery; not retained after the call.
+    double duration_seconds; ///< Integration duration for this invocation [s]; must be positive.
 } catchem_process_invocation_v1;
 
 /** @brief Host-authoritative clock and duration for a process interval. */
 typedef struct catchem_host_interval_v1 {
-    uint32_t schema_version;    ///< Must be 1 on input (see catchem_manifest_species_v1 for the convention).
-    uint32_t struct_size;       ///< Must be sizeof(*this) on input.
-    uint64_t interval_id;       ///< Caller-chosen unique id pairing begin/end_interval and every invocation.
+    uint32_t schema_version; ///< Must be 1 on input (see catchem_manifest_species_v1 for the convention).
+    uint32_t struct_size;    ///< Must be sizeof(*this) on input.
+    uint64_t interval_id;    ///< Caller-chosen unique id pairing begin/end_interval and every invocation.
     int year, month, day, hour, minute, second, day_of_year; ///< UTC wall-clock components at the interval start.
-    double duration_seconds;    ///< Interval duration [s]; must be positive.
+    double duration_seconds;                                 ///< Interval duration [s]; must be positive.
 } catchem_host_interval_v1;
 
 /** @brief Summary of a process's field, diagnostic, product, and recovery contract. */
 typedef struct catchem_process_contract_v1 {
-    uint32_t schema_version;            ///< Must be 1 on input (see catchem_manifest_species_v1 for the convention).
-    uint32_t struct_size;               ///< Must be sizeof(*this) on input.
-    uint32_t recovery_capability;       ///< RecoveryCapability ordinal: 0 reconstructible, 1 requires reimport, 2 requires reinitialize (catchem_process_interface.hpp).
-    int process_name_required_len;      ///< Buffer size (incl. NUL) needed for the process name.
-    int field_count;                    ///< Number of field entries readable via catchem_core_get_process_field_checked().
-    int diagnostic_count;               ///< Number of diagnostics the process registers.
-    int product_requirement_count;      ///< Number of products the process consumes from other processes.
-    int produced_product_count;         ///< Number of products the process publishes.
+    uint32_t schema_version;       ///< Must be 1 on input (see catchem_manifest_species_v1 for the convention).
+    uint32_t struct_size;          ///< Must be sizeof(*this) on input.
+    uint32_t recovery_capability;  ///< RecoveryCapability ordinal: 0 reconstructible, 1 requires reimport, 2 requires
+                                   ///< reinitialize (catchem_process_interface.hpp).
+    int process_name_required_len; ///< Buffer size (incl. NUL) needed for the process name.
+    int field_count;               ///< Number of field entries readable via catchem_core_get_process_field_checked().
+    int diagnostic_count;          ///< Number of diagnostics the process registers.
+    int product_requirement_count; ///< Number of products the process consumes from other processes.
+    int produced_product_count;    ///< Number of products the process publishes.
 } catchem_process_contract_v1;
 
 /** @brief Rank, axes, access, persistence, and unit metadata for one process field. */
 typedef struct catchem_process_field_v1 {
-    uint32_t schema_version;      ///< Must be 1 on input (see catchem_manifest_species_v1 for the convention).
-    uint32_t struct_size;         ///< Must be sizeof(*this) on input.
-    int rank;                     ///< Declared rank (axes.size()); at most 4 or the query fails.
-    int axes[4];                  ///< SemanticAxis ordinal per dimension (Column, Level, Interface, SoilLayer, Species, Category, Singleton — see catchem_field_contract.hpp); unused slots are -1.
-    int persistence;              ///< PersistencePolicy ordinal: 0 timestep (re-imported every step), 1 persistent (static across the run).
-    int requirement;              ///< FieldRequirement ordinal: 0 required (absence is an error), 1 optional (scheme degrades gracefully).
-    int access;                   ///< AccessIntent ordinal: 0 read, 1 write, 2 read-write.
-    int execution_space;          ///< ExecutionSpaceIntent ordinal: 0 host, 1 device, 2 either.
-    int produced;                 ///< Non-zero when the process writes the field rather than consuming it.
-    int name_required_len;        ///< Buffer size (incl. NUL) needed for the field name.
-    int units_required_len;       ///< Buffer size (incl. NUL) needed for the units string.
+    uint32_t schema_version; ///< Must be 1 on input (see catchem_manifest_species_v1 for the convention).
+    uint32_t struct_size;    ///< Must be sizeof(*this) on input.
+    int rank;                ///< Declared rank (axes.size()); at most 4 or the query fails.
+    int axes[4];     ///< SemanticAxis ordinal per dimension (Column, Level, Interface, SoilLayer, Species, Category,
+                     ///< Singleton — see catchem_field_contract.hpp); unused slots are -1.
+    int persistence; ///< PersistencePolicy ordinal: 0 timestep (re-imported every step), 1 persistent (static across
+                     ///< the run).
+    int requirement; ///< FieldRequirement ordinal: 0 required (absence is an error), 1 optional (scheme degrades
+                     ///< gracefully).
+    int access;      ///< AccessIntent ordinal: 0 read, 1 write, 2 read-write.
+    int execution_space;    ///< ExecutionSpaceIntent ordinal: 0 host, 1 device, 2 either.
+    int produced;           ///< Non-zero when the process writes the field rather than consuming it.
+    int name_required_len;  ///< Buffer size (incl. NUL) needed for the field name.
+    int units_required_len; ///< Buffer size (incl. NUL) needed for the units string.
 } catchem_process_field_v1;
 
 /**
@@ -227,7 +241,8 @@ int catchem_manifest_get_species_count_checked(void* manifest, int* count_out);
  *         CATCHEM_EXTENT_MISMATCH (buffer too short; nothing copied),
  *         CATCHEM_INVALID_HANDLE, CATCHEM_WRONG_HANDLE_TYPE, CATCHEM_INVALID_STATE.
  */
-int catchem_manifest_get_species_name_checked(void* manifest, int index, char* buffer, int buffer_len, int* required_len);
+int catchem_manifest_get_species_name_checked(void* manifest, int index, char* buffer, int buffer_len,
+                                              int* required_len);
 /**
  * @brief Copy one species CF standard name using a caller-owned buffer.
  * @param manifest     Handle from catchem_manifest_open_checked().
@@ -238,7 +253,8 @@ int catchem_manifest_get_species_name_checked(void* manifest, int index, char* b
  * @return CATCHEM_SUCCESS, or the same status codes as
  *         catchem_manifest_get_species_name_checked().
  */
-int catchem_manifest_get_species_standard_name_checked(void* manifest, int index, char* buffer, int buffer_len, int* required_len);
+int catchem_manifest_get_species_standard_name_checked(void* manifest, int index, char* buffer, int buffer_len,
+                                                       int* required_len);
 /**
  * @brief Copy a species descriptor and its name, standard name, and units.
  * @param manifest          Handle from catchem_manifest_open_checked().
@@ -308,7 +324,8 @@ int catchem_manifest_get_process_count_checked(void* manifest, int* count_out);
  * @return CATCHEM_SUCCESS or the handle/argument/index/extent codes of
  *         catchem_manifest_get_species_name_checked().
  */
-int catchem_manifest_get_process_checked(void* manifest, int index, char* name, int name_len, int* required_len, int* available);
+int catchem_manifest_get_process_checked(void* manifest, int index, char* name, int name_len, int* required_len,
+                                         int* available);
 /**
  * @brief Copy a process descriptor, name, and CCPP scheme name.
  * @param manifest   Handle from catchem_manifest_open_checked().
@@ -408,9 +425,8 @@ int catchem_core_begin_interval_checked(void* core, const catchem_host_interval_
  *         bad descriptor), CATCHEM_NULL_ARGUMENT, or the handle codes of
  *         catchem_core_begin_interval_checked().
  */
-int catchem_core_run_process_checked(void* core, const catchem_process_invocation_v1* invocation,
-                                     int* operation_status, int* publication_eligible,
-                                     uint64_t* import_generation_out);
+int catchem_core_run_process_checked(void* core, const catchem_process_invocation_v1* invocation, int* operation_status,
+                                     int* publication_eligible, uint64_t* import_generation_out);
 /**
  * @brief End the matching host-owned process interval.
  * @param core        Core handle with the interval open.
@@ -436,8 +452,7 @@ int catchem_core_end_interval_checked(void* core, uint64_t interval_id);
  *         CATCHEM_EXTENT_MISMATCH (name buffer too short), or the handle codes
  *         of catchem_core_begin_interval_checked().
  */
-int catchem_core_get_process_contract_checked(void* core, int process_index,
-                                              catchem_process_contract_v1* descriptor,
+int catchem_core_get_process_contract_checked(void* core, int process_index, catchem_process_contract_v1* descriptor,
                                               char* process_name, int process_name_len);
 /**
  * @brief Read one field contract for a configured process.
@@ -458,8 +473,7 @@ int catchem_core_get_process_contract_checked(void* core, int process_index,
  *         of catchem_core_begin_interval_checked().
  */
 int catchem_core_get_process_field_checked(void* core, int process_index, int field_index,
-                                           catchem_process_field_v1* descriptor,
-                                           char* field_name, int field_name_len,
+                                           catchem_process_field_v1* descriptor, char* field_name, int field_name_len,
                                            char* units, int units_len);
 /**
  * @brief Destroy a Core handle and its owned resources.
@@ -1883,7 +1897,7 @@ double catchem_calculate_air_density(double temp, double press, double humidity,
 /**
  * @brief Molecular weight from a chemical formula string.
  * @param formula Hill-style formula, e.g. "SO2", "O3", "C7H16".
- * @return Molecular weight [g/mol], or 0.0 for an unparseable formula.
+ * @return Molecular weight [g/mol], or 0.0 when the formula is invalid.
  */
 double catchem_calculate_molecular_weight(const char* formula);
 /**

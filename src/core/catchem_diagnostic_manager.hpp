@@ -19,9 +19,9 @@
 // src/core/catchem_diagnostic_manager.hpp
 #pragma once
 #include "catchem_diagnostic.hpp"
+#include <cstdint>
 #include <memory>
 #include <string>
-#include <cstdint>
 #include <unordered_map>
 
 namespace catchem {
@@ -75,7 +75,7 @@ namespace catchem {
          *         re-registration whose shape, units, axes, policy or labels
          *         conflict with the existing field.
          * @note Registering an identical contract again is a silent no-op, which
-         *       lets processes re-declare diagnostics after a schedule rebuild.
+         *       lets processes redeclare diagnostics after a schedule rebuild.
          */
         void register_field_contract(const std::string& name, const std::string& desc, const std::string& units,
                                      DiagType type, const std::vector<int>& dims, DiagnosticPolicy policy,
@@ -180,8 +180,8 @@ namespace catchem {
         std::vector<std::string> get_registered_names() const;
 
     private:
-        std::size_t generation_ = 0;               ///< Monotonic generation counter over timesteps/intervals.
-        std::uint64_t last_interval_id_ = 0;       ///< Most recent interval id, for idempotent begin_interval().
+        std::size_t generation_ = 0;         ///< Monotonic generation counter over timesteps/intervals.
+        std::uint64_t last_interval_id_ = 0; ///< Most recent interval id, for idempotent begin_interval().
         /// Insertion order of field names. `fields` is an unordered_map, so this
         /// side-list is what makes get_registered_names() (and therefore the
         /// axes-driven diagnostic writer's variable order) deterministic.

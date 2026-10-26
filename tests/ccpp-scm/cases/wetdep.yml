@@ -36,7 +36,6 @@ tolerances:
     absolute: 1.0e-12
     relative: 1.0e-6
     rationale: Frozen before comparison using the established full-state native replay limit; all 2,921 values passed with zero observed error.
-    rationale: Provisional native-comparison limit; applicability awaits a same-input native reference run.
 budgets:
   - quantity: wetdep_column_mass
     equation: integrated species tendency equals diagnosed column removal

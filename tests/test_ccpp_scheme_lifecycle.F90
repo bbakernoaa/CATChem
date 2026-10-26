@@ -2,8 +2,8 @@
 program test_ccpp_scheme_lifecycle
    use iso_c_binding, only: c_int, c_int32_t, c_int64_t, c_double
    use CATChem_Context_Registry, only: ccpp_context_handle, ccpp_context_create, ccpp_context_destroy, &
-                                       ccpp_context_bind_manifest, ccpp_context_initialize_model, &
-                                       ccpp_context_get_model, CCPP_CTX_OK, CCPP_CTX_INVALID
+      ccpp_context_bind_manifest, ccpp_context_initialize_model, &
+      ccpp_context_get_model, CCPP_CTX_OK, CCPP_CTX_INVALID
    use CATChem_API, only: CATChem_Model, CATChem_Host_Interval_v1
    use lifecycle_test_host_data
    use ccpp_catchem_lifecycle_test_suite_timestep_lifecycle_cap
@@ -41,9 +41,9 @@ program test_ccpp_scheme_lifecycle
    call model%begin_interval(interval, errflg)
    call check(errflg == 0, 'begin checked selected-dispatch interval')
    call model%run_selected_process(501_c_int64_t, 'site', 0_c_int32_t, 'dust', 30.0_c_double, &
-                                   operation_status, publication_eligible, import_generation, errflg)
+      operation_status, publication_eligible, import_generation, errflg)
    call check(errflg /= 0 .and. operation_status == 1_c_int .and. .not. publication_eligible, &
-              'unavailable selected process is rejected without full-schedule fallback')
+      'unavailable selected process is rejected without full-schedule fallback')
    call model%end_interval(501_c_int64_t, errflg)
    call check(errflg == 0, 'end checked selected-dispatch interval')
    call timestep_lifecycle_state_alloc(1, errmsg, errflg)

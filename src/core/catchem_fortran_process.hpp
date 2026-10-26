@@ -35,7 +35,7 @@ namespace catchem {
      */
     class FortranProcess : public ProcessInterface {
     private:
-        std::string name;                    ///< Schedule name returned by get_name().
+        std::string name;                      ///< Schedule name returned by get_name().
         FortranBridgeCallback bridge_callback; ///< Fortran entry point; null means a no-op run.
 
     public:

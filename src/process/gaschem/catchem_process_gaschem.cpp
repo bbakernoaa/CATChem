@@ -28,10 +28,9 @@ namespace catchem {
 
     /** @brief Declare GasChem's concentration, thermodynamic, and fresh photolysis requirements. */
     ProcessContract GasChemProcess::get_contract() const {
-        auto contract = make_contract(
-            get_name(),
-            {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
-             host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()});
+        auto contract = make_contract(get_name(), {host_field_3d("T", "K"), host_field_3d("PMID", "Pa"),
+                                                   host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional),
+                                                   host_concentration()});
         for (const auto& product : photolysis_products)
             contract.products.push_back({product, "photolysis", true});
         return contract;
@@ -106,8 +105,8 @@ namespace catchem {
             micm_instance = std::make_unique<musica::MICM>(micm_config_path, musica::RosenbrockStandardOrder);
             if (state->config_manager()) {
                 const auto& config = *state->config_manager();
-                const double absolute_tolerance = config.get_double(
-                    "processes/gaschem/absolute_tolerance_mol_m3", -1.0);
+                const double absolute_tolerance =
+                    config.get_double("processes/gaschem/absolute_tolerance_mol_m3", -1.0);
                 const double relative_tolerance = config.get_double("processes/gaschem/relative_tolerance", -1.0);
                 const int max_solver_steps = config.get_int("processes/gaschem/max_solver_steps", 1000);
                 if (absolute_tolerance != -1.0 || relative_tolerance != -1.0 || max_solver_steps != 1000) {
@@ -117,8 +116,10 @@ namespace catchem {
                     parameters.max_number_of_steps = static_cast<std::size_t>(max_solver_steps);
                     if (absolute_tolerance != -1.0) {
                         if (!std::isfinite(absolute_tolerance) || absolute_tolerance <= 0.0)
-                            throw std::invalid_argument("GasChem absolute_tolerance_mol_m3 must be finite and positive");
-                        parameters.absolute_tolerances.assign(micm_instance->GetSpeciesOrdering().size(), absolute_tolerance);
+                            throw std::invalid_argument(
+                                "GasChem absolute_tolerance_mol_m3 must be finite and positive");
+                        parameters.absolute_tolerances.assign(micm_instance->GetSpeciesOrdering().size(),
+                                                              absolute_tolerance);
                     }
                     if (relative_tolerance != -1.0) {
                         if (!std::isfinite(relative_tolerance) || relative_tolerance <= 0.0)
@@ -225,11 +226,11 @@ namespace catchem {
             if (!product || product->availability != AvailabilityState::Current || product->generation_failed ||
                 product->generation != state->diagnostic_manager()->generation() ||
                 product->last_write_generation != product->generation)
-                throw std::runtime_error("GasChem requires a fresh successful photolysis prerequisite '" +
-                                         diag_name + "' for the current physics generation");
+                throw std::runtime_error("GasChem requires a fresh successful photolysis prerequisite '" + diag_name +
+                                         "' for the current physics generation");
             if (!state->diagnostic_manager()->get_host_read_pointer(diag_name))
-                throw std::runtime_error("GasChem photolysis prerequisite has no host-readable storage: '" +
-                                         diag_name + "'");
+                throw std::runtime_error("GasChem photolysis prerequisite has no host-readable storage: '" + diag_name +
+                                         "'");
         }
 
         // Dry air molecular weight in kg/mol (sourced from catchem::constants)
@@ -288,8 +289,8 @@ namespace catchem {
                         std::string label = param_name.substr(6);
                         std::string diag_name = "photolysis_rate_" + label;
 
-                        const double* diag_ptr = static_cast<const double*>(
-                            state->diagnostic_manager()->get_host_read_pointer(diag_name));
+                        const double* diag_ptr =
+                            static_cast<const double*>(state->diagnostic_manager()->get_host_read_pointer(diag_name));
                         const int diag_idx = ilev * nc + icol;
                         const double rate_val = diag_ptr[diag_idx];
                         if (!std::isfinite(rate_val) || rate_val < 0.0)
@@ -347,8 +348,8 @@ namespace catchem {
                     const auto& [name, index] = ledger_species[species];
                     std::ostringstream record;
                     record << std::setprecision(17) << "CATCHEM_GASCHEM_STATE column=" << cell % nc + 1
-                           << " level=" << cell / nc + 1 << " species=" << name
-                           << " initial=" << initial_solver_state[static_cast<size_t>(cell) * ledger_species.size() + species]
+                           << " level=" << cell / nc + 1 << " species=" << name << " initial="
+                           << initial_solver_state[static_cast<size_t>(cell) * ledger_species.size() + species]
                            << " final=" << micm_concs[solver_index(cell, index)] << " units=mol_m-3";
                     Logger::info(state.get(), record.str());
                 }
@@ -394,7 +395,8 @@ namespace catchem {
         // CATChem's staging state, but before the CCPP cap can publish it.
         const char* injected_process = std::getenv("CATCHEM_ACCEPTANCE_FAIL_AFTER_PROCESS");
         if (injected_process != nullptr && std::string_view(injected_process) == "gaschem") {
-            Logger::error(state.get(), "CATCHEM_ACCEPTANCE_PROCESS_FAILURE_INJECTED process=gaschem stage=after_state_mutation");
+            Logger::error(state.get(),
+                          "CATCHEM_ACCEPTANCE_PROCESS_FAILURE_INJECTED process=gaschem stage=after_state_mutation");
             throw std::runtime_error("Injected acceptance failure after GasChem staging-state mutation");
         }
 #endif

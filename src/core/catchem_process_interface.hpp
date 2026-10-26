@@ -18,11 +18,11 @@
  */
 #pragma once
 #include "catchem_state_manager.hpp"
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
-#include <cstdint>
 
 namespace catchem {
 
@@ -40,13 +40,13 @@ namespace catchem {
      * taints the Core, and @p state says how to recover.
      */
     struct TimestepOutcome {
-        TimestepStatus status = TimestepStatus::NotStarted;      ///< Where the step got to.
-        std::size_t timestep = 0;                               ///< Monotonic Core step ordinal.
-        double duration = 0.0;                                  ///< Step/interval duration [s].
-        std::size_t import_generation = 0;                      ///< State import generation the step executed against.
-        std::string process_name;                               ///< Failing process when PartialUpdate; else empty.
-        std::size_t process_index = 0;                          ///< Schedule index of the failing process.
-        std::string cause;                                      ///< Failure text (what()) or validation reason.
+        TimestepStatus status = TimestepStatus::NotStarted; ///< Where the step got to.
+        std::size_t timestep = 0;                           ///< Monotonic Core step ordinal.
+        double duration = 0.0;                              ///< Step/interval duration [s].
+        std::size_t import_generation = 0;                  ///< State import generation the step executed against.
+        std::string process_name;                           ///< Failing process when PartialUpdate; else empty.
+        std::size_t process_index = 0;                      ///< Schedule index of the failing process.
+        std::string cause;                                  ///< Failure text (what()) or validation reason.
         StateClassification state = StateClassification::Reusable; ///< Recovery the host owes after this result.
     };
 
@@ -77,9 +77,9 @@ namespace catchem {
      *        DiagnosticManager when the process initializes.
      */
     struct DiagnosticDeclaration {
-        std::string canonical_name;                 ///< Field name, matched case-insensitively.
-        std::string units;                          ///< CF-style units string, e.g. "kg m-2 s-1".
-        std::vector<SemanticAxis> axes;             ///< One axis per dimension; axis 0 must be Column.
+        std::string canonical_name;                                  ///< Field name, matched case-insensitively.
+        std::string units;                                           ///< CF-style units string, e.g. "kg m-2 s-1".
+        std::vector<SemanticAxis> axes;                              ///< One axis per dimension; axis 0 must be Column.
         PersistencePolicy persistence = PersistencePolicy::Timestep; ///< Reset each timestep, or persist.
     };
 
@@ -87,15 +87,15 @@ namespace catchem {
      * @brief A derived product a process consumes, with its expected producer.
      */
     struct ProductRequirement {
-        std::string name;       ///< Product name, e.g. a photolysis rate set.
-        std::string producer;   ///< Process that must publish it; required when required is true.
-        bool required = true;   ///< When false, an absent producer is not a validation error.
+        std::string name;     ///< Product name, e.g. a photolysis rate set.
+        std::string producer; ///< Process that must publish it; required when required is true.
+        bool required = true; ///< When false, an absent producer is not a validation error.
     };
 
     /** @brief A derived product a process publishes to later consumers. */
     struct ProductDeclaration {
-        std::string name;  ///< Product name; must be unique per producer/units pair.
-        std::string units; ///< Units the producer guarantees.
+        std::string name;             ///< Product name; must be unique per producer/units pair.
+        std::string units;            ///< Units the producer guarantees.
         bool input_versioned = false; ///< Product freshness follows producer read values, not import sequence alone.
     };
 
@@ -104,11 +104,11 @@ namespace catchem {
      *        for cross-scheme unit reconciliation.
      */
     struct ProcessSpeciesRepresentation {
-        std::string species_role;                      ///< Mechanism role selecting the species set.
-        std::string units;                             ///< Units the process reads/writes for those species.
+        std::string species_role;                         ///< Mechanism role selecting the species set.
+        std::string units;                                ///< Units the process reads/writes for those species.
         AmountType amount_type = AmountType::Unspecified; ///< Mixing-ratio basis; must be specified.
-        AirBasis air_basis = AirBasis::Unspecified;    ///< Dry/moist basis; must be specified.
-        std::string denominator_recipe;                ///< Named recipe for the air-mass denominator.
+        AirBasis air_basis = AirBasis::Unspecified;       ///< Dry/moist basis; must be specified.
+        std::string denominator_recipe;                   ///< Named recipe for the air-mass denominator.
     };
 
     /// What the host owes the Core after this process fails mid-run.
@@ -120,10 +120,10 @@ namespace catchem {
      * within an interval; repeating it is rejected by SelectedProcessLedger.
      */
     struct SelectedInvocationKey {
-        std::uint64_t interval = 0;   ///< Must equal the open host interval id.
-        std::string site;             ///< Host grid-tile or column identifier; non-empty.
-        std::uint32_t subcycle = 0;   ///< Host sub-cycle ordinal within the interval.
-        std::string process;          ///< Schedule name of the process to run; non-empty.
+        std::uint64_t interval = 0; ///< Must equal the open host interval id.
+        std::string site;           ///< Host grid-tile or column identifier; non-empty.
+        std::uint32_t subcycle = 0; ///< Host sub-cycle ordinal within the interval.
+        std::string process;        ///< Schedule name of the process to run; non-empty.
     };
 
     /// Result of admitting (or refusing) one selected-process invocation.
@@ -134,10 +134,10 @@ namespace catchem {
     struct SelectedOperationOutcome {
         /// Succeeded: the body ran; Rejected: never admitted; Failed: the body threw.
         SelectedOperationStatus status = SelectedOperationStatus::Rejected;
-        std::string process;                                       ///< Echoed invocation process name.
-        std::string cause;                                         ///< Rejection or failure reason; empty on success.
-        std::uint64_t import_generation = 0;                       ///< Import generation at execution; freshness key.
-        bool publication_eligible = false;                         ///< True only for Succeeded; host may publish.
+        std::string process;                 ///< Echoed invocation process name.
+        std::string cause;                   ///< Rejection or failure reason; empty on success.
+        std::uint64_t import_generation = 0; ///< Import generation at execution; freshness key.
+        bool publication_eligible = false;   ///< True only for Succeeded; host may publish.
     };
 
     // Build instances with make_contract() below rather than positional braces,
@@ -152,13 +152,13 @@ namespace catchem {
      * @see make_contract() for the recommended construction path.
      */
     struct ProcessContract {
-        std::string process_name;                                ///< Schedule name; must be non-empty.
-        std::vector<FieldAccessContract> fields;                 ///< Fields read/written; need name, units, axes.
+        std::string process_name;                ///< Schedule name; must be non-empty.
+        std::vector<FieldAccessContract> fields; ///< Fields read/written; need name, units, axes.
         /// Roles/capabilities the mechanism must supply.
         std::vector<MechanismRequirement> mechanism_requirements;
-        std::vector<DiagnosticDeclaration> diagnostics;          ///< Diagnostics registered at init.
-        std::vector<ProductRequirement> products;                ///< Products consumed; required ones name a producer.
-        std::vector<ProductDeclaration> produced_products;       ///< Products published by this process.
+        std::vector<DiagnosticDeclaration> diagnostics;    ///< Diagnostics registered at init.
+        std::vector<ProductRequirement> products;          ///< Products consumed; required ones name a producer.
+        std::vector<ProductDeclaration> produced_products; ///< Products published by this process.
         /// Species representations read natively by this process.
         std::vector<ProcessSpeciesRepresentation> native_representations;
         std::string concentration_amount_type = "species-native"; ///< Amount-type label for reconciliation.
@@ -182,9 +182,11 @@ namespace catchem {
                 if (diagnostic.canonical_name.empty() || diagnostic.units.empty() || diagnostic.axes.empty())
                     return false;
             for (const auto& product : products)
-                if (product.name.empty() || (product.required && product.producer.empty())) return false;
+                if (product.name.empty() || (product.required && product.producer.empty()))
+                    return false;
             for (const auto& product : produced_products)
-                if (product.name.empty() || product.units.empty()) return false;
+                if (product.name.empty() || product.units.empty())
+                    return false;
             for (const auto& representation : native_representations)
                 if (representation.species_role.empty() || representation.units.empty() ||
                     representation.amount_type == AmountType::Unspecified || representation.denominator_recipe.empty())

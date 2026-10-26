@@ -33,27 +33,27 @@ namespace catchem {
      * structural failure the caller can branch on.
      */
     enum class DataflowStatus : int {
-        Success = 0,         ///< Operation completed as requested.
-        NullArgument = 1,    ///< A required pointer or view argument was null.
-        MissingField = 2,    ///< No field is bound for the requested canonical name.
-        RankMismatch = 3,    ///< Requested rank differs from the bound field's rank.
-        ExtentMismatch = 4,  ///< Same rank but at least one extent differs.
-        InvalidIndex = 5,    ///< A column, level, or species index is out of bounds.
-        StaleGeneration = 6, ///< The field was not refreshed in the required import generation.
-        DuplicateMapping = 7,///< Two mappings claim the same target field.
-        InvalidState = 8,    ///< The field or manager is not in a state that allows the operation.
-        InternalError = 9    ///< An unexpected internal fault; report it upstream.
+        Success = 0,          ///< Operation completed as requested.
+        NullArgument = 1,     ///< A required pointer or view argument was null.
+        MissingField = 2,     ///< No field is bound for the requested canonical name.
+        RankMismatch = 3,     ///< Requested rank differs from the bound field's rank.
+        ExtentMismatch = 4,   ///< Same rank but at least one extent differs.
+        InvalidIndex = 5,     ///< A column, level, or species index is out of bounds.
+        StaleGeneration = 6,  ///< The field was not refreshed in the required import generation.
+        DuplicateMapping = 7, ///< Two mappings claim the same target field.
+        InvalidState = 8,     ///< The field or manager is not in a state that allows the operation.
+        InternalError = 9     ///< An unexpected internal fault; report it upstream.
     };
 
     /// Physical meaning of one field dimension, used to validate axis order.
     enum class SemanticAxis {
-        Column,     ///< Horizontal grid column (flattened tile index).
-        Level,      ///< Model layer midpoint.
-        Interface,  ///< Layer boundary (n_levels + 1 extent).
-        SoilLayer,  ///< Sub-surface layer or land-use category slot.
-        Species,    ///< Chemical species index into the mechanism.
-        Category,   ///< Emission or aerosol mode category.
-        Singleton   ///< Trivial length-1 dimension kept for rank compatibility.
+        Column,    ///< Horizontal grid column (flattened tile index).
+        Level,     ///< Model layer midpoint.
+        Interface, ///< Layer boundary (n_levels + 1 extent).
+        SoilLayer, ///< Sub-surface layer or land-use category slot.
+        Species,   ///< Chemical species index into the mechanism.
+        Category,  ///< Emission or aerosol mode category.
+        Singleton  ///< Trivial length-1 dimension kept for rank compatibility.
     };
 
     /// How long a field's contents stay valid across import generations.
@@ -79,9 +79,9 @@ namespace catchem {
 
     /// Caller's intended use of a field in one access contract.
     enum class AccessIntent {
-        Read,      ///< Field is consumed only.
-        Write,     ///< Field is produced only.
-        ReadWrite  ///< Field is both consumed and updated in place.
+        Read,     ///< Field is consumed only.
+        Write,    ///< Field is produced only.
+        ReadWrite ///< Field is both consumed and updated in place.
     };
 
     /// Where the caller wants the field's data to live during access.
@@ -116,11 +116,11 @@ namespace catchem {
      * plain data; nothing here allocates or references device memory.
      */
     struct FieldContract {
-        std::string canonical_name;                 ///< Uppercase field identifier.
-        std::string units;                          ///< CF-style unit string, e.g. "K" or "kg/m3".
-        std::vector<std::size_t> extents;           ///< Size of each dimension, one entry per axis.
-        std::vector<SemanticAxis> axes;             ///< Semantic meaning of each dimension.
-        std::vector<std::string> aliases;           ///< Alternate names accepted for this field.
+        std::string canonical_name;                                  ///< Uppercase field identifier.
+        std::string units;                                           ///< CF-style unit string, e.g. "K" or "kg/m3".
+        std::vector<std::size_t> extents;                            ///< Size of each dimension, one entry per axis.
+        std::vector<SemanticAxis> axes;                              ///< Semantic meaning of each dimension.
+        std::vector<std::string> aliases;                            ///< Alternate names accepted for this field.
         PersistencePolicy persistence = PersistencePolicy::Timestep; ///< Validity window of the data.
 
         /**
@@ -163,14 +163,14 @@ namespace catchem {
      * and the generation-staleness check. Plain value data with no ownership.
      */
     struct FieldAccessContract {
-        std::string canonical_name;                 ///< Requested field identifier.
-        std::string units;                          ///< Units the scheme expects, e.g. "kg/m3".
-        std::vector<SemanticAxis> axes;             ///< Axis order the scheme expects; its size gives the rank.
-        PersistencePolicy persistence = PersistencePolicy::Timestep; ///< Persistence the scheme assumes.
-        FieldRequirement requirement = FieldRequirement::Required;   ///< Whether the field is mandatory.
-        AccessIntent access = AccessIntent::Read;                    ///< Read, write, or in-place update.
+        std::string canonical_name;     ///< Requested field identifier.
+        std::string units;              ///< Units the scheme expects, e.g. "kg/m3".
+        std::vector<SemanticAxis> axes; ///< Axis order the scheme expects; its size gives the rank.
+        PersistencePolicy persistence = PersistencePolicy::Timestep;         ///< Persistence the scheme assumes.
+        FieldRequirement requirement = FieldRequirement::Required;           ///< Whether the field is mandatory.
+        AccessIntent access = AccessIntent::Read;                            ///< Read, write, or in-place update.
         ExecutionSpaceIntent execution_space = ExecutionSpaceIntent::Either; ///< Where data must live.
-        bool produced = false;                      ///< Set when the scheme creates the field itself.
+        bool produced = false; ///< Set when the scheme creates the field itself.
 
         /// True when the scheme consumes the field (Read or ReadWrite intent).
         bool reads() const noexcept { return access == AccessIntent::Read || access == AccessIntent::ReadWrite; }

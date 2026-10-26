@@ -5,15 +5,15 @@ module test_ccpp_property_mapping
    use ccpp_constituent_prop_mod, only: ccpp_constituent_properties_t, ccpp_constituent_prop_ptr_t
    use catchem_ccpp_context, only: ccpp_context_handle, catchem_ccpp_context_species_count
    use catchem_ccpp_adapter, only: catchem_ccpp_register_constituents, catchem_ccpp_build_mapping, &
-                                   catchem_ccpp_gather, catchem_ccpp_convert_to_host
+      catchem_ccpp_gather, catchem_ccpp_convert_to_host
    use CATChem_Context_Registry, only: ccpp_context_get_species_map, CCPP_CTX_OK, CCPP_CTX_INVALID
    implicit none
    private
    public :: run_ccpp_property_mapping_cases
 contains
    !> Exercise the adapter against real CCPP constituent property objects.
-  !! @param handle Initialized manifest context.
-  !! @param passed True only when permutation and conflict cases pass.
+   !! @param handle Initialized manifest context.
+   !! @param passed True only when permutation and conflict cases pass.
    subroutine run_ccpp_property_mapping_cases(handle, passed)
       type(ccpp_context_handle), intent(in) :: handle
       logical, intent(out) :: passed
@@ -57,9 +57,9 @@ contains
          end if
       end do
       call properties(species_count + 1)%instantiate(std_name='unrelated_host_tracer', &
-                                            long_name='unrelated host tracer', diag_name='unrelated_host_tracer', units='kg kg-1', &
-                                           vertical_dim='vertical_layer_dimension', advected=.false., default_value=0.0_kind_phys, &
-                                                    min_value=0.0_kind_phys, mixing_ratio_type='dry', errcode=errflg, errmsg=errmsg)
+         long_name='unrelated host tracer', diag_name='unrelated_host_tracer', units='kg kg-1', &
+         vertical_dim='vertical_layer_dimension', advected=.false., default_value=0.0_kind_phys, &
+         min_value=0.0_kind_phys, mixing_ratio_type='dry', errcode=errflg, errmsg=errmsg)
       if (errflg /= 0) return
       call properties(species_count + 1)%set_const_index(species_count + 1, errflg, errmsg)
       if (errflg /= 0) return
@@ -91,9 +91,9 @@ contains
       ! Exercise the real adapter gather with a noncontiguous constituent view,
       ! keeping species selected through their registered CCPP physical indices.
       allocate (host_backing(1, 4, 2*(species_count + 1)), host_density(1, 4), dry_density(1, 4), &
-                host_number_density(1, 4), dry_number_density(1, 4), &
-                canonical_forward(1, 4, species_count), canonical_reverse(1, 4, species_count), &
-                host_candidate(1, 4, species_count + 1), host_candidate_before(1, 4, species_count + 1))
+         host_number_density(1, 4), dry_number_density(1, 4), &
+         canonical_forward(1, 4, species_count), canonical_reverse(1, 4, species_count), &
+         host_candidate(1, 4, species_count + 1), host_candidate_before(1, 4, species_count + 1))
       host_view => host_backing(:, :, 1:2*(species_count + 1):2)
       host_view = 0.0_kind_phys
       do i = 1, species_count
@@ -108,7 +108,7 @@ contains
       host_number_density = 1.0_kind_phys
       dry_number_density = 1.0_kind_phys
       call catchem_ccpp_gather(handle, mapped_slots, host_view, host_density, dry_density, &
-                               host_number_density, dry_number_density, canonical_forward, errmsg, errflg)
+         host_number_density, dry_number_density, canonical_forward, errmsg, errflg)
       if (errflg /= 0) then
          print *, 'property mapping: adapter gather rejected noncontiguous view', errflg, trim(errmsg)
          return
@@ -126,7 +126,7 @@ contains
       host_candidate = 17.0_kind_phys
       host_candidate_before = host_candidate
       call catchem_ccpp_convert_to_host(handle, mapped_slots, canonical_forward, host_density, dry_density, &
-                                        host_number_density, dry_number_density, host_candidate, errmsg, errflg)
+         host_number_density, dry_number_density, host_candidate, errmsg, errflg)
       if (errflg == 0 .or. .not. same_bits_3d(host_candidate, host_candidate_before)) then
          print *, 'property mapping: final species conversion failure published a partial host candidate'
          return
@@ -157,9 +157,9 @@ contains
       call properties(1)%units(registered_units, property_status, errmsg)
       if (property_status /= 0) return
       call properties(1)%instantiate(std_name=trim(registered_name), long_name='conflicting long name', &
-                     diag_name='conflict', units=trim(registered_units), vertical_dim='vertical_layer_dimension', advected=.true., &
-                                     default_value=0.0_kind_phys, min_value=0.0_kind_phys, mixing_ratio_type='dry', &
-                                     errcode=errflg, errmsg=errmsg)
+         diag_name='conflict', units=trim(registered_units), vertical_dim='vertical_layer_dimension', advected=.true., &
+         default_value=0.0_kind_phys, min_value=0.0_kind_phys, mixing_ratio_type='dry', &
+         errcode=errflg, errmsg=errmsg)
       if (errflg /= 0) return
       call catchem_ccpp_build_mapping(handle, property_views, mapped_slots, errmsg, errflg)
       if (errflg == 0) return
@@ -169,23 +169,23 @@ contains
    end subroutine run_ccpp_property_mapping_cases
 
    !> Compare mapped canonical values bit for bit.
-  !! @param left First mapped array.
-  !! @param right Second mapped array.
-  !! @return True when their binary64 values are identical.
+   !! @param left First mapped array.
+   !! @param right Second mapped array.
+   !! @return True when their binary64 values are identical.
    pure logical function same_bits(left, right)
       real(c_double), intent(in) :: left(:, :), right(:, :)
       same_bits = all(transfer(left, [0_c_int64_t], size(left)) == &
-                      transfer(right, [0_c_int64_t], size(right)))
+         transfer(right, [0_c_int64_t], size(right)))
    end function same_bits
 
    !> Compare full host candidate arrays bit for bit.
-  !! @param left First candidate array.
-  !! @param right Candidate array expected to remain untouched.
-  !! @return True when every binary64 element matches.
+   !! @param left First candidate array.
+   !! @param right Candidate array expected to remain untouched.
+   !! @return True when every binary64 element matches.
    pure logical function same_bits_3d(left, right)
       real(kind_phys), intent(in) :: left(:, :, :), right(:, :, :)
       same_bits_3d = all(transfer(left, [0_c_int64_t], size(left)) == &
-                         transfer(right, [0_c_int64_t], size(right)))
+         transfer(right, [0_c_int64_t], size(right)))
    end function same_bits_3d
 
 end module test_ccpp_property_mapping

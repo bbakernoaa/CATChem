@@ -54,7 +54,8 @@ namespace catchem {
         // (processes/so4chem/gocart/*) and forwarded to the science bridge.
         /// GOCART: update the SO2 concentration from sulfate chemistry when true (default true).
         bool gocart_update_so2 = true;
-        /// GOCART: let the sulfate driver apply its own dry deposition of SO2 (default false; drydep handles it otherwise).
+        /// GOCART: let the sulfate driver apply its own dry deposition of SO2 (default false; drydep handles it
+        /// otherwise).
         bool gocart_do_drydep = false;
 
         // Persistent column states
@@ -72,9 +73,11 @@ namespace catchem {
         /// mixing ratio — the GOCART scheme seeds it from the climatology and recycles
         /// it across steps); [column_count, level_count], in/out.
         std::vector<double> xh2o2_init;
-        /// Per-layer gaseous SO2 → SO4 production rate [kg/kg/s]; [column_count, level_count], out — also copied to its diagnostic field.
+        /// Per-layer gaseous SO2 → SO4 production rate [kg/kg/s]; [column_count, level_count], out — also copied to its
+        /// diagnostic field.
         std::vector<double> pso4_g_so2;
-        /// Per-layer aqueous SO2 → SO4 production rate [kg/kg/s]; [column_count, level_count], out — also copied to its diagnostic field.
+        /// Per-layer aqueous SO2 → SO4 production rate [kg/kg/s]; [column_count, level_count], out — also copied to its
+        /// diagnostic field.
         std::vector<double> pso4_aq_so2;
         /// Per-layer DMS → SO2 production rate; [column_count, level_count], zero-initialised.
         /// Reserved in the bridge ABI alongside the other sulfur accumulators, but the

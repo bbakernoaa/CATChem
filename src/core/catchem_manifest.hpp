@@ -40,24 +40,24 @@ namespace catchem {
 
     /// One species as described by a manifest (no concentration storage).
     struct ManifestSpecies {
-        std::string name;                            ///< Canonical short name.
-        std::string standard_name;                   ///< CCPP/CF standard name.
-        std::string units;                           ///< Configured concentration units.
-        std::vector<std::string> aliases;            ///< Alternate accepted names.
-        std::vector<std::string> roles;              ///< Functional role labels.
-        SpeciesRepresentation host_representation;   ///< Representation of the host field.
+        std::string name;                                                     ///< Canonical short name.
+        std::string standard_name;                                            ///< CCPP/CF standard name.
+        std::string units;                                                    ///< Configured concentration units.
+        std::vector<std::string> aliases;                                     ///< Alternate accepted names.
+        std::vector<std::string> roles;                                       ///< Functional role labels.
+        SpeciesRepresentation host_representation;                            ///< Representation of the host field.
         std::map<std::string, SpeciesRepresentation> process_representations; ///< Per-process representations.
-        bool gas = false;      ///< Gas-phase species.
-        bool aerosol = false;  ///< Aerosol-phase species.
-        bool advected = true;  ///< Participates in transport.
-        double molecular_weight_kg_mol = 0.0; ///< Molecular weight [kg mol-1].
+        bool gas = false;                                                     ///< Gas-phase species.
+        bool aerosol = false;                                                 ///< Aerosol-phase species.
+        bool advected = true;                                                 ///< Participates in transport.
+        double molecular_weight_kg_mol = 0.0;                                 ///< Molecular weight [kg mol-1].
     };
 
     /// One process block as described by a manifest.
     struct ManifestProcess {
-        std::string name;      ///< Process key as written under the processes block.
-        bool available = false;///< True when the process block sets activate.
-        std::string scheme;    ///< Selected scheme name (empty when unset).
+        std::string name;       ///< Process key as written under the processes block.
+        bool available = false; ///< True when the process block sets activate.
+        std::string scheme;     ///< Selected scheme name (empty when unset).
     };
 
     /**
@@ -85,9 +85,13 @@ namespace catchem {
         explicit MechanismManifest(const std::string& config_path);
 
         const std::string& fingerprint() const noexcept { return fingerprint_; } ///< 16-hex configuration fingerprint.
-        const std::string& identity() const noexcept { return identity_; }      ///< Mechanism identity, "configured" when unset.
-        const std::vector<ManifestSpecies>& species() const noexcept { return species_; }   ///< Species in index order.
-        const std::vector<ManifestProcess>& processes() const noexcept { return processes_; } ///< Process blocks from configuration.
+        const std::string& identity() const noexcept {
+            return identity_;
+        } ///< Mechanism identity, "configured" when unset.
+        const std::vector<ManifestSpecies>& species() const noexcept { return species_; } ///< Species in index order.
+        const std::vector<ManifestProcess>& processes() const noexcept {
+            return processes_;
+        } ///< Process blocks from configuration.
 
         /**
          * @brief Resolve a species name or alias to its manifest index.
@@ -98,10 +102,10 @@ namespace catchem {
         std::size_t species_index(const std::string& name_or_alias) const;
 
     private:
-        std::string identity_;                                ///< Mechanism identity string.
-        std::string fingerprint_;                             ///< Configuration fingerprint.
-        std::vector<ManifestSpecies> species_;                ///< Manifest species list.
-        std::vector<ManifestProcess> processes_;              ///< Manifest process list.
+        std::string identity_;                                    ///< Mechanism identity string.
+        std::string fingerprint_;                                 ///< Configuration fingerprint.
+        std::vector<ManifestSpecies> species_;                    ///< Manifest species list.
+        std::vector<ManifestProcess> processes_;                  ///< Manifest process list.
         std::unordered_map<std::string, std::size_t> name_index_; ///< Canonical names/aliases -> species position.
     };
 

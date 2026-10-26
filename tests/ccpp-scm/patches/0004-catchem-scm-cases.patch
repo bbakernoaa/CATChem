@@ -3,8 +3,8 @@ diff --git a/scm/src/suite_info.py b/scm/src/suite_info.py
 +++ b/scm/src/suite_info.py
 @@ -81,6 +81,30 @@
  suite_list.append(suite('SCM_GFS_v16_gfdlmpv3',  'tracers_GFS_v16.txt',                  'input_GFS_v16_gfdlmpv3.nml',        600.0, 1800.0, False))
- 
- 
+
+
 +# CATChem suites use the locked GFS v17 tracer definitions and physics defaults.
 +# They are explicit integration choices and do not join SCM's stock supported run list.
 +_catchem_suite_defaults = {

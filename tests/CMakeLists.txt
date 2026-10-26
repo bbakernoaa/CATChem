@@ -120,13 +120,24 @@ catchem_add_architecture_test(test_c_api_compatibility test_c_api_compatibility.
 catchem_add_architecture_test(test_extension_process test_extension_process.cpp "mechanism;process-contract;lifecycle;dataflow")
 catchem_add_architecture_test(test_core_construction test_core_construction.cpp "mechanism;configuration;lifecycle")
 catchem_add_architecture_test(test_ccpp_manifest test_ccpp_manifest.cpp "mechanism;configuration;boundary")
-target_include_directories(test_ccpp_manifest PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(
+  test_ccpp_manifest
+  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
+)
 catchem_add_architecture_test(test_selected_process_dispatch test_selected_process_dispatch.cpp "process-contract;lifecycle;boundary")
 catchem_add_architecture_test(test_ccpp_operation_recovery test_ccpp_operation_recovery.cpp "ccpp;lifecycle;failure-recovery;boundary")
 catchem_add_architecture_test(test_ccpp_time_splitting test_ccpp_time_splitting.cpp "ccpp;lifecycle;time;diagnostics;failure-recovery")
-target_link_libraries(test_ccpp_operation_recovery PRIVATE
-  CATChem_process_settling CATChem_process_seasalt CATChem_process_drydep CATChem_process_wetdep
-  CATChem_process_so4chem CATChem_process_dust CATChem_process_carbchem)
+target_link_libraries(
+  test_ccpp_operation_recovery
+  PRIVATE
+    CATChem_process_settling
+    CATChem_process_seasalt
+    CATChem_process_drydep
+    CATChem_process_wetdep
+    CATChem_process_so4chem
+    CATChem_process_dust
+    CATChem_process_carbchem
+)
 catchem_add_architecture_test(
   test_ccpp_photolysis_dependencies
   test_ccpp_photolysis_dependencies.cpp
@@ -199,44 +210,69 @@ endif()
 
 if(CATCHEM_BUILD_CCPP)
   add_executable(test_ccpp_restart_capability test_ccpp_restart_capability.F90)
-  target_link_libraries(test_ccpp_restart_capability PRIVATE CCPP_CATChem_interface)
-  target_include_directories(test_ccpp_restart_capability PRIVATE
-    ${CMAKE_BINARY_DIR}/include
-    ${CATCHEM_CCPP_HOST_MODULE_DIR}
+  target_link_libraries(
+    test_ccpp_restart_capability
+    PRIVATE CCPP_CATChem_interface
   )
-  set_target_properties(test_ccpp_restart_capability PROPERTIES LINKER_LANGUAGE Fortran)
-  add_test(NAME test_ccpp_restart_capability COMMAND test_ccpp_restart_capability)
+  target_include_directories(
+    test_ccpp_restart_capability
+    PRIVATE ${CMAKE_BINARY_DIR}/include ${CATCHEM_CCPP_HOST_MODULE_DIR}
+  )
+  set_target_properties(
+    test_ccpp_restart_capability
+    PROPERTIES LINKER_LANGUAGE Fortran
+  )
+  add_test(
+    NAME test_ccpp_restart_capability
+    COMMAND test_ccpp_restart_capability
+  )
   catchem_label_tests("ccpp;restart;capability" test_ccpp_restart_capability)
 
   add_executable(test_ccpp_layout test_ccpp_layout.F90)
   target_link_libraries(test_ccpp_layout PRIVATE CCPP_CATChem_interface)
-  target_include_directories(test_ccpp_layout PRIVATE
-    ${CMAKE_BINARY_DIR}/include
-    ${CATCHEM_CCPP_HOST_MODULE_DIR}
+  target_include_directories(
+    test_ccpp_layout
+    PRIVATE ${CMAKE_BINARY_DIR}/include ${CATCHEM_CCPP_HOST_MODULE_DIR}
   )
   if(CATCHEM_CCPP_TEST_STUBS)
-    target_include_directories(test_ccpp_layout PRIVATE ${CMAKE_BINARY_DIR}/ccpp-test-modules)
+    target_include_directories(
+      test_ccpp_layout
+      PRIVATE ${CMAKE_BINARY_DIR}/ccpp-test-modules
+    )
   endif()
   set_target_properties(test_ccpp_layout PROPERTIES LINKER_LANGUAGE Fortran)
   add_test(NAME test_ccpp_layout COMMAND test_ccpp_layout)
   catchem_label_tests("ccpp;layout;physical-validation" test_ccpp_layout)
 
   if(CATCHEM_CCPP_TEST_STUBS OR CATCHEM_CCPP_HOST_TARGET)
-    add_executable(test_ccpp_property_mapping
+    add_executable(
+      test_ccpp_property_mapping
       test_ccpp_property_mapping_main.F90
       test_ccpp_property_mapping.F90
     )
-    target_link_libraries(test_ccpp_property_mapping PRIVATE CCPP_CATChem_interface)
-    target_include_directories(test_ccpp_property_mapping PRIVATE
-      ${CMAKE_BINARY_DIR}/include
-      ${CATCHEM_CCPP_HOST_MODULE_DIR}
+    target_link_libraries(
+      test_ccpp_property_mapping
+      PRIVATE CCPP_CATChem_interface
+    )
+    target_include_directories(
+      test_ccpp_property_mapping
+      PRIVATE ${CMAKE_BINARY_DIR}/include ${CATCHEM_CCPP_HOST_MODULE_DIR}
     )
     if(CATCHEM_CCPP_TEST_STUBS)
-      target_include_directories(test_ccpp_property_mapping PRIVATE ${CMAKE_BINARY_DIR}/ccpp-test-modules)
+      target_include_directories(
+        test_ccpp_property_mapping
+        PRIVATE ${CMAKE_BINARY_DIR}/ccpp-test-modules
+      )
     endif()
-    set_target_properties(test_ccpp_property_mapping PROPERTIES LINKER_LANGUAGE Fortran)
+    set_target_properties(
+      test_ccpp_property_mapping
+      PROPERTIES LINKER_LANGUAGE Fortran
+    )
     add_test(NAME test_ccpp_property_mapping COMMAND test_ccpp_property_mapping)
-    set_tests_properties(test_ccpp_property_mapping PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(
+      test_ccpp_property_mapping
+      PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
     catchem_label_tests("ccpp;mapping;property-validation" test_ccpp_property_mapping)
   endif()
 
@@ -257,9 +293,16 @@ if(CATCHEM_BUILD_CCPP)
     add_test(NAME test_ccpp_integration COMMAND test_ccpp_integration)
     catchem_label_tests("integration;dataflow;boundary;performance" test_ccpp_integration)
   endif()
-  add_executable(benchmark_ccpp_exchange EXCLUDE_FROM_ALL benchmark_ccpp_exchange.F90)
+  add_executable(
+    benchmark_ccpp_exchange
+    EXCLUDE_FROM_ALL
+    benchmark_ccpp_exchange.F90
+  )
   target_link_libraries(benchmark_ccpp_exchange PRIVATE CCPP_CATChem_interface)
-  set_target_properties(benchmark_ccpp_exchange PROPERTIES LINKER_LANGUAGE Fortran)
+  set_target_properties(
+    benchmark_ccpp_exchange
+    PROPERTIES LINKER_LANGUAGE Fortran
+  )
   file(
     COPY ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/host_conformance
     DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
@@ -268,48 +311,75 @@ endif()
 
 if(TARGET CATChem)
   target_compile_definitions(CATChem PRIVATE CATCHEM_CONTEXT_TESTING)
-  add_executable(test_ccpp_context
+  add_executable(
+    test_ccpp_context
     test_ccpp_context.F90
     test_ccpp_constituent_mapping.F90
     ccpp_context_finalize_failure.cpp
   )
   target_compile_definitions(test_ccpp_context PRIVATE CATCHEM_CONTEXT_TESTING)
   target_link_libraries(test_ccpp_context PRIVATE CATChem)
-  set_target_properties(test_ccpp_context PROPERTIES
-    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
-    LINKER_LANGUAGE CXX
+  set_target_properties(
+    test_ccpp_context
+    PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+      LINKER_LANGUAGE CXX
   )
-  target_include_directories(test_ccpp_context PRIVATE
-    ${CMAKE_BINARY_DIR}/include
-    ${CATCHEM_CCPP_HOST_MODULE_DIR}
+  target_include_directories(
+    test_ccpp_context
+    PRIVATE ${CMAKE_BINARY_DIR}/include ${CATCHEM_CCPP_HOST_MODULE_DIR}
   )
   add_test(NAME test_ccpp_context COMMAND test_ccpp_context)
-  set_tests_properties(test_ccpp_context PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(
+    test_ccpp_context
+    PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
   catchem_label_tests("ccpp;context;boundary;mapping;physical-validation" test_ccpp_context)
 
-  add_executable(test_catchem_api_fortran_dispatch test_catchem_api_fortran_dispatch.F90)
-  target_link_libraries(test_catchem_api_fortran_dispatch PRIVATE CATChem)
-  set_target_properties(test_catchem_api_fortran_dispatch PROPERTIES
-    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
-    LINKER_LANGUAGE Fortran
+  add_executable(
+    test_catchem_api_fortran_dispatch
+    test_catchem_api_fortran_dispatch.F90
   )
-  target_include_directories(test_catchem_api_fortran_dispatch PRIVATE ${CMAKE_BINARY_DIR}/include)
-  add_test(NAME test_catchem_api_fortran_dispatch COMMAND test_catchem_api_fortran_dispatch)
-  set_tests_properties(test_catchem_api_fortran_dispatch PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  target_link_libraries(test_catchem_api_fortran_dispatch PRIVATE CATChem)
+  set_target_properties(
+    test_catchem_api_fortran_dispatch
+    PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+      LINKER_LANGUAGE Fortran
+  )
+  target_include_directories(
+    test_catchem_api_fortran_dispatch
+    PRIVATE ${CMAKE_BINARY_DIR}/include
+  )
+  add_test(
+    NAME test_catchem_api_fortran_dispatch
+    COMMAND test_catchem_api_fortran_dispatch
+  )
+  set_tests_properties(
+    test_catchem_api_fortran_dispatch
+    PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
   catchem_label_tests("boundary;compatibility;ccpp" test_catchem_api_fortran_dispatch)
 
-  add_executable(test_ccpp_conversions test_ccpp_conversions.F90 ${PROJECT_SOURCE_DIR}/drivers/ccpp/catchem_ccpp_conversion.F90)
-  set_target_properties(test_ccpp_conversions PROPERTIES
-    Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ccpp-conversion-modules
-    LINKER_LANGUAGE Fortran
+  add_executable(
+    test_ccpp_conversions
+    test_ccpp_conversions.F90
+    ${PROJECT_SOURCE_DIR}/drivers/ccpp/catchem_ccpp_conversion.F90
+  )
+  set_target_properties(
+    test_ccpp_conversions
+    PROPERTIES
+      Fortran_MODULE_DIRECTORY
+        ${CMAKE_CURRENT_BINARY_DIR}/ccpp-conversion-modules
+      LINKER_LANGUAGE Fortran
   )
   file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ccpp-conversion-modules)
-  target_include_directories(test_ccpp_conversions PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/ccpp-conversion-modules)
+  target_include_directories(
+    test_ccpp_conversions
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/ccpp-conversion-modules
+  )
   add_test(NAME test_ccpp_conversions COMMAND test_ccpp_conversions)
   catchem_label_tests("ccpp;conversion;physical-validation" test_ccpp_conversions)
-
 endif()
 
 # Foundational Fortran testing helper library.  Restored for the spec-011 US4
@@ -754,7 +824,10 @@ if(CATCHEM_BUILD_MUSICA)
     default_parity_candidate_runner
     PRIVATE catchem_process_photolysis catchem_process_gaschem
   )
-  target_compile_definitions(default_parity_candidate_runner PRIVATE CATCHEM_PARITY_HAS_MUSICA=1)
+  target_compile_definitions(
+    default_parity_candidate_runner
+    PRIVATE CATCHEM_PARITY_HAS_MUSICA=1
+  )
 endif()
 
 # The comparator is intentionally independent of either core: legacy and C++

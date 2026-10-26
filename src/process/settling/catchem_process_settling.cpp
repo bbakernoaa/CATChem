@@ -20,8 +20,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <iomanip>
-#include <sstream>
 #include <mutex>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -31,7 +31,7 @@ namespace catchem {
     namespace {
         /** @brief Serializes calls into the module-stateful GOCART bridge. */
         std::mutex settling_bridge_mutex;
-    }
+    } // namespace
 
     /**
      * @brief Calls the Fortran settling kernel using one Mie context handle.
@@ -50,9 +50,9 @@ namespace catchem {
      * matching the Fortran max(n_diag_species,1) dummy shape).
      */
     extern "C" void run_settling_science_bridge(
-        int n_columns, int n_levels, int n_aerosols, int n_total_species, int mie_handle, double dt, double scale_factor,
-        int swelling_method, int correction_maring, int maring_dust_only, const double* airden, const double* delp,
-        const double* pmid, const double* rh, const double* temperature, const double* z_edge,
+        int n_columns, int n_levels, int n_aerosols, int n_total_species, int mie_handle, double dt,
+        double scale_factor, int swelling_method, int correction_maring, int maring_dust_only, const double* airden,
+        const double* delp, const double* pmid, const double* rh, const double* temperature, const double* z_edge,
         const char* aerosol_species_names, const char* species_names, const int* species_is_dust, const double* radius,
         const double* density, double* concentration, int simple_scheme, const char* aerosol_mie_names,
         double* diag_velocity, double* diag_flux, const int* diagnostic_species_id, int n_diag_species, int* bridge_rc);
@@ -177,15 +177,16 @@ namespace catchem {
             int init_rc = 0;
             {
                 std::lock_guard<std::mutex> guard(settling_bridge_mutex);
-                run_settling_mie_init(static_cast<int>(mie.files.size()), type_names.data(), file_paths.data(), &mie_handle,
-                                      &init_rc);
+                run_settling_mie_init(static_cast<int>(mie.files.size()), type_names.data(), file_paths.data(),
+                                      &mie_handle, &init_rc);
             }
             if (init_rc != 0) {
                 const auto& failed = mie.files[static_cast<size_t>(init_rc) - 1];
                 throw std::runtime_error("Settling optics table load failed for file #" + std::to_string(init_rc) +
                                          " ('" + failed.first + "': " + failed.second + ")");
             }
-            if (mie_handle <= 0) throw std::runtime_error("Settling optics table load returned an invalid handle");
+            if (mie_handle <= 0)
+                throw std::runtime_error("Settling optics table load returned an invalid handle");
         }
         Logger::debug(
             state.get(), "Settling scheme options",
@@ -365,8 +366,8 @@ namespace catchem {
 
         std::vector<double> concentration_before;
         if (diag_flux && n_diag_species > 0) {
-            const size_t concentration_size = static_cast<size_t>(state->column_count()) * state->level_count() *
-                                              state->species_count();
+            const size_t concentration_size =
+                static_cast<size_t>(state->column_count()) * state->level_count() * state->species_count();
             concentration_before.assign(state->chemistry().conc->host_data(),
                                         state->chemistry().conc->host_data() + concentration_size);
         }
@@ -374,8 +375,7 @@ namespace catchem {
         std::lock_guard<std::mutex> guard(settling_bridge_mutex);
         run_settling_science_bridge(
             state->column_count(), state->level_count(), num_aerosols, state->species_count(), mie_handle,
-            state->clock().timestep,
-            gocart_scale_factor, gocart_swelling_method, gocart_correction_maring ? 1 : 0,
+            state->clock().timestep, gocart_scale_factor, gocart_swelling_method, gocart_correction_maring ? 1 : 0,
             gocart_maring_dust_only ? 1 : 0, state->meteorology().AIRDEN->host_data(), delp, pmid,
             state->meteorology().RH->host_data(), state->meteorology().T->host_data(), z_edge,
             aerosol_species_names.data(), state->chemistry().species_names_c_arr.data(), host_is_dust.data(),
@@ -421,9 +421,9 @@ namespace catchem {
                 Logger::info(state.get(), record.str());
             }
             std::ostringstream budget_record;
-            budget_record << std::setprecision(17) << "CATCHEM_BUDGET name=settling_column_mass RESIDUAL="
-                          << (mass_loss - boundary_flux_mass) << " MASS_LOSS=" << mass_loss
-                          << " BOUNDARY_FLUX_MASS=" << boundary_flux_mass;
+            budget_record << std::setprecision(17)
+                          << "CATCHEM_BUDGET name=settling_column_mass RESIDUAL=" << (mass_loss - boundary_flux_mass)
+                          << " MASS_LOSS=" << mass_loss << " BOUNDARY_FLUX_MASS=" << boundary_flux_mass;
             Logger::info(state.get(), budget_record.str());
         }
         state->chemistry().conc->mark_host_modified();

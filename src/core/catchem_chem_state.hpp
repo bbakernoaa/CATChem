@@ -18,8 +18,8 @@
  */
 #pragma once
 #include "catchem_config_manager.hpp"
-#include "catchem_manifest.hpp"
 #include "catchem_interop_field.hpp"
+#include "catchem_manifest.hpp"
 #include "catchem_species_metadata.hpp"
 #include <algorithm>
 #include <cctype>
@@ -40,24 +40,25 @@ namespace catchem {
      */
     struct ChemState {
         /// Single unified 3D View (cols, levels, species)
-        std::shared_ptr<InteropField<double, 3>> conc;                ///< Host-bound concentration array, null until bind_unified_chemistry().
-        std::shared_ptr<const MechanismDefinition> mechanism;         ///< Immutable indexed mechanism, rebuilt on every load.
+        std::shared_ptr<InteropField<double, 3>>
+            conc; ///< Host-bound concentration array, null until bind_unified_chemistry().
+        std::shared_ptr<const MechanismDefinition> mechanism; ///< Immutable indexed mechanism, rebuilt on every load.
 
         /// Species metadata database
-        std::vector<SpeciesMetadata> species_list;                        ///< Metadata in concentration-array index order.
+        std::vector<SpeciesMetadata> species_list;                  ///< Metadata in concentration-array index order.
         std::unordered_map<std::string, int> species_name_to_index; //!< Uppercased short names to 0-based index.
 
         /// Pre-filtered category lists (0-based species indices)
-        std::vector<int> gas_indices;         ///< is_gas species.
-        std::vector<int> aerosol_indices;     ///< is_aerosol species.
-        std::vector<int> settling_indices;    ///< Aerosols with do_settling.
-        std::vector<int> tracer_indices;      ///< is_tracer species.
-        std::vector<int> advected_indices;    ///< is_advected species.
-        std::vector<int> drydep_indices;      ///< is_drydep species.
-        std::vector<int> wetdep_indices;      ///< is_wetdep species.
-        std::vector<int> photolysis_indices;  ///< is_photolysis species.
-        std::vector<int> dust_indices;        ///< is_dust species.
-        std::vector<int> seasalt_indices;     ///< is_seasalt species.
+        std::vector<int> gas_indices;        ///< is_gas species.
+        std::vector<int> aerosol_indices;    ///< is_aerosol species.
+        std::vector<int> settling_indices;   ///< Aerosols with do_settling.
+        std::vector<int> tracer_indices;     ///< is_tracer species.
+        std::vector<int> advected_indices;   ///< is_advected species.
+        std::vector<int> drydep_indices;     ///< is_drydep species.
+        std::vector<int> wetdep_indices;     ///< is_wetdep species.
+        std::vector<int> photolysis_indices; ///< is_photolysis species.
+        std::vector<int> dust_indices;       ///< is_dust species.
+        std::vector<int> seasalt_indices;    ///< is_seasalt species.
 
         /// Pre-compute and cache flat C-linkable species name character array
         std::vector<char> species_names_c_arr; //!< 32 blank-padded uppercase chars per species, for Fortran interop.

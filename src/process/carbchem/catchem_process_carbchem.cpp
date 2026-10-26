@@ -190,8 +190,8 @@ namespace catchem {
         // The GOCART ageing operation transfers BC/OC between hydrophobic
         // and hydrophilic bins. Keep the pre-call inventory so the selected
         // process can report a column-integrated carbon mass closure.
-        const std::size_t concentration_size = static_cast<std::size_t>(state->column_count()) *
-                                               state->level_count() * state->species_count();
+        const std::size_t concentration_size =
+            static_cast<std::size_t>(state->column_count()) * state->level_count() * state->species_count();
         std::vector<double> concentration_before(conc_ptr, conc_ptr + concentration_size);
 
         // Allocate local tendencies buffer
@@ -232,7 +232,8 @@ namespace catchem {
                 const auto& metadata = state->chemistry().species_list.at(diagnostic_species_id[slot] - 1);
                 std::string name = metadata.short_name;
                 std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
-                if (name != "bc1" && name != "bc2" && name != "oc1" && name != "oc2") continue;
+                if (name != "bc1" && name != "bc2" && name != "oc1" && name != "oc2")
+                    continue;
                 double transfer = 0.0, chemical_loss = 0.0;
                 for (std::size_t cell = 0; cell < species_slab; ++cell) {
                     transfer += diag_phobic_mass[slot * species_slab + cell] * delp_ptr[cell] / 9.80665;
@@ -252,7 +253,8 @@ namespace catchem {
                 std::string short_name = state->chemistry().species_list[species].short_name;
                 std::transform(short_name.begin(), short_name.end(), short_name.begin(),
                                [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
-                if (short_name != carbon_species) continue;
+                if (short_name != carbon_species)
+                    continue;
                 found = true;
                 const std::size_t offset = species * species_slab;
                 for (std::size_t cell = 0; cell < species_slab; ++cell) {
@@ -262,9 +264,11 @@ namespace catchem {
                 break;
             }
             if (!found)
-                throw std::runtime_error(std::string("CarbChem carbon mass budget is missing species ") + carbon_species);
+                throw std::runtime_error(std::string("CarbChem carbon mass budget is missing species ") +
+                                         carbon_species);
         }
-        const double carbon_mass_residual = std::abs(carbon_mass_before - carbon_mass_after) /
+        const double carbon_mass_residual =
+            std::abs(carbon_mass_before - carbon_mass_after) /
             std::max(std::abs(carbon_mass_before) + std::abs(carbon_mass_after), 1.0e-30);
         std::ostringstream budget_record;
         budget_record << "CATCHEM_BUDGET name=carbchem_carbon_mass RESIDUAL=" << std::scientific

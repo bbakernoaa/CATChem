@@ -352,8 +352,9 @@ namespace catchem {
                     bin_sum += diag_mass_bin_ptr[column + state->column_count() * bin];
             }
             std::ostringstream budget_record;
-            budget_record << std::setprecision(17) << "CATCHEM_BUDGET name=seasalt_bin_closure RESIDUAL="
-                          << (total_sum - bin_sum) << " TOTAL=" << total_sum << " BIN_SUM=" << bin_sum;
+            budget_record << std::setprecision(17)
+                          << "CATCHEM_BUDGET name=seasalt_bin_closure RESIDUAL=" << (total_sum - bin_sum)
+                          << " TOTAL=" << total_sum << " BIN_SUM=" << bin_sum;
             Logger::info(state.get(), budget_record.str());
         }
 

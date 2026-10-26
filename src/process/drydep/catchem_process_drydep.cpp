@@ -187,8 +187,7 @@ namespace catchem {
             const std::vector<SemanticAxis> axes_2d = {SemanticAxis::Column, SemanticAxis::Species};
             state->diagnostic_manager()->register_field_contract(
                 "drydep_con_per_species", "Deposition Concentration (species-native units)", "species-specific",
-                DiagType::FIELD_2D, dims_2d,
-                DiagnosticPolicy::Instantaneous, 0.0, axes_2d, drydep_labels);
+                DiagType::FIELD_2D, dims_2d, DiagnosticPolicy::Instantaneous, 0.0, axes_2d, drydep_labels);
             state->diagnostic_manager()->register_field_contract(
                 "drydep_velocity_per_species", "Deposition Velocity", "m/s", DiagType::FIELD_2D, dims_2d,
                 DiagnosticPolicy::Instantaneous, 0.0, axes_2d, drydep_labels);
@@ -315,8 +314,7 @@ namespace catchem {
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("DryDep", "CHEM_CONC", conc_ptr);
         const std::size_t concentration_slab = static_cast<std::size_t>(state->column_count()) * state->level_count();
-        std::vector<double> concentration_before(conc_ptr, conc_ptr +
-            concentration_slab * state->species_count());
+        std::vector<double> concentration_before(conc_ptr, conc_ptr + concentration_slab * state->species_count());
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->column_count() * state->level_count() * state->species_count(), 0.0);
@@ -408,7 +406,8 @@ namespace catchem {
         // Kernel interfaces operate over the full catalog; only explicitly
         // participating species may publish their result back to the model.
         for (std::size_t species = 0; species < state->chemistry().species_list.size(); ++species) {
-            if (state->chemistry().species_list[species].is_drydep) continue;
+            if (state->chemistry().species_list[species].is_drydep)
+                continue;
             std::copy_n(concentration_before.data() + species * concentration_slab, concentration_slab,
                         conc_ptr + species * concentration_slab);
         }
@@ -422,12 +421,15 @@ namespace catchem {
             const std::size_t ncol = static_cast<std::size_t>(state->column_count());
             for (std::size_t packed_slot = 0; packed_slot < diagnostic_species_id.size(); ++packed_slot) {
                 const int species_index = diagnostic_species_id[packed_slot] - 1;
-                if (species_index < 0 || static_cast<std::size_t>(species_index) >= state->chemistry().species_list.size())
+                if (species_index < 0 ||
+                    static_cast<std::size_t>(species_index) >= state->chemistry().species_list.size())
                     throw std::runtime_error("DryDep typed diagnostic received an invalid species index");
-                const bool is_gas_species = state->chemistry().species_list[static_cast<std::size_t>(species_index)].is_gas;
+                const bool is_gas_species =
+                    state->chemistry().species_list[static_cast<std::size_t>(species_index)].is_gas;
                 double* typed_output = is_gas_species ? gas_diag_con : aerosol_diag_con;
                 const int typed_slot = is_gas_species ? gas_slot++ : aerosol_slot++;
-                if (!typed_output) continue;
+                if (!typed_output)
+                    continue;
                 for (std::size_t column = 0; column < ncol; ++column)
                     typed_output[static_cast<std::size_t>(typed_slot) * ncol + column] =
                         diag_con[packed_slot * ncol + column];
@@ -440,15 +442,14 @@ namespace catchem {
             for (std::size_t slot = 0; slot < diagnostic_species_id.size(); ++slot) {
                 const auto species = static_cast<std::size_t>(diagnostic_species_id[slot] - 1);
                 const auto& metadata = state->chemistry().species_list.at(species);
-                const double amount_scale = metadata.is_gas
-                    ? 1.0e-6 * metadata.mw_g / 28.9647 : 1.0e-9;
+                const double amount_scale = metadata.is_gas ? 1.0e-6 * metadata.mw_g / 28.9647 : 1.0e-9;
                 double sink = 0.0;
                 for (int column = 0; column < state->column_count(); ++column)
                     sink += diag_con[slot * state->column_count() + column] * amount_scale *
                             (pedge_ptr[column] - pedge_ptr[state->column_count() + column]) / 9.80665;
                 std::ostringstream record;
-                record << std::setprecision(17) << "CATCHEM_COLUMN_TERM process=drydep species="
-                       << metadata.short_name << " source=0 sink=" << sink << " units=kg_m-2";
+                record << std::setprecision(17) << "CATCHEM_COLUMN_TERM process=drydep species=" << metadata.short_name
+                       << " source=0 sink=" << sink << " units=kg_m-2";
                 Logger::info(state.get(), record.str());
             }
             // The GOCART diagnostic records the finite-step aerosol
@@ -458,9 +459,11 @@ namespace catchem {
             double diagnostic_removal = 0.0;
             for (std::size_t slot = 0; slot < diagnostic_species_id.size(); ++slot) {
                 const int species_index = diagnostic_species_id[slot] - 1;
-                if (species_index < 0 || static_cast<std::size_t>(species_index) >= state->chemistry().species_list.size())
+                if (species_index < 0 ||
+                    static_cast<std::size_t>(species_index) >= state->chemistry().species_list.size())
                     throw std::runtime_error("DryDep mass closure received an invalid diagnostic species index");
-                if (!state->chemistry().species_list[static_cast<std::size_t>(species_index)].is_aerosol) continue;
+                if (!state->chemistry().species_list[static_cast<std::size_t>(species_index)].is_aerosol)
+                    continue;
                 const std::size_t species_offset = static_cast<std::size_t>(species_index) * concentration_slab;
                 const std::size_t diagnostic_offset = slot * static_cast<std::size_t>(state->column_count());
                 for (int column = 0; column < state->column_count(); ++column) {
@@ -470,7 +473,7 @@ namespace catchem {
                 }
             }
             const double residual = std::abs(aerosol_removal - diagnostic_removal) /
-                std::max(std::abs(aerosol_removal) + std::abs(diagnostic_removal), 1.0e-30);
+                                    std::max(std::abs(aerosol_removal) + std::abs(diagnostic_removal), 1.0e-30);
             std::ostringstream budget_record;
             budget_record << "CATCHEM_BUDGET name=drydep_aerosol_removal RESIDUAL=" << std::scientific
                           << std::setprecision(16) << residual << " TOTAL=" << aerosol_removal

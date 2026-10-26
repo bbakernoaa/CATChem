@@ -2,7 +2,7 @@
  * @file catchem_runtime_lease.cpp
  * @brief Process-wide runtime state behind RuntimeLease.
  *
- * @details The snapshot and its mutex are file-scope statics: there is
+ * @details The snapshot and its mutex are file-scope static variables: there is
  * exactly one execution runtime per process, and this translation unit owns
  * the only copy. Kokkos is touched only under CATCHEM_ENABLE_KOKKOS; the
  * host-only build pins the snapshot to Disabled/Initialized so lease
@@ -15,7 +15,7 @@
 
 namespace catchem {
     namespace {
-        std::mutex runtime_mutex;      ///< Serialises every snapshot read/write in this TU.
+        std::mutex runtime_mutex;         ///< Serialises every snapshot read/write in this TU.
         RuntimeSnapshot runtime_snapshot; ///< The one process-wide runtime state.
 
 #ifdef CATCHEM_ENABLE_KOKKOS

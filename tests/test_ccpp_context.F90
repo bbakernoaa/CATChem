@@ -44,7 +44,7 @@ program test_ccpp_context
          integer(c_int), value :: mie_handle
       end subroutine
       subroutine run_emission_mie_factor(mie_handle, n_columns, n_levels, mie_name_c, emission_flux, rh, &
-                                         scale_factor, dt, factor, limiter_rc) bind(C)
+         scale_factor, dt, factor, limiter_rc) bind(C)
          import :: c_char, c_double, c_int
          integer(c_int), value :: mie_handle, n_columns, n_levels
          character(kind=c_char), intent(in) :: mie_name_c(64)
@@ -56,7 +56,7 @@ program test_ccpp_context
    end interface
 
    allocate (state_a(2, 3, 2), state_b(2, 3, 3), candidate(2, 3, 2), contribution(2, 3, 2), &
-             shared_tendency(2, 3, 2))
+      shared_tendency(2, 3, 2))
    state_a = 7.0_c_double
    state_b = 19.0_c_double
    call ccpp_context_create(2, 3, 2, a, status)
@@ -84,10 +84,10 @@ program test_ccpp_context
    call require(status == CCPP_CTX_OK, 'begin exchange for second context')
    call ccpp_context_get_buffers(a, baseline, working, tendency, status)
    call require(status == CCPP_CTX_OK .and. maxval(abs(baseline - 7.0_c_double)) < 1.0e-12_c_double, &
-                'first context owns baseline buffer')
+      'first context owns baseline buffer')
    call ccpp_context_get_buffers(b, baseline_b, working_b, tendency_b, status)
    call require(status == CCPP_CTX_OK .and. maxval(abs(baseline_b - 19.0_c_double)) < 1.0e-12_c_double, &
-                'second context owns independent buffers')
+      'second context owns independent buffers')
 
    ! A no-op exchange stages the exact input array and leaves publication pending
    ! until the host explicitly commits the complete candidate.
@@ -103,7 +103,7 @@ program test_ccpp_context
    call ccpp_context_cancel_publication(a, status)
    call require(status == CCPP_CTX_OK, 'cancel pending publication')
    call require(maxval(abs(state_b - 19.0_c_double)) < 1.0e-12_c_double, &
-                'uncommitted context does not publish into another host array')
+      'uncommitted context does not publish into another host array')
 
    contribution = 2.0_c_double
    shared_tendency = 5.0_c_double
@@ -127,18 +127,18 @@ program test_ccpp_context
    call require(errflg /= 0, 'interval cannot close while its contribution is pending')
    call ccpp_context_apply_tendency(a, 11_c_int64_t, 2.0_c_double, shared_tendency, status)
    call require(status == CCPP_CTX_OK .and. maxval(abs(shared_tendency - 9.0_c_double)) < 1.0e-12_c_double, &
-                'matching token applies duration times the tendency exactly once')
+      'matching token applies duration times the tendency exactly once')
    call ccpp_context_apply_tendency(a, 11_c_int64_t, 2.0_c_double, shared_tendency, status)
    call require(status == CCPP_CTX_PENDING .and. maxval(abs(shared_tendency - 9.0_c_double)) < 1.0e-12_c_double, &
-                'a contribution token is consumed once')
+      'a contribution token is consumed once')
    call ccpp_context_stage_tendency(a, 11_c_int64_t, contribution, status)
    call require(status == CCPP_CTX_OK, 'a later invocation can stage a contribution in the same host interval')
    call ccpp_context_apply_tendency(a, 11_c_int64_t, 2.0_c_double, shared_tendency, status)
    call require(status == CCPP_CTX_OK .and. maxval(abs(shared_tendency - 13.0_c_double)) < 1.0e-12_c_double, &
-                'a later invocation in the same interval accumulates without clearing prior contributors')
+      'a later invocation in the same interval accumulates without clearing prior contributors')
    call ccpp_context_apply_tendency(a, 11_c_int64_t, 2.0_c_double, shared_tendency, status)
    call require(status == CCPP_CTX_PENDING .and. maxval(abs(shared_tendency - 13.0_c_double)) < 1.0e-12_c_double, &
-                'each staged invocation contribution is consumed only once')
+      'each staged invocation contribution is consumed only once')
    call ccpp_context_close_interval(a, 11_c_int64_t, status)
    errflg = int(status)
    call require(errflg == 0, 'close applied host-owned interval through lifecycle helper')
@@ -153,9 +153,9 @@ program test_ccpp_context
    call require(status == CCPP_CTX_OK, 'stage a contribution before overflow check')
    call ccpp_context_apply_tendency(a, 12_c_int64_t, 1.0_c_double, shared_tendency, status)
    call require(status == CCPP_CTX_INVALID .and. &
-                shared_tendency(1, 1, 1) > 0.99_c_double*huge(0.0_c_double) .and. &
-                abs(shared_tendency(2, 3, 2) - 3.0_c_double) < 1.0e-12_c_double, &
-                'overflow rejects the complete tendency addition')
+      shared_tendency(1, 1, 1) > 0.99_c_double*huge(0.0_c_double) .and. &
+      abs(shared_tendency(2, 3, 2) - 3.0_c_double) < 1.0e-12_c_double, &
+      'overflow rejects the complete tendency addition')
    call ccpp_context_cancel_tendency(a, 12_c_int64_t, status)
    call require(status == CCPP_CTX_OK, 'failed overflow contribution can be canceled')
    call ccpp_context_close_interval(a, 12_c_int64_t, status)
@@ -170,7 +170,7 @@ program test_ccpp_context
    call require(status == CCPP_CTX_INVALID, 'context cannot be rebound to another manifest')
    call ccpp_context_get_manifest_species(a, 1, species, name, standard_name, units, status)
    call require(status == CCPP_CTX_OK .and. len_trim(name) > 0 .and. len_trim(standard_name) > 0, &
-                'immutable manifest species lookup')
+      'immutable manifest species lookup')
    call ccpp_context_initialize_model(a, 2, 3, status)
    call require(status == CCPP_CTX_OK, 'one Core is initialized for the context')
    call run_registry_mapping_cases(a, mapping_passed)
@@ -206,32 +206,32 @@ program test_ccpp_context
    mie_path_a = ' '
    mie_path_b = ' '
    mie_path_a(1:24, 1) = [character(kind=c_char) :: &
-             'f', 'i', 'x', 't', 'u', 'r', 'e', 's', '/', 'g', 'o', 'c', 'a', 'r', 't', '_', 'm', 'i', 'e', '_', 'a', '.', 'n', 'c']
+      'f', 'i', 'x', 't', 'u', 'r', 'e', 's', '/', 'g', 'o', 'c', 'a', 'r', 't', '_', 'm', 'i', 'e', '_', 'a', '.', 'n', 'c']
    mie_path_b(1:24, 1) = [character(kind=c_char) :: &
-             'f', 'i', 'x', 't', 'u', 'r', 'e', 's', '/', 'g', 'o', 'c', 'a', 'r', 't', '_', 'm', 'i', 'e', '_', 'b', '.', 'n', 'c']
+      'f', 'i', 'x', 't', 'u', 'r', 'e', 's', '/', 'g', 'o', 'c', 'a', 'r', 't', '_', 'm', 'i', 'e', '_', 'b', '.', 'n', 'c']
    call run_settling_mie_init(1_c_int, mie_type, mie_path_a, mie_a, mie_rc)
    call require(mie_rc == 0_c_int .and. mie_a > 0_c_int, 'load first independent Mie table context')
    call run_settling_mie_init(1_c_int, mie_type, mie_path_b, mie_b, mie_rc)
    call require(mie_rc == 0_c_int .and. mie_b > 0_c_int .and. mie_a /= mie_b, &
-                'load second independent Mie table context')
+      'load second independent Mie table context')
    mie_name = c_null_char
    mie_name(1:2) = [character(kind=c_char) :: 'D', 'U']
    mie_flux = 1.0_c_double
    mie_rh = 0.5_c_double
    call run_emission_mie_factor(mie_a, 1_c_int, 2_c_int, mie_name, mie_flux, mie_rh, 1.0_c_double, 600.0_c_double, &
-                                mie_factor_a, limiter_rc)
+      mie_factor_a, limiter_rc)
    call require(limiter_rc == 0_c_int, 'query first Mie table handle')
    call run_emission_mie_factor(mie_b, 1_c_int, 2_c_int, mie_name, mie_flux, mie_rh, 1.0_c_double, 600.0_c_double, &
-                                mie_factor_b, limiter_rc)
+      mie_factor_b, limiter_rc)
    call require(limiter_rc == 0_c_int .and. abs(mie_factor_a(1) - mie_factor_b(1)) > 1.0e-12_c_double, &
-                'each Mie handle retains its own table values')
+      'each Mie handle retains its own table values')
    call run_settling_mie_release(mie_a)
    call run_emission_mie_factor(mie_b, 1_c_int, 2_c_int, mie_name, mie_flux, mie_rh, 1.0_c_double, 600.0_c_double, &
-                                mie_factor_check, limiter_rc)
+      mie_factor_check, limiter_rc)
    call require(limiter_rc == 0_c_int .and. abs(mie_factor_check(1) - mie_factor_b(1)) < 1.0e-15_c_double, &
-                'releasing first Mie context preserves second context table')
+      'releasing first Mie context preserves second context table')
    call run_emission_mie_factor(mie_a, 1_c_int, 2_c_int, mie_name, mie_flux, mie_rh, 1.0_c_double, 600.0_c_double, &
-                                mie_factor_check, limiter_rc)
+      mie_factor_check, limiter_rc)
    call require(limiter_rc == 2_c_int, 'released Mie handle is rejected')
    call run_settling_mie_release(mie_b)
 
@@ -271,7 +271,7 @@ program test_ccpp_context
    call require(status == CCPP_CTX_OK .and. a%id == 0, 'destroy clears host handle')
    call require(.not. ccpp_context_valid(stale), 'destroyed generation is stale')
    call require(model_b%is_initialized() .and. maxval(abs(state_b - 19.0_c_double)) < 1.0e-12_c_double, &
-                'destroying the first context preserves the second model and host state')
+      'destroying the first context preserves the second model and host state')
    call ccpp_context_scheme_init(stale, 1, status)
    call require(status == CCPP_CTX_STALE, 'stale ID/generation pair is rejected')
    call ccpp_context_destroy(b, status)

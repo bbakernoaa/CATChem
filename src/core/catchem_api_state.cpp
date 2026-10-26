@@ -202,8 +202,8 @@ int catchem_state_bind_met_3d_checked(void* state_ptr, const char* name, double*
         std::string key(name);
         std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return std::toupper(c); });
         const int expected_levels = (key == "PEDGE" || key == "Z" || key == "PFILSAN" || key == "PFLLSAN")
-                                       ? state->level_count() + 1
-                                       : state->level_count();
+                                        ? state->level_count() + 1
+                                        : state->level_count();
         if (dim1 != state->column_count() || dim2 != expected_levels || dim3 != 1)
             return fail(catchem::BoundaryStatus::ExtentMismatch, "state_bind_met_3d", name,
                         "field extents do not match the state contract");

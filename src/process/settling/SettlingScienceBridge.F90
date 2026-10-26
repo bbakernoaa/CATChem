@@ -41,13 +41,13 @@ contains
    ! Compute the legacy biomass-burning AOT limiter from the shared optics
    ! cache.  The source flux is read-only and each mapped target calls this
    ! independently, preventing mapping-order attenuation.
-  !> \brief Implements run emission mie factor for the CATChem CCPP boundary.
-  !> \param mie_handle Argument used by run_emission_mie_factor.
-  !> \param n_columns Argument used by run_emission_mie_factor.
-  !> \param n_levels Argument used by run_emission_mie_factor.
-  !> \param mie_name_c Argument used by run_emission_mie_factor.
-  !> \param emission_flux Argument used by run_emission_mie_factor.
-  !> \param rh Argument used by run_emission_mie_factor.
+   !> \brief Implements run emission mie factor for the CATChem CCPP boundary.
+   !> \param mie_handle Argument used by run_emission_mie_factor.
+   !> \param n_columns Argument used by run_emission_mie_factor.
+   !> \param n_levels Argument used by run_emission_mie_factor.
+   !> \param mie_name_c Argument used by run_emission_mie_factor.
+   !> \param emission_flux Argument used by run_emission_mie_factor.
+   !> \param rh Argument used by run_emission_mie_factor.
    subroutine run_emission_mie_factor(mie_handle, n_columns, n_levels, mie_name_c, emission_flux, rh, &
       scale_factor, dt, factor, limiter_rc) bind(C, name='run_emission_mie_factor')
       integer(c_int), value :: n_columns, n_levels
@@ -113,8 +113,8 @@ contains
       end do
       deallocate(q_mass, rh_query, tau)
    contains
-  !> \brief Implements c name64 to fortran for the CATChem CCPP boundary.
-  !> \param c_name Argument used by c_name64_to_fortran.
+      !> \brief Implements c name64 to fortran for the CATChem CCPP boundary.
+      !> \param c_name Argument used by c_name64_to_fortran.
       function c_name64_to_fortran(c_name) result(name)
          character(kind=c_char), intent(in) :: c_name(64)
          character(len=64) :: name
@@ -128,12 +128,12 @@ contains
       end function c_name64_to_fortran
    end subroutine run_emission_mie_factor
 
-  !> \brief Implements run settling mie init for the CATChem CCPP boundary.
-  !> \param n_files Argument used by run_settling_mie_init.
-  !> \param type_names Argument used by run_settling_mie_init.
-  !> \param file_paths Argument used by run_settling_mie_init.
-  !> \param mie_handle Argument used by run_settling_mie_init.
-  !> \param init_rc Argument used by run_settling_mie_init.
+   !> \brief Implements run settling mie init for the CATChem CCPP boundary.
+   !> \param n_files Argument used by run_settling_mie_init.
+   !> \param type_names Argument used by run_settling_mie_init.
+   !> \param file_paths Argument used by run_settling_mie_init.
+   !> \param mie_handle Argument used by run_settling_mie_init.
+   !> \param init_rc Argument used by run_settling_mie_init.
    subroutine run_settling_mie_init(n_files, type_names, file_paths, mie_handle, init_rc) &
       bind(C, name='run_settling_mie_init')
       integer(c_int), value :: n_files
@@ -185,8 +185,8 @@ contains
       end do
       mie_handle = mie_contexts(slot)%handle
    contains
-  !> \brief Implements c path to fortran for the CATChem CCPP boundary.
-  !> \param c_text Argument used by c_path_to_fortran.
+      !> \brief Implements c path to fortran for the CATChem CCPP boundary.
+      !> \param c_text Argument used by c_path_to_fortran.
       function c_path_to_fortran(c_text) result(text)
          character(kind=c_char), intent(in) :: c_text(512)
          character(len=512) :: text
@@ -197,8 +197,8 @@ contains
          end do
          text = trim(adjustl(text))
       end function c_path_to_fortran
-  !> \brief Implements c name to fortran for the CATChem CCPP boundary.
-  !> \param c_text Argument used by c_name_to_fortran.
+      !> \brief Implements c name to fortran for the CATChem CCPP boundary.
+      !> \param c_text Argument used by c_name_to_fortran.
       function c_name_to_fortran(c_text) result(text)
          character(kind=c_char), intent(in) :: c_text(32)
          character(len=32) :: text
@@ -211,8 +211,8 @@ contains
       end function c_name_to_fortran
    end subroutine run_settling_mie_init
 
-  !> \brief Implements run settling mie release for the CATChem CCPP boundary.
-  !> \param mie_handle Argument used by run_settling_mie_release.
+   !> \brief Implements run settling mie release for the CATChem CCPP boundary.
+   !> \param mie_handle Argument used by run_settling_mie_release.
    subroutine run_settling_mie_release(mie_handle) bind(C, name='run_settling_mie_release')
       integer(c_int), value :: mie_handle
       integer :: slot
@@ -223,8 +223,8 @@ contains
       mie_contexts(slot)%handle = 0_c_int
    end subroutine run_settling_mie_release
 
-  !> \brief Implements find mie context for the CATChem CCPP boundary.
-  !> \param handle Argument used by find_mie_context.
+   !> \brief Implements find mie context for the CATChem CCPP boundary.
+   !> \param handle Argument used by find_mie_context.
    integer function find_mie_context(handle) result(slot)
       integer(c_int), intent(in) :: handle
       integer :: i
@@ -238,12 +238,12 @@ contains
       end do
    end function find_mie_context
 
-  !> \brief Implements run settling science bridge for the CATChem CCPP boundary.
-  !> \param n_columns Argument used by run_settling_science_bridge.
-  !> \param n_levels Argument used by run_settling_science_bridge.
-  !> \param n_aerosols Argument used by run_settling_science_bridge.
-  !> \param n_total_species Argument used by run_settling_science_bridge.
-  !> \param mie_handle Argument used by run_settling_science_bridge.
+   !> \brief Implements run settling science bridge for the CATChem CCPP boundary.
+   !> \param n_columns Argument used by run_settling_science_bridge.
+   !> \param n_levels Argument used by run_settling_science_bridge.
+   !> \param n_aerosols Argument used by run_settling_science_bridge.
+   !> \param n_total_species Argument used by run_settling_science_bridge.
+   !> \param mie_handle Argument used by run_settling_science_bridge.
    subroutine run_settling_science_bridge(n_columns, n_levels, n_aerosols, n_total_species, mie_handle, &
       dt, scale_factor, swelling_method, correction_maring, maring_dust_only, &
       airden, delp, pmid, rh, temperature, z_edge, &
@@ -437,8 +437,8 @@ contains
 
       deallocate(col_velocity, col_flux)
    contains
-  !> \brief Implements c name to fortran for the CATChem CCPP boundary.
-  !> \param c_name Argument used by c_name_to_fortran.
+      !> \brief Implements c name to fortran for the CATChem CCPP boundary.
+      !> \param c_name Argument used by c_name_to_fortran.
       function c_name_to_fortran(c_name) result(name)
          character(kind=c_char), intent(in) :: c_name(32)
          character(len=32) :: name

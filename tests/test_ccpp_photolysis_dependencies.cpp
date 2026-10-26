@@ -8,41 +8,41 @@
 
 namespace {
 
-/** @brief Test process that publishes one named photolysis-rate product. */
-class RateProducer final : public catchem::test::RecordingProcess {
-public:
-    /** @brief Construct a producer with the supplied event ledger. */
-    RateProducer(const std::string& name, std::vector<std::string>& events)
-        : RecordingProcess(name, events) {}
+    /** @brief Test process that publishes one named photolysis-rate product. */
+    class RateProducer final : public catchem::test::RecordingProcess {
+    public:
+        /** @brief Construct a producer with the supplied event ledger. */
+        RateProducer(const std::string& name, std::vector<std::string>& events) : RecordingProcess(name, events) {}
 
-    /** @brief Declare this process as the owner of the selected J-rate. */
-    catchem::ProcessContract get_contract() const override {
-        catchem::ProcessContract contract;
-        contract.process_name = get_name();
-        contract.fields.push_back(catchem::host_field_3d("T", "K"));
-        contract.produced_products.push_back({"photolysis_rate_jfoo", "s-1", true});
-        return contract;
-    }
-};
+        /** @brief Declare this process as the owner of the selected J-rate. */
+        catchem::ProcessContract get_contract() const override {
+            catchem::ProcessContract contract;
+            contract.process_name = get_name();
+            contract.fields.push_back(catchem::host_field_3d("T", "K"));
+            contract.produced_products.push_back({"photolysis_rate_jfoo", "s-1", true});
+            return contract;
+        }
+    };
 
-/** @brief Test process with an optional mechanism-dependent PHOTO requirement. */
-class GasChemConsumer final : public catchem::test::RecordingProcess {
-public:
-    /** @brief Construct a consumer that optionally requires the test rate. */
-    GasChemConsumer(const std::string& name, std::vector<std::string>& events, bool uses_photo)
-        : RecordingProcess(name, events), uses_photo_(uses_photo) {}
+    /** @brief Test process with an optional mechanism-dependent PHOTO requirement. */
+    class GasChemConsumer final : public catchem::test::RecordingProcess {
+    public:
+        /** @brief Construct a consumer that optionally requires the test rate. */
+        GasChemConsumer(const std::string& name, std::vector<std::string>& events, bool uses_photo)
+            : RecordingProcess(name, events), uses_photo_(uses_photo) {}
 
-    /** @brief Declare the matching J-rate dependency only for PHOTO mechanisms. */
-    catchem::ProcessContract get_contract() const override {
-        catchem::ProcessContract contract;
-        contract.process_name = get_name();
-        if (uses_photo_) contract.products.push_back({"photolysis_rate_jfoo", "photolysis", true});
-        return contract;
-    }
+        /** @brief Declare the matching J-rate dependency only for PHOTO mechanisms. */
+        catchem::ProcessContract get_contract() const override {
+            catchem::ProcessContract contract;
+            contract.process_name = get_name();
+            if (uses_photo_)
+                contract.products.push_back({"photolysis_rate_jfoo", "photolysis", true});
+            return contract;
+        }
 
-private:
-    bool uses_photo_;
-};
+    private:
+        bool uses_photo_;
+    };
 
 } // namespace
 
@@ -55,9 +55,10 @@ void verify_ozone_profile_units_and_solar_geometry() {
     for (std::size_t level = 0; level < ozone_profile_ppmv.size(); ++level) {
         const double dry_air_number_density_cm3 =
             dry_air_density_profile_kg_m3[level] / dry_air_molar_mass_kg_mol * avogadro_mol_inv * 1.0e-6;
-        const double expected_ozone_number_density_cm3 = ozone_profile_ppmv[level] * 1.0e-6 * dry_air_number_density_cm3;
-        const double ozone_number_density_cm3 = catchem::photolysis_ozone_ppmv_to_number_density(
-            ozone_profile_ppmv[level], dry_air_number_density_cm3);
+        const double expected_ozone_number_density_cm3 =
+            ozone_profile_ppmv[level] * 1.0e-6 * dry_air_number_density_cm3;
+        const double ozone_number_density_cm3 =
+            catchem::photolysis_ozone_ppmv_to_number_density(ozone_profile_ppmv[level], dry_air_number_density_cm3);
         assert(std::abs(ozone_number_density_cm3 - expected_ozone_number_density_cm3) <=
                expected_ozone_number_density_cm3 * 1.0e-14);
         assert(ozone_number_density_cm3 > 1.0e10);

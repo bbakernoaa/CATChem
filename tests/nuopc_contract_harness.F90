@@ -11,11 +11,11 @@ module dataatm_services
    use ESMF
    use NUOPC
    use NUOPC_Model, only: modelSS => SetServices, &
-                          model_label_Advertise => label_Advertise, &
-                          model_label_RealizeProvided => label_RealizeProvided, &
-                          model_label_Advance => label_Advance, &
-                          model_label_CheckImport => label_CheckImport, &
-                          NUOPC_ModelGet
+      model_label_Advertise => label_Advertise, &
+      model_label_RealizeProvided => label_RealizeProvided, &
+      model_label_Advance => label_Advance, &
+      model_label_CheckImport => label_CheckImport, &
+      NUOPC_ModelGet
    use catchem_nuopc_interface, only: load_field_config, field_config
    implicit none
 contains
@@ -26,19 +26,19 @@ contains
       call NUOPC_CompDerive(model, modelSS, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call NUOPC_CompSpecialize(model, specLabel=model_label_Advertise, &
-                                specRoutine=Advertise, rc=rc)
+         specRoutine=Advertise, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call NUOPC_CompSpecialize(model, specLabel=model_label_RealizeProvided, &
-                                specRoutine=Realize, rc=rc)
+         specRoutine=Realize, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call NUOPC_CompSpecialize(model, specLabel=model_label_Advance, &
-                                specRoutine=Advance, rc=rc)
+         specRoutine=Advance, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       ! The mock consumes output passively.  Its Advance specialization does
       ! not use CATChem fields as an input to a forecast calculation, so the
       ! generic template's pre-advance timestamp gate is not applicable.
       call NUOPC_CompSpecialize(model, specLabel=model_label_CheckImport, &
-                                specRoutine=CheckImport, rc=rc)
+         specRoutine=CheckImport, rc=rc)
    end subroutine SetServices
 
    subroutine Advertise(model, rc)
@@ -54,10 +54,10 @@ contains
       if (rc /= ESMF_SUCCESS) return
       do i = 1, field_config%n_import_fields
          if (field_config%import_fields(i)%optional .and. &
-             .not. field_config%import_fields(i)%advertise) cycle
+            .not. field_config%import_fields(i)%advertise) cycle
          call NUOPC_Advertise(exportState, &
-                              StandardName=trim(field_config%import_fields(i)%standard_name), &
-                              TransferOfferGeomObject='will provide', SharePolicyField='share', rc=rc)
+            StandardName=trim(field_config%import_fields(i)%standard_name), &
+            TransferOfferGeomObject='will provide', SharePolicyField='share', rc=rc)
          if (rc /= ESMF_SUCCESS) return
       end do
       ! Consume CATChem's advertised diagnostics and tracer output as a
@@ -65,8 +65,8 @@ contains
       ! RunPhase rather than leaving its fields as uncreated offers.
       do i = 1, field_config%n_export_fields
          call NUOPC_Advertise(importState, &
-                              StandardName=trim(field_config%export_fields(i)%standard_name), &
-                              TransferOfferGeomObject='will provide', SharePolicyField='share', rc=rc)
+            StandardName=trim(field_config%export_fields(i)%standard_name), &
+            TransferOfferGeomObject='will provide', SharePolicyField='share', rc=rc)
          if (rc /= ESMF_SUCCESS) return
       end do
    end subroutine Advertise
@@ -132,36 +132,36 @@ contains
       call ESMF_FieldGet(field, name=field_name, rank=rank, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       select case (rank)
-      case (2)
+       case (2)
          nullify (f2); call ESMF_FieldGet(field, farrayPtr=f2, rc=rc)
          if (rc /= ESMF_SUCCESS) return
          f2 = 1.0_ESMF_KIND_R8
-      case (3)
+       case (3)
          nullify (f3); call ESMF_FieldGet(field, farrayPtr=f3, rc=rc)
          if (rc /= ESMF_SUCCESS) return
          select case (trim(field_name))
-         case ('inst_pres_interface')
+          case ('inst_pres_interface')
             do k = 1, size(f3, 3)
                f3(:, :, k) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8*real(k - 1, ESMF_KIND_R8)
             end do
-         case ('inst_pres_levels')
+          case ('inst_pres_levels')
             do k = 1, size(f3, 3)
                f3(:, :, k) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8*real(k - 1, ESMF_KIND_R8)
             end do
-         case ('inst_geop_interface')
+          case ('inst_geop_interface')
             do k = 1, size(f3, 3)
                f3(:, :, k) = 1000.0_ESMF_KIND_R8*real(k - 1, ESMF_KIND_R8)
             end do
-         case ('inst_geop_levels')
+          case ('inst_geop_levels')
             do k = 1, size(f3, 3)
                f3(:, :, k) = 500.0_ESMF_KIND_R8 + 1000.0_ESMF_KIND_R8*real(k - 1, ESMF_KIND_R8)
             end do
-         case ('inst_temp_levels')
+          case ('inst_temp_levels')
             f3 = 300.0_ESMF_KIND_R8
-         case default
+          case default
             f3 = 1.0_ESMF_KIND_R8
          end select
-      case (4)
+       case (4)
          nullify (f4); call ESMF_FieldGet(field, farrayPtr=f4, rc=rc)
          if (rc /= ESMF_SUCCESS) return
          ! Keep host-owned and pseudo-tracer slots distinct from transported
@@ -195,22 +195,22 @@ contains
       tracer_units = [character(len=ESMF_MAXSTR) :: '1', 'ppm', 'kg kg^-1', 'ug m-3', 'ug m-3']
       do i = 1, field_config%n_import_fields
          if (field_config%import_fields(i)%optional .and. &
-             .not. field_config%import_fields(i)%advertise) cycle
+            .not. field_config%import_fields(i)%advertise) cycle
          select case (field_config%import_fields(i)%dimensions)
-         case (2)
+          case (2)
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-                                     name=trim(field_config%import_fields(i)%standard_name), rc=rc)
-         case (3)
+               name=trim(field_config%import_fields(i)%standard_name), rc=rc)
+          case (3)
             nzf = 5
             if (trim(field_config%import_fields(i)%vertical_axis) == 'interface') nzf = 6
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-                                     ungriddedLBound=(/1/), ungriddedUBound=(/nzf/), &
-                                     name=trim(field_config%import_fields(i)%standard_name), rc=rc)
-         case (4)
+               ungriddedLBound=(/1/), ungriddedUBound=(/nzf/), &
+               name=trim(field_config%import_fields(i)%standard_name), rc=rc)
+          case (4)
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-                                     ungriddedLBound=(/1, 1/), ungriddedUBound=(/5, ntr/), &
-                                     name=trim(field_config%import_fields(i)%standard_name), rc=rc)
-         case default
+               ungriddedLBound=(/1, 1/), ungriddedUBound=(/5, ntr/), &
+               name=trim(field_config%import_fields(i)%standard_name), rc=rc)
+          case default
             cycle
          end select
          if (rc /= ESMF_SUCCESS) return
@@ -237,14 +237,14 @@ contains
       ! outputs; without it a shared NUOPC export remains an uncreated offer.
       do i = 1, field_config%n_export_fields
          select case (field_config%export_fields(i)%dimensions)
-         case (2)
+          case (2)
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-                                     name=trim(field_config%export_fields(i)%standard_name), rc=rc)
-         case (4)
+               name=trim(field_config%export_fields(i)%standard_name), rc=rc)
+          case (4)
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-                                     ungriddedLBound=(/1, 1/), ungriddedUBound=(/5, ntr/), &
-                                     name=trim(field_config%export_fields(i)%standard_name), rc=rc)
-         case default
+               ungriddedLBound=(/1, 1/), ungriddedUBound=(/5, ntr/), &
+               name=trim(field_config%export_fields(i)%standard_name), rc=rc)
+          case default
             cycle
          end select
          if (rc /= ESMF_SUCCESS) return
@@ -268,7 +268,7 @@ module contract_driver_services
    use ESMF
    use NUOPC
    use NUOPC_Driver, only: driverSS => SetServices, &
-                           label_SetModelServices, NUOPC_DriverAddComp
+      label_SetModelServices, NUOPC_DriverAddComp
    use NUOPC_Connector, only: connectorSS => SetServices
    use cc_nuopc, only: CATChem_SetServices => SetServices
    use dataatm_services, only: DataATM_SetServices => SetServices
@@ -285,7 +285,7 @@ contains
       call NUOPC_CompDerive(driver, driverSS, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call NUOPC_CompSpecialize(driver, specLabel=label_SetModelServices, &
-                                specRoutine=SetModelServices, rc=rc)
+         specRoutine=SetModelServices, rc=rc)
       if (rc /= ESMF_SUCCESS) return
    end subroutine SetServices
 
@@ -302,10 +302,10 @@ contains
       rc = ESMF_SUCCESS
       model_services_called = .true.
       call NUOPC_DriverAddComp(driver, "CATChem", &
-                               compSetServicesRoutine=CATChem_SetServices, comp=catchem, rc=rc)
+         compSetServicesRoutine=CATChem_SetServices, comp=catchem, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call NUOPC_DriverAddComp(driver, "DataATM", &
-                               compSetServicesRoutine=DataATM_SetServices, comp=dataatm, rc=rc)
+         compSetServicesRoutine=DataATM_SetServices, comp=dataatm, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       data_grid = ESMF_GridCreateNoPeriDim(maxIndex=(/4, 2/), rc=rc)
       if (rc /= ESMF_SUCCESS) return
@@ -317,22 +317,22 @@ contains
       if (rc /= ESMF_SUCCESS) return
 
       call NUOPC_DriverAddComp(driver, srcCompLabel="DataATM", dstCompLabel="CATChem", &
-                               compSetServicesRoutine=connectorSS, comp=connector, rc=rc)
+         compSetServicesRoutine=connectorSS, comp=connector, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call NUOPC_DriverAddComp(driver, srcCompLabel="CATChem", dstCompLabel="DataATM", &
-                               compSetServicesRoutine=connectorSS, comp=connector, rc=rc)
+         compSetServicesRoutine=connectorSS, comp=connector, rc=rc)
       if (rc /= ESMF_SUCCESS) return
 
       call ESMF_TimeIntervalSet(time_step, s=600, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call ESMF_TimeSet(start_time, yy=2021, mm=3, dd=22, h=6, &
-                        calkindflag=ESMF_CALKIND_GREGORIAN, rc=rc)
+         calkindflag=ESMF_CALKIND_GREGORIAN, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call ESMF_TimeSet(stop_time, yy=2021, mm=3, dd=22, h=6, m=20, &
-                        calkindflag=ESMF_CALKIND_GREGORIAN, rc=rc)
+         calkindflag=ESMF_CALKIND_GREGORIAN, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       clock = ESMF_ClockCreate(name="DataATM-CATChem lifecycle clock", &
-                               startTime=start_time, stopTime=stop_time, timeStep=time_step, rc=rc)
+         startTime=start_time, stopTime=stop_time, timeStep=time_step, rc=rc)
       if (rc /= ESMF_SUCCESS) return
       call ESMF_GridCompSet(driver, clock=clock, rc=rc)
    end subroutine SetModelServices
@@ -342,9 +342,9 @@ program nuopc_contract_harness
    use iso_c_binding, only: c_ptr, c_char, c_double, c_int, c_associated, c_f_pointer, c_null_char
    use ESMF
    use contract_driver_services, only: ContractDriver_SetServices => SetServices, &
-                                       driver_services_seen
+      driver_services_seen
    use catchem_nuopc_interface, only: load_field_config, transform_nuopc_to_catchem, &
-                                      transform_catchem_to_nuopc, field_config, cc_wrap_type, update_pm_diagnostics
+      transform_catchem_to_nuopc, field_config, cc_wrap_type, update_pm_diagnostics
    use catchem_bridge_error, only: CC_SUCCESS
    use catchem_bridge_precision, only: fp, exact_equal
    use CATChem_API, only: CATChem_Model
@@ -417,10 +417,10 @@ program nuopc_contract_harness
    ! Same length as cc_wrap_type%tracer_map%names/units (character(len=128)).
    character(len=128) :: exchange_tracer_names(ntr), exchange_tracer_units(ntr)
    character(len=64), parameter :: parity_expected(3) = [character(len=64) :: &
-                                                         'unfamiliar_alpha', 'unfamiliar_beta', 'unfamiliar_gamma']
+      'unfamiliar_alpha', 'unfamiliar_beta', 'unfamiliar_gamma']
 
    call ESMF_Initialize(defaultCalKind=ESMF_CALKIND_GREGORIAN, &
-                        defaultlogfilename="test_nuopc_transform.log", rc=rc)
+      defaultlogfilename="test_nuopc_transform.log", rc=rc)
    call check(rc, "ESMF_Initialize")
 
    ! CATChem is created exactly once by NUOPC_DriverAddComp in the driver's
@@ -468,7 +468,7 @@ program nuopc_contract_harness
    do i = 1, species_count
       gas_flag = 0_c_int; aerosol_flag = 0_c_int
       if (catchem_state_is_species_gas_checked(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), gas_flag) /= 0_c_int) cycle
-    if (catchem_state_is_species_aerosol_checked(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), aerosol_flag) /= 0_c_int) cycle
+      if (catchem_state_is_species_aerosol_checked(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), aerosol_flag) /= 0_c_int) cycle
       if (gas_flag /= 0_c_int .and. gas_slot == 0) then
          gas_idx = int(i, c_int); gas_slot = 2
       else if (aerosol_flag /= 0_c_int .and. aerosol_slot == 0) then
@@ -480,7 +480,7 @@ program nuopc_contract_harness
    parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%state_mgr_ptr, gas_idx, parity_c_name, 64_c_int)
    call parity_from_c(parity_c_name, parity_name)
    exchange_tracer_names(2) = trim(parity_name)
-parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%state_mgr_ptr, aerosol_idx, parity_c_name, 64_c_int)
+   parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%state_mgr_ptr, aerosol_idx, parity_c_name, 64_c_int)
    call parity_from_c(parity_c_name, parity_name)
    exchange_tracer_names(3) = trim(parity_name)
    exchange_tracer_names(1) = 'sphum'; exchange_tracer_names(4) = 'PM25'; exchange_tracer_names(5) = 'PM10'
@@ -517,7 +517,7 @@ parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%
    if (parity_status /= 0_c_int .or. parity_count /= 3_c_int) error stop 'NUOPC mechanism count parity failed'
    do i = 1, 3
       parity_status = catchem_state_get_species_name_at_checked( &
-                      parity_model%state_mgr_ptr, int(i, c_int), parity_c_name, 64_c_int)
+         parity_model%state_mgr_ptr, int(i, c_int), parity_c_name, 64_c_int)
       if (parity_status /= 0_c_int) error stop 'NUOPC mechanism name query failed'
       call parity_from_c(parity_c_name, parity_name)
       if (trim(parity_name) /= trim(parity_expected(i))) error stop 'NUOPC mechanism ordering parity failed'
@@ -542,9 +542,9 @@ parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%
 
    do i = 1, cc_wrap%field_config%n_import_fields
       select case (cc_wrap%field_config%import_fields(i)%dimensions)
-      case (2)
+       case (2)
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-                                  name=trim(cc_wrap%field_config%import_fields(i)%standard_name), rc=rc)
+            name=trim(cc_wrap%field_config%import_fields(i)%standard_name), rc=rc)
          call check(rc, "FieldCreate 2d")
          call ESMF_FieldGet(field, farrayPtr=fptr2, rc=rc)
          call check(rc, "FieldGet 2d")
@@ -560,12 +560,12 @@ parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%
                end do
             end block
          end if
-      case (3)
+       case (3)
          nzf = nz
          if (trim(cc_wrap%field_config%import_fields(i)%vertical_axis) == 'interface') nzf = nz + 1
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-                                  ungriddedLBound=(/1/), ungriddedUBound=(/nzf/), &
-                                  name=trim(cc_wrap%field_config%import_fields(i)%standard_name), rc=rc)
+            ungriddedLBound=(/1/), ungriddedUBound=(/nzf/), &
+            name=trim(cc_wrap%field_config%import_fields(i)%standard_name), rc=rc)
          call check(rc, "FieldCreate 3d")
          call ESMF_FieldGet(field, farrayPtr=fptr3, rc=rc)
          call check(rc, "FieldGet 3d")
@@ -575,29 +575,29 @@ parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%
                do iy = 1, ny
                   do ix = 1, nx
                      select case (trim(cc_wrap%field_config%import_fields(i)%catchem_var))
-                     case ('T')
+                      case ('T')
                         fptr3(ix, iy, iz) = 280.0_ESMF_KIND_R8
-                     case ('QV')
+                      case ('QV')
                         fptr3(ix, iy, iz) = 0.01_ESMF_KIND_R8
-                     case ('RH')
+                      case ('RH')
                         fptr3(ix, iy, iz) = 0.5_ESMF_KIND_R8
-                     case ('PEDGE')
+                      case ('PEDGE')
                         fptr3(ix, iy, iz) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8*real(iz - 1, ESMF_KIND_R8)
-                     case ('PMID')
+                      case ('PMID')
                         fptr3(ix, iy, iz) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8*real(iz - 1, ESMF_KIND_R8)
-                     case ('CLDF')
+                      case ('CLDF')
                         fptr3(ix, iy, iz) = 0.2_ESMF_KIND_R8
-                     case default
+                      case default
                         fptr3(ix, iy, iz) = real(ix + 10*iy + 100*iz, ESMF_KIND_R8)
                      end select
                   end do
                end do
             end do
          end block
-      case (4)
+       case (4)
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-                                  ungriddedLBound=(/1, 1/), ungriddedUBound=(/nz, ntr/), &
-                                  name=trim(cc_wrap%field_config%import_fields(i)%standard_name), rc=rc)
+            ungriddedLBound=(/1, 1/), ungriddedUBound=(/nz, ntr/), &
+            name=trim(cc_wrap%field_config%import_fields(i)%standard_name), rc=rc)
          call check(rc, "FieldCreate 4d")
          call ESMF_FieldGet(field, farrayPtr=fptr4, rc=rc)
          call check(rc, "FieldGet 4d")
@@ -616,15 +616,15 @@ parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%
                   do iy = 1, ny
                      do ix = 1, nx
                         select case (itr)
-                        case (1)
+                         case (1)
                            fptr4(ix, iy, iz, itr) = 1.0E-2_ESMF_KIND_R8
-                        case (2)
+                         case (2)
                            fptr4(ix, iy, iz, itr) = 1.0E-6_ESMF_KIND_R8
-                        case (3)
+                         case (3)
                            fptr4(ix, iy, iz, itr) = 2.0E-6_ESMF_KIND_R8
-                        case (4)
+                         case (4)
                            fptr4(ix, iy, iz, itr) = 7.0E-6_ESMF_KIND_R8
-                        case (5)
+                         case (5)
                            fptr4(ix, iy, iz, itr) = 8.0E-6_ESMF_KIND_R8
                         end select
                      end do
@@ -632,7 +632,7 @@ parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%
                end do
             end do
          end block
-      case default
+       case default
          cycle
       end select
 
@@ -656,11 +656,11 @@ parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%
    do i = 1, cc_wrap%field_config%n_import_fields
       if (trim(cc_wrap%field_config%import_fields(i)%vertical_axis) /= 'level_to_interface') cycle
       if (.not. allocated(cc_wrap%met_buf_3d(i)%data) .or. &
-          size(cc_wrap%met_buf_3d(i)%data, 3) /= nz + 1) then
+         size(cc_wrap%met_buf_3d(i)%data, 3) /= nz + 1) then
          error stop 'PF*SAN level_to_interface buffer extent is invalid'
       end if
       if (.not. exact_equal(cc_wrap%met_buf_3d(i)%data(1, 1, 1), 111.0_c_double) .or. &
-          .not. exact_equal(cc_wrap%met_buf_3d(i)%data(1, 1, nz + 1), cc_wrap%met_buf_3d(i)%data(1, 1, nz))) then
+         .not. exact_equal(cc_wrap%met_buf_3d(i)%data(1, 1, nz + 1), cc_wrap%met_buf_3d(i)%data(1, 1, nz))) then
          error stop 'PF*SAN level_to_interface buffer was not reconstructed as upstream'
       end if
    end do
@@ -668,11 +668,11 @@ parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%
    ! Confirm gas and aerosol slots reach their native CATChem units while
    ! the host-owned rank-4 boundary remains otherwise untouched.
    if (abs(cc_wrap%chem_buf_4d(1, 1, 1, gas_idx) - 1.0E-6_c_double* &
-           cc_wrap%tracer_map%host_to_catchem(2)) > 1.0E-12_c_double) error stop 'Gas import conversion failed'
+      cc_wrap%tracer_map%host_to_catchem(2)) > 1.0E-12_c_double) error stop 'Gas import conversion failed'
    if (abs(cc_wrap%chem_buf_4d(1, 1, 1, aerosol_idx) - 2.0E-6_c_double* &
-           cc_wrap%tracer_map%host_to_catchem(3)) > 1.0E-12_c_double) error stop 'Aerosol import conversion failed'
+      cc_wrap%tracer_map%host_to_catchem(3)) > 1.0E-12_c_double) error stop 'Aerosol import conversion failed'
    if (abs(cc_wrap%tracer_map%host_to_catchem(2)*cc_wrap%tracer_map%catchem_to_host(2) - 1.0_c_double) > 1.0E-12_c_double .or. &
-       abs(cc_wrap%tracer_map%host_to_catchem(3)*cc_wrap%tracer_map%catchem_to_host(3) - 1.0_c_double) > 1.0E-12_c_double) &
+      abs(cc_wrap%tracer_map%host_to_catchem(3)*cc_wrap%tracer_map%catchem_to_host(3) - 1.0_c_double) > 1.0E-12_c_double) &
       error stop 'Tracer conversion factors are not reciprocal'
    block
       logical :: sphum_preserved
@@ -740,21 +740,21 @@ parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%
 
    do i = 1, cc_wrap%field_config%n_export_fields
       select case (cc_wrap%field_config%export_fields(i)%dimensions)
-      case (2)
+       case (2)
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-                                  name=trim(cc_wrap%field_config%export_fields(i)%standard_name), rc=rc)
+            name=trim(cc_wrap%field_config%export_fields(i)%standard_name), rc=rc)
          call check(rc, "Export FieldCreate 2d")
-      case (3)
+       case (3)
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-                                  ungriddedLBound=(/1/), ungriddedUBound=(/nz/), &
-                                  name=trim(cc_wrap%field_config%export_fields(i)%standard_name), rc=rc)
+            ungriddedLBound=(/1/), ungriddedUBound=(/nz/), &
+            name=trim(cc_wrap%field_config%export_fields(i)%standard_name), rc=rc)
          call check(rc, "Export FieldCreate 3d")
-      case (4)
+       case (4)
          field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-                                  ungriddedLBound=(/1, 1/), ungriddedUBound=(/nz, ntr/), &
-                                  name=trim(cc_wrap%field_config%export_fields(i)%standard_name), rc=rc)
+            ungriddedLBound=(/1, 1/), ungriddedUBound=(/nz, ntr/), &
+            name=trim(cc_wrap%field_config%export_fields(i)%standard_name), rc=rc)
          call check(rc, "Export FieldCreate 4d")
-      case default
+       case default
          cycle
       end select
       call ESMF_StateAdd(exportState, (/field/), rc=rc)
@@ -775,7 +775,7 @@ parity_status = catchem_state_get_species_name_at_checked(cc_wrap%catchem_model%
       if (abs(fptr4(1, 1, 1, 1) - 1.0E-2_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8) &
          error stop 'Host-owned sphum changed during export'
       if (abs(fptr4(1, 1, 1, 2) - 1.0E-6_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8 .or. &
-          abs(fptr4(1, 1, 1, 3) - 2.0E-6_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8) &
+         abs(fptr4(1, 1, 1, 3) - 2.0E-6_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8) &
          error stop 'Chemical export conversion failed'
       block
          real(fp), allocatable :: pm_diag(:, :, :)

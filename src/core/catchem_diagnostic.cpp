@@ -318,8 +318,10 @@ namespace catchem {
     }
 
     void DiagnosticManager::begin_interval(std::uint64_t interval_id) {
-        if (interval_id == 0) throw std::invalid_argument("Diagnostic interval ID zero is reserved");
-        if (last_interval_id_ == interval_id) return;
+        if (interval_id == 0)
+            throw std::invalid_argument("Diagnostic interval ID zero is reserved");
+        if (last_interval_id_ == interval_id)
+            return;
         last_interval_id_ = interval_id;
         ++generation_;
         for (auto& [key, field] : fields)

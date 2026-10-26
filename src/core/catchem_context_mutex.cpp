@@ -13,7 +13,7 @@
 #include <mutex>
 
 namespace {
-std::mutex context_registry_mutex; ///< Guards the Fortran-side context registry.
+    std::mutex context_registry_mutex; ///< Guards the Fortran-side context registry.
 }
 
 /**
@@ -23,6 +23,10 @@ std::mutex context_registry_mutex; ///< Guards the Fortran-side context registry
  *       error paths. Not reentrant: a second lock() on the same thread is
  *       undefined behaviour for std::mutex.
  */
-extern "C" void catchem_context_registry_lock() { context_registry_mutex.lock(); }
+extern "C" void catchem_context_registry_lock() {
+    context_registry_mutex.lock();
+}
 /** @brief Release the lock taken by catchem_context_registry_lock(). */
-extern "C" void catchem_context_registry_unlock() { context_registry_mutex.unlock(); }
+extern "C" void catchem_context_registry_unlock() {
+    context_registry_mutex.unlock();
+}

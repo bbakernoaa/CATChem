@@ -38,7 +38,8 @@ namespace catchem {
      *         directory separator.
      */
     inline std::string resolve_config_path(const std::string& config_file, const std::string& path) {
-        if (path.empty() || path.front() == '/') return path;
+        if (path.empty() || path.front() == '/')
+            return path;
         const auto slash = config_file.find_last_of("/\\");
         return slash == std::string::npos ? path : config_file.substr(0, slash + 1) + path;
     }
@@ -52,10 +53,10 @@ namespace catchem {
     /// One configuration validation finding, with an actionable correction.
     struct ValidationIssue {
         ValidationSeverity severity = ValidationSeverity::Error; ///< Warning or Error.
-        std::string category;                                   ///< Finding family: schema, range, diagnostics, mechanism, process, emissions.
-        std::string path;                                       ///< YAML path the finding refers to, e.g. "simulation/nx".
-        std::string message;                                    ///< Human-readable problem statement.
-        std::string suggested_correction;                       ///< Concrete edit that resolves the finding.
+        std::string category; ///< Finding family: schema, range, diagnostics, mechanism, process, emissions.
+        std::string path;     ///< YAML path the finding refers to, e.g. "simulation/nx".
+        std::string message;  ///< Human-readable problem statement.
+        std::string suggested_correction; ///< Concrete edit that resolves the finding.
     };
 
     /**
@@ -76,46 +77,46 @@ namespace catchem {
 
     /// Basic simulation file and verbosity settings from YAML.
     struct SimulationConfig {
-        std::string name;                    ///< Run label from simulation/name.
-        std::string start_date;              ///< Run start timestamp as written (parsed by the driver, not here).
-        std::string end_date;                ///< Run end timestamp as written.
-        std::string species_filename;        ///< simulation/species_filename as written; resolve against config dir.
-        std::string emission_filename;       ///< simulation/emission_filename as written; resolve against config dir.
-        bool verbose_enabled = false;        ///< simulation/verbose/activate switch.
-        std::string log_level; ///< simulation/verbose/log_level, as written in the YAML (empty when unset)
+        std::string name;              ///< Run label from simulation/name.
+        std::string start_date;        ///< Run start timestamp as written (parsed by the driver, not here).
+        std::string end_date;          ///< Run end timestamp as written.
+        std::string species_filename;  ///< simulation/species_filename as written; resolve against config dir.
+        std::string emission_filename; ///< simulation/emission_filename as written; resolve against config dir.
+        bool verbose_enabled = false;  ///< simulation/verbose/activate switch.
+        std::string log_level;         ///< simulation/verbose/log_level, as written in the YAML (empty when unset)
     };
 
     /// Grid dimensions and integration controls consumed by the drivers.
     struct RuntimeConfig {
-        int nx = 1;               ///< simulation/nx: grid cells along x; validated > 0.
-        int ny = 1;               ///< simulation/ny: grid cells along y; validated > 0.
-        int nz = 1;               ///< Vertical levels; overwritten by grid/number_of_levels when present.
-        double dt = 3600.0;       ///< simulation/timestep (or legacy dt) [s]; validated 0 < dt <= 86400.
-        int nsteps = 1;           ///< simulation/nsteps: number of transport steps; validated > 0.
+        int nx = 1;         ///< simulation/nx: grid cells along x; validated > 0.
+        int ny = 1;         ///< simulation/ny: grid cells along y; validated > 0.
+        int nz = 1;         ///< Vertical levels; overwritten by grid/number_of_levels when present.
+        double dt = 3600.0; ///< simulation/timestep (or legacy dt) [s]; validated 0 < dt <= 86400.
+        int nsteps = 1;     ///< simulation/nsteps: number of transport steps; validated > 0.
     };
 
     /// @brief Grid dimensions and static grid settings from YAML.
     struct GridConfig {
-        int number_of_levels = 1;         ///< grid/number_of_levels: model layers, synced into runtime.nz.
-        int number_of_soil_layers = 0;    ///< grid/number_of_soil_layers; validated >= 0.
+        int number_of_levels = 1;      ///< grid/number_of_levels: model layers, synced into runtime.nz.
+        int number_of_soil_layers = 0; ///< grid/number_of_soil_layers; validated >= 0.
     };
 
     /// @brief Runtime timestep settings from YAML.
     struct TimestepConfig {
-        int transport_timestep_in_s = 0;    ///< timesteps/transport_timestep_in_s [s]; validated >= 0.
-        int chemistry_timestep_in_s = 0;    ///< timesteps/chemistry_timestep_in_s [s]; validated >= 0.
+        int transport_timestep_in_s = 0; ///< timesteps/transport_timestep_in_s [s]; validated >= 0.
+        int chemistry_timestep_in_s = 0; ///< timesteps/chemistry_timestep_in_s [s]; validated >= 0.
     };
 
     /// Diagnostic output settings from YAML.
     struct DiagnosticOutputConfig {
-        bool enabled = false;                    ///< diagnostics/output/enabled switch.
-        std::string directory;                   ///< Output directory for diagnostic files.
-        std::string prefix;                      ///< File name prefix for diagnostic files.
-        int frequency = 0;                       ///< Write interval in model steps; validated > 0 when enabled.
-        std::string format;                      ///< Output format; only "netcdf" passes validation (empty = default).
-        int compress_lev = 0;                    ///< NetCDF deflate level, validated 0-9 when enabled.
-        bool process_diagnostics = false;        ///< Also collect per-process diagnostics.
-        std::vector<std::string> diag_list;      ///< Explicit variable list to write (empty = manager default set).
+        bool enabled = false;               ///< diagnostics/output/enabled switch.
+        std::string directory;              ///< Output directory for diagnostic files.
+        std::string prefix;                 ///< File name prefix for diagnostic files.
+        int frequency = 0;                  ///< Write interval in model steps; validated > 0 when enabled.
+        std::string format;                 ///< Output format; only "netcdf" passes validation (empty = default).
+        int compress_lev = 0;               ///< NetCDF deflate level, validated 0-9 when enabled.
+        bool process_diagnostics = false;   ///< Also collect per-process diagnostics.
+        std::vector<std::string> diag_list; ///< Explicit variable list to write (empty = manager default set).
         /// Run-level NetCDF global attributes (institution, references, ...).
         /// Written to every diagnostic file; user entries override core defaults
         /// on key collision (spec FR-011).
@@ -124,8 +125,8 @@ namespace catchem {
 
     /// In-memory diagnostic collection buffer settings from YAML.
     struct DiagnosticCollectionConfig {
-        bool enabled = false;   ///< diagnostics/collection/enabled switch.
-        int buffer_size = 0;    ///< Collected samples held before flush; validated > 0 when enabled.
+        bool enabled = false; ///< diagnostics/collection/enabled switch.
+        int buffer_size = 0;  ///< Collected samples held before flush; validated > 0 when enabled.
     };
 
     /// @brief Top-level diagnostic settings from YAML.
@@ -141,9 +142,9 @@ namespace catchem {
         friend class ConfigManager;
 
     public:
-        bool activate = false;              ///< processes/<name>/activate switch.
-        bool diagnostics = false;           ///< processes/<name>/diagnostics switch.
-        std::string scheme;                 ///< Selected scheme name for the process.
+        bool activate = false;                 ///< processes/<name>/activate switch.
+        bool diagnostics = false;              ///< processes/<name>/diagnostics switch.
+        std::string scheme;                    ///< Selected scheme name for the process.
         std::vector<std::string> diag_species; ///< Species to diagnose for this process.
 
         /// Attach the cloned YAML node holding this process's options (set during parsing).
@@ -210,38 +211,39 @@ namespace catchem {
 
     /// @brief Species metadata loaded from a CATChem species YAML file.
     struct SpeciesConfig {
-        std::string name;               ///< Canonical short name (key for the mechanism).
-        std::string long_name;          ///< Descriptive name; falls back to name when absent.
-        std::string description;        ///< Free-text description.
+        std::string name;                 ///< Canonical short name (key for the mechanism).
+        std::string long_name;            ///< Descriptive name; falls back to name when absent.
+        std::string description;          ///< Free-text description.
         std::vector<std::string> aliases; ///< Alternate accepted names.
         std::vector<std::string> roles;   ///< Functional role labels for role-based lookup.
         std::string ccpp_standard_name;   ///< CF/CCPP standard name; falls back to name when absent.
-        std::string units;              ///< Concentration units as configured.
-        std::string amount_type;        ///< "mole_fraction", "mass_mixing_ratio", "number_concentration", or "ppmv" alias.
-        std::string air_basis;          ///< "dry", "moist", or "total_with_condensate".
+        std::string units;                ///< Concentration units as configured.
+        std::string amount_type; ///< "mole_fraction", "mass_mixing_ratio", "number_concentration", or "ppmv" alias.
+        std::string air_basis;   ///< "dry", "moist", or "total_with_condensate".
 
-        bool is_gas = false;          ///< Gas-phase species.
-        bool is_aerosol = false;      ///< Aerosol-phase species.
-        bool is_tracer = false;       ///< Passive tracer flag.
-        bool is_advected = true;      ///< Participates in transport.
-        bool is_drydep = false;       ///< Dry-deposition participant (also set from do_drydep).
-        bool is_wetdep = false;       ///< Wet-deposition participant (also set from do_wetdep).
+        bool is_gas = false;     ///< Gas-phase species.
+        bool is_aerosol = false; ///< Aerosol-phase species.
+        bool is_tracer = false;  ///< Passive tracer flag.
+        bool is_advected = true; ///< Participates in transport.
+        bool is_drydep = false;  ///< Dry-deposition participant (also set from do_drydep).
+        bool is_wetdep = false;  ///< Wet-deposition participant (also set from do_wetdep).
         // Optional per-process overrides.  Defaults are derived from the
         // phase/deposition metadata above so existing mechanisms are unchanged.
-        bool do_settling = true;      ///< Gravitational settling applies (loader defaults it to is_aerosol).
-        bool is_photolysis = false;   ///< Photolysis participant.
-        bool is_gocart_aero = false;  ///< Handled by GOCART aerosol microphysics.
-        bool is_dust = false;         ///< Mineral-dust mode species.
-        bool is_seasalt = false;      ///< Sea-salt mode species.
-        bool is_hydrophilic = true;   ///< Water uptake at elevated RH (defaults to the soluble behaviour).
+        bool do_settling = true;     ///< Gravitational settling applies (loader defaults it to is_aerosol).
+        bool is_photolysis = false;  ///< Photolysis participant.
+        bool is_gocart_aero = false; ///< Handled by GOCART aerosol microphysics.
+        bool is_dust = false;        ///< Mineral-dust mode species.
+        bool is_seasalt = false;     ///< Sea-salt mode species.
+        bool is_hydrophilic = true;  ///< Water uptake at elevated RH (defaults to the soluble behaviour).
 
-        double molecular_weight_kg_mol = 0.0; ///< Molecular weight [kg mol-1]; derived from mw_g/1000 when only mw_g given.
-        double mw_g = 0.0;                    ///< Molecular weight [g mol-1]; recomputed from the kg/mol value.
-        double density = 0.0;                 ///< Particle bulk density [kg m-3].
-        double radius = 0.0;                  ///< Representative mode radius [m].
-        double lower_radius = 0.0;            ///< Lower bin-edge radius [m].
-        double upper_radius = 0.0;            ///< Upper bin-edge radius [m].
-        double viscosity = 0.0;               ///< Dynamic viscosity parameter [Pa s].
+        double molecular_weight_kg_mol =
+            0.0;                   ///< Molecular weight [kg mol-1]; derived from mw_g/1000 when only mw_g given.
+        double mw_g = 0.0;         ///< Molecular weight [g mol-1]; recomputed from the kg/mol value.
+        double density = 0.0;      ///< Particle bulk density [kg m-3].
+        double radius = 0.0;       ///< Representative mode radius [m].
+        double lower_radius = 0.0; ///< Lower bin-edge radius [m].
+        double upper_radius = 0.0; ///< Upper bin-edge radius [m].
+        double viscosity = 0.0;    ///< Dynamic viscosity parameter [Pa s].
 
         // Dry deposition parameters
         double dd_f0 = 0.0;             ///< Emerson f0 resistance parameter [-].
@@ -251,27 +253,27 @@ namespace catchem {
         double dd_DvzMinVal_land = 0.0; ///< Minimum deposition velocity over land [m s-1].
 
         // Wet deposition parameters
-        double henry_k0 = 0.0;                ///< Henry's law constant at 298 K [M atm-1].
-        double henry_cr = 0.0;                ///< Henry temperature-dependence coefficient [K].
-        double henry_pKa = 0.0;               ///< Acid dissociation exponent [-].
-        double wd_retfactor = 0.0;            ///< Convective retention factor [-].
-        bool wd_LiqAndGas = false;            ///< Species exists in liquid and gas cloud phases.
-        double wd_convfacI2G = 0.0;           ///< Convective ice-to-gas conversion factor [-].
+        double henry_k0 = 0.0;                               ///< Henry's law constant at 298 K [M atm-1].
+        double henry_cr = 0.0;                               ///< Henry temperature-dependence coefficient [K].
+        double henry_pKa = 0.0;                              ///< Acid dissociation exponent [-].
+        double wd_retfactor = 0.0;                           ///< Convective retention factor [-].
+        bool wd_LiqAndGas = false;                           ///< Species exists in liquid and gas cloud phases.
+        double wd_convfacI2G = 0.0;                          ///< Convective ice-to-gas conversion factor [-].
         std::vector<double> wd_rainouteff = {0.0, 0.0, 0.0}; ///< Rainout efficiency per precip category [-].
-        double wd_reevap_frac = 0.5;          ///< Re-applied fraction of evaporated precipitation [-].
+        double wd_reevap_frac = 0.5;                         ///< Re-applied fraction of evaporated precipitation [-].
 
         // Chemical loss rate and background volume-mixing ratio
-        double t_chem_loss = -1.0;        ///< First-order chemical loss [s-1]; negative disables it.
-        double BackgroundVV = 1.0e-20;    ///< Background volume mixing ratio floor [mol mol-1].
-        std::string mie_name;             ///< Aerosol optics type code selecting a Mie table (e.g. "DU").
+        double t_chem_loss = -1.0;     ///< First-order chemical loss [s-1]; negative disables it.
+        double BackgroundVV = 1.0e-20; ///< Background volume mixing ratio floor [mol mol-1].
+        std::string mie_name;          ///< Aerosol optics type code selecting a Mie table (e.g. "DU").
     };
 
     /// @brief Mapping for one external emission source field.
     struct EmissionFieldMapping {
-        std::string long_name;            ///< Descriptive name of the source field.
-        std::string units;                ///< Units of the source field as configured.
-        std::vector<double> scale;        ///< Scaling factors, one per mapped target species.
-        std::vector<std::string> map;     ///< Target species (or MET_ inputs) receiving this field; must match scale size.
+        std::string long_name;        ///< Descriptive name of the source field.
+        std::string units;            ///< Units of the source field as configured.
+        std::vector<double> scale;    ///< Scaling factors, one per mapped target species.
+        std::vector<std::string> map; ///< Target species (or MET_ inputs) receiving this field; must match scale size.
     };
 
     /// @brief Emission mapping category from a CATChem emission YAML file.
@@ -287,8 +289,8 @@ namespace catchem {
     /// "__mie_name" attribute.  "files" keeps the YAML declaration order so every rank
     /// loads the same tables in the same sequence (determinism).
     struct MieConfig {
-        std::string directory = "./";                                ///< Directory holding the optics tables.
-        std::vector<std::pair<std::string, std::string>> files;      ///< (type code, file name) pairs in declaration order.
+        std::string directory = "./";                           ///< Directory holding the optics tables.
+        std::vector<std::pair<std::string, std::string>> files; ///< (type code, file name) pairs in declaration order.
     };
 
     /**
@@ -301,25 +303,27 @@ namespace catchem {
      * of truth.
      */
     struct ConfigData {
-        SimulationConfig simulation;              ///< Run identity, dates, and verbosity settings.
-        RuntimeConfig runtime;                    ///< Grid sizes, timestep [s], and step count.
-        GridConfig grid;                          ///< Level and soil-layer counts.
-        TimestepConfig timesteps;                 ///< Transport/chemistry sub-timestep overrides [s].
-        DiagnosticsConfig diagnostics;            ///< Output and collection settings.
-        std::string species_filename; ///< simulation:species_filename, as written in the YAML
-        std::vector<std::string> active_processes;        ///< Process names listed under run_phases, in declaration order.
-        std::map<std::string, ProcessConfig> processes;   ///< Parsed process blocks keyed by process name.
-        std::vector<SpeciesConfig> species;               ///< Mechanism species in file order (after load_species_file()).
-        std::string mechanism_identity;                   ///< mechanism/identity label, empty when unset.
-        std::vector<std::string> mechanism_capabilities;  ///< mechanism/capabilities tags.
-        PhysicalValidationPolicy physical_validation_policy = PhysicalValidationPolicy::Reject; ///< physical_validation/policy; unknown strings throw at parse.
-        std::map<std::string, EmissionCategoryMapping> emission_mappings; ///< Emission mapping file contents keyed by category.
+        SimulationConfig simulation;               ///< Run identity, dates, and verbosity settings.
+        RuntimeConfig runtime;                     ///< Grid sizes, timestep [s], and step count.
+        GridConfig grid;                           ///< Level and soil-layer counts.
+        TimestepConfig timesteps;                  ///< Transport/chemistry sub-timestep overrides [s].
+        DiagnosticsConfig diagnostics;             ///< Output and collection settings.
+        std::string species_filename;              ///< simulation:species_filename, as written in the YAML
+        std::vector<std::string> active_processes; ///< Process names listed under run_phases, in declaration order.
+        std::map<std::string, ProcessConfig> processes; ///< Parsed process blocks keyed by process name.
+        std::vector<SpeciesConfig> species; ///< Mechanism species in file order (after load_species_file()).
+        std::string mechanism_identity;     ///< mechanism/identity label, empty when unset.
+        std::vector<std::string> mechanism_capabilities; ///< mechanism/capabilities tags.
+        PhysicalValidationPolicy physical_validation_policy =
+            PhysicalValidationPolicy::Reject; ///< physical_validation/policy; unknown strings throw at parse.
+        std::map<std::string, EmissionCategoryMapping>
+            emission_mappings; ///< Emission mapping file contents keyed by category.
         /// Runtime emission-category mirror parsed from processes/extemis/*.
         /// Holds the MAPL ExtData temporal options (daily_hold, monthly_anchor)
         /// so configuration validation and option-propagation tests can inspect
         /// them; the interpolation behaviour lives in the Fortran NUOPC driver.
         std::map<std::string, EmissionCategory> emission_categories;
-        MieConfig mie;                                    ///< Aerosol optics table configuration.
+        MieConfig mie; ///< Aerosol optics table configuration.
     };
 
     /**
@@ -344,9 +348,9 @@ namespace catchem {
         // behavior of printing exactly what the core parsed.
         static bool echo_config_to_stdout; ///< Process-wide stdout echo switch (mutable global state).
 
-        ConfigData data;                   ///< Typed projection of the parsed configuration.
-        bool is_loaded = false;            ///< True after a successful load_from_file(); reset when a load throws.
-        std::string config_file_path;      ///< Path of the last loaded top-level configuration file.
+        ConfigData data;                    ///< Typed projection of the parsed configuration.
+        bool is_loaded = false;             ///< True after a successful load_from_file(); reset when a load throws.
+        std::string config_file_path;       ///< Path of the last loaded top-level configuration file.
         ValidationReport validation_report; ///< Result of the most recent validate() call.
 
         ConfigManager() = default;

@@ -81,24 +81,27 @@ namespace catchem {
      * @see catchem_get_last_error() for the recorded cause of a failure.
      */
     enum class BoundaryStatus : int {
-        Success = 0,                    ///< The operation completed and its outputs are valid.
-        NullArgument = 1,               ///< A required pointer argument (handle, buffer, name, descriptor) was null.
-        MissingField = 2,               ///< The named diagnostic or state field is not registered.
-        RankMismatch = 3,               ///< A diagnostic register call used a rank other than 2 or 3; emitted as the CATCHEM_RANK_MISMATCH spelling by the C entry point.
-        ExtentMismatch = 4,             ///< Declared extents or buffer lengths disagree with the state contract.
-        InvalidIndex = 5,               ///< An index argument is outside its container's valid range.
-        StaleGeneration = 6,            ///< The handle exists but predates the requested generation.
-        DuplicateMapping = 7,           ///< Reserved: mirrors CATCHEM_DUPLICATE_MAPPING; no code path currently returns either spelling.
-        InvalidState = 8,               ///< The callee is not in a state that admits this call.
-        InternalError = 9,              ///< An unexpected escaping exception or registry failure; cause carries what().
-        InvalidHandle = 10,             ///< The pointer is not a usable handle of the expected type.
-        WrongHandleType = 11,           ///< The handle is registered under a different HandleType.
-        RuntimeUnavailable = 12,        ///< Reserved: mirrors CATCHEM_RUNTIME_UNAVAILABLE; no code path currently returns either spelling.
-        ContractViolation = 13,         ///< A versioned descriptor or interval argument breaks its contract.
-        InvalidConfiguration = 14,      ///< A configuration or manifest file failed to parse or validate.
-        ProcessFailure = 15,            ///< An admitted process body threw during execution.
-        ShutdownFailure = 16,           ///< Process finalization failed during handle destruction.
-        PhysicalValidationFailure = 17  ///< Physical validation rejected an input to a derived field.
+        Success = 0,         ///< The operation completed and its outputs are valid.
+        NullArgument = 1,    ///< A required pointer argument (handle, buffer, name, descriptor) was null.
+        MissingField = 2,    ///< The named diagnostic or state field is not registered.
+        RankMismatch = 3,    ///< A diagnostic register call used a rank other than 2 or 3; emitted as the
+                             ///< CATCHEM_RANK_MISMATCH spelling by the C entry point.
+        ExtentMismatch = 4,  ///< Declared extents or buffer lengths disagree with the state contract.
+        InvalidIndex = 5,    ///< An index argument is outside its container's valid range.
+        StaleGeneration = 6, ///< The handle exists but predates the requested generation.
+        DuplicateMapping =
+            7, ///< Reserved: mirrors CATCHEM_DUPLICATE_MAPPING; no code path currently returns either spelling.
+        InvalidState = 8,     ///< The callee is not in a state that admits this call.
+        InternalError = 9,    ///< An unexpected escaping exception or registry failure; cause carries what().
+        InvalidHandle = 10,   ///< The pointer is not a usable handle of the expected type.
+        WrongHandleType = 11, ///< The handle is registered under a different HandleType.
+        RuntimeUnavailable =
+            12, ///< Reserved: mirrors CATCHEM_RUNTIME_UNAVAILABLE; no code path currently returns either spelling.
+        ContractViolation = 13,        ///< A versioned descriptor or interval argument breaks its contract.
+        InvalidConfiguration = 14,     ///< A configuration or manifest file failed to parse or validate.
+        ProcessFailure = 15,           ///< An admitted process body threw during execution.
+        ShutdownFailure = 16,          ///< Process finalization failed during handle destruction.
+        PhysicalValidationFailure = 17 ///< Physical validation rejected an input to a derived field.
     };
 
     /**

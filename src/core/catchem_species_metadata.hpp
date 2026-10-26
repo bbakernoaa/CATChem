@@ -19,11 +19,11 @@
 #pragma once
 #include <algorithm>
 #include <cctype>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <map>
 #include <vector>
 
 namespace catchem {
@@ -41,10 +41,10 @@ namespace catchem {
 
     /// Which air mass the denominator of a mixing ratio refers to.
     enum class AirBasis {
-        Unspecified,           ///< No basis declared; legacy default applies.
-        Dry,                   ///< Dry air only (condensate excluded).
-        Moist,                 ///< Including water vapour.
-        TotalWithCondensate    ///< Including cloud water and precipitation.
+        Unspecified,        ///< No basis declared; legacy default applies.
+        Dry,                ///< Dry air only (condensate excluded).
+        Moist,              ///< Including water vapour.
+        TotalWithCondensate ///< Including cloud water and precipitation.
     };
 
     /**
@@ -55,11 +55,11 @@ namespace catchem {
      * without re-reading the mechanism file. Value data; strings are copies.
      */
     struct SpeciesRepresentation {
-        std::string units;                            ///< Unit string, e.g. "kg kg-1".
+        std::string units;                                ///< Unit string, e.g. "kg kg-1".
         AmountType amount_type = AmountType::Unspecified; ///< Normalisation of the amount.
-        AirBasis air_basis = AirBasis::Unspecified;   ///< Denominator air mass.
-        std::string vertical_axis = "level";          ///< Vertical coordinate label the representation assumes.
-        std::string denominator_recipe;               ///< Free-form recipe for reconstructing the denominator.
+        AirBasis air_basis = AirBasis::Unspecified;       ///< Denominator air mass.
+        std::string vertical_axis = "level";              ///< Vertical coordinate label the representation assumes.
+        std::string denominator_recipe;                   ///< Free-form recipe for reconstructing the denominator.
     };
 
     /**
@@ -72,37 +72,38 @@ namespace catchem {
      */
     struct SpeciesMetadata {
         // Names
-        std::string short_name;          ///< Canonical mechanism name (e.g. "SO4").
-        std::string long_name;           ///< Descriptive name; defaults to short_name.
-        std::string description;         ///< Free-text description from the mechanism file.
-        std::vector<std::string> aliases;///< Alternate names accepted by lookups.
-        std::vector<std::string> roles;  ///< Functional roles (e.g. "oxidant") for role-based lookup.
-        std::string ccpp_standard_name;  ///< CF/CCPP standard name; defaults to short_name.
-        std::string units;               ///< Species-native concentration units as configured.
+        std::string short_name;                    ///< Canonical mechanism name (e.g. "SO4").
+        std::string long_name;                     ///< Descriptive name; defaults to short_name.
+        std::string description;                   ///< Free-text description from the mechanism file.
+        std::vector<std::string> aliases;          ///< Alternate names accepted by lookups.
+        std::vector<std::string> roles;            ///< Functional roles (e.g. "oxidant") for role-based lookup.
+        std::string ccpp_standard_name;            ///< CF/CCPP standard name; defaults to short_name.
+        std::string units;                         ///< Species-native concentration units as configured.
         SpeciesRepresentation host_representation; ///< Representation of the host concentration field.
-        std::map<std::string, SpeciesRepresentation> process_representations; ///< Per-process representations keyed by process name.
+        std::map<std::string, SpeciesRepresentation>
+            process_representations; ///< Per-process representations keyed by process name.
 
         // Classification switches
-        bool is_gas = false;        ///< Gas-phase species.
-        bool is_aerosol = false;    ///< Aerosol-phase species (forced false when is_gas).
-        bool is_tracer = false;     ///< Passive tracer flag.
-        bool is_advected = true;    ///< Participates in transport.
-        bool is_drydep = false;     ///< Has a dry-deposition parameterisation.
-        bool is_wetdep = false;     ///< Has a wet-deposition parameterisation.
-        bool do_settling = false;   ///< Gravitational settling applies (aerosol-only).
-        bool is_photolysis = false; ///< Participates in photolysis.
-        bool is_gocart_aero = false;///< Handled by the GOCART aerosol microphysics (aerosol-only).
-        bool is_dust = false;       ///< Mineral-dust mode species.
-        bool is_seasalt = false;    ///< Sea-salt mode species.
-        bool is_hydrophilic = true; ///< Takes up water at elevated RH (wet-size settling).
+        bool is_gas = false;         ///< Gas-phase species.
+        bool is_aerosol = false;     ///< Aerosol-phase species (forced false when is_gas).
+        bool is_tracer = false;      ///< Passive tracer flag.
+        bool is_advected = true;     ///< Participates in transport.
+        bool is_drydep = false;      ///< Has a dry-deposition parameterisation.
+        bool is_wetdep = false;      ///< Has a wet-deposition parameterisation.
+        bool do_settling = false;    ///< Gravitational settling applies (aerosol-only).
+        bool is_photolysis = false;  ///< Participates in photolysis.
+        bool is_gocart_aero = false; ///< Handled by the GOCART aerosol microphysics (aerosol-only).
+        bool is_dust = false;        ///< Mineral-dust mode species.
+        bool is_seasalt = false;     ///< Sea-salt mode species.
+        bool is_hydrophilic = true;  ///< Takes up water at elevated RH (wet-size settling).
 
         // Physical / Numerical properties
-        double mw_g = 0.0;          ///< Molecular weight [g mol-1].
-        double density = 0.0;       ///< Particle bulk density [kg m-3] (aerosols).
-        double radius = 0.0;        ///< Representative mode radius [m].
-        double lower_radius = 0.0;  ///< Lower bin-edge radius [m] for sectional modes.
-        double upper_radius = 0.0;  ///< Upper bin-edge radius [m] for sectional modes.
-        double viscosity = 0.0;     ///< Dynamic viscosity parameter [Pa s] used by settling.
+        double mw_g = 0.0;         ///< Molecular weight [g mol-1].
+        double density = 0.0;      ///< Particle bulk density [kg m-3] (aerosols).
+        double radius = 0.0;       ///< Representative mode radius [m].
+        double lower_radius = 0.0; ///< Lower bin-edge radius [m] for sectional modes.
+        double upper_radius = 0.0; ///< Upper bin-edge radius [m] for sectional modes.
+        double viscosity = 0.0;    ///< Dynamic viscosity parameter [Pa s] used by settling.
 
         // Dry deposition parameters
         double dd_f0 = 0.0;             ///< Emerson f0 resistance parameter [-].
@@ -112,19 +113,20 @@ namespace catchem {
         double dd_DvzMinVal_land = 0.0; ///< Minimum deposition velocity over land [m s-1].
 
         // Wet deposition parameters
-        double henry_k0 = 0.0;                ///< Henry's law constant at 298 K [M atm-1].
-        double henry_cr = 0.0;                ///< Temperature-dependence coefficient Cr [K].
-        double henry_pKa = 0.0;               ///< Acid dissociation exponent pKa [-].
-        double wd_retfactor = 0.0;            ///< Convective retention factor [-].
-        bool wd_LiqAndGas = false;            ///< Species exists in both cloud phases (liquid and gas).
-        double wd_convfacI2G = 0.0;           ///< Convective ice-to-gas conversion factor [-].
-        std::vector<double> wd_rainouteff = {0.0, 0.0, 0.0}; ///< Rainout efficiency per precip category (lsc, conv, anvil) [-].
-        double wd_reevap_frac = 0.5;          ///< Fraction of evaporated precipitation re-applied [-].
+        double henry_k0 = 0.0;      ///< Henry's law constant at 298 K [M atm-1].
+        double henry_cr = 0.0;      ///< Temperature-dependence coefficient Cr [K].
+        double henry_pKa = 0.0;     ///< Acid dissociation exponent pKa [-].
+        double wd_retfactor = 0.0;  ///< Convective retention factor [-].
+        bool wd_LiqAndGas = false;  ///< Species exists in both cloud phases (liquid and gas).
+        double wd_convfacI2G = 0.0; ///< Convective ice-to-gas conversion factor [-].
+        std::vector<double> wd_rainouteff = {0.0, 0.0,
+                                             0.0}; ///< Rainout efficiency per precip category (lsc, conv, anvil) [-].
+        double wd_reevap_frac = 0.5;               ///< Fraction of evaporated precipitation re-applied [-].
 
         // Chemical loss rate and background volume-mixing ratio
-        double t_chem_loss = -1.0;        ///< First-order chemical loss rate [s-1]; negative disables the loss.
-        double BackgroundVV = 1.0e-20;    ///< Background volume mixing ratio floor [mol mol-1].
-        std::string mie_name;             ///< Aerosol optics type code (e.g. "DU") selecting a Mie table.
+        double t_chem_loss = -1.0;     ///< First-order chemical loss rate [s-1]; negative disables the loss.
+        double BackgroundVV = 1.0e-20; ///< Background volume mixing ratio floor [mol mol-1].
+        std::string mie_name;          ///< Aerosol optics type code (e.g. "DU") selecting a Mie table.
     };
 
     /**
@@ -167,11 +169,11 @@ namespace catchem {
      */
     class MechanismDefinition {
     public:
-        std::string identity;                  ///< Mechanism name from configuration (e.g. "finn01").
-        std::string source;                    ///< Configuration file the mechanism was parsed from.
-        std::string fingerprint;               ///< Stable hash of the configuration inputs.
-        std::size_t generation = 1;            ///< Reserved mechanism-generation counter; set at construction.
-        std::vector<SpeciesMetadata> species;  ///< Species in concentration-array index order.
+        std::string identity;                         ///< Mechanism name from configuration (e.g. "finn01").
+        std::string source;                           ///< Configuration file the mechanism was parsed from.
+        std::string fingerprint;                      ///< Stable hash of the configuration inputs.
+        std::size_t generation = 1;                   ///< Reserved mechanism-generation counter; set at construction.
+        std::vector<SpeciesMetadata> species;         ///< Species in concentration-array index order.
         std::unordered_set<std::string> capabilities; ///< Uppercase capability tags declared for the mechanism.
 
         /**

@@ -31,8 +31,10 @@ namespace catchem {
      */
     struct MetState {
         /// Dynamic map storage for 2D and 3D meteorological fields
-        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 3>>> fields_3d; ///< 3D fields keyed by name and case aliases.
-        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 2>>> fields_2d; ///< 2D fields keyed by name and case aliases.
+        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 3>>>
+            fields_3d; ///< 3D fields keyed by name and case aliases.
+        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 2>>>
+            fields_2d; ///< 2D fields keyed by name and case aliases.
 
         /// Convenient direct accessors for standard core fields (bound views, null until supplied)
         std::shared_ptr<InteropField<double, 3>> T;          //!< Temperature [K]

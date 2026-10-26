@@ -28,10 +28,10 @@ namespace catchem {
      * @brief Point-in-time view of the shared runtime state (copy, not a handle).
      */
     struct RuntimeSnapshot {
-        RuntimeMode mode = RuntimeMode::Disabled;      ///< Mode chosen by the first lease.
+        RuntimeMode mode = RuntimeMode::Disabled;       ///< Mode chosen by the first lease.
         RuntimeState state = RuntimeState::Unavailable; ///< Whether the backend is usable or already finalized.
-        std::size_t lease_count = 0;                   ///< Live leases pinning the runtime.
-        bool initialized_by_catchem = false;           ///< True when CATChemOwned called Kokkos::initialize().
+        std::size_t lease_count = 0;                    ///< Live leases pinning the runtime.
+        bool initialized_by_catchem = false;            ///< True when CATChemOwned called Kokkos::initialize().
     };
 
     /**
@@ -40,7 +40,7 @@ namespace catchem {
      * @details Constructed by Core::initialize() before any Kokkos view is
      * created and released by Core::shutdown(). Copying is deleted so the
      * lease count stays honest; moving transfers the single count. All state
-     * is process-wide statics behind a mutex, so leases from different threads
+     * uses process-wide static variables behind a mutex, so leases from different threads
      * contend safely but the mode decision is first-writer-wins.
      * @see catchem_kokkos_compat.hpp for the host-only build that skips Kokkos.
      */

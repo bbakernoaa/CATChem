@@ -91,8 +91,8 @@ namespace catchem {
         // by the GOCART2G wet-removal kernel.  They are declared Optional so a
         // jacob-only configuration still validates; run() rejects the absence
         // loudly when the active scheme needs them.
-        const auto rain_requirement = active_scheme == "gocart" ? FieldRequirement::Required
-                                                                  : FieldRequirement::Optional;
+        const auto rain_requirement =
+            active_scheme == "gocart" ? FieldRequirement::Required : FieldRequirement::Optional;
         std::vector<FieldAccessContract> fields{host_field_3d("T", "K"),
                                                 host_field_interface("PEDGE", "Pa"),
                                                 host_field_3d("AIRDEN", "kg/m3"),
@@ -360,10 +360,12 @@ namespace catchem {
                 for (int col = 0; col < state->column_count(); ++col)
                     for (int level = 0; level < (active_scheme == "gocart" ? state->level_count() : 1); ++level)
                         surface_loss += diag_flux_bin[position * state->column_count() * state->level_count() +
-                                                      level * state->column_count() + col] * state->clock().timestep;
+                                                      level * state->column_count() + col] *
+                                        state->clock().timestep;
                 // GOCART uses 28.9644 g/mol; the CCPP gas conversion uses
                 // 28.9647 g/mol. Reconcile the diagnosed mass to the host basis.
-                if (meta.is_gas) surface_loss *= 28.9644 / 28.9647;
+                if (meta.is_gas)
+                    surface_loss *= 28.9644 / 28.9647;
                 std::ostringstream record;
                 record << std::setprecision(17) << "CATCHEM_COLUMN_TERM process=wetdep species=" << meta.short_name
                        << " source=0 sink=" << surface_loss << " units=kg_m-2";

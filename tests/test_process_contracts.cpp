@@ -88,10 +88,9 @@ int main() {
     assert(dust_lai_field->requirement == catchem::FieldRequirement::Required);
     const auto so4_contract = catchem::SO4chemProcess().get_contract();
     for (const auto* name : {"Z0H", "Z0"}) {
-        const auto field = std::find_if(so4_contract.fields.begin(), so4_contract.fields.end(),
-                                        [name](const catchem::FieldAccessContract& item) {
-                                            return item.canonical_name == name;
-                                        });
+        const auto field =
+            std::find_if(so4_contract.fields.begin(), so4_contract.fields.end(),
+                         [name](const catchem::FieldAccessContract& item) { return item.canonical_name == name; });
         assert(field != so4_contract.fields.end());
         assert(field->requirement == catchem::FieldRequirement::Optional);
     }
@@ -113,10 +112,9 @@ int main() {
     const auto jacob_wetdep_contract = catchem::WetDepProcess().get_contract();
     assert(jacob_wetdep_contract.structurally_valid());
     for (const auto* field_name : {"PMID", "AIRDEN_DRY", "QV", "REEVAPLS"}) {
-        const auto field = std::find_if(jacob_wetdep_contract.fields.begin(), jacob_wetdep_contract.fields.end(),
-                                        [field_name](const catchem::FieldAccessContract& item) {
-                                            return item.canonical_name == field_name;
-                                        });
+        const auto field = std::find_if(
+            jacob_wetdep_contract.fields.begin(), jacob_wetdep_contract.fields.end(),
+            [field_name](const catchem::FieldAccessContract& item) { return item.canonical_name == field_name; });
         assert(field != jacob_wetdep_contract.fields.end());
         assert(field->requirement == catchem::FieldRequirement::Required);
     }
@@ -139,17 +137,16 @@ int main() {
         assert(field == gocart_wetdep_contract.fields.end());
     }
     const auto required_field = [&gocart_wetdep_contract](const std::string& name) {
-        return std::find_if(gocart_wetdep_contract.fields.begin(), gocart_wetdep_contract.fields.end(),
-                            [&name](const catchem::FieldAccessContract& field) {
-                                return field.canonical_name == name;
-                            });
+        return std::find_if(
+            gocart_wetdep_contract.fields.begin(), gocart_wetdep_contract.fields.end(),
+            [&name](const catchem::FieldAccessContract& field) { return field.canonical_name == name; });
     };
     for (const auto* rain_name : {"PRECCON", "PRECLSC"}) {
         const auto rain = required_field(rain_name);
         assert(rain != gocart_wetdep_contract.fields.end());
         assert(rain->requirement == catchem::FieldRequirement::Required);
-        assert((rain->axes == std::vector<catchem::SemanticAxis>{catchem::SemanticAxis::Column,
-                                                                 catchem::SemanticAxis::Singleton}));
+        assert((rain->axes ==
+                std::vector<catchem::SemanticAxis>{catchem::SemanticAxis::Column, catchem::SemanticAxis::Singleton}));
     }
     for (const auto* flux_name : {"PFILSAN", "PFLLSAN"}) {
         const auto flux = required_field(flux_name);

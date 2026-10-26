@@ -3,7 +3,7 @@ index 435130ec..703d8da8 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -281,3 +281,87 @@ endif()
- 
+
 +if(CATCHEM_BUILD_MUSICA OR (DEFINED CATCHEM_CCPP_PROCESSES AND CATCHEM_CCPP_PROCESSES MATCHES "photolysis|gaschem") OR (DEFINED CATCHEM_CCPP_PROCESS AND (CATCHEM_CCPP_PROCESS STREQUAL "photolysis" OR CATCHEM_CCPP_PROCESS STREQUAL "gaschem")))
 +  enable_language(CXX)
 +endif()
@@ -109,13 +109,13 @@ index ac058bd1..24c04e88 100644
 +    endif()
 +  endforeach()
 +endif()
- 
+
  # Create list of scheme source files from metadata files
  ccpp_source_files(SCHEME_FORTRAN_FILES ${SCHEME_METADATA_FILES})
 @@ -253,6 +262,26 @@ ccpp_datafile(DATATABLE "${OUTPUT_ROOT}/datatable.xml"
                REPORT_NAME "--capgen-files")
  set(CAPGEN_FILES ${CCPP_FILES})
- 
+
 +# The SCM host sources are already present in the capgen dependency closure.
 +# Drop their metadata-derived lower-case copies to avoid compiling the same
 +# Fortran modules twice (e.g., GFS_typedefs.F90 and GFS_typedefs.f90).
@@ -145,7 +145,7 @@ index f78790dc..e1e33dde 100644
 +++ b/scm/src/scm_type_defs.F90
 @@ -8,6 +11,7 @@ module scm_type_defs
  !!
- 
+
    use iso_fortran_env, only: error_unit
 +  use iso_c_binding, only: c_int, c_int64_t
    use scm_kinds, only: sp, dp, qp
@@ -153,7 +153,7 @@ index f78790dc..e1e33dde 100644
                              GFS_statein_type,      &
 @@ -34,6 +38,15 @@ module scm_type_defs
    real(kind=dp), parameter :: real_one = 1.0
- 
+
    character(len = character_length) :: clear_char = ''
 +  integer(c_int) :: catchem_context_id = 0_c_int
 +  integer(c_int64_t) :: catchem_context_generation = 0_c_int64_t
@@ -164,8 +164,8 @@ index f78790dc..e1e33dde 100644
 +  real(kind=kind_phys) :: catchem_duration_seconds = 3600.0_kind_phys
 +  integer(c_int) :: catchem_process_subcycle = 1_c_int
 +  character(len=256) :: catchem_coupling_site = ''
- 
- 
+
+
    type scm_state_type
 diff --git a/scm/src/scm_type_defs.meta b/scm/src/scm_type_defs.meta
 index 8ae0605a..f8b75787 100644
@@ -279,7 +279,7 @@ index b0d0fd70..ef0a0d29 100644
 +    ccpp_context_bind_manifest, ccpp_context_initialize_model, ccpp_context_destroy, CCPP_CTX_OK
 +  use ccpp_host_constituents, only: ccpp_register_constituents, ccpp_initialize_constituents, &
 +    ccpp_deallocate_dynamic_constituents
- 
+
    ! Import CCPP control variables from scm_time_integration
    ! and define CPP directive for fixed control values.
 -  use scm_time_integration, only: errmsg, errflg
@@ -287,7 +287,7 @@ index b0d0fd70..ef0a0d29 100644
 +    catchem_seed_acceptance_unrelated
  #define CCPP_PHYSICS_STATIC_ARGS lb=1, ub=1, nphys_threads=1
  #define CCPP_PHYSICS_NPHYS_THREADS 1
- 
+
 @@ -45,6 +54,15 @@ subroutine scm_main_sub()
    integer      :: i, j, kdt_rad, idtend, itrac, n_tasks
    real(kind=8) :: rinc(5) !(DAYS, HOURS, MINUTES, SECONDS, MILLISECONDS)
@@ -301,13 +301,13 @@ index b0d0fd70..ef0a0d29 100644
 +  character(len=512) :: catchem_host_constituent_message
 +  character(len=1024) :: catchem_config_path
 +  character(len=32) :: catchem_init_stage
- 
+
    character(len=16) :: logfile_name
    logical :: in_spinup
 @@ -171,6 +189,46 @@ subroutine scm_main_sub()
    call physics%associate(scm_state)
    call physics%set(scm_input_instance, scm_state)
- 
+
 +  catchem_config_path = ''
 +  call get_environment_variable('CATCHEM_CONFIG', catchem_config_path, status=catchem_manifest_status)
 +  if (catchem_manifest_status /= 0 .or. len_trim(catchem_config_path) == 0) then
@@ -390,7 +390,7 @@ index b0d0fd70..ef0a0d29 100644
 +    write(error_unit,'(a)') 'Unable to seed CCPP constituents from SCM tracers: '//trim(errmsg)
 +    error stop
 +  end if
- 
+
    call ccpp_init(suite_name=scm_state%physics_suite_name, errmsg=errmsg, errflg=errflg)
    if (errflg/=0) then
 @@ -472,6 +565,15 @@ subroutine scm_main_sub()
@@ -406,7 +406,7 @@ index b0d0fd70..ef0a0d29 100644
 +  end if
 +  catchem_context_id = 0_c_int
 +  catchem_context_generation = 0_c_int64_t
- 
+
    call MPI_FINALIZE(errflg)
    if (errflg/=0) then
 diff --git a/scm/src/scm_time_integration.F90 b/scm/src/scm_time_integration.F90
@@ -424,7 +424,7 @@ index c7cc65ec..112351dd 100644
 +use ccpp_host_constituents, only: ccpp_model_constituents_obj
 +use machine, only: kind_phys
 +use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
- 
+
  use :: scm_ccpp_cap,                  &
         only: ccpp_physics_timestep_init, &
               ccpp_physics_run,           &
@@ -433,9 +433,9 @@ index c7cc65ec..112351dd 100644
 +             ccpp_constituents_array,     &
 +             ccpp_const_get_index,        &
 +             ccpp_model_const_properties
- 
+
  implicit none
- 
+
 @@ -20,10 +29,400 @@ implicit none
    ! Fixed CCPP control values are passed via a CPP directive.
    character(len=512) :: errmsg
@@ -446,13 +446,13 @@ index c7cc65ec..112351dd 100644
 +  real(kind=kind_phys) :: catchem_acceptance_unrelated_tendency_value = 0.0_kind_phys
 +  logical :: catchem_acceptance_unrelated_reported = .false.
  #define CCPP_PHYSICS_STATIC_ARGS lb=1, ub=1, nphys_threads=1
- 
+
 +  public :: catchem_sync_tracers_to_constituents, catchem_sync_constituents_to_tracers
 +  public :: catchem_seed_acceptance_unrelated
 +  public :: catchem_seed_acceptance_unrelated_tendency, catchem_verify_acceptance_unrelated_tendency
 +
  contains
- 
+
 +!> Return the Gregorian ordinal day for the SCM host clock.
 +!! @param year Four-digit calendar year.
 +!! @param month Calendar month in the range 1 through 12.
@@ -917,7 +917,7 @@ index c7cc65ec..112351dd 100644
 @@ -138,6 +533,20 @@ subroutine do_time_step(scm_state, physics, in_spinup)
      endif
    enddo
- 
+
 +  if (catchem_interval_id == huge(catchem_interval_id)) error stop 'CATChem interval identifier exhausted'
 +  catchem_interval_id = catchem_interval_id + 1
 +  catchem_interval_token = catchem_interval_id
@@ -938,7 +938,7 @@ index c7cc65ec..112351dd 100644
 @@ -145,6 +553,7 @@ subroutine do_time_step(scm_state, physics, in_spinup)
        error stop trim(errmsg)
    end if
- 
+
 +
    !--- determine if radiation diagnostics buckets need to be cleared
    if (nint(physics%Model%fhzero*3600) >= nint(max(physics%Model%fhswr,physics%Model%fhlwr))) then
@@ -947,11 +947,11 @@ index c7cc65ec..112351dd 100644
    !CCPP run phase
    ! time_vary group doesn't have any run phase (omitted)
    ! radiation group
--  
+-
 +
 +  call catchem_sync_tracers_to_constituents(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
 +  if (errflg /= 0) error stop 'Unable to import SCM tracers before radiation: '//trim(errmsg)
-   call physics%Interstitial(1)%create(ixs=1, ixe=1, model=physics%Model)  
+   call physics%Interstitial(1)%create(ixs=1, ixe=1, model=physics%Model)
    call ccpp_physics_run(suite_name=scm_state%physics_suite_name, group_name="radiation", &
            errflg=errflg, errmsg=errmsg, CCPP_PHYSICS_STATIC_ARGS)
 @@ -173,21 +584,35 @@ subroutine do_time_step(scm_state, physics, in_spinup)

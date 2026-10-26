@@ -2,11 +2,11 @@
 program test_ccpp_restart_capability
    use iso_c_binding, only: c_int
    use catchem_ccpp_context, only: CATCHEM_CCPP_PHYSICAL_RESTART_SUPPORTED, &
-                            CATCHEM_CCPP_CONCURRENT_CONTEXT_EXECUTION_SUPPORTED, CATCHEM_CONTEXT_SUCCESS, CATCHEM_CONTEXT_INVALID, &
-                                   CATCHEM_CCPP_RESTART_COLD_START, CATCHEM_CCPP_RESTART_CONCENTRATION_ONLY, &
-                                   CATCHEM_CCPP_RESTART_MID_INTERVAL, catchem_ccpp_validate_restart_request, &
-                                   CATCHEM_CCPP_EXECUTION_SERIALIZED, CATCHEM_CCPP_EXECUTION_CONCURRENT, &
-                                   catchem_ccpp_validate_execution_request
+      CATCHEM_CCPP_CONCURRENT_CONTEXT_EXECUTION_SUPPORTED, CATCHEM_CONTEXT_SUCCESS, CATCHEM_CONTEXT_INVALID, &
+      CATCHEM_CCPP_RESTART_COLD_START, CATCHEM_CCPP_RESTART_CONCENTRATION_ONLY, &
+      CATCHEM_CCPP_RESTART_MID_INTERVAL, catchem_ccpp_validate_restart_request, &
+      CATCHEM_CCPP_EXECUTION_SERIALIZED, CATCHEM_CCPP_EXECUTION_CONCURRENT, &
+      catchem_ccpp_validate_execution_request
    implicit none
    integer(c_int) :: status
 

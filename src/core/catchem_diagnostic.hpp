@@ -42,25 +42,25 @@ namespace catchem {
         using Mdspan2D = typename MdspanTypeHelper<double, 2>::type;
         using Mdspan3D = typename MdspanTypeHelper<double, 3>::type;
 
-        std::string name;                    ///< Registered field name; the manager's lookup key.
-        std::string description;             ///< Human-readable description for output metadata.
-        std::string units;                   ///< CF-style units string, e.g. "kg m-2 s-1".
-        DiagType type;                       ///< 2D or 3D shape; fixed at construction.
-        std::vector<int> dimensions;         ///< Extent per dimension, outermost-first as registered.
-        std::vector<SemanticAxis> axes;      ///< Semantic axis per dimension (length == rank).
+        std::string name;               ///< Registered field name; the manager's lookup key.
+        std::string description;        ///< Human-readable description for output metadata.
+        std::string units;              ///< CF-style units string, e.g. "kg m-2 s-1".
+        DiagType type;                  ///< 2D or 3D shape; fixed at construction.
+        std::vector<int> dimensions;    ///< Extent per dimension, outermost-first as registered.
+        std::vector<SemanticAxis> axes; ///< Semantic axis per dimension (length == rank).
         /// Human-readable label for each position of the field's single packed
         /// (Species or Category) dimension; empty when no dimension is packed.
         /// Index i is the 0-based slot the scheme writes, NOT a global species index.
         std::vector<std::string> unpack_labels;
-        std::size_t generation = 0;                    ///< Current generation copied from the manager at advance time.
-        std::size_t registration_generation = 0;       ///< Generation in effect when the field was registered.
+        std::size_t generation = 0;              ///< Current generation copied from the manager at advance time.
+        std::size_t registration_generation = 0; ///< Generation in effect when the field was registered.
         /// Generation in which a producer last wrote this diagnostic.
         std::size_t last_write_generation = 0;
         AvailabilityState availability = AvailabilityState::Unavailable; ///< Whether consumers may read current values.
-        bool generation_failed = false;                ///< Set when a process failed during this generation.
+        bool generation_failed = false;                           ///< Set when a process failed during this generation.
         LatestWriter latest_writer = LatestWriter::Uninitialized; ///< Mirror written last; drives sync no-ops.
         DiagnosticPolicy reset_policy = DiagnosticPolicy::Instantaneous; ///< Whether reset() runs on advance.
-        double reset_value = 0.0;                      ///< Fill value used by reset().
+        double reset_value = 0.0;                                        ///< Fill value used by reset().
 
 #ifdef CATCHEM_ENABLE_KOKKOS
         /// Device/host memory spaces; equal when Kokkos runs on host only.
@@ -77,10 +77,10 @@ namespace catchem {
         /// LayoutLeft host mirror of the 3D storage.
         using HostView3D = Kokkos::View<double***, Kokkos::LayoutLeft, HostSpace>;
 
-        View2D device_view_2d; ///< Device-resident 2D view (aliases host view when no GPU).
+        View2D device_view_2d;   ///< Device-resident 2D view (aliases host view when no GPU).
         HostView2D host_view_2d; ///< Host mirror of the 2D storage.
 
-        View3D device_view_3d; ///< Device-resident 3D view (aliases host view when no GPU).
+        View3D device_view_3d;   ///< Device-resident 3D view (aliases host view when no GPU).
         HostView3D host_view_3d; ///< Host mirror of the 3D storage.
 #else
         // Host-only builds own their storage directly; mdspans over `storage`

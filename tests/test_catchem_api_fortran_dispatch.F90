@@ -24,7 +24,7 @@ program test_catchem_api_fortran_dispatch
    call require(rc == 0 .and. species_count > 0, 'Fortran manifest species discovery')
    call manifest%get_species(1, species, process_name, field_name, units, rc)
    call require(rc == 0 .and. len_trim(process_name) > 0 .and. species%name_required_len > 1, &
-                'Fortran manifest species descriptor')
+      'Fortran manifest species descriptor')
    call manifest%close(rc)
    call require(rc == 0, 'Fortran manifest close')
    call model%initialize(trim(config), 2, 1, 5, rc=rc)
@@ -34,7 +34,7 @@ program test_catchem_api_fortran_dispatch
    call require(contract%field_count > 0, 'contract field count')
    call model%get_process_field(1, 1, field, field_name, units, rc)
    call require(rc == 0 .and. field%rank > 0 .and. len_trim(field_name) > 0 .and. len_trim(units) > 0, &
-                'Fortran field contract discovery')
+      'Fortran field contract discovery')
 
    interval%interval_id = 700_c_int64_t
    interval%year = 2024; interval%month = 2; interval%day = 29
@@ -43,26 +43,26 @@ program test_catchem_api_fortran_dispatch
    call model%begin_interval(interval, rc)
    call require(rc == 0, 'Fortran checked interval begin')
    call model%run_selected_process(interval%interval_id, 'site', 0_c_int32_t, 'unknown', 30.0_c_double, &
-                                   operation_status, publication_eligible, generation, rc)
+      operation_status, publication_eligible, generation, rc)
    call require(rc /= 0 .and. operation_status == 1_c_int .and. .not. publication_eligible, &
-                'rejected selected call is ineligible for publication')
+      'rejected selected call is ineligible for publication')
    call model%run_selected_process(interval%interval_id, 'site', 1_c_int32_t, 'drydep', 30.0_c_double, &
-                                   operation_status, publication_eligible, generation, rc)
+      operation_status, publication_eligible, generation, rc)
    call require(rc /= 0 .and. operation_status == 1_c_int .and. .not. publication_eligible, &
-                'configured-suite disagreement rejects a process absent from the configured schedule')
+      'configured-suite disagreement rejects a process absent from the configured schedule')
    call model%end_interval(interval%interval_id, rc)
    call require(rc == 0, 'Fortran checked interval end')
    call model%get_timestep_outcome(outcome_status, timestep, interval%duration_seconds, import_generation, &
-                                   process_index, state_classification, process_name, units, rc)
+      process_index, state_classification, process_name, units, rc)
    call require(rc == 0 .and. timestep == 1_c_long_long .and. outcome_status == 2_c_int, &
-                'Fortran checked timestep outcome')
+      'Fortran checked timestep outcome')
    call model%finalize(rc)
    call require(rc == 0, 'model finalization')
    print *, 'PASS test_catchem_api_fortran_dispatch'
 contains
    !> Assert a test condition and stop with its identifying message on failure.
-  !! @param condition Boolean condition expected to hold.
-  !! @param message Short description of the failed assertion.
+   !! @param condition Boolean condition expected to hold.
+   !! @param message Short description of the failed assertion.
    subroutine require(condition, message)
       logical, intent(in) :: condition
       character(len=*), intent(in) :: message

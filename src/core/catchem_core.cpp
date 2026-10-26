@@ -248,22 +248,26 @@ namespace catchem {
     void Core::execute_process(std::size_t index, bool verbose) {
         try {
             const auto& mechanism = state_mgr->chemistry().mechanism;
-            const std::string mechanism_identity = mechanism
-                ? (!mechanism->fingerprint.empty() ? mechanism->fingerprint : mechanism->identity)
-                : std::string{};
+            const std::string mechanism_identity =
+                mechanism ? (!mechanism->fingerprint.empty() ? mechanism->fingerprint : mechanism->identity)
+                          : std::string{};
             const auto interval_identity = active_interval_id_ ? active_interval_id_ : timestep_counter_;
             for (const auto& requirement : execution_plan_.contract(index).products) {
-                if (!requirement.required || !execution_plan_.product_provenance(requirement.name)) continue;
-                const auto current_fingerprint = execution_plan_.product_input_fingerprint(requirement.name, *state_mgr);
+                if (!requirement.required || !execution_plan_.product_provenance(requirement.name))
+                    continue;
+                const auto current_fingerprint =
+                    execution_plan_.product_input_fingerprint(requirement.name, *state_mgr);
                 if (!execution_plan_.product_is_current(requirement.name, mechanism_identity, interval_identity,
                                                         state_mgr->current_import_generation(), current_fingerprint)) {
                     const auto* provenance = execution_plan_.product_provenance(requirement.name);
-                    const auto current_fields = execution_plan_.product_input_field_fingerprints(requirement.name, *state_mgr);
+                    const auto current_fields =
+                        execution_plan_.product_input_field_fingerprints(requirement.name, *state_mgr);
                     std::string changed_fields;
                     for (const auto& [field, fingerprint] : current_fields) {
                         const auto previous = provenance->input_field_fingerprints.find(field);
                         if (previous == provenance->input_field_fingerprints.end() || previous->second != fingerprint) {
-                            if (!changed_fields.empty()) changed_fields += ",";
+                            if (!changed_fields.empty())
+                                changed_fields += ",";
                             changed_fields += field;
                         }
                     }
@@ -284,34 +288,38 @@ namespace catchem {
             if (verbose) {
                 Logger::debug(state_mgr.get(), "Core process prepare",
                               {{"step", std::to_string(last_outcome_.timestep)},
-                               {"index", std::to_string(index)}, {"process", processes.at(index)->get_name()}});
+                               {"index", std::to_string(index)},
+                               {"process", processes.at(index)->get_name()}});
                 Logger::debug(state_mgr.get(), "Core process input preparation",
                               {{"step", std::to_string(last_outcome_.timestep)},
-                               {"index", std::to_string(index)}, {"process", processes.at(index)->get_name()}});
+                               {"index", std::to_string(index)},
+                               {"process", processes.at(index)->get_name()}});
             }
             processes.at(index)->prepare_inputs(state_mgr);
             execution_plan_.prepare(index, *state_mgr);
             if (verbose)
                 Logger::debug(state_mgr.get(), "Core process run",
                               {{"step", std::to_string(last_outcome_.timestep)},
-                               {"index", std::to_string(index)}, {"process", processes.at(index)->get_name()}});
+                               {"index", std::to_string(index)},
+                               {"process", processes.at(index)->get_name()}});
             processes.at(index)->run(state_mgr);
             if (verbose) {
                 log_watch_species_bounds(*state_mgr, processes.at(index)->get_name(), last_outcome_.timestep);
                 Logger::debug(state_mgr.get(), "Core process bookkeeping",
                               {{"step", std::to_string(last_outcome_.timestep)},
-                               {"index", std::to_string(index)}, {"process", processes.at(index)->get_name()}});
+                               {"index", std::to_string(index)},
+                               {"process", processes.at(index)->get_name()}});
             }
             execution_plan_.complete(index, *state_mgr);
-            execution_plan_.publish_products(index, mechanism_identity,
-                                             interval_identity,
+            execution_plan_.publish_products(index, mechanism_identity, interval_identity,
                                              state_mgr->current_import_generation(),
                                              execution_plan_.input_fingerprint(index, *state_mgr),
                                              execution_plan_.input_field_fingerprints(index, *state_mgr));
             if (verbose)
                 Logger::debug(state_mgr.get(), "Core process complete",
                               {{"step", std::to_string(last_outcome_.timestep)},
-                               {"index", std::to_string(index)}, {"process", processes.at(index)->get_name()}});
+                               {"index", std::to_string(index)},
+                               {"process", processes.at(index)->get_name()}});
         } catch (const std::exception& error) {
             last_outcome_.status = TimestepStatus::PartialUpdate;
             last_outcome_.process_name = processes.at(index)->get_name();
@@ -326,7 +334,8 @@ namespace catchem {
             diag_mgr->mark_generation_failed();
             Logger::error(state_mgr.get(), "Core process failed",
                           {{"step", std::to_string(last_outcome_.timestep)},
-                           {"index", std::to_string(index)}, {"process", last_outcome_.process_name},
+                           {"index", std::to_string(index)},
+                           {"process", last_outcome_.process_name},
                            {"cause", last_outcome_.cause}});
             throw;
         } catch (...) {
@@ -342,7 +351,8 @@ namespace catchem {
             diag_mgr->mark_generation_failed();
             Logger::error(state_mgr.get(), "Core process failed",
                           {{"step", std::to_string(last_outcome_.timestep)},
-                           {"index", std::to_string(index)}, {"process", last_outcome_.process_name},
+                           {"index", std::to_string(index)},
+                           {"process", last_outcome_.process_name},
                            {"cause", last_outcome_.cause}});
             throw;
         }
@@ -420,7 +430,8 @@ namespace catchem {
             spec.name = processes[index]->get_name();
             spec.active = true;
             for (const auto& product : execution_plan_.contract(index).products)
-                if (product.required && !product.producer.empty()) spec.required_producers.push_back(product.producer);
+                if (product.required && !product.producer.empty())
+                    spec.required_producers.push_back(product.producer);
             specs.push_back(std::move(spec));
         }
         selected_dispatch_ = std::make_unique<SelectedProcessLedger>(std::move(specs));
@@ -498,16 +509,21 @@ namespace catchem {
 
     void Core::begin_interval(std::uint64_t interval_id, const TimeState& interval_time) {
         std::lock_guard<std::mutex> lock(lifecycle_mutex_);
-        if (shutdown_) throw std::logic_error("Cannot begin an interval after shutdown");
-        if (!selected_dispatch_) rebuild_selected_dispatch();
+        if (shutdown_)
+            throw std::logic_error("Cannot begin an interval after shutdown");
+        if (!selected_dispatch_)
+            rebuild_selected_dispatch();
         if (tainted_) {
             if (last_outcome_.state == StateClassification::RequiresReinitialize)
                 throw std::runtime_error(
                     "Previous selected operation requires Core reinitialization; importing host state is insufficient");
-            if (state_mgr->current_import_generation() > last_outcome_.import_generation) tainted_ = false;
-            else throw std::runtime_error("Previous selected operation requires a new import generation");
+            if (state_mgr->current_import_generation() > last_outcome_.import_generation)
+                tainted_ = false;
+            else
+                throw std::runtime_error("Previous selected operation requires a new import generation");
         }
-        if (!interval_time.valid()) throw std::out_of_range("Interval date, day-of-year, or duration is invalid");
+        if (!interval_time.valid())
+            throw std::out_of_range("Interval date, day-of-year, or duration is invalid");
         state_mgr->clock() = interval_time;
         state_mgr->validate_ready_for_execution();
         selected_dispatch_->begin_interval(interval_id, interval_time.timestep);
@@ -525,13 +541,23 @@ namespace catchem {
         std::lock_guard<std::mutex> lock(lifecycle_mutex_);
         SelectedOperationOutcome result;
         result.process = key.process;
-        if (shutdown_) { result.cause = "Core is shut down"; return result; }
-        if (!selected_dispatch_) rebuild_selected_dispatch();
+        if (shutdown_) {
+            result.cause = "Core is shut down";
+            return result;
+        }
+        if (!selected_dispatch_)
+            rebuild_selected_dispatch();
         result.import_generation = state_mgr->current_import_generation();
         std::size_t selected_index = processes.size();
         for (std::size_t index = 0; index < processes.size(); ++index)
-            if (processes[index]->get_name() == key.process) { selected_index = index; break; }
-        if (selected_index == processes.size()) { result.cause = "Selected process is unavailable"; return result; }
+            if (processes[index]->get_name() == key.process) {
+                selected_index = index;
+                break;
+            }
+        if (selected_index == processes.size()) {
+            result.cause = "Selected process is unavailable";
+            return result;
+        }
         result = selected_dispatch_->run(key, duration, [&] {
             // Science bridges consume clock().timestep.  Expose this admitted
             // invocation's duration while retaining the host calendar and
@@ -561,10 +587,13 @@ namespace catchem {
 
     void Core::end_interval(std::uint64_t interval_id) {
         std::lock_guard<std::mutex> lock(lifecycle_mutex_);
-        if (shutdown_) throw std::logic_error("Cannot end an interval after shutdown");
-        if (!selected_dispatch_) throw std::logic_error("No selected interval has been opened");
+        if (shutdown_)
+            throw std::logic_error("Cannot end an interval after shutdown");
+        if (!selected_dispatch_)
+            throw std::logic_error("No selected interval has been opened");
         selected_dispatch_->end_interval(interval_id);
-        if (tainted_) throw std::runtime_error("Selected process failure left Core state tainted");
+        if (tainted_)
+            throw std::runtime_error("Selected process failure left Core state tainted");
         diag_mgr->sync_to_host();
         last_outcome_.status = TimestepStatus::Succeeded;
         last_outcome_.state = StateClassification::Reusable;

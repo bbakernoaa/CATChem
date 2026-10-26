@@ -43,10 +43,10 @@ namespace catchem {
      * configuration whenever a config file is supplied.
      */
     struct CoreCreateOptions {
-        std::string config_file;           ///< YAML path; empty means dimensions-only construction.
-        int columns = 1;                   ///< Host-local column count (nx*ny) when the host owns the grid.
-        int levels = 1;                    ///< Vertical level count.
-        int species = 0;                   ///< Chemical species count; ignored when config_file is set.
+        std::string config_file;             ///< YAML path; empty means dimensions-only construction.
+        int columns = 1;                     ///< Host-local column count (nx*ny) when the host owns the grid.
+        int levels = 1;                      ///< Vertical level count.
+        int species = 0;                     ///< Chemical species count; ignored when config_file is set.
         bool use_configuration_grid = false; ///< true to read nx/ny/nz from the YAML runtime section.
 
         /// Options for a dimensions-only Core (no YAML): grid and species come from the arguments.
@@ -85,15 +85,15 @@ namespace catchem {
         /// Monotonic step ordinal; doubles as the product-interval identity
         /// when no host interval is open.
         std::size_t timestep_counter_ = 0;
-        std::uint64_t active_interval_id_ = 0;                    ///< Open host interval id; 0 when none.
+        std::uint64_t active_interval_id_ = 0; ///< Open host interval id; 0 when none.
         /// Set when a process threw; blocks further execution until the host
         /// reimports state at a newer import generation.
         bool tainted_ = false;
-        ExecutionPlan execution_plan_;                            ///< Compiled contracts and product provenance.
+        ExecutionPlan execution_plan_;                             ///< Compiled contracts and product provenance.
         std::unique_ptr<SelectedProcessLedger> selected_dispatch_; ///< Ledger for selected-process intervals.
-        mutable std::mutex lifecycle_mutex_;                      ///< Serialises edits, timesteps, intervals, shutdown.
-        std::vector<bool> initialized_processes_;                 ///< True once init() ran; shutdown finalizes those.
-        bool shutdown_ = false;                                   ///< Set by shutdown(); later add/run calls rejected.
+        mutable std::mutex lifecycle_mutex_;      ///< Serialises edits, timesteps, intervals, shutdown.
+        std::vector<bool> initialized_processes_; ///< True once init() ran; shutdown finalizes those.
+        bool shutdown_ = false;                   ///< Set by shutdown(); later add/run calls rejected.
 
         /** @brief Creates and initializes the processes requested by configuration. */
         void add_configured_processes();

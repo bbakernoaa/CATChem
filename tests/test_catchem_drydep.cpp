@@ -222,7 +222,8 @@ int main(int argc, char* argv[]) {
             state->sync_to_host();
             const std::size_t slab = static_cast<std::size_t>(fix.n_cols) * fix.n_levels;
             for (std::size_t species = 0; species < state->chemistry().species_list.size(); ++species) {
-                if (state->chemistry().species_list[species].is_drydep) continue;
+                if (state->chemistry().species_list[species].is_drydep)
+                    continue;
                 check(std::equal(initial_concentrations.begin() + species * slab,
                                  initial_concentrations.begin() + (species + 1) * slab,
                                  fix.chem_conc.begin() + species * slab),
@@ -342,7 +343,8 @@ int main(int argc, char* argv[]) {
                 // MSA is disabled in the ordinary catalog. Enable it only in
                 // this routing fixture so the sulfate skip test is non-vacuous.
                 for (auto& species : state->chemistry().species_list)
-                    if (species.short_name == "msa") species.is_drydep = true;
+                    if (species.short_name == "msa")
+                        species.is_drydep = true;
                 state->clock().timestep = 3600.0;
                 auto drydep = catchem::ProcessRegistry::get_instance().create("drydep");
                 drydep->prepare_inputs(state);

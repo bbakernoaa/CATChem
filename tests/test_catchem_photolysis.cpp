@@ -1,6 +1,6 @@
 #include "catchem_api.hpp"
-#include "catchem_core.hpp"
 #include "catchem_constants.hpp"
+#include "catchem_core.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_photolysis_conversion.hpp"
 #include "catchem_process_registry.hpp"
@@ -150,11 +150,11 @@ int main(int argc, char* argv[]) {
 
         // A calibrated ozone profile is converted to number density at the
         // TUV-x boundary independently of the expected daytime rates above.
-        const double dry_air_number_density_cm3 = 1.2 / (catchem::constants::AIR_MW * 1.0e-3) *
-                                                  catchem::constants::AVO * 1.0e-6;
+        const double dry_air_number_density_cm3 =
+            1.2 / (catchem::constants::AIR_MW * 1.0e-3) * catchem::constants::AVO * 1.0e-6;
         const double expected_ozone_number_density_cm3 = 0.04e-6 * dry_air_number_density_cm3;
-        assert(std::abs(catchem::photolysis_ozone_ppmv_to_number_density(
-                            0.04, dry_air_number_density_cm3) - expected_ozone_number_density_cm3) < 1.0);
+        assert(std::abs(catchem::photolysis_ozone_ppmv_to_number_density(0.04, dry_air_number_density_cm3) -
+                        expected_ozone_number_density_cm3) < 1.0);
 
         // The same configured column must produce no photolysis in darkness.
         state->clock().hour = 6;

@@ -20,8 +20,8 @@
 #include <cctype>
 #include <cmath>
 #include <iomanip>
-#include <sstream>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 
 extern "C" {
@@ -122,10 +122,10 @@ namespace catchem {
             fields.insert(fields.end(),
                           {host_field_soil_layer("SOILM", "m3/m3"), host_field_2d("CLAYFRAC", "1"),
                            host_field_2d("FRLAKE", "1"), host_field_2d("FRSNO", "frac"), host_field_2d("GVF", "frac"),
-                           host_field_2d("LAI", "m2/m2"), host_field_2d("LWI", "1"),
-                           host_field_2d("RDRAG", "1"), host_field_2d("SNDFRC", "1"), host_field_2d("SSM", "1"),
-                           host_field_2d("TS", "K"), host_field_2d("USTAR", "m/s"),
-                           host_field_2d("USTAR_THRESHOLD", "m/s"), host_field_2d("Z0", "m")});
+                           host_field_2d("LAI", "m2/m2"), host_field_2d("LWI", "1"), host_field_2d("RDRAG", "1"),
+                           host_field_2d("SNDFRC", "1"), host_field_2d("SSM", "1"), host_field_2d("TS", "K"),
+                           host_field_2d("USTAR", "m/s"), host_field_2d("USTAR_THRESHOLD", "m/s"),
+                           host_field_2d("Z0", "m")});
         } else if (active_scheme == "ginoux") {
             fields.insert(fields.end(),
                           {host_field_2d("FRLAKE", "1"), host_field_2d("FRSNO", "frac"), host_field_2d("GWETTOP", "1"),
@@ -342,15 +342,15 @@ namespace catchem {
 
         if (active_scheme == "ginoux" && state->column_count() > 0) {
             Logger::info(state.get(), "Dust Ginoux surface inputs",
-                          {{"lwi", std::to_string(static_cast<int>(lwi.front()))},
-                           {"ssm", std::to_string(ssm_ptr[0])},
-                           {"soilm", soilm_ptr ? std::to_string(soilm_ptr[0]) : "unavailable"},
-                           {"gwettop", std::to_string(gwettop_ptr[0])},
-                           {"tskin_k", std::to_string(tskin_ptr[0])},
-                           {"u10m", std::to_string(u10m_ptr[0])},
-                           {"v10m", std::to_string(v10m_ptr[0])},
-                           {"frlake", std::to_string(frlake_ptr[0])},
-                           {"frsno", std::to_string(frsno_ptr[0])}});
+                         {{"lwi", std::to_string(static_cast<int>(lwi.front()))},
+                          {"ssm", std::to_string(ssm_ptr[0])},
+                          {"soilm", soilm_ptr ? std::to_string(soilm_ptr[0]) : "unavailable"},
+                          {"gwettop", std::to_string(gwettop_ptr[0])},
+                          {"tskin_k", std::to_string(tskin_ptr[0])},
+                          {"u10m", std::to_string(u10m_ptr[0])},
+                          {"v10m", std::to_string(v10m_ptr[0])},
+                          {"frlake", std::to_string(frlake_ptr[0])},
+                          {"frsno", std::to_string(frsno_ptr[0])}});
         }
 
         const auto config = state->config_manager();
@@ -506,8 +506,9 @@ namespace catchem {
                     bin_sum += diag_emission_bin[column + state->column_count() * bin];
             }
             std::ostringstream budget_record;
-            budget_record << std::setprecision(17) << "CATCHEM_BUDGET name=dust_bin_closure RESIDUAL="
-                          << (total_sum - bin_sum) << " TOTAL=" << total_sum << " BIN_SUM=" << bin_sum;
+            budget_record << std::setprecision(17)
+                          << "CATCHEM_BUDGET name=dust_bin_closure RESIDUAL=" << (total_sum - bin_sum)
+                          << " TOTAL=" << total_sum << " BIN_SUM=" << bin_sum;
             Logger::info(state.get(), budget_record.str());
         }
 

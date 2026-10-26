@@ -82,31 +82,55 @@ namespace catchem {
          */
         StateManager(int nc, int nl, int ns);
 
-        int column_count() const noexcept { return n_cols; }   ///< Flattened grid columns (nc) the state is sized for.
-        int level_count() const noexcept { return n_levels; }  ///< Vertical model layers (nl).
+        int column_count() const noexcept { return n_cols; }  ///< Flattened grid columns (nc) the state is sized for.
+        int level_count() const noexcept { return n_levels; } ///< Vertical model layers (nl).
         int species_count() const noexcept { return n_species; } ///< Mechanism species count (ns).
-        std::size_t current_import_generation() const noexcept { return import_generation; } ///< Monotonic counter bumped by begin_import_generation().
+        std::size_t current_import_generation() const noexcept {
+            return import_generation;
+        } ///< Monotonic counter bumped by begin_import_generation().
 
-        MetState& meteorology() noexcept { return met; }         ///< Mutable met field registry.
+        MetState& meteorology() noexcept { return met; }             ///< Mutable met field registry.
         const MetState& meteorology() const noexcept { return met; } ///< Read-only met field registry.
-        ChemState& chemistry() noexcept { return chem; }         ///< Mutable chemistry/mechanism state.
+        ChemState& chemistry() noexcept { return chem; }             ///< Mutable chemistry/mechanism state.
         const ChemState& chemistry() const noexcept { return chem; } ///< Read-only chemistry/mechanism state.
-        TimeState& clock() noexcept { return time; }             ///< Mutable simulation clock.
-        const TimeState& clock() const noexcept { return time; } ///< Read-only simulation clock.
+        TimeState& clock() noexcept { return time; }                 ///< Mutable simulation clock.
+        const TimeState& clock() const noexcept { return time; }     ///< Read-only simulation clock.
 
-        std::shared_ptr<ConfigManager> config_manager() const noexcept { return config_mgr; }           ///< Attached config manager, or null. Shared ownership.
-        std::shared_ptr<DiagnosticManager> diagnostic_manager() const noexcept { return diag_mgr; }     ///< Attached diagnostic manager, or null. Shared ownership.
-        void attach_config_manager(std::shared_ptr<ConfigManager> manager) { config_mgr = std::move(manager); } ///< Install (or replace, with std::move(nullptr) to detach) the config manager.
-        void attach_diagnostic_manager(std::shared_ptr<DiagnosticManager> manager) { diag_mgr = std::move(manager); } ///< Install (or replace) the diagnostic manager.
+        std::shared_ptr<ConfigManager> config_manager() const noexcept {
+            return config_mgr;
+        } ///< Attached config manager, or null. Shared ownership.
+        std::shared_ptr<DiagnosticManager> diagnostic_manager() const noexcept {
+            return diag_mgr;
+        } ///< Attached diagnostic manager, or null. Shared ownership.
+        void attach_config_manager(std::shared_ptr<ConfigManager> manager) {
+            config_mgr = std::move(manager);
+        } ///< Install (or replace, with std::move(nullptr) to detach) the config manager.
+        void attach_diagnostic_manager(std::shared_ptr<DiagnosticManager> manager) {
+            diag_mgr = std::move(manager);
+        } ///< Install (or replace) the diagnostic manager.
 
-        const std::string& configuration_path() const noexcept { return config_file_path; } ///< Path recorded by the driver, or empty when unset.
-        void set_configuration_path(std::string path) { config_file_path = std::move(path); } ///< Record which configuration file backs this state.
-        const std::string& runtime_trace_id() const noexcept { return trace_id; } ///< 8-character log trace tag generated at construction.
-        void set_runtime_trace_id(std::string id) { trace_id = std::move(id); }   ///< Override the trace tag (e.g. from a host run identifier).
+        const std::string& configuration_path() const noexcept {
+            return config_file_path;
+        } ///< Path recorded by the driver, or empty when unset.
+        void set_configuration_path(std::string path) {
+            config_file_path = std::move(path);
+        } ///< Record which configuration file backs this state.
+        const std::string& runtime_trace_id() const noexcept {
+            return trace_id;
+        } ///< 8-character log trace tag generated at construction.
+        void set_runtime_trace_id(std::string id) {
+            trace_id = std::move(id);
+        } ///< Override the trace tag (e.g. from a host run identifier).
 
-        PhysicalValidationPolicy validation_policy() const noexcept { return physical_validation_policy; } ///< Policy applied by the derive_* physical checks.
-        void set_validation_policy(PhysicalValidationPolicy policy) noexcept { physical_validation_policy = policy; } ///< Install the policy parsed from physical_validation/policy.
-        const PhysicalValidationReport& validation_report() const noexcept { return physical_validation_report; } ///< Findings from the most recent derive_* validation (cleared at each derive start).
+        PhysicalValidationPolicy validation_policy() const noexcept {
+            return physical_validation_policy;
+        } ///< Policy applied by the derive_* physical checks.
+        void set_validation_policy(PhysicalValidationPolicy policy) noexcept {
+            physical_validation_policy = policy;
+        } ///< Install the policy parsed from physical_validation/policy.
+        const PhysicalValidationReport& validation_report() const noexcept {
+            return physical_validation_report;
+        } ///< Findings from the most recent derive_* validation (cleared at each derive start).
 
         /**
          * @brief Map a field name to its canonical CATChem key.
@@ -211,8 +235,8 @@ namespace catchem {
         bool prepare_field_access(const FieldAccessContract& access) {
             const auto contract_matches = [&access](const auto& field) {
                 const bool concentration = canonical_field_name(access.canonical_name) == "CONCENTRATION";
-                return field && (concentration || field->contract.units == access.units) && field->contract.axes == access.axes &&
-                       field->contract.persistence == access.persistence;
+                return field && (concentration || field->contract.units == access.units) &&
+                       field->contract.axes == access.axes && field->contract.persistence == access.persistence;
             };
             const int rank = static_cast<int>(access.axes.size());
             if (canonical_field_name(access.canonical_name) == "CONCENTRATION") {
@@ -578,8 +602,8 @@ namespace catchem {
          */
         void bind_met_field_3d(const std::string& name, double* ptr) {
             std::string upper_name = canonical_field_name(name);
-            const bool is_interface = upper_name == "PEDGE" || upper_name == "Z" ||
-                                      upper_name == "PFILSAN" || upper_name == "PFLLSAN";
+            const bool is_interface =
+                upper_name == "PEDGE" || upper_name == "Z" || upper_name == "PFILSAN" || upper_name == "PFLLSAN";
             bind_met_field_3d_contract(name, ptr, is_interface ? n_levels + 1 : n_levels,
                                        is_interface ? SemanticAxis::Interface : SemanticAxis::Level);
         }
@@ -1587,22 +1611,28 @@ namespace catchem {
         }
 
     private:
-        int n_cols;                                       ///< Flattened grid columns fixed at construction.
-        int n_levels;                                     ///< Vertical model layers fixed at construction.
-        int n_species;                                    ///< Mechanism species count fixed at construction.
-        std::size_t import_generation = 0;                ///< Current host-import generation counter (0 before the first begin_import_generation()).
-        PhysicalValidationPolicy physical_validation_policy = PhysicalValidationPolicy::WarnAndClamp; ///< Policy for the derive_* physical checks.
+        int n_cols;    ///< Flattened grid columns fixed at construction.
+        int n_levels;  ///< Vertical model layers fixed at construction.
+        int n_species; ///< Mechanism species count fixed at construction.
+        std::size_t import_generation =
+            0; ///< Current host-import generation counter (0 before the first begin_import_generation()).
+        PhysicalValidationPolicy physical_validation_policy =
+            PhysicalValidationPolicy::WarnAndClamp;          ///< Policy for the derive_* physical checks.
         PhysicalValidationReport physical_validation_report; ///< Findings from the most recent validation scan.
 
-        std::string config_file_path;                     ///< Configuration path recorded by the driver.
-        std::string trace_id;                             ///< 8-character log trace tag.
-        std::shared_ptr<ConfigManager> config_mgr;        ///< Attached configuration manager (shared, may be null).
-        std::shared_ptr<DiagnosticManager> diag_mgr;      ///< Attached diagnostic manager (shared, may be null).
+        std::string config_file_path;                ///< Configuration path recorded by the driver.
+        std::string trace_id;                        ///< 8-character log trace tag.
+        std::shared_ptr<ConfigManager> config_mgr;   ///< Attached configuration manager (shared, may be null).
+        std::shared_ptr<DiagnosticManager> diag_mgr; ///< Attached diagnostic manager (shared, may be null).
 
-        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 1>>> fields_1d; ///< Generic 1D registry keyed by exact name.
-        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 2>>> fields_2d; ///< Generic 2D registry keyed by exact name.
-        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 3>>> fields_3d; ///< Generic 3D registry keyed by exact name.
-        std::vector<std::shared_ptr<std::vector<double>>> owned_buffers; ///< Buffers allocated by the derive_* methods; freed with the state.
+        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 1>>>
+            fields_1d; ///< Generic 1D registry keyed by exact name.
+        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 2>>>
+            fields_2d; ///< Generic 2D registry keyed by exact name.
+        std::unordered_map<std::string, std::shared_ptr<InteropField<double, 3>>>
+            fields_3d; ///< Generic 3D registry keyed by exact name.
+        std::vector<std::shared_ptr<std::vector<double>>>
+            owned_buffers; ///< Buffers allocated by the derive_* methods; freed with the state.
 
         MetState met;   ///< Meteorology field registry and convenience members.
         ChemState chem; ///< Chemistry/mechanism state.
