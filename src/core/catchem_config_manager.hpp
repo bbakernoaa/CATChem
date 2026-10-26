@@ -84,6 +84,8 @@ namespace catchem {
         std::string emission_filename; ///< simulation/emission_filename as written; resolve against config dir.
         bool verbose_enabled = false;  ///< simulation/verbose/activate switch.
         std::string log_level;         ///< simulation/verbose/log_level, as written in the YAML (empty when unset)
+        std::vector<std::string> watch_species; ///< Species names selected for verbose per-process bounds logging.
+        bool watch_all_species = false;         ///< True when simulation/verbose/watch_species is "all".
     };
 
     /// Grid dimensions and integration controls consumed by the drivers.

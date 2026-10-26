@@ -42,7 +42,7 @@ namespace {
         config.validate_or_throw();
     }
 
-    // Diagnostic-only: reports min/max of a fixed species watch-list after each
+    // Diagnostic-only: reports min/max of the configured species watch-list after each
     // process, so a runaway species can be bisected to the introducing process
     // without re-running the whole coupled model multiple times.
     /**
@@ -60,9 +60,10 @@ namespace {
         // DEBUG threshold and skip the full-array sweep when it is off.
         if (!catchem::Logger::enabled(catchem::Logger::Level::Debug))
             return;
-        static const std::vector<std::string> watch = {"so2",   "so4",   "dms",   "msa",   "bc1",   "bc2",
-                                                       "oc1",   "oc2",   "dust1", "dust2", "dust3", "dust4",
-                                                       "dust5", "seas1", "seas2", "seas3", "seas4", "seas5"};
+        const auto config = state.config_manager();
+        if (!config || (!config->data.simulation.watch_all_species && config->data.simulation.watch_species.empty()))
+            return;
+        const auto& watch = config->data.simulation.watch_species;
         if (!state.chemistry().conc)
             return;
         const auto view = state.chemistry().conc->mdspan();
@@ -71,7 +72,15 @@ namespace {
         for (std::size_t ispec = 0; ispec < state.chemistry().species_list.size(); ++ispec) {
             std::string lower = state.chemistry().species_list[ispec].short_name;
             std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return std::tolower(c); });
-            if (std::find(watch.begin(), watch.end(), lower) == watch.end())
+            bool selected = config->data.simulation.watch_all_species;
+            if (!selected)
+                selected = std::any_of(watch.begin(), watch.end(), [&lower](const std::string& name) {
+                    std::string candidate = name;
+                    std::transform(candidate.begin(), candidate.end(), candidate.begin(),
+                                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                    return candidate == lower;
+                });
+            if (!selected)
                 continue;
             double lo = std::numeric_limits<double>::infinity();
             double hi = -std::numeric_limits<double>::infinity();

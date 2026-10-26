@@ -593,6 +593,30 @@ namespace catchem {
                 }
                 if (sim["verbose"]) {
                     data.simulation.verbose_enabled = value_or<bool>(sim["verbose"]["activate"], false);
+                    data.simulation.watch_species.clear();
+                    data.simulation.watch_all_species = false;
+                    const YAML::Node watch_species = sim["verbose"]["watch_species"];
+                    if (watch_species.IsDefined() && !watch_species.IsNull()) {
+                        if (watch_species.IsScalar()) {
+                            std::string value = watch_species.as<std::string>();
+                            std::transform(value.begin(), value.end(), value.begin(),
+                                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                            if (value != "all")
+                                throw std::invalid_argument(
+                                    "simulation/verbose/watch_species must be a sequence of names or 'all'");
+                            data.simulation.watch_all_species = true;
+                        } else if (watch_species.IsSequence()) {
+                            for (const auto& item : watch_species) {
+                                if (!item.IsScalar())
+                                    throw std::invalid_argument(
+                                        "simulation/verbose/watch_species must contain only species names");
+                                data.simulation.watch_species.push_back(item.as<std::string>());
+                            }
+                        } else {
+                            throw std::invalid_argument(
+                                "simulation/verbose/watch_species must be a sequence of names or 'all'");
+                        }
+                    }
                     // Optional explicit logger threshold.  When present it
                     // always wins over the CATCHEM_LOG_LEVEL environment
                     // variable; when absent the previous setting is kept.
@@ -931,6 +955,15 @@ namespace catchem {
             else if (!species_names.insert(canonical).second)
                 add("mechanism", path, "duplicate species name after case normalization",
                     "remove or rename the duplicate");
+        }
+        for (const auto& watched : data.simulation.watch_species) {
+            std::string canonical = watched;
+            std::transform(canonical.begin(), canonical.end(), canonical.begin(),
+                           [](unsigned char value) { return static_cast<char>(std::toupper(value)); });
+            if (species_names.find(canonical) == species_names.end())
+                add("mechanism", "simulation/verbose/watch_species",
+                    "watch species is absent from active mechanism: " + watched,
+                    "use a species name from the configured mechanism", ValidationSeverity::Warning);
         }
 
         const std::set<std::string> known_processes = {"carbchem",   "drydep",  "dust",     "extemis", "gaschem",
