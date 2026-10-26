@@ -298,6 +298,23 @@ def command_for(action: str, work: Path, image: str, jobs: int) -> list[str]:
     return command
 
 
+def configure_container_toolchain(env: dict[str, str]) -> None:
+    """Expose the Spack view compilers to direct preparation commands in the test image."""
+    view_root = Path("/opt/views/._view")
+    views = sorted(path for path in view_root.iterdir() if path.is_dir()) if view_root.is_dir() else []
+    if not views:
+        return
+
+    view = views[0]
+    view_bin = str(view / "bin")
+    env["PATH"] = os.pathsep.join((view_bin, env.get("PATH", "")))
+    env["LD_LIBRARY_PATH"] = os.pathsep.join((str(view / "lib"), env.get("LD_LIBRARY_PATH", "")))
+    env["CMAKE_PREFIX_PATH"] = os.pathsep.join((str(view), env.get("CMAKE_PREFIX_PATH", "")))
+    env.setdefault("CC", "gcc")
+    env.setdefault("CXX", "g++")
+    env.setdefault("FC", "gfortran")
+
+
 def validate_result(work: Path, inputs: dict[str, Any]) -> dict[str, Any]:
     """Fail unless the selected SCM suite ran all seven CATChem processes successfully."""
     case_dir = work / "cases" / f"emission-chemistry-removal-{CASE}-{SUITE}"
@@ -358,6 +375,7 @@ def main() -> int:
     evidence_dir.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
+    configure_container_toolchain(env)
     lock = json.loads(LOCK.read_text())
     data_lock_path = ROOT / lock["data"]["checksums_file"]
     if digest(data_lock_path) != lock["data"]["checksums_file_sha256"]:
