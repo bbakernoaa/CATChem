@@ -625,7 +625,9 @@ int main(int argc, char* argv[]) {
             catchem_core_add_process_by_name(core, "drydep");
 
             // Execute the timestep which triggers drydep calculation
+            std::cerr << "interop DryDep: starting timestep\n";
             assert(catchem_core_run_timestep(core, 3600.0) == CATCHEM_SUCCESS);
+            std::cerr << "interop DryDep: timestep complete\n";
 
             // Fetch dynamic diagnostic pointers through the checked C API so
             // a missing field or shape mismatch becomes a test failure rather
@@ -635,17 +637,24 @@ int main(int argc, char* argv[]) {
             for (int index = 0; index < 2; ++index) {
                 int rank = 0;
                 int dims[3] = {0, 0, 0};
+                std::cerr << "interop DryDep: querying rank " << index << "\n";
                 assert(catchem_diag_get_rank_checked(core, diagnostic_names[index], &rank) == CATCHEM_SUCCESS);
+                std::cerr << "interop DryDep: querying dimensions " << index << " rank=" << rank << "\n";
                 assert(catchem_diag_get_dims_checked(core, diagnostic_names[index], dims, 3) == CATCHEM_SUCCESS);
+                std::cerr << "interop DryDep: querying pointer " << index << " dims=" << dims[0] << "x" << dims[1]
+                          << "\n";
                 assert(catchem_diag_get_pointer_checked(core, diagnostic_names[index], rank, dims,
                                                         &diagnostic_pointers[index]) == CATCHEM_SUCCESS);
+                std::cerr << "interop DryDep: pointer available " << index << "\n";
                 assert(diagnostic_pointers[index] != nullptr);
             }
 
             std::cout << "INFO: Retrieved host diagnostic pointer: " << diagnostic_pointers[0] << "\n";
             std::cout << "SUCCESS: DryDep Direct Adapter executed and populated diagnostics!\n";
 
+            std::cerr << "interop DryDep: destroying core\n";
             catchem_core_destroy(core);
+            std::cerr << "interop DryDep: core destroyed\n";
         }
 
         // ==========================================
