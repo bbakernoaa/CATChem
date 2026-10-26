@@ -2,7 +2,7 @@
   "schema_version": 1,
   "scm_release": "v7.0.0",
   "source": "https://github.com/NCAR/ccpp-scm/releases/tag/v7.0.0",
-  "description": "SHA-256 lock for the SCM v7.0.0 static data archives after extraction, including GFS v17 GOCART climatology",
+  "description": "SHA-256 lock for the SCM v7.0.0 static data archives after extraction, including GFS v17 GOCART climatology; including Thompson microphysics lookup tables",
   "files": {
     "scm/data/processed_case_input/COMBLE_SCM_driver.nc": "76cacf127d915e8401e65efbbdb2214e9f22caf48239a84199e9ffb9dd92d785",
     "scm/data/processed_case_input/LASSO_2016051812_MSDA_SCM_driver.nc": "b8ef67f90104c21b3cec2f8c8ad8f8f94cb941ed51d339608b4e83b033df578f",
@@ -162,6 +162,10 @@
     "scm/data/physics_input_data/volcanic_aerosols_1960-1969.txt": "352eb3878408555390f5b69b7548671b571d3704855cb4ebc120e7b5ac1f65c5",
     "scm/data/physics_input_data/volcanic_aerosols_1970-1979.txt": "9f3f0dd9429607a46c84216bfa16fdb0b4663e8ec8bc1c3aaba6a28e4acd62e2",
     "scm/data/physics_input_data/volcanic_aerosols_1980-1989.txt": "ac3a80f7b45446d6738000dd720713ebdf41796306a21e31979d50eaa49d8163",
-    "scm/data/physics_input_data/volcanic_aerosols_1990-1999.txt": "32c4a8e94a755888e30ac1c276541fc4b39cf6b7439f8df8cca594f7cefe535b"
+    "scm/data/physics_input_data/volcanic_aerosols_1990-1999.txt": "32c4a8e94a755888e30ac1c276541fc4b39cf6b7439f8df8cca594f7cefe535b",
+    "scm/data/physics_input_data/CCN_ACTIVATE.BIN": "f2b8d3916560f9046f89f8ac5f32c5292a1800498fd75301e422f147c82a3dbd",
+    "scm/data/physics_input_data/freezeH2O.dat": "84ef9352b0cfa1faf7b907896b23ecaeb516aafa61d2ab00bf3f96371056cde1",
+    "scm/data/physics_input_data/qr_acr_qgV2.dat": "2695cf347c5701c2285cda4268230c71d0267aaf8c473bb02be792449524c09a",
+    "scm/data/physics_input_data/qr_acr_qsV2.dat": "16ddba327e7d9137a971fff31a95e8dba92091d140164d059a8afcf386d92c8b"
   }
 }

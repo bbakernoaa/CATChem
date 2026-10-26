@@ -26,7 +26,8 @@ docker run --rm --platform linux/amd64 \
 
 The runner locks source and data revisions, reuses a supplied local data directory when available,
 downloads SCM's static case/physics inputs and the GFS v17 GOCART climatology if required files are
-missing, configures capgen for this suite, builds the SCM host, and runs the case. It fails on
+missing. It also retrieves Thompson microphysics lookup tables used by the GFS physics suite. It
+then configures capgen for this suite, builds the SCM host, and runs the case. It fails on
 absent input files, capgen/build errors, a failed process schedule,
 missing NetCDF output, or failed scientific acceptance. Logs and the summary are written under
 `build/ccpp-scm-ci/evidence/`; process and data evidence is under
@@ -54,7 +55,7 @@ CATChem's process suite.
 
 SCM data downloads use the release pinned in [`source-lock.json`](source-lock.json), and all 163
 expected extracted files are checked against [`data-lock.json`](data-lock.json). The GOCART
-climatology is large (about 12 GB); allow enough disk space for the downloaded archives,
+climatology is large (about 12 GB), and Thompson lookup tables add about 340 MB; allow enough disk space for the downloaded archives,
 extracted data, SCM build and output.
 
 ## Run without network access
@@ -63,7 +64,7 @@ extracted data, SCM build and output.
 
 - the complete, locked source checkouts (SCM with initialized submodules, CATChem with its
   GOCART/MUSICA submodules, and the locked framework and physics repositories);
-- a complete SCM `scm/data` tree with the case inputs and GOCART climatology;
+- a complete SCM `scm/data` tree with the case inputs, GOCART climatology, and Thompson tables;
 - the already built test container or equivalent compiler/library environment.
 
 Point `CCPP_SCM_SOURCE` and `CATCHEM_SOURCE` at the SCM and CATChem checkouts. The script derives

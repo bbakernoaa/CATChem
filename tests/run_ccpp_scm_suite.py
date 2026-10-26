@@ -24,6 +24,10 @@ GOCART_INPUTS = [
     *[Path(f"scm/data/physics_input_data/aeroclim.m{month:02d}.nc") for month in range(1, 13)],
     *[Path(f"scm/data/physics_input_data/optics_{name}.dat") for name in ("DU", "SS", "SU", "BC", "OC")],
 ]
+THOMPSON_INPUTS = [
+    Path(f"scm/data/physics_input_data/{name}")
+    for name in ("CCN_ACTIVATE.BIN", "freezeH2O.dat", "qr_acr_qgV2.dat", "qr_acr_qsV2.dat")
+]
 CASE_INPUT = Path(f"scm/data/processed_case_input/{CASE}_SCM_driver.nc")
 
 
@@ -126,8 +130,8 @@ def configure_offline_sources(env: dict[str, str], data_dir: Path | None,
 
 
 def missing_inputs(data_root: Path) -> list[Path]:
-    """List absent or empty case and aerosol climatology input files."""
-    required = [CASE_INPUT, *GOCART_INPUTS]
+    """List absent or empty case, aerosol climatology, and Thompson inputs."""
+    required = [CASE_INPUT, *GOCART_INPUTS, *THOMPSON_INPUTS]
     return [relative for relative in required
             if not (data_root / relative).is_file() or (data_root / relative).stat().st_size == 0]
 
@@ -200,7 +204,7 @@ def checksum_manifest(source: Path) -> dict[str, str]:
 def prepare_input_data(work: Path, offline_data_dir: Path | None, offline: bool,
                        evidence_dir: Path, data_lock: dict[str, Any],
                        file_dir: Path | None = None) -> dict[str, Any]:
-    """Stage offline data or download the locked SCM static data and GOCART tables."""
+    """Stage offline data or download locked SCM, GOCART, and Thompson inputs."""
     baseline = work / "baseline-source"
     overlay = work / "overlay-source"
     if not baseline.is_dir() or not overlay.is_dir():
@@ -237,7 +241,15 @@ def prepare_input_data(work: Path, offline_data_dir: Path | None, offline: bool,
         scm_data_release = data_lock["scm_release"]
         env = os.environ.copy()
         env.update({"SCM_DATA_RELEASE": scm_data_release})
-        for script in ("get_all_static_data.sh", "get_aerosol_climo.sh"):
+        missing_set = set(missing)
+        scripts: list[str] = []
+        if any(item not in {*GOCART_INPUTS, *THOMPSON_INPUTS} for item in missing_set):
+            scripts.append("get_all_static_data.sh")
+        if missing_set.intersection(GOCART_INPUTS):
+            scripts.append("get_aerosol_climo.sh")
+        if missing_set.intersection(THOMPSON_INPUTS):
+            scripts.append("get_thompson_tables.sh")
+        for script in scripts:
             script_path = baseline / "contrib" / script
             content = script_path.read_text()
             pinned_url = "https://github.com/NCAR/ccpp-scm/releases/download/v7.0.0/"
@@ -277,6 +289,7 @@ def prepare_input_data(work: Path, offline_data_dir: Path | None, offline: bool,
         "download_commands": downloads,
         "required_case_input": {"path": str(baseline / CASE_INPUT), "sha256": digest(baseline / CASE_INPUT)},
         "gocart_climatology": {str(path): digest(baseline / path) for path in GOCART_INPUTS},
+        "thompson_tables": {str(path): digest(baseline / path) for path in THOMPSON_INPUTS},
         "checksums": {
             "baseline": str(baseline / "data-input-checksums.json"),
             "overlay": str(overlay / "data-input-checksums.json"),
