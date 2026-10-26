@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = catchem_apply_tendency
   type = scheme
-  dependencies = ../../../drivers/ccpp/catchem_ccpp_adapter.F90
+  dependencies = catchem_ccpp_adapter.F90
 
 [ccpp-arg-table]
   name = catchem_apply_tendency_run
