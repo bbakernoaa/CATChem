@@ -283,20 +283,30 @@ void catchem_core_destroy(void* core_ptr) {
 
 int catchem_core_destroy_checked(void* core_ptr) {
     catchem::clear_boundary_error();
+    std::cerr << "core destroy trace: handle close begin\n";
     const auto status = catchem::HandleRegistry::instance().close_and_wait(core_ptr, catchem::HandleType::Core);
+    std::cerr << "core destroy trace: handle close complete\n";
     if (status != catchem::BoundaryStatus::Success)
         return fail(status, "core_destroy", "core", "null, stale, destroyed, or wrong-type handle");
+    std::cerr << "core destroy trace: child invalidation begin\n";
     catchem::HandleRegistry::instance().invalidate_children(core_ptr);
+    std::cerr << "core destroy trace: child invalidation complete\n";
     auto* core = static_cast<catchem::Core*>(core_ptr);
     try {
+        std::cerr << "core destroy trace: shutdown begin\n";
         core->shutdown();
+        std::cerr << "core destroy trace: shutdown complete\n";
+        std::cerr << "core destroy trace: delete begin\n";
         delete core;
+        std::cerr << "core destroy trace: delete complete\n";
         return CATCHEM_SUCCESS;
     } catch (const std::exception& error) {
         const std::string cause = error.what();
+        std::cerr << "core destroy trace: delete after shutdown exception\n";
         delete core;
         return fail(catchem::BoundaryStatus::ShutdownFailure, "core_destroy", "process cleanup", cause.c_str());
     } catch (...) {
+        std::cerr << "core destroy trace: delete after unknown exception\n";
         delete core;
         return fail(catchem::BoundaryStatus::ShutdownFailure, "core_destroy", "process cleanup",
                     "unknown cleanup failure");

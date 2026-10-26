@@ -26,7 +26,7 @@
       "revision": "31bd9aa0f1936bcd52277e5885e631fb9f0d4e65"
     }
   },
-  "overlay_sha256": "5979242ddc268cfa766593c103e2ae32227dd700d977467df549fff91a8d703c",
+  "overlay_sha256": "52f390df42452c73dc9269d4ce2718e62d3a3e5b6dd3ce2a18228d9ebac3720b",
   "overlay_hash_scope": "SHA-256 of sorted relative path, NUL, and file bytes for files under tests/ccpp-scm/patches",
   "data": {
     "scm_release": "v7.0.0",
