@@ -2,7 +2,7 @@
   "schema_version": 1,
   "components": {
     "catchem": {
-      "repository": "https://github.com/GEOS-ESM/CATChem",
+      "repository": "https://github.com/bbakernoaa/CATChem",
       "revision": "900ec02691ae9a4ef250183ec86f7050b1d2d6b9"
     },
     "scm": {

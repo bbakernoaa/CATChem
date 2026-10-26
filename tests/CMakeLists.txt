@@ -323,7 +323,7 @@ if(TARGET CATChem)
     test_ccpp_context
     PROPERTIES
       Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
-      LINKER_LANGUAGE CXX
+      LINKER_LANGUAGE Fortran
   )
   target_include_directories(
     test_ccpp_context
