@@ -6,7 +6,7 @@
       "revision": "900ec02691ae9a4ef250183ec86f7050b1d2d6b9"
     },
     "scm": {
-      "repository": "https://github.com/NCAR/ccpp-scm.git",
+      "repository": "https://github.com/climbfuji/ccpp-scm.git",
       "revision": "47db8cd920aa010cefd70511be9adc33e5245974"
     },
     "framework": {

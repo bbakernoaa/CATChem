@@ -5,7 +5,7 @@
     {
       "id": "scm-bomex-stock",
       "description": "Stock CCPP-SCM BOMEX case and SCM_GFS_v17_p8_ugwpv1 baseline inputs",
-      "repository": "https://github.com/NCAR/ccpp-scm.git",
+      "repository": "https://github.com/climbfuji/ccpp-scm.git",
       "revision": "47db8cd920aa010cefd70511be9adc33e5245974",
       "source_path": "scm/etc/case_config/bomex.nml; scm/data/raw_case_input/BOMEX",
       "sha256": null,
@@ -72,7 +72,7 @@
     {
       "id": "ccpp-scm-case-data",
       "description": "Upstream case datasets selected by SCM case configuration",
-      "repository": "https://github.com/NCAR/ccpp-scm.git",
+      "repository": "https://github.com/climbfuji/ccpp-scm.git",
       "revision": "47db8cd920aa010cefd70511be9adc33e5245974",
       "source_path": "scm/data/ (case-specific files resolved by SCM input namelists)",
       "sha256": null,
