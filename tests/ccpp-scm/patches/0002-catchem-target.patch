@@ -943,17 +943,12 @@ index c7cc65ec..112351dd 100644
    !--- determine if radiation diagnostics buckets need to be cleared
    if (nint(physics%Model%fhzero*3600) >= nint(max(physics%Model%fhswr,physics%Model%fhlwr))) then
      if (mod(physics%Model%kdt,physics%Model%nszero) == 1 .or. physics%Model%nszero == 1) then
-@@ -165,7 +574,9 @@ subroutine do_time_step(scm_state, physics, in_spinup)
+@@ -165,3 +574,5 @@ subroutine do_time_step(scm_state, physics, in_spinup)
    !CCPP run phase
    ! time_vary group doesn't have any run phase (omitted)
    ! radiation group
--
-+
 +  call catchem_sync_tracers_to_constituents(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
 +  if (errflg /= 0) error stop 'Unable to import SCM tracers before radiation: '//trim(errmsg)
-   call physics%Interstitial(1)%create(ixs=1, ixe=1, model=physics%Model)
-   call ccpp_physics_run(suite_name=scm_state%physics_suite_name, group_name="radiation", &
-           errflg=errflg, errmsg=errmsg, CCPP_PHYSICS_STATIC_ARGS)
 @@ -173,21 +584,35 @@ subroutine do_time_step(scm_state, physics, in_spinup)
        write(error_unit,'(a,i0,a)') 'An error occurred in ccpp_physics_run for group radiation: ' // trim(errmsg) // '. Exiting...'
        error stop

@@ -636,20 +636,28 @@ def run_case(args: argparse.Namespace) -> None:
             physics_namelist_inputs.append(process_namelist.name)
         physics_namelist = physics_namelist_inputs[1]
 
-    def ensure_patch(patch_path: Path, name: str, markers: dict[str, str], *, recount: bool = True) -> None:
+    def ensure_patch(
+        patch_path: Path,
+        name: str,
+        markers: dict[str, str],
+        *,
+        recount: bool = True,
+        unidiff_zero: bool = False,
+    ) -> None:
         recount_args = ["--recount"] if recount else []
+        context_args = ["--unidiff-zero"] if unidiff_zero else []
         reverse = subprocess.run(
-            ["git", "-C", str(source), "apply", *recount_args, "--reverse", "--check", str(patch_path)],
+            ["git", "-C", str(source), "apply", *recount_args, *context_args, "--reverse", "--check", str(patch_path)],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False,
         )
         if reverse.returncode == 0:
             return
         apply = subprocess.run(
-            ["git", "-C", str(source), "apply", *recount_args, "--check", str(patch_path)],
+            ["git", "-C", str(source), "apply", *recount_args, *context_args, "--check", str(patch_path)],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False,
         )
         if apply.returncode == 0:
-            subprocess.run(["git", "-C", str(source), "apply", *recount_args, str(patch_path)], check=True)
+            subprocess.run(["git", "-C", str(source), "apply", *recount_args, *context_args, str(patch_path)], check=True)
             return
         missing = [relative for relative, marker in markers.items()
                    if not (source / relative).is_file() or marker not in (source / relative).read_text(errors="replace")]
@@ -668,6 +676,7 @@ def run_case(args: argparse.Namespace) -> None:
             "scm/src/scm.F90": "catchem_context_id",
             "scm/src/scm_time_integration.F90": "catchem_process_subcycle",
         },
+        unidiff_zero=True,
     )
     ensure_patch(
         ROOT / "tests/ccpp-scm/patches/0003-catchem-scheduling.patch",
