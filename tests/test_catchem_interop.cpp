@@ -625,16 +625,24 @@ int main(int argc, char* argv[]) {
             catchem_core_add_process_by_name(core, "drydep");
 
             // Execute the timestep which triggers drydep calculation
-            catchem_core_run_timestep(core, 3600.0);
+            assert(catchem_core_run_timestep(core, 3600.0) == CATCHEM_SUCCESS);
 
-            // Fetch dynamic diagnostic pointer
-            double* host_diag_con = (double*)catchem_diag_get_pointer(core, "drydep_con_per_species");
-            double* host_diag_vel = (double*)catchem_diag_get_pointer(core, "drydep_velocity_per_species");
+            // Fetch dynamic diagnostic pointers through the checked C API so
+            // a missing field or shape mismatch becomes a test failure rather
+            // than an exception escaping the legacy pointer wrapper.
+            const char* diagnostic_names[] = {"drydep_con_per_species", "drydep_velocity_per_species"};
+            void* diagnostic_pointers[2] = {nullptr, nullptr};
+            for (int index = 0; index < 2; ++index) {
+                int rank = 0;
+                int dims[3] = {0, 0, 0};
+                assert(catchem_diag_get_rank_checked(core, diagnostic_names[index], &rank) == CATCHEM_SUCCESS);
+                assert(catchem_diag_get_dims_checked(core, diagnostic_names[index], dims, 3) == CATCHEM_SUCCESS);
+                assert(catchem_diag_get_pointer_checked(core, diagnostic_names[index], rank, dims,
+                                                        &diagnostic_pointers[index]) == CATCHEM_SUCCESS);
+                assert(diagnostic_pointers[index] != nullptr);
+            }
 
-            assert(host_diag_con != nullptr);
-            assert(host_diag_vel != nullptr);
-
-            std::cout << "INFO: Retrieved host diagnostic pointer: " << host_diag_con << "\n";
+            std::cout << "INFO: Retrieved host diagnostic pointer: " << diagnostic_pointers[0] << "\n";
             std::cout << "SUCCESS: DryDep Direct Adapter executed and populated diagnostics!\n";
 
             catchem_core_destroy(core);
