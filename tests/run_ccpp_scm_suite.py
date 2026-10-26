@@ -373,7 +373,8 @@ def main() -> int:
         parser.error("--offline requires --data-dir or --file_dir")
     gocart_checkout = ROOT / "src/external/GOCART/Process_Library/GOCART2G_Process.F90"
     if not gocart_checkout.is_file():
-        run(["git", "submodule", "update", "--init", "src/external/GOCART"])
+        run(["git", "-c", f"safe.directory={ROOT}", "submodule", "update", "--init",
+             "src/external/GOCART"])
     if not gocart_checkout.is_file():
         raise RuntimeError("The CATChem GOCART source submodule is unavailable")
     evidence_dir = work / "evidence"
