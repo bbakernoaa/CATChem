@@ -406,24 +406,10 @@ int main(int argc, char* argv[]) {
         {
             int n_cols = 4;
             int n_levels = 5;
-            int n_species = 22;
-
             void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
             assert(core != nullptr);
             void* state = catchem_core_get_state_manager(core);
-
-            // Load species config so we have aerosols to process
-            std::string config_path = "";
-            std::vector<std::string> candidates = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
-                                                   "../../tests/CATChem_species.yml", "CATChem_species.yml"};
-            for (const auto& path : candidates) {
-                std::ifstream f(path);
-                if (f.good()) {
-                    config_path = path;
-                    break;
-                }
-            }
-            catchem_state_load_species_config(state, config_path.c_str());
+            const int n_species = catchem_state_get_species_count(state);
 
             // Allocate mock meteorological arrays
             std::vector<double> temp_array(n_cols * n_levels, 298.15);          // Temperature [K]
@@ -541,14 +527,13 @@ int main(int argc, char* argv[]) {
             std::cout << "\n--- TEST 9: Direct Flat-Science Interop Adapter for DryDep ---\n";
             int n_cols = 4;
             int n_levels = 5;
-            int n_species = 22; // Must match CATChem_species.yml species list count
-
             // Register drydep C++ process dynamically
             catchem_register_drydep_cpp();
 
             void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
             assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
+            const int n_species = state->species_count();
 
             // Set up mock temperature and concentrations (so4 at index 4)
             std::vector<double> mock_t(n_cols * n_levels, 288.15);
@@ -664,24 +649,12 @@ int main(int argc, char* argv[]) {
             std::cout << "\n--- TEST 10: Direct Flat-Science Interop Adapter for SeaSalt ---\n";
             int n_cols = 4;
             int n_levels = 5;
-            int n_species = 22;
-
             catchem_register_seasalt_cpp();
 
             void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
             assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
-
-            // Load species
-            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
-                                              "../../tests/CATChem_species.yml"};
-            for (const auto& path : paths) {
-                try {
-                    state->load_species_config(path);
-                    break;
-                } catch (...) {
-                }
-            }
+            const int n_species = state->species_count();
 
             // Allocate met fields dynamically (FROCEAN, FRSEAICE, SST, DELP)
             std::vector<double> mock_frocean(n_cols, 1.0);
@@ -734,24 +707,12 @@ int main(int argc, char* argv[]) {
             std::cout << "\n--- TEST 11: Direct Flat-Science Interop Adapter for WetDep ---\n";
             int n_cols = 4;
             int n_levels = 5;
-            int n_species = 22;
-
             catchem_register_wetdep_cpp();
 
             void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
             assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
-
-            // Load species
-            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
-                                              "../../tests/CATChem_species.yml"};
-            for (const auto& path : paths) {
-                try {
-                    state->load_species_config(path);
-                    break;
-                } catch (...) {
-                }
-            }
+            const int n_species = state->species_count();
 
             // Allocate met fields dynamically (AIRDEN_DRY, AIRDEN, MAIRDEN, PEDGE, PFILSAN, PFLLSAN, REEVAPLS, T)
             std::vector<double> mock_airden_dry(n_cols * n_levels, 1.2);
@@ -791,24 +752,12 @@ int main(int argc, char* argv[]) {
             std::cout << "\n--- TEST 12: Direct Flat-Science Interop Adapter for SO4chem ---\n";
             int n_cols = 4;
             int n_levels = 5;
-            int n_species = 22;
-
             catchem_register_so4chem_cpp();
 
             void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
             assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
-
-            // Load species
-            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
-                                              "../../tests/CATChem_species.yml"};
-            for (const auto& path : paths) {
-                try {
-                    state->load_species_config(path);
-                    break;
-                } catch (...) {
-                }
-            }
+            const int n_species = state->species_count();
 
             // Allocate met fields dynamically (AIRDEN, CLDF, DELP, PMID, T, PEDGE, HFLUX, LAT, LON, PBLH, USTAR)
             std::vector<double> mock_airden(n_cols * n_levels, 1.2);

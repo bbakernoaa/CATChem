@@ -458,7 +458,11 @@ def stage_gocart_climatology(source: Path, work: Path, expected_scm_revision: st
     for relative_name in GOCART_CLIMATOLOGY_FILES:
         relative_path = Path(relative_name)
         original = baseline / relative_path
-        expected_hash = recorded.get(relative_name)
+        # data-input-checksums.json is rooted at scm/data, while the lock
+        # entries used here are rooted at the SCM checkout.  Translate the
+        # checkout-relative path before looking up its staged digest.
+        manifest_name = relative_name.removeprefix("scm/data/")
+        expected_hash = recorded.get(manifest_name)
         if not original.is_file() or not expected_hash:
             raise RuntimeError(f"Required GOCART climatology input is absent or untracked: {original}")
         actual_hash = digest(original)

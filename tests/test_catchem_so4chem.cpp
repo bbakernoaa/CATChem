@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
 
         int n_cols = 4;
         int n_levels = 5;
-        int n_species = 23;
+        int n_species = 22;
 
         auto core = std::make_shared<catchem::Core>(n_cols, n_levels, n_species);
         auto state = core->get_state_manager();
@@ -132,7 +132,7 @@ int main(int argc, char* argv[]) {
     {
         int n_cols = 4;
         int n_levels = 5;
-        int n_species = 23;
+        int n_species = 22;
 
         auto run_case = [&](bool do_drydep, std::vector<double>& conc_out) {
             auto core = std::make_shared<catchem::Core>(n_cols, n_levels, n_species);
