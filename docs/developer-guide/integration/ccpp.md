@@ -64,8 +64,8 @@ The full framework array remains in the host's constituent slot order. CATChem r
 each configured species by standard name, so chemistry slots may be permuted or separated
 by unrelated tracers. Unmapped state and pre-existing tendency contributions remain
 untouched. Examples for the 23-species demonstration and independently derived conversion
-checks live in [`examples/ccpp/README.md`](../../../examples/ccpp/README.md) and
-[`tests/ccpp-scm/cases/constituent-conformance.yml`](../../../tests/ccpp-scm/cases/constituent-conformance.yml).
+checks live in the [CCPP example README](https://github.com/bbakernoaa/CATChem/blob/main/examples/ccpp/README.md)
+and the [constituent conformance manifest](https://github.com/bbakernoaa/CATChem/blob/main/tests/ccpp-scm/cases/constituent-conformance.yml).
 
 ## State updates, clocks and rate dependencies
 
@@ -83,8 +83,8 @@ valid derived products. Do not run unrelated schemes through a legacy all-proces
 
 ## Supported build and capability limits
 
-The CCPP-SCM test tuple and one-suite CI runner are documented in
-[`tests/ccpp-scm/README.md`](../../../tests/ccpp-scm/README.md). Its source and extracted input
+The CCPP-SCM test tuple and one-suite CI runner are documented in the
+[CCPP-SCM README](https://github.com/bbakernoaa/CATChem/blob/main/tests/ccpp-scm/README.md). Its source and extracted input
 checksums are locked in `tests/ccpp-scm/source-lock.json` and `tests/ccpp-scm/data-lock.json`.
 CI runs the GFS v17 emission/removal suite on GABLS3. Broader historical case evidence remains in
 the acceptance report; neither establishes compatibility with every host model or suite.
