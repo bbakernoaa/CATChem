@@ -26,6 +26,9 @@ contains
    !> \param constituent_props Unique Settling registration output.
    !> \param errmsg Error detail on failure.
    !> \param errflg CCPP error code, zero on success.
+   !> \section arg_table_catchem_settling_driver_register Argument Table
+   !! \htmlinclude arg_table_catchem_settling_driver_register.hml
+   !!
    subroutine catchem_settling_driver_register(context_id, context_generation, constituent_props, errmsg, errflg)
       integer(c_int), intent(in) :: context_id
       integer(c_int64_t), intent(in) :: context_generation
@@ -59,6 +62,9 @@ contains
    !> \param constituent_properties Full merged host property pointers.
    !> \param errmsg Error detail on failure.
    !> \param errflg CCPP error code, zero on success.
+   !> \section arg_table_catchem_settling_driver_init Argument Table
+   !! \htmlinclude arg_table_catchem_settling_driver_init.hml
+   !!
    subroutine catchem_settling_driver_init(context_id, context_generation, constituent_properties, errmsg, errflg)
       integer(c_int), intent(in) :: context_id
       integer(c_int64_t), intent(in) :: context_generation
@@ -98,6 +104,9 @@ contains
    !> \param ssm Surface soil moisture supplied directly when available.
    !> \param errmsg Error detail on failure.
    !> \param errflg CCPP error code, zero on success.
+   !> \section arg_table_catchem_settling_driver_run Argument Table
+   !! \htmlinclude arg_table_catchem_settling_driver_run.hml
+   !!
    subroutine catchem_settling_driver_run(context_id, context_generation, interval_id, interval_token, site, subcycle, &
                          duration_seconds, constituents, air_pressure, air_temperature, specific_humidity, geopotential_interface, &
                                 pedge, soilm, clayfrac, frlake, frsno, gvf, lai, landfrac, lwi, rdrag, sandfrac, gwetTop, ssm, ts, &
@@ -383,6 +392,9 @@ contains
    !> \param context_generation Context generation.
    !> \param errmsg Error detail on failure.
    !> \param errflg CCPP error code, zero on success.
+   !> \section arg_table_catchem_settling_driver_final Argument Table
+   !! \htmlinclude arg_table_catchem_settling_driver_final.hml
+   !!
    subroutine catchem_settling_driver_final(context_id, context_generation, errmsg, errflg)
       integer(c_int), intent(in) :: context_id
       integer(c_int64_t), intent(in) :: context_generation

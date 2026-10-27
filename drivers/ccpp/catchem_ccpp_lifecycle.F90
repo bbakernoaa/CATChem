@@ -149,6 +149,9 @@ contains
    !> \param duration_seconds Host interval duration in seconds.
    !> \param errmsg Error detail on failure.
    !> \param errflg CCPP error code.
+   !> \section arg_table_catchem_ccpp_timestep_init Argument Table
+   !! \htmlinclude arg_table_catchem_ccpp_timestep_init.hml
+   !!
    subroutine catchem_ccpp_timestep_init(context_id, context_generation, interval_token, year, month, day, &
                                          hour, minute, second, day_of_year, duration_seconds, errmsg, errflg)
       integer(c_int), intent(in) :: context_id
@@ -167,6 +170,9 @@ contains
    !> \param interval_token Token for this physics interval.
    !> \param errmsg Error detail on failure.
    !> \param errflg CCPP error code.
+   !> \section arg_table_catchem_ccpp_timestep_final Argument Table
+   !! \htmlinclude arg_table_catchem_ccpp_timestep_final.hml
+   !!
    subroutine catchem_ccpp_timestep_final(context_id, context_generation, interval_token, errmsg, errflg)
       integer(c_int), intent(in) :: context_id
       integer(c_int64_t), intent(in) :: context_generation, interval_token

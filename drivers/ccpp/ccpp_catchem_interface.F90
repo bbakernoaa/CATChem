@@ -141,6 +141,9 @@ contains
    !! \param[out] constituent_props Array of dynamically registered CCPP constituent properties
    !! \param[out] errmsg Error message string set if registration fails
    !! \param[out] errflg Error code flag (0=success, non-zero=failure)
+   !> \section arg_table_ccpp_catchem_interface_register Argument Table
+   !! \htmlinclude arg_table_ccpp_catchem_interface_register.hml
+   !!
    subroutine ccpp_catchem_interface_register(constituent_props, errmsg, errflg)
       implicit none
 
@@ -264,6 +267,9 @@ contains
    !! \param[in]  constituent_props_ptr CCPP constituent properties pointer array
    !! \param[out] errmsg Error message string set if initialization fails
    !! \param[out] errflg Error code flag (0=success, non-zero=failure)
+   !> \section arg_table_ccpp_catchem_interface_init Argument Table
+   !! \htmlinclude arg_table_ccpp_catchem_interface_init.hml
+   !!
    subroutine ccpp_catchem_interface_init(im, kte, nsoil, nlndcat, nsoilcat, &
                                           do_catchem, catchem_configfile_in, &
                                           constituent_props_ptr, errmsg, errflg)
@@ -370,6 +376,9 @@ contains
    !! \param[in]  do_catchem Logical coupling flag controlling activation of CATChem
    !! \param[out] errmsg Error message string set if finalization fails
    !! \param[out] errflg Error code flag (0=success, non-zero=failure)
+   !> \section arg_table_ccpp_catchem_interface_finalize Argument Table
+   !! \htmlinclude arg_table_ccpp_catchem_interface_finalize.hml
+   !!
    subroutine ccpp_catchem_interface_finalize(do_catchem, errmsg, errflg)
       implicit none
 
@@ -492,6 +501,9 @@ contains
   !! \param[inout] constituents Global 3D CCPP unified tracer array [cols, levels, species]
   !! \param[out]   errmsg Error message string set if execution fails
   !! \param[out]   errflg Error code flag (0=success, non-zero=failure)
+   !> \section arg_table_ccpp_catchem_interface_run Argument Table
+   !! \htmlinclude arg_table_ccpp_catchem_interface_run.hml
+   !!
    subroutine ccpp_catchem_interface_run(im, kte, kme, garea, nsoil, nlndcat, nsoilcat, &
                                          lat, lon, &
                                          do_catchem, &

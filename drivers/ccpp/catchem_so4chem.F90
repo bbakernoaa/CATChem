@@ -24,6 +24,9 @@ contains
   !! @param constituent_props Unique registration output for this scheme.
   !! @param errmsg Error detail.
   !! @param errflg CCPP error code; zero on success.
+   !> \section arg_table_catchem_so4chem_driver_register Argument Table
+   !! \htmlinclude arg_table_catchem_so4chem_driver_register.hml
+   !!
    subroutine catchem_so4chem_driver_register(context_id, context_generation, constituent_props, errmsg, errflg)
       integer(c_int), intent(in) :: context_id
       integer(c_int64_t), intent(in) :: context_generation
@@ -57,6 +60,9 @@ contains
   !! @param constituent_properties Full merged CCPP property pointers.
   !! @param errmsg Error detail.
   !! @param errflg CCPP error code; zero on success.
+   !> \section arg_table_catchem_so4chem_driver_init Argument Table
+   !! \htmlinclude arg_table_catchem_so4chem_driver_init.hml
+   !!
    subroutine catchem_so4chem_driver_init(context_id, context_generation, constituent_properties, errmsg, errflg)
       integer(c_int), intent(in) :: context_id
       integer(c_int64_t), intent(in) :: context_generation
@@ -103,6 +109,9 @@ contains
   !! @param z0 Composite surface roughness length in cm, converted to the CATChem state unit.
   !! @param errmsg Error detail.
   !! @param errflg CCPP error code; zero on success.
+   !> \section arg_table_catchem_so4chem_driver_run Argument Table
+   !! \htmlinclude arg_table_catchem_so4chem_driver_run.hml
+   !!
    subroutine catchem_so4chem_driver_run(context_id, context_generation, interval_id, interval_token, site, subcycle, &
                   duration_seconds, constituents, air_pressure, air_temperature, specific_humidity, pedge, geopotential_interface, &
                                   cloud_fraction, sensible_heat_flux, latitude, longitude, pbl_height, ustar, u10m, v10m, lwi, z0, &
@@ -257,6 +266,9 @@ contains
   !! @param context_generation Context generation.
   !! @param errmsg Error detail.
   !! @param errflg CCPP error code; zero on success.
+   !> \section arg_table_catchem_so4chem_driver_final Argument Table
+   !! \htmlinclude arg_table_catchem_so4chem_driver_final.hml
+   !!
    subroutine catchem_so4chem_driver_final(context_id, context_generation, errmsg, errflg)
       integer(c_int), intent(in) :: context_id
       integer(c_int64_t), intent(in) :: context_generation

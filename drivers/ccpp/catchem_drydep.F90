@@ -24,6 +24,9 @@ contains
   !! @param constituent_props Unique CCPP constituent registration.
   !! @param errmsg Registration error detail.
   !! @param errflg Zero on success; nonzero on failure.
+   !> \section arg_table_catchem_drydep_driver_register Argument Table
+   !! \htmlinclude arg_table_catchem_drydep_driver_register.hml
+   !!
    subroutine catchem_drydep_driver_register(context_id, context_generation, constituent_props, errmsg, errflg)
       integer(c_int), intent(in) :: context_id
       integer(c_int64_t), intent(in) :: context_generation
@@ -57,6 +60,9 @@ contains
   !! @param constituent_properties Merged CCPP constituent property pointers.
   !! @param errmsg Initialization error detail.
   !! @param errflg Zero on success; nonzero on failure.
+   !> \section arg_table_catchem_drydep_driver_init Argument Table
+   !! \htmlinclude arg_table_catchem_drydep_driver_init.hml
+   !!
    subroutine catchem_drydep_driver_init(context_id, context_generation, constituent_properties, errmsg, errflg)
       integer(c_int), intent(in) :: context_id
       integer(c_int64_t), intent(in) :: context_generation
@@ -114,6 +120,9 @@ contains
   !! @param wind_v Northward 10 m wind in m s-1.
   !! @param errmsg Run error detail.
   !! @param errflg Zero on success; nonzero on failure.
+   !> \section arg_table_catchem_drydep_driver_run Argument Table
+   !! \htmlinclude arg_table_catchem_drydep_driver_run.hml
+   !!
    subroutine catchem_drydep_driver_run(context_id, context_generation, interval_id, interval_token, site, subcycle, &
                       duration_seconds, constituents, pressure, temperature, humidity, pressure_interface, geopotential_interface, &
                    cloud_fraction, surface_pressure, skin_temperature, latitude, longitude, friction_velocity, sensible_heat_flux, &
@@ -299,6 +308,9 @@ contains
   !! @param context_generation Context generation.
   !! @param errmsg Error detail.
   !! @param errflg Zero on success; nonzero on failure.
+   !> \section arg_table_catchem_drydep_driver_final Argument Table
+   !! \htmlinclude arg_table_catchem_drydep_driver_final.hml
+   !!
    subroutine catchem_drydep_driver_final(context_id, context_generation, errmsg, errflg)
       integer(c_int), intent(in) :: context_id
       integer(c_int64_t), intent(in) :: context_generation

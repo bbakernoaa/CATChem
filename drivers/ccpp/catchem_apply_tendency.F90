@@ -23,6 +23,9 @@ contains
    !> \param constituent_tendencies Host tendency array modified by the successful CATChem contribution.
    !> \param errmsg Error detail on failure.
    !> \param errflg CCPP error code, zero on success.
+   !> \section arg_table_catchem_apply_tendency_run Argument Table
+   !! \htmlinclude arg_table_catchem_apply_tendency_run.hml
+   !!
    subroutine catchem_apply_tendency_run(context_id, context_generation, interval_token, &
                                          loop_counter, loop_extent, duration_seconds, &
                                          constituents, constituent_tendencies, errmsg, errflg)
