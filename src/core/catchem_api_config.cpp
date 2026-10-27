@@ -1,3 +1,16 @@
+/**
+ * @file catchem_api_config.cpp
+ * @brief C entry points for Core configuration, logging, and species metadata.
+ *
+ * @details Implements the configuration section of catchem_api.hpp: log level
+ * and file sinks, diagnostic output paths, and the per-species property
+ * getters/setters generated from catchem_species_properties.def. Species
+ * indices follow the 1-based Fortran convention used by the legacy getters
+ * (0-based internally, offset by one at the boundary). Every entry point
+ * admits its handle through api_internal::admit_handle() and converts
+ * BoundaryStatus or exceptions to CATCHEM_* status codes with fail(); member
+ * documentation lives on catchem_api.hpp.
+ */
 #include "catchem_api.hpp"
 #include "catchem_api_internal.hpp"
 #include "catchem_core.hpp"
@@ -127,7 +140,17 @@ int catchem_state_get_species_mw_checked(void* state_ptr, int index, double* mol
     *molecular_weight_out = species[static_cast<std::size_t>(index - 1)].mw_g;
     return CATCHEM_SUCCESS;
 }
-
+/**
+ * @brief Shared body for the checked species-classification getters.
+ *
+ * @param state_ptr  State handle; admitted for HandleType::State.
+ * @param index      1-based Fortran species index.
+ * @param value_out  Output: 1 when the flag is set, 0 otherwise; zeroed first.
+ * @param operation  Boundary operation name used in error reporting.
+ * @param member     Pointer-to-member selecting is_gas, is_aerosol, or is_advected.
+ * @return CATCHEM_SUCCESS, or NullArgument / InvalidHandle-family /
+ *         InvalidIndex status codes.
+ */
 static int checked_species_classification(void* state_ptr, int index, int* value_out, const char* operation,
                                           bool catchem::SpeciesMetadata::*member) {
     if (!value_out)
@@ -377,6 +400,14 @@ void catchem_config_get_config_file_path(void* core_ptr, char* buffer, int max_l
 // IntelLLVM's compiler wrapper strips quotes from command-line definitions.
 // Its compiler macros select token stringification; other compilers receive
 // regular string-literal definitions from CMake.
+/**
+ * @brief Normalises build-provenance macros to string literals.
+ *
+ * @details Under IntelLLVM, CATCHEM_BUILD_VERSION and CATCHEM_BUILD_COMMIT
+ * reach the compiler as unquoted tokens, so CATCHEM_PROVENANCE_STRING
+ * stringifies them; other toolchains get quoted literals from CMake and the
+ * macro is a pass-through.
+ */
 #if defined(__INTEL_LLVM_COMPILER) || defined(__INTEL_COMPILER)
 #define CATCHEM_STRINGIFY_IMPL(value) #value
 #define CATCHEM_STRINGIFY(value) CATCHEM_STRINGIFY_IMPL(value)
@@ -606,6 +637,17 @@ void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int 
 // =========================================================================
 // Species Metadata and Property Query C-API
 // =========================================================================
+/**
+ * @brief Expander macros generating the species property getters.
+ *
+ * @details catchem_species_properties.def lists one invocation per legacy
+ * Fortran getter. CATCHEM_SPECIES_DOUBLE_PROPERTY(api, member, fallback) emits
+ * catchem_state_get_species_api returning species_list[index-1].member, or the
+ * fallback for out-of-range indices; CATCHEM_SPECIES_BOOL_PROPERTY emits the
+ * same value as a 0/1 int; CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY emits the older
+ * catchem_state_is_species_api spelling. All three swallow exceptions and use
+ * the 1-based Fortran index convention.
+ */
 #define CATCHEM_SPECIES_DOUBLE_PROPERTY(api, member, fallback)                                                         \
     double catchem_state_get_species_##api(void* state_ptr, int index) {                                               \
         try {                                                                                                          \

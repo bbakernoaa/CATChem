@@ -10,12 +10,12 @@
  */
 #pragma once
 
-// mdspan's multi-argument operator[] needs C++23; enable the reference
-// implementation's operator() so kernels can index views and mdspans
-// identically (Kokkos::View uses operator() natively). This must be set
-// before ANY <mdspan/mdspan.hpp> include, in both the Kokkos and host-only
-// flavors: under -std=gnu++23 the standalone header sees std::mdspan and
-// drops its operator(), breaking `view(i, j)` indexing across the core.
+/// @brief Enables the reference mdspan implementation's operator() so kernels
+/// can index views and mdspans identically (Kokkos::View uses operator()
+/// natively). Must be set before ANY <mdspan/mdspan.hpp> include, in both the
+/// Kokkos and host-only flavors: under -std=gnu++23 the standalone header sees
+/// std::mdspan and drops its operator(), breaking `view(i, j)` indexing across
+/// the core.
 #ifndef MDSPAN_USE_PAREN_OPERATOR
 #define MDSPAN_USE_PAREN_OPERATOR 1
 #endif
@@ -26,26 +26,33 @@
 
 #else
 
-// The vendored single-header mdspan (src/external/mdspan) defaults its
-// namespace to std; pin it to Kokkos so both build flavors use the same
-// Kokkos::mdspan spellings.
+/// @brief Pins the vendored single-header mdspan (src/external/mdspan) to the
+/// Kokkos namespace: it defaults to std, and both build flavors must agree on
+/// the same Kokkos::mdspan spellings.
 #ifndef MDSPAN_IMPL_STANDARD_NAMESPACE
 #define MDSPAN_IMPL_STANDARD_NAMESPACE Kokkos
 #endif
 #include <mdspan/mdspan.hpp>
 
+/// @brief Host-only stand-in for KOKKOS_INLINE_FUNCTION: plain inline, so
+/// shared kernel sources compile without the Kokkos backend.
 #ifndef KOKKOS_INLINE_FUNCTION
 #define KOKKOS_INLINE_FUNCTION inline
 #endif
+/// @brief Host-only stand-in for KOKKOS_FUNCTION (device-annotated free
+/// functions); plain inline.
 #ifndef KOKKOS_FUNCTION
 #define KOKKOS_FUNCTION inline
 #endif
+/// @brief Host-only stand-in for KOKKOS_LAMBDA: a by-value capture, matching
+/// the device launch semantics closely enough for serial fallbacks.
 #ifndef KOKKOS_LAMBDA
 #define KOKKOS_LAMBDA [=]
 #endif
 
-// Lifecycle no-ops so hosts and tests can call the Kokkos runtime
-// entry points unconditionally.
+/// @brief Lifecycle no-ops so hosts and tests can call the Kokkos runtime
+/// entry points unconditionally in a host-only build (nothing to initialise
+/// or tear down when the backend is absent).
 namespace Kokkos {
     inline void initialize(int, char*[]) {}
     inline void initialize() {}

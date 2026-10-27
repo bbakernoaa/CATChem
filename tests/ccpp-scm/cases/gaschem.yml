@@ -1,0 +1,37 @@
+schema_version: 1
+case_id: gaschem-arm-sgp-gfs-v17
+scm_case: arm_sgp_summer_1997_A
+processes:
+  - gaschem
+acceptance_fixture:
+  species: ozone and configured mechanism constituents in the full CCPP constituent array
+  ozone_profile_source: locked SCM case o3 tracer through its forcing top; CCPP-SCM mid-latitude summer standard atmosphere fills the upper levels
+  basis: SCM-initialized level-resolved host ozone with GFS v17 fields, host clock and GOCART climatology
+inputs:
+  - name: ccpp_constituents
+    units: species-declared
+    basis: full framework constituent array mapped by registered standard names
+  - name: gfs_v17_gaschem_meteorology
+    units: K, Pa, m2 s-2, degrees, m s-1
+    basis: host atmospheric state, column location and interval clock
+outputs:
+  - name: gaschem_tendency
+    signal_name: gaschem_constituent_max_abs_delta
+    units: s-1 for photolysis; host constituent representation for gas chemistry
+    basis: selected gaschem execution and mechanism-associated products
+    must_be_nonzero: true
+    minimum_abs_value: 1.0e-30
+    maximum_abs_value: 1.0e6
+reference:
+  method: native_parity
+  description: Matched native GasChem replays use the ARM SGP day and night inputs, Photolysis rates and pre-update 23-species CCPP states. All 2,921 mapped species-level values compare at the same interval and subcycle boundary; reports are build/ccpp-scm/native-replay/arm-sgp-{day,night}-state-parity.json.
+  source_revision: 900ec02691ae9a4ef250183ec86f7050b1d2d6b9
+  evidence:
+    - build/ccpp-scm/native-replay/arm-sgp-day-state-parity.json
+    - build/ccpp-scm/native-replay/arm-sgp-night-state-parity.json
+tolerances:
+  - quantity: gaschem_tendency
+    absolute: 1.0e-30
+    relative: 1.0e-6
+    rationale: Frozen from matched native day and night state replays; maximum observed relative error is 9.36e-14 and the absolute floor covers near-zero host mass-ratio values.
+frozen_before_candidate_comparison: true

@@ -1,26 +1,60 @@
+/**
+ * @file catchem_process_drydep.cpp
+ * @brief Implements the Wesely/GOCART/Zhang dry-deposition adapter and its Fortran bridge call.
+ *
+ * @details run() gathers ~30 host field pointers and per-species metadata
+ * vectors, materialises the 20-category land-surface arrays (FRLAI,
+ * FRLANDUSE, ILAND) into layout_left mdspans matching the Fortran column-major
+ * ABI, and forwards everything to run_drydep_science_bridge. C++ bools cross
+ * the boundary as std::vector<char> reinterpreted as Fortran logical storage;
+ * all borrowed buffers must outlive the call. The adapter then closes an
+ * aerosol-removal budget against the per-species deposition diagnostic.
+ */
 #include "catchem_process_drydep.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
+#include <algorithm>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 
 extern "C" {
-void run_drydep_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* gas_scheme,
-                               const char* aero_scheme, int diagnostics, double wesely_scale_factor,
-                               int wesely_co2_effect, double wesely_co2_level, double wesely_co2_reference,
-                               double gocart_scale_factor, int gocart_resuspension, int gocart_dust_resusp_only,
-                               double zhang_scale_factor, double* bxheight, double* airden, double* t_air,
-                               double* z_edges, double* rh, double* cldfrc, double* frlai, double* frlanduse,
-                               int* iland, bool* is_ice, bool* is_land, bool* is_snow, double* lat, double* lon,
-                               double* obk, double* ps, double* salinity, double* suncosmid, double* swgdn, double* ts,
-                               double* tskin, double* ustar, double* z0, double* frlake, double* gwettop, double* hflux,
-                               int* lwi, double* pblh, double* u10m, double* v10m, double* z0h, double* mw_g,
-                               double* dd_f0, double* dd_hstar, double* dd_DvzAerSnow, double* dd_DvzMinVal_snow,
-                               double* dd_DvzMinVal_land, double* density, double* radius, bool* is_seasalt,
-                               bool* is_dust, double* lower_radius, double* upper_radius, bool* is_gas, double* conc,
-                               double* tendency, const char* species_names, double* diag_con, double* diag_vel,
-                               const int* diagnostic_species_id, int n_diag_species);
+/**
+ * @brief Flat C entry point into the Fortran dry-deposition science bridge.
+ *
+ * @details Implemented in src/process/drydep/DryDepScienceBridge.F90, which
+ * reconstitutes the flat buffers and dispatches to the Wesely gas scheme plus
+ * the selected GOCART or Zhang aerosol scheme. Every pointer argument is a
+ * borrowed host buffer — StateManager-owned met/storage or caller-local
+ * scratch — and must stay alive and un-reallocated for the whole call; the
+ * bridge writes `conc`, `tendency`, and the two `diag_*` buffers in place.
+ * All per-species arrays (mw_g, dd_*, density, radius, is_* flags, radii
+ * bounds) span the FULL catalog in global order, not just the drydep subset.
+ * Logical Fortran dummies are received as C `bool*` materialised from
+ * std::vector<char> on the caller side.
+ *
+ * @note The bridge returns no status code: a scheme failure aborts inside
+ *       Fortran. The `tskin` slot receives the same TS pointer as `ts` — the
+ *       schemes treat skin and surface temperature identically here — and the
+ *       `z0h` slot receives the momentum roughness Z0, matching the legacy
+ *       MetState wiring. `diagnostic_species_id` carries GLOBAL 1-based
+ *       catalog indices selected by the is_drydep flag.
+ */
+void run_drydep_science_bridge(
+    int n_cols, int n_levels, int n_species, double dt, const char* gas_scheme, const char* aero_scheme,
+    int diagnostics, double wesely_scale_factor, int wesely_co2_effect, double wesely_co2_level,
+    double wesely_co2_reference, double gocart_scale_factor, int gocart_resuspension, int gocart_dust_resusp_only,
+    double zhang_scale_factor, int wesely_skip_so2, int gocart_skip_sulfate_aero, double* bxheight, double* airden,
+    double* t_air, double* z_edges, double* rh, double* cldfrc, double* frlai, double* frlanduse, int* iland,
+    bool* is_ice, bool* is_land, bool* is_snow, double* lat, double* lon, double* obk, double* ps, double* salinity,
+    double* suncosmid, double* swgdn, double* ts, double* tskin, double* ustar, double* z0, double* frlake,
+    double* gwettop, double* hflux, int* lwi, double* pblh, double* u10m, double* v10m, double* z0h, double* mw_g,
+    double* dd_f0, double* dd_hstar, double* dd_DvzAerSnow, double* dd_DvzMinVal_snow, double* dd_DvzMinVal_land,
+    double* density, double* radius, bool* is_seasalt, bool* is_dust, double* lower_radius, double* upper_radius,
+    bool* is_gas, double* conc, double* tendency, const char* species_names, double* diag_con, double* diag_vel,
+    const int* diagnostic_species_id, int n_diag_species);
 }
 
 namespace catchem {
@@ -98,6 +132,8 @@ namespace catchem {
         gocart_dust_resuspension_only =
             settings.get_bool("gocart/dust_resuspension_only", gocart_dust_resuspension_only);
         zhang_scale_factor = settings.get_double("zhang/scale_factor", zhang_scale_factor);
+        wesely_skip_so2 = settings.get_bool("wesely/skip_so2", wesely_skip_so2);
+        gocart_skip_sulfate_aero = settings.get_bool("gocart/skip_sulfate_aero", gocart_skip_sulfate_aero);
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and will be passed to the bridge.
@@ -111,6 +147,8 @@ namespace catchem {
                        {"gocart/scale_factor", std::to_string(gocart_scale_factor)},
                        {"gocart/resuspension", gocart_resuspension ? "true" : "false"},
                        {"gocart/dust_resuspension_only", gocart_dust_resuspension_only ? "true" : "false"},
+                       {"wesely/skip_so2", wesely_skip_so2 ? "true" : "false"},
+                       {"gocart/skip_sulfate_aero", gocart_skip_sulfate_aero ? "true" : "false"},
                        {"zhang/scale_factor", std::to_string(zhang_scale_factor)}});
 
         // 1. Setup diagnostic species ID dynamically based on the is_drydep metadata switch
@@ -136,16 +174,36 @@ namespace catchem {
         if (n_diag > 0) {
             std::vector<int> dims_2d = {state->column_count(), n_diag};
             std::vector<std::string> drydep_labels;
+            std::vector<std::string> gas_labels;
+            std::vector<std::string> aerosol_labels;
             drydep_labels.reserve(diagnostic_species_id.size());
-            for (const int gid : diagnostic_species_id)
-                drydep_labels.push_back(state->chemistry().species_list[static_cast<size_t>(gid) - 1].short_name);
+            for (const int gid : diagnostic_species_id) {
+                const auto& species = state->chemistry().species_list[static_cast<size_t>(gid) - 1];
+                drydep_labels.push_back(species.short_name);
+                if (species.is_gas)
+                    gas_labels.push_back(species.short_name);
+                else
+                    aerosol_labels.push_back(species.short_name);
+            }
             const std::vector<SemanticAxis> axes_2d = {SemanticAxis::Column, SemanticAxis::Species};
             state->diagnostic_manager()->register_field_contract(
-                "drydep_con_per_species", "Deposition Concentration", "ug/kg", DiagType::FIELD_2D, dims_2d,
-                DiagnosticPolicy::Instantaneous, 0.0, axes_2d, drydep_labels);
+                "drydep_con_per_species", "Deposition Concentration (species-native units)", "species-specific",
+                DiagType::FIELD_2D, dims_2d, DiagnosticPolicy::Instantaneous, 0.0, axes_2d, drydep_labels);
             state->diagnostic_manager()->register_field_contract(
                 "drydep_velocity_per_species", "Deposition Velocity", "m/s", DiagType::FIELD_2D, dims_2d,
                 DiagnosticPolicy::Instantaneous, 0.0, axes_2d, drydep_labels);
+            if (!gas_labels.empty()) {
+                const std::vector<int> gas_dims = {state->column_count(), static_cast<int>(gas_labels.size())};
+                state->diagnostic_manager()->register_field_contract(
+                    "drydep_con_gas_ppmv_dry", "Gas deposition concentration loss", "ppmv dry-air basis",
+                    DiagType::FIELD_2D, gas_dims, DiagnosticPolicy::Instantaneous, 0.0, axes_2d, gas_labels);
+            }
+            if (!aerosol_labels.empty()) {
+                const std::vector<int> aerosol_dims = {state->column_count(), static_cast<int>(aerosol_labels.size())};
+                state->diagnostic_manager()->register_field_contract(
+                    "drydep_con_aerosol_ug_kg_dry", "Aerosol deposition concentration loss", "ug kg-1 dry-air basis",
+                    DiagType::FIELD_2D, aerosol_dims, DiagnosticPolicy::Instantaneous, 0.0, axes_2d, aerosol_labels);
+            }
         }
     }
 
@@ -256,6 +314,8 @@ namespace catchem {
         // 3. Extract chemical arrays & C++ allocated diagnostics
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("DryDep", "CHEM_CONC", conc_ptr);
+        const std::size_t concentration_slab = static_cast<std::size_t>(state->column_count()) * state->level_count();
+        std::vector<double> concentration_before(conc_ptr, conc_ptr + concentration_slab * state->species_count());
 
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->column_count() * state->level_count() * state->species_count(), 0.0);
@@ -264,6 +324,8 @@ namespace catchem {
         // bridge accepts null diagnostic storage in concentration-only runs.
         double* diag_con = nullptr;
         double* diag_vel = nullptr;
+        double* gas_diag_con = nullptr;
+        double* aerosol_diag_con = nullptr;
         if (diagnostics_enabled) {
             // The Fortran bridge fills these buffers in place.  Use the write
             // accessor so the diagnostic manager records the host as the
@@ -273,6 +335,12 @@ namespace catchem {
                 static_cast<double*>(state->diagnostic_manager()->get_host_write_pointer("drydep_con_per_species"));
             diag_vel = static_cast<double*>(
                 state->diagnostic_manager()->get_host_write_pointer("drydep_velocity_per_species"));
+            if (state->diagnostic_manager()->has_field("drydep_con_gas_ppmv_dry"))
+                gas_diag_con = static_cast<double*>(
+                    state->diagnostic_manager()->get_host_write_pointer("drydep_con_gas_ppmv_dry"));
+            if (state->diagnostic_manager()->has_field("drydep_con_aerosol_ug_kg_dry"))
+                aerosol_diag_con = static_cast<double*>(
+                    state->diagnostic_manager()->get_host_write_pointer("drydep_con_aerosol_ug_kg_dry"));
         }
 
         // 4. Retrieve species configuration properties from ChemState
@@ -315,39 +383,133 @@ namespace catchem {
         }
 
         // 5. Invoke flat science bridge (casting char* vectors to bool* pointers)
+        std::cerr << "drydep trace: science bridge begin\n";
         run_drydep_science_bridge(
             state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
             gas_scheme.c_str(), aero_scheme.c_str(), diagnostics_enabled ? 1 : 0, wesely_scale_factor,
             wesely_co2_effect ? 1 : 0, wesely_co2_level, wesely_co2_reference, gocart_scale_factor,
             gocart_resuspension ? 1 : 0, gocart_dust_resuspension_only ? 1 : 0, zhang_scale_factor,
-            const_cast<double*>(bxheight_ptr), const_cast<double*>(airden_ptr), const_cast<double*>(t_ptr),
-            const_cast<double*>(z_ptr), const_cast<double*>(rh_ptr), const_cast<double*>(cldfrc), frlai.data_handle(),
-            frlanduse.data_handle(), iland.data_handle(), (bool*)is_ice.data(), (bool*)is_land.data(),
-            (bool*)is_snow.data(), const_cast<double*>(lat_ptr), const_cast<double*>(lon_ptr),
-            const_cast<double*>(obk_ptr), const_cast<double*>(ps_ptr), const_cast<double*>(salinity_ptr),
-            const_cast<double*>(suncosmid), const_cast<double*>(swgdn_ptr), const_cast<double*>(ts_ptr),
-            const_cast<double*>(ts_ptr), const_cast<double*>(ustar_ptr), const_cast<double*>(z0_ptr),
-            const_cast<double*>(frlake_ptr), const_cast<double*>(gwettop_ptr), const_cast<double*>(hflux_ptr),
-            lwi.data(), const_cast<double*>(pblh_ptr), const_cast<double*>(u10m_ptr), const_cast<double*>(v10m_ptr),
-            const_cast<double*>(z0_ptr), mw_g.data(), dd_f0.data(), dd_hstar.data(), dd_DvzAerSnow.data(),
-            dd_DvzMinVal_snow.data(), dd_DvzMinVal_land.data(), density.data(), radius.data(), (bool*)is_seasalt.data(),
-            (bool*)is_dust.data(), lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(), conc_ptr,
-            mock_tendency.data(), state->chemistry().species_names_c_arr.data(), diag_con, diag_vel,
-            diagnostic_species_id.data(), diagnostic_species_id.size());
+            wesely_skip_so2 ? 1 : 0, gocart_skip_sulfate_aero ? 1 : 0, const_cast<double*>(bxheight_ptr),
+            const_cast<double*>(airden_ptr), const_cast<double*>(t_ptr), const_cast<double*>(z_ptr),
+            const_cast<double*>(rh_ptr), const_cast<double*>(cldfrc), frlai.data_handle(), frlanduse.data_handle(),
+            iland.data_handle(), (bool*)is_ice.data(), (bool*)is_land.data(), (bool*)is_snow.data(),
+            const_cast<double*>(lat_ptr), const_cast<double*>(lon_ptr), const_cast<double*>(obk_ptr),
+            const_cast<double*>(ps_ptr), const_cast<double*>(salinity_ptr), const_cast<double*>(suncosmid),
+            const_cast<double*>(swgdn_ptr), const_cast<double*>(ts_ptr), const_cast<double*>(ts_ptr),
+            const_cast<double*>(ustar_ptr), const_cast<double*>(z0_ptr), const_cast<double*>(frlake_ptr),
+            const_cast<double*>(gwettop_ptr), const_cast<double*>(hflux_ptr), lwi.data(), const_cast<double*>(pblh_ptr),
+            const_cast<double*>(u10m_ptr), const_cast<double*>(v10m_ptr), const_cast<double*>(z0_ptr), mw_g.data(),
+            dd_f0.data(), dd_hstar.data(), dd_DvzAerSnow.data(), dd_DvzMinVal_snow.data(), dd_DvzMinVal_land.data(),
+            density.data(), radius.data(), (bool*)is_seasalt.data(), (bool*)is_dust.data(), lower_radius.data(),
+            upper_radius.data(), (bool*)is_gas.data(), conc_ptr, mock_tendency.data(),
+            state->chemistry().species_names_c_arr.data(), diag_con, diag_vel, diagnostic_species_id.data(),
+            diagnostic_species_id.size());
+        std::cerr << "drydep trace: science bridge complete\n";
+
+        // Kernel interfaces operate over the full catalog; only explicitly
+        // participating species may publish their result back to the model.
+        for (std::size_t species = 0; species < state->chemistry().species_list.size(); ++species) {
+            if (state->chemistry().species_list[species].is_drydep)
+                continue;
+            std::copy_n(concentration_before.data() + species * concentration_slab, concentration_slab,
+                        conc_ptr + species * concentration_slab);
+        }
+
+        // Keep the historical packed diagnostic for API compatibility, and
+        // publish unit-homogeneous gas and aerosol views for consumers that
+        // need a physically meaningful unit and dry-air basis.
+        if (diagnostics_enabled && diag_con) {
+            std::cerr << "drydep trace: typed diagnostic publication begin\n";
+            int gas_slot = 0;
+            int aerosol_slot = 0;
+            const std::size_t ncol = static_cast<std::size_t>(state->column_count());
+            for (std::size_t packed_slot = 0; packed_slot < diagnostic_species_id.size(); ++packed_slot) {
+                const int species_index = diagnostic_species_id[packed_slot] - 1;
+                if (species_index < 0 ||
+                    static_cast<std::size_t>(species_index) >= state->chemistry().species_list.size())
+                    throw std::runtime_error("DryDep typed diagnostic received an invalid species index");
+                const bool is_gas_species =
+                    state->chemistry().species_list[static_cast<std::size_t>(species_index)].is_gas;
+                double* typed_output = is_gas_species ? gas_diag_con : aerosol_diag_con;
+                const int typed_slot = is_gas_species ? gas_slot++ : aerosol_slot++;
+                if (!typed_output)
+                    continue;
+                for (std::size_t column = 0; column < ncol; ++column)
+                    typed_output[static_cast<std::size_t>(typed_slot) * ncol + column] =
+                        diag_con[packed_slot * ncol + column];
+            }
+            std::cerr << "drydep trace: typed diagnostic publication complete\n";
+        }
+
+        if (diagnostics_enabled && diag_con) {
+            std::cerr << "drydep trace: budget calculation begin\n";
+            // Convert independently diagnosed surface removal to the same
+            // pressure-coordinate inventory used by the GOCART column kernels.
+            for (std::size_t slot = 0; slot < diagnostic_species_id.size(); ++slot) {
+                const auto species = static_cast<std::size_t>(diagnostic_species_id[slot] - 1);
+                const auto& metadata = state->chemistry().species_list.at(species);
+                const double amount_scale = metadata.is_gas ? 1.0e-6 * metadata.mw_g / 28.9647 : 1.0e-9;
+                double sink = 0.0;
+                for (int column = 0; column < state->column_count(); ++column)
+                    sink += diag_con[slot * state->column_count() + column] * amount_scale *
+                            (pedge_ptr[column] - pedge_ptr[state->column_count() + column]) / 9.80665;
+                std::ostringstream record;
+                record << std::setprecision(17) << "CATCHEM_COLUMN_TERM process=drydep species=" << metadata.short_name
+                       << " source=0 sink=" << sink << " units=kg_m-2";
+                Logger::info(state.get(), record.str());
+            }
+            // The GOCART diagnostic records the finite-step aerosol
+            // concentration removed in the surface layer. Close the host
+            // state change against that independently accumulated diagnostic.
+            double aerosol_removal = 0.0;
+            double diagnostic_removal = 0.0;
+            for (std::size_t slot = 0; slot < diagnostic_species_id.size(); ++slot) {
+                const int species_index = diagnostic_species_id[slot] - 1;
+                if (species_index < 0 ||
+                    static_cast<std::size_t>(species_index) >= state->chemistry().species_list.size())
+                    throw std::runtime_error("DryDep mass closure received an invalid diagnostic species index");
+                if (!state->chemistry().species_list[static_cast<std::size_t>(species_index)].is_aerosol)
+                    continue;
+                const std::size_t species_offset = static_cast<std::size_t>(species_index) * concentration_slab;
+                const std::size_t diagnostic_offset = slot * static_cast<std::size_t>(state->column_count());
+                for (int column = 0; column < state->column_count(); ++column) {
+                    aerosol_removal += concentration_before[species_offset + static_cast<std::size_t>(column)] -
+                                       conc_ptr[species_offset + static_cast<std::size_t>(column)];
+                    diagnostic_removal += diag_con[diagnostic_offset + static_cast<std::size_t>(column)];
+                }
+            }
+            const double residual = std::abs(aerosol_removal - diagnostic_removal) /
+                                    std::max(std::abs(aerosol_removal) + std::abs(diagnostic_removal), 1.0e-30);
+            std::ostringstream budget_record;
+            budget_record << "CATCHEM_BUDGET name=drydep_aerosol_removal RESIDUAL=" << std::scientific
+                          << std::setprecision(16) << residual << " TOTAL=" << aerosol_removal
+                          << " BIN_SUM=" << diagnostic_removal;
+            Logger::info(state.get(), budget_record.str());
+            std::cerr << "drydep trace: budget calculation complete\n";
+        }
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();
+        std::cerr << "drydep trace: process body complete\n";
     }
 
 } // namespace catchem
 
 extern "C" {
+/**
+ * @brief Register the "drydep" process and its settings schema with the ProcessRegistry.
+ *
+ * @details Called once by the API layer's built-in registration pass. The
+ * validator accepts the ten documented Wesely/GOCART/Zhang tuning options
+ * under processes.drydep, so an unknown nested option fails at
+ * initialization instead of silently keeping its compiled default.
+ */
 void catchem_register_drydep_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "drydep", []() { return std::make_shared<catchem::DryDepProcess>(); }, {},
-        catchem::make_settings_validator("drydep",
-                                         {"wesely/scale_factor", "wesely/co2_effect", "wesely/co2_level",
-                                          "wesely/co2_reference", "gocart/scale_factor", "gocart/resuspension",
-                                          "gocart/dust_resuspension_only", "zhang/scale_factor"}));
+        catchem::make_settings_validator("drydep", {"wesely/scale_factor", "wesely/co2_effect", "wesely/co2_level",
+                                                    "wesely/co2_reference", "wesely/skip_so2", "gocart/scale_factor",
+                                                    "gocart/resuspension", "gocart/dust_resuspension_only",
+                                                    "gocart/skip_sulfate_aero", "zhang/scale_factor"}));
 }
 }

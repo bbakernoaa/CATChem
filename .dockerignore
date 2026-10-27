@@ -7,3 +7,16 @@ node_modules/
 *.log*
 .env*
 coverage/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.o
+*.a
+*.so
+*.mod
+*.smod
+*.gcda
+*.gcno

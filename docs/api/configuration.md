@@ -8,7 +8,7 @@ The configuration system has been fully elevated to the C++ core to unify runtim
 
 - **catchem::ConfigManager**: C++ class managing YAML-based settings using the `yaml-cpp` library.
 - **Unified Metadata Parsing**: Species configurations (`CATChem_species.yml`) parsed natively in C++ to populate species attributes (e.g. molecular weights).
-- **C-API Interface**: Exposes BIND(C) parameters so host models can configure dimensions and timestep thresholds seamlessly.
+- **C-API Interface**: Exposes `extern "C"` functions that host models can use via the ISO C binding module and BIND(C) interface to configure dimensions and timestep thresholds seamlessly.
 
 ---
 
@@ -65,17 +65,20 @@ grid:
 ```
 
 ### 2. Species Metadata Config (`CATChem_species.yml`)
-Configures active chemical species, molecular weights, and physics flags
-(see `configs/Default/CATChem_species.yml`):
+Configures active chemical species, molecular weights, units, and physics flags
+(see `tests/Configs/Default/CATChem_species.yml`). The `__units` key keeps units in the OpenAtmos v1
+reserved-extension namespace while exposing them through the CATChem metadata API:
 
 ```yaml
 - name: so2
+  __units: "kg kg-1"
   __description: Sulfur dioxide
   __is_gas: true
   __is_drydep: true
   __is_wetdep: true
 
 - name: dust1
+  __units: "kg kg-1"
   __description: Dust bin 1
   __is_dust: true
   __radius: 5.0e-07

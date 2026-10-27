@@ -1,0 +1,125 @@
+[ccpp-table-properties]
+  name = catchem_ccpp
+  type = scheme
+  dependencies = catchem_ccpp_context.F90
+
+[ccpp-arg-table]
+  name = catchem_ccpp_timestep_init
+  type = scheme
+[context_id]
+  standard_name = catchem_context_id
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int
+  intent = in
+[context_generation]
+  standard_name = catchem_context_generation
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int64_t
+  intent = in
+[interval_token]
+  standard_name = catchem_interval_token
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int64_t
+  intent = in
+[year]
+  standard_name = catchem_year
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = in
+[month]
+  standard_name = catchem_month
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = in
+[day]
+  standard_name = catchem_day
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = in
+[hour]
+  standard_name = catchem_hour
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = in
+[minute]
+  standard_name = catchem_minute
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = in
+[second]
+  standard_name = catchem_second
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = in
+[day_of_year]
+  standard_name = catchem_day_of_year
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = in
+[duration_seconds]
+  standard_name = catchem_duration_seconds
+  units = s
+  dimensions = ()
+  type = real | kind = kind_phys
+  intent = in
+[errmsg]
+  standard_name = ccpp_error_message
+  units = none
+  dimensions = ()
+  type = character | kind = len=*
+  intent = out
+[errflg]
+  standard_name = ccpp_error_code
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = out
+
+[ccpp-table-properties]
+  name = catchem_ccpp
+  type = scheme
+  dependencies = catchem_ccpp_context.F90
+
+[ccpp-arg-table]
+  name = catchem_ccpp_timestep_final
+  type = scheme
+[context_id]
+  standard_name = catchem_context_id
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int
+  intent = in
+[context_generation]
+  standard_name = catchem_context_generation
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int64_t
+  intent = in
+[interval_token]
+  standard_name = catchem_interval_token
+  units = 1
+  dimensions = ()
+  type = integer | kind = c_int64_t
+  intent = in
+[errmsg]
+  standard_name = ccpp_error_message
+  units = none
+  dimensions = ()
+  type = character | kind = len=*
+  intent = out
+[errflg]
+  standard_name = ccpp_error_code
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = out

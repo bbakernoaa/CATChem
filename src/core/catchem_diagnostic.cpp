@@ -1,3 +1,17 @@
+/**
+ * @file catchem_diagnostic.cpp
+ * @brief Storage, sync and registration logic for diagnostics.
+ *
+ * @details Implements DiagnosticField and DiagnosticManager for both build
+ * flavors: the CATCHEM_ENABLE_KOKKOS branch allocates LayoutLeft device and
+ * host views and deep-copies between them, while the host-only branch keeps a
+ * single std::vector and treats mdspans over it as the views, so sync calls
+ * are no-ops. register_field_contract() is where the unpacking invariants are
+ * enforced: Column is the leading axis, at most one packed Species/Category
+ * axis, exactly one NetCDF-safe label per packed slot, and no duplicate
+ * labels. Documentation lives on the headers; this file adds none for
+ * header-declared symbols.
+ */
 // src/core/catchem_diagnostic.cpp
 #include "catchem_diagnostic_manager.hpp"
 #include <algorithm>
@@ -71,6 +85,7 @@ namespace catchem {
             Kokkos::deep_copy(host_view_3d, reset_value);
         }
         latest_writer = LatestWriter::Synchronized;
+        last_write_generation = 0;
     }
 
     Kokkos::View<double**, Kokkos::LayoutLeft, Kokkos::DefaultExecutionSpace::memory_space>
@@ -135,6 +150,7 @@ namespace catchem {
     void DiagnosticField::reset() {
         std::fill(storage.begin(), storage.end(), reset_value);
         latest_writer = LatestWriter::Synchronized;
+        last_write_generation = 0;
     }
 
     DiagnosticField::Mdspan2D DiagnosticManager::get_device_view_2d(const std::string& name) {
@@ -295,6 +311,18 @@ namespace catchem {
     }
 
     void DiagnosticManager::begin_timestep() {
+        last_interval_id_ = 0;
+        ++generation_;
+        for (auto& [key, field] : fields)
+            field->advance_generation(generation_);
+    }
+
+    void DiagnosticManager::begin_interval(std::uint64_t interval_id) {
+        if (interval_id == 0)
+            throw std::invalid_argument("Diagnostic interval ID zero is reserved");
+        if (last_interval_id_ == interval_id)
+            return;
+        last_interval_id_ = interval_id;
         ++generation_;
         for (auto& [key, field] : fields)
             field->advance_generation(generation_);

@@ -1,3 +1,13 @@
+/**
+ * @file catchem_runtime_lease.cpp
+ * @brief Process-wide runtime state behind RuntimeLease.
+ *
+ * @details The snapshot and its mutex are file-scope static variables: there is
+ * exactly one execution runtime per process, and this translation unit owns
+ * the only copy. Kokkos is touched only under CATCHEM_ENABLE_KOKKOS; the
+ * host-only build pins the snapshot to Disabled/Initialized so lease
+ * bookkeeping still works without a backend.
+ */
 #include "catchem_runtime_lease.hpp"
 #include "catchem_kokkos_compat.hpp"
 #include <mutex>
@@ -5,19 +15,22 @@
 
 namespace catchem {
     namespace {
-        std::mutex runtime_mutex;
-        RuntimeSnapshot runtime_snapshot;
+        std::mutex runtime_mutex;         ///< Serialises every snapshot read/write in this TU.
+        RuntimeSnapshot runtime_snapshot; ///< The one process-wide runtime state.
 
 #ifdef CATCHEM_ENABLE_KOKKOS
         // Only the Kokkos branch of the RuntimeLease constructor calls these;
         // the host-only build has no backend to query or start.
+        /// True when the host (or an earlier lease) already initialized Kokkos.
         bool backend_initialized() noexcept {
             return Kokkos::is_initialized();
         }
+        /// Start Kokkos with default arguments; throws on failure.
         void initialize_backend() {
             Kokkos::initialize();
         }
 #endif
+        /// Tear down Kokkos if initialized and not already finalized; no-op host-only.
         void finalize_backend() noexcept {
 #ifdef CATCHEM_ENABLE_KOKKOS
             if (Kokkos::is_initialized() && !Kokkos::is_finalized())

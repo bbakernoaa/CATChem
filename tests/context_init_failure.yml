@@ -1,0 +1,24 @@
+simulation:
+  name: context-init-failure
+  species_filename: fixtures/platform_integrity_species.yml
+  nx: 2
+  ny: 1
+  nz: 3
+  timestep: 60
+  nsteps: 2
+grid:
+  number_of_levels: 3
+  number_of_soil_layers: 2
+diagnostics:
+  output:
+    enabled: false
+    directory: output
+    prefix: context
+    frequency: 60
+    format: netcdf
+    compress_lev: 0
+  collection:
+    enabled: false
+    buffer_size: 1
+run_phases: {}
+processes: {}

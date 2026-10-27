@@ -3,11 +3,11 @@
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
 #include "catchem_logger.hpp"
+#include "catchem_photolysis_conversion.hpp"
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <iostream>
 #include <musica/tuvx/grid.hpp>
 #include <musica/tuvx/grid_map.hpp>
 #include <musica/tuvx/profile.hpp>
@@ -15,23 +15,30 @@
 #include <musica/tuvx/radiator_map.hpp>
 #include <musica/tuvx/tuvx_c_interface.hpp>
 #include <sstream>
+#include <stdexcept>
 #include <unordered_set>
 #include <yaml-cpp/yaml.h>
 
 namespace catchem {
 
     ProcessContract PhotolysisProcess::get_contract() const {
-        return make_contract(get_name(),
-                             {host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                                            PersistencePolicy::Persistent),
-                              host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
-                                            PersistencePolicy::Persistent),
-                              host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
-                              host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
-                              host_field_3d("BXHEIGHT", "m"),
-                              host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
-                              host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()},
-                             {{"photolysis.ozone", "", true}});
+        auto contract =
+            make_contract(get_name(),
+                          {host_field_2d("LAT", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                                         PersistencePolicy::Persistent),
+                           host_field_2d("LON", "degrees", FieldRequirement::Required, AccessIntent::Read,
+                                         PersistencePolicy::Persistent),
+                           host_field_3d("T", "K"), host_field_3d("PMID", "Pa", FieldRequirement::Optional),
+                           host_field_interface("PEDGE", "Pa", FieldRequirement::Optional),
+                           host_field_3d("BXHEIGHT", "m"), host_field_3d("AIRDEN", "kg/m3", FieldRequirement::Optional),
+                           host_field_3d("AIRDEN_DRY", "kg/m3", FieldRequirement::Optional), host_concentration()},
+                          {{"photolysis.ozone", "", true}});
+        for (std::size_t index = 0; index < photo_mappings.size_; ++index) {
+            const char* reaction_name = photo_mappings.mappings_[index].name_.value_;
+            if (reaction_name && reaction_name[0] != '\0')
+                contract.produced_products.push_back({"photolysis_rate_" + std::string(reaction_name), "s-1", true});
+        }
+        return contract;
     }
 
     PhotolysisProcess::PhotolysisProcess() : config_path("") {}
@@ -161,8 +168,8 @@ namespace catchem {
         tuvx_instance = musica::CreateTuvx(config_path.c_str(), grids, profiles, radiators, &err);
 
         if (err.code_ != 0) {
-            std::cerr << "PhotolysisProcess: Error: Failed to initialize TUV-x! "
-                      << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
+            Logger::error(state.get(), "PhotolysisProcess failed to initialize TUV-x",
+                          {{"error", err.message_.value_ ? err.message_.value_ : "Unknown Error"}});
             return;
         }
 
@@ -197,6 +204,7 @@ namespace catchem {
         Logger::debug(state.get(), "PhotolysisProcess::init complete");
     }
 
+    /** @brief Populate TUV-x profiles and publish mechanism-mapped photolysis rates. */
     void PhotolysisProcess::run(std::shared_ptr<StateManager> state) {
         Logger::debug(state.get(), "PhotolysisProcess::run started");
         if (!tuvx_instance) {
@@ -220,8 +228,8 @@ namespace catchem {
         Logger::debug(state.get(), "Fetching ProfileMap from TUVX instance");
         musica::ProfileMap* loaded_profiles = musica::GetProfileMap(tuvx_instance, &err);
         if (err.code_ != 0) {
-            std::cerr << "PhotolysisProcess: Error getting ProfileMap: "
-                      << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
+            Logger::error(state.get(), "PhotolysisProcess failed to get ProfileMap",
+                          {{"error", err.message_.value_ ? err.message_.value_ : "Unknown Error"}});
             return;
         }
 
@@ -251,10 +259,18 @@ namespace catchem {
         Logger::debug(state.get(), "height_grid retrieved", {{"ptr", grid_ss.str()}});
 
         std::vector<double> height_edges(state->level_count() + 1, 0.0);
+        std::vector<double> height_midpoints(state->level_count(), 0.0);
         std::vector<double> air_profile(state->level_count(), 0.0);
+        std::vector<double> air_layer_density(state->level_count(), 0.0);
         std::vector<double> o2_profile(state->level_count(), 0.0);
+        std::vector<double> o2_layer_density(state->level_count(), 0.0);
         std::vector<double> o3_profile(state->level_count(), 0.0);
+        std::vector<double> o3_layer_density(state->level_count(), 0.0);
         std::vector<double> temp_profile(state->level_count(), 0.0);
+        std::vector<double> air_edge_profile(state->level_count() + 1, 0.0);
+        std::vector<double> o2_edge_profile(state->level_count() + 1, 0.0);
+        std::vector<double> o3_edge_profile(state->level_count() + 1, 0.0);
+        std::vector<double> temp_edge_profile(state->level_count() + 1, 0.0);
 
         // Derived fields remain allocated between imports, so require the
         // current generation rather than using pointer existence as the
@@ -309,9 +325,21 @@ namespace catchem {
             for (int i_lvl = 0; i_lvl < state->level_count(); ++i_lvl) {
                 double dz_m = state->meteorology().BXHEIGHT->host_view(i_col, i_lvl, 0);
                 height_edges[i_lvl + 1] = height_edges[i_lvl] + dz_m / 1000.0;
+                height_midpoints[i_lvl] = 0.5 * (height_edges[i_lvl] + height_edges[i_lvl + 1]);
             }
             if (height_grid) {
                 musica::SetGridEdges(height_grid, height_edges.data(), height_edges.size(), &err);
+                if (err.code_ != 0) {
+                    const char* detail = err.message_.value_ ? err.message_.value_ : "Unknown Error";
+                    throw std::runtime_error("Photolysis failed to update TUV-x height edges in column " +
+                                             std::to_string(i_col) + ": " + detail);
+                }
+                musica::SetGridMidpoints(height_grid, height_midpoints.data(), height_midpoints.size(), &err);
+                if (err.code_ != 0) {
+                    const char* detail = err.message_.value_ ? err.message_.value_ : "Unknown Error";
+                    throw std::runtime_error("Photolysis failed to update TUV-x height midpoints in column " +
+                                             std::to_string(i_col) + ": " + detail);
+                }
             }
 
             if (dbg_column)
@@ -322,11 +350,43 @@ namespace catchem {
                 o2_profile[i_lvl] = air_profile[i_lvl] * 0.2095;
                 temp_profile[i_lvl] = state->meteorology().T->host_view(i_col, i_lvl, 0);
 
-                if (i_o3 >= 0 && state->chemistry().conc) {
-                    o3_profile[i_lvl] = state->chemistry().conc->host_view(i_col, i_lvl, i_o3);
-                } else {
-                    o3_profile[i_lvl] = air_profile[i_lvl] * 3e-7;
-                }
+                // Chemistry state stores gas mole fraction in ppmv, while
+                // MUSICA's O3 profile requires number density [molecules cm-3].
+                const double ozone_ppmv = state->chemistry().conc->host_view(i_col, i_lvl, i_o3);
+                o3_profile[i_lvl] = photolysis_ozone_ppmv_to_number_density(ozone_ppmv, air_profile[i_lvl]);
+                const double layer_thickness_cm = state->meteorology().BXHEIGHT->host_view(i_col, i_lvl, 0) * 100.0;
+                air_layer_density[i_lvl] = air_profile[i_lvl] * layer_thickness_cm;
+                o2_layer_density[i_lvl] = o2_profile[i_lvl] * layer_thickness_cm;
+                o3_layer_density[i_lvl] = o3_profile[i_lvl] * layer_thickness_cm;
+            }
+            // TUV-x computes reaction rates at layer interfaces. Populate edge
+            // values as well as midpoints; host-updated profiles otherwise
+            // retain zero edge values from their initial allocation.
+            const auto midpoint_to_edges = [](const std::vector<double>& midpoints, std::vector<double>& edges) {
+                edges.front() = midpoints.front();
+                edges.back() = midpoints.back();
+                for (std::size_t i = 1; i < midpoints.size(); ++i)
+                    edges[i] = 0.5 * (midpoints[i - 1] + midpoints[i]);
+            };
+            midpoint_to_edges(air_profile, air_edge_profile);
+            midpoint_to_edges(o2_profile, o2_edge_profile);
+            midpoint_to_edges(o3_profile, o3_edge_profile);
+            midpoint_to_edges(temp_profile, temp_edge_profile);
+
+            // Reject malformed host profiles before entering MUSICA. A successful
+            // RunTuvx status does not guarantee finite solver output when a
+            // profile or vertical grid contains invalid values.
+            const auto finite_profile = [](const std::vector<double>& values) {
+                return std::all_of(values.begin(), values.end(), [](double value) { return std::isfinite(value); });
+            };
+            if (!std::isfinite(sza_rad) || !finite_profile(air_profile) || !finite_profile(o2_profile) ||
+                !finite_profile(o3_profile) || !finite_profile(temp_profile) || !finite_profile(height_edges) ||
+                !std::is_sorted(height_edges.begin(), height_edges.end()) ||
+                std::adjacent_find(height_edges.begin(), height_edges.end(), std::greater_equal<double>()) !=
+                    height_edges.end()) {
+                throw std::runtime_error(
+                    "Photolysis received a non-finite profile or invalid increasing height grid in column " +
+                    std::to_string(i_col));
             }
 
             if (dbg_column)
@@ -335,27 +395,50 @@ namespace catchem {
                 if (dbg_column)
                     Logger::debug(state.get(), "SetProfileMidpointValues for air in column", {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_air, air_profile.data(), state->level_count(), &err);
+                if (err.code_ == 0)
+                    musica::SetProfileEdgeValues(profile_air, air_edge_profile.data(), air_edge_profile.size(), &err);
+                if (err.code_ == 0)
+                    musica::SetProfileLayerDensities(profile_air, air_layer_density.data(), state->level_count(), &err);
             }
             if (profile_o2) {
                 if (dbg_column)
                     Logger::debug(state.get(), "SetProfileMidpointValues for O2 in column", {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_o2, o2_profile.data(), state->level_count(), &err);
+                if (err.code_ == 0)
+                    musica::SetProfileEdgeValues(profile_o2, o2_edge_profile.data(), o2_edge_profile.size(), &err);
+                if (err.code_ == 0)
+                    musica::SetProfileLayerDensities(profile_o2, o2_layer_density.data(), state->level_count(), &err);
             }
             if (profile_o3) {
                 if (dbg_column)
                     Logger::debug(state.get(), "SetProfileMidpointValues for O3 in column", {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_o3, o3_profile.data(), state->level_count(), &err);
+                if (err.code_ == 0)
+                    musica::SetProfileEdgeValues(profile_o3, o3_edge_profile.data(), o3_edge_profile.size(), &err);
+                if (err.code_ == 0)
+                    musica::SetProfileLayerDensities(profile_o3, o3_layer_density.data(), state->level_count(), &err);
             }
             if (profile_temp) {
                 if (dbg_column)
                     Logger::debug(state.get(), "SetProfileMidpointValues for temperature in column",
                                   {{"col", col_str}});
                 musica::SetProfileMidpointValues(profile_temp, temp_profile.data(), state->level_count(), &err);
+                if (err.code_ == 0)
+                    musica::SetProfileEdgeValues(profile_temp, temp_edge_profile.data(), temp_edge_profile.size(),
+                                                 &err);
+            }
+            if (err.code_ != 0) {
+                const char* detail = err.message_.value_ ? err.message_.value_ : "Unknown Error";
+                throw std::runtime_error("Photolysis failed to update TUV-x atmospheric profiles in column " +
+                                         std::to_string(i_col) + ": " + detail);
             }
 
             std::vector<double> edge_photolysis_rates((state->level_count() + 1) * num_reactions, 0.0);
-            std::vector<double> edge_heating_rates((state->level_count() + 1) * tuvx_instance->GetHeatingRateCount(),
-                                                   0.0);
+            // TUV-x maps this buffer unconditionally, even when the configured
+            // heating-rate count is zero. Keep data() non-null for that case.
+            const std::size_t heating_rate_count = static_cast<std::size_t>(tuvx_instance->GetHeatingRateCount());
+            std::vector<double> edge_heating_rates(
+                std::max<std::size_t>(1, (state->level_count() + 1) * heating_rate_count), 0.0);
 
             if (dbg_column)
                 Logger::debug(state.get(), "Calling musica::RunTuvx for column", {{"col", col_str}});
@@ -363,26 +446,22 @@ namespace catchem {
                             nullptr, nullptr, nullptr, &err);
 
             if (err.code_ != 0) {
-                std::cerr << "PhotolysisProcess: Solver error in column " << i_col << ": "
-                          << (err.message_.value_ ? err.message_.value_ : "Unknown Error") << std::endl;
-                // The write loop below is skipped for this column, so clear its
-                // slice of every J-rate field.  This reproduces the zeroed cell
-                // that Instantaneous reset used to guarantee, now that the
-                // fields are Persistent and carry the previous step's values.
-                if (state->diagnostic_manager()) {
-                    for (size_t rx_idx = 0; rx_idx < photo_mappings.size_; ++rx_idx) {
-                        std::string rx_name = photo_mappings.mappings_[rx_idx].name_.value_
-                                                  ? photo_mappings.mappings_[rx_idx].name_.value_
-                                                  : "";
-                        double* diag_ptr = static_cast<double*>(
-                            state->diagnostic_manager()->get_host_pointer("photolysis_rate_" + rx_name));
-                        if (diag_ptr) {
-                            for (int i_lvl = 0; i_lvl < state->level_count(); ++i_lvl)
-                                diag_ptr[i_lvl * state->column_count() + i_col] = 0.0;
-                        }
-                    }
-                }
-                continue;
+                const char* detail = err.message_.value_ ? err.message_.value_ : "Unknown Error";
+                throw std::runtime_error("PhotolysisProcess: TUV-x failed in column " + std::to_string(i_col) + ": " +
+                                         detail);
+            }
+            if (!finite_profile(edge_photolysis_rates)) {
+                std::ostringstream detail;
+                detail << "Photolysis TUV-x returned non-finite reaction rates in column " << i_col
+                       << " (SZA=" << sza_rad * 180.0 / std::acos(-1.0) << " deg, height=" << height_edges.front()
+                       << ".." << height_edges.back()
+                       << " km, air=" << *std::min_element(air_profile.begin(), air_profile.end()) << ".."
+                       << *std::max_element(air_profile.begin(), air_profile.end())
+                       << " molecule cm-3, temperature=" << *std::min_element(temp_profile.begin(), temp_profile.end())
+                       << ".." << *std::max_element(temp_profile.begin(), temp_profile.end())
+                       << " K, O3=" << *std::min_element(o3_profile.begin(), o3_profile.end()) << ".."
+                       << *std::max_element(o3_profile.begin(), o3_profile.end()) << " molecule cm-3)";
+                throw std::runtime_error(detail.str());
             }
 
             if (dbg_column)
@@ -394,7 +473,8 @@ namespace catchem {
                                               ? photo_mappings.mappings_[rx_idx].name_.value_
                                               : "";
                     std::string diag_name = "photolysis_rate_" + rx_name;
-                    double* diag_ptr = static_cast<double*>(state->diagnostic_manager()->get_host_pointer(diag_name));
+                    double* diag_ptr =
+                        static_cast<double*>(state->diagnostic_manager()->get_host_write_pointer(diag_name));
 
                     if (diag_ptr) {
                         for (int i_lvl = 0; i_lvl < state->level_count(); ++i_lvl) {

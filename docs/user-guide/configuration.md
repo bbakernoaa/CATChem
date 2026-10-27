@@ -59,6 +59,7 @@ simulation:
   verbose:
     activate: true               # -> data.simulation.verbose_enabled
     # log_level: debug           # optional; see "Logging" below
+    # watch_species: [so2, so4]  # optional; see "Logging" below
   # The keys below are optional runtime overrides
   nx: 4
   ny: 1
@@ -119,19 +120,6 @@ diagnostics:
     enabled: true
     buffer_size: 1000
 ```
-
-!!! warning
-    `diagnostics.output.latlon_output` and the top-level `mie` block appear in
-    some shipped example configs but are **not read by the current loader**.
-    `mie` is accepted by validation, so it is harmless; `latlon_output` is simply
-    ignored. Do not rely on either key to change behavior.
-
-!!! deprecated
-    `diagnostics.output/process_diagnostics` no longer suppresses process
-    diagnostic output — it is a **deprecated no-op** retained only for
-    configuration compatibility. Remove it from control files; it has no
-    effect. Per-process diagnostics are now controlled entirely by each
-    process's own `diagnostics:` flag (see *Process diagnostics* below).
 
 ### Process diagnostics (all schemes)
 
@@ -233,6 +221,8 @@ processes:
       vertical_dist: "Ppbl"      # none | P100 | P500 | Ppbl | aviation* ...
       frequency: "daily"         # daily | monthly | hourly | static
       apply_method: "replace"    # add (default) | replace
+      daily_hold: false          # daily linear: hold the [D-1,D] value per day (MAPL cadence)
+      monthly_anchor: "climatological"  # monthly linear: climatological | file
       diagnostics: true
       diag_list: [biomass]
 ```
@@ -240,6 +230,80 @@ processes:
 `source_file` supports the `%y4`/`%m2`/`%d2` date tokens (year, month, day),
 expanded by the emission reader. This is the only templating the configuration
 system supports.
+
+#### Temporal interpolation options (`daily_hold`, `monthly_anchor`)
+
+These two per-category keys reproduce the MAPL ExtData / GOCART2G emission time
+handling. Both default to the pre-feature behaviour, so an existing configuration
+is unchanged unless a category opts in.
+
+- **`daily_hold`** (bool, default `false`): for a `frequency: daily` category
+  with `time_interpolation: linear`, daily-mean files are valid at 12Z, so the
+  two bracketing knots are consecutive-day 12Z means and the blend normally
+  flips at 12Z. Setting `daily_hold: true` instead holds the `[D-1, D]` bracket
+  constant for the whole day (recomputed at 00Z), giving a piecewise-constant
+  daily value `0.5*(emis(D-1) + emis(D))` that matches the MAPL ExtData
+  refresh cadence rather than a smooth intra-day ramp.
+- **`monthly_anchor`** (enum, default `climatological`): for a `frequency:
+  monthly` category with `time_interpolation: linear`, selects how the
+  interpolation bracket is anchored. `climatological` interpolates on a fixed
+  365-day day-of-year axis (the GOCART mid-month convention, preserving each
+  monthly mean at mid-month). `file` interpolates by the file's actual record
+  timestamps instead (MAPL ExtData match — needed for month-start-stamped
+  inputs such as FENGSHA, and for padded/spanning files like the 14-record GMI
+  oxidant climatology). An unknown value fails configuration validation and
+  lists the allowed values; when a bracketing record's valid time cannot be
+  read, the driver warns and falls back to calendar interpolation rather than
+  silently producing a wrong weight.
+
+The biomass-burning diurnal cycle (`diurnal_bb: true`) normalises its applied
+factor over the model timestep (`ndt = max(1, nint(dt/360))` for the 240 360-s
+bins), so the daily-mean emission is preserved for any supported `dt`.
+
+### Wet deposition (`wetdep`)
+
+`wetdep` selects a removal scheme with `scheme:`. The `gocart` scheme runs the
+GOCART2G wet removal (sulfate group via `SU_Wet_Removal`, other aerosols via
+`WetRemovalUFS`); its tuning lives in a `gocart:` option block. Absent the block
+(or any key), the GOCART defaults apply:
+
+```yaml
+processes:
+  wetdep:
+    activate: true
+    scheme: 'gocart'
+    gocart:
+      scale_factor: 1.0       # overall washout tuning factor
+      washout_tuning: 1.0     # WetRemovalUFS below-cloud tuning (wtune)
+      radius_threshold: 0.05  # aerosol washout radius threshold (um)
+```
+
+`scale_factor` must be positive; a non-positive value fails initialization. The
+scheme requires `PRECCON` and `PRECOSC` precipitation fields and errors naming
+the field if either is unbound.
+
+### Sulfate dry-deposition routing (the GOCART trio)
+
+A GOCART/GCAFS parity run must deposit SO2, SO4 and MSA in exactly one place.
+Three coordinated switches (all default `false`, so the previous behaviour is
+recovered unchanged) let the sulfate chemistry driver own them:
+
+```yaml
+processes:
+  drydep:
+    wesely:
+      skip_so2: true            # gas scheme skips SO2 dry deposition
+    gocart:
+      skip_sulfate_aero: true   # aerosol scheme skips SO4/MSA dry deposition
+  so4chem:
+    gocart:
+      do_drydep: true           # sulfate driver performs SO2/SO4/MSA drydep
+      update_so2: true          # (default) update SO2 from chemical production/loss
+```
+
+Set all three `skip_*`/`do_drydep` switches together for GOCART-faithful routing
+(deposition appears only from the sulfate driver); leave them at their defaults
+to keep the gas and aerosol schemes handling sulfate deposition as before.
 
 ## Companion files
 
@@ -303,6 +367,31 @@ simulation:
 `Logger::debug()`, `info()`, `warn()`, and `error()` respect the threshold.
 Guard expensive debug-only work with `Logger::enabled(Logger::Level::Debug)`.
 
+### Watching species through the process chain
+
+With `activate: true` and the threshold at `debug`, the core can log the
+minimum, maximum, and sum of chosen species after every process in every
+timestep, which locates the process that introduces a runaway value without
+re-running the coupled model. The species are named in the YAML; nothing is
+watched unless they are:
+
+```yaml
+simulation:
+  verbose:
+    activate: true
+    log_level: debug
+    watch_species: [so2, so4, dms, msa, bc1, bc2, oc1, oc2,
+                    dust1, dust2, dust3, dust4, dust5,
+                    seas1, seas2, seas3, seas4, seas5]
+    # watch_species: all        # every species in the mechanism
+```
+
+Names are matched case-insensitively against the mechanism's short names. A
+name that is not in the loaded mechanism is reported as a validation warning
+at startup. The scan costs one pass over every column and level per watched
+species per process, so `all` on a large mechanism is for short debugging
+runs only.
+
 ## Accessing configuration at runtime
 
 ### C++ (`ConfigManager`)
@@ -353,6 +442,32 @@ call model%initialize("CATChem_new_config.yml", nx, ny, nz, rc=rc)
   from the mechanism.
 - `physical_validation/policy` or `simulation/verbose/log_level` not a
   recognized value — these throw immediately during parse.
+- An emission category with an unknown `monthly_anchor` value (allowed:
+  `climatological`, `file`).
+
+## Derived meteorology definitions
+
+When the host model does not supply them, the core derives `RH`, `AIRDEN`, and
+`OBK` from bound state. These definitions now follow GOCART/GCAFS (this is a
+deliberate numerical change relative to older CATChem builds — parity baselines
+pinned before it will shift for RH/AIRDEN/OBK-dependent magnitudes):
+
+- **`RH`** — Magnus formulation (Alduchov–Eskridge): with
+  $e_s = 610.94\,\exp\!\bigl(17.625\,T_c/(T_c+243.04)\bigr)$ and vapour pressure
+  $e = p\,q_v/(0.622+q_v)$, the relative humidity $RH = e/e_s$ is clamped into
+  $[0.005, 0.99]$.
+- **`AIRDEN`** (and its canonical alias `MAIRDEN`) — moist density
+  $P / (R_d T (1 + (M_{air}/M_{H_2O} - 1) q_v))$, evaluated per layer. Binding
+  either name writes the same field; `AIRDEN_DRY` remains the separate
+  mole-fraction-corrected dry density.
+- **`OBK`** — Monin–Obukhov length from surface friction velocity and sensible
+  heat flux, using the **lowest-layer air temperature** and the **moist**
+  `AIRDEN` (not skin temperature and not dry density). Derivation requires
+  `USTAR`, `HFLUX`, `PMID`, and `T` and fails loudly naming any missing input.
+
+A host-provided value for any of these fields always remains authoritative:
+derivation runs only when the field is unbound or stale, and never overwrites
+current host data.
 
 ## Environment variables
 

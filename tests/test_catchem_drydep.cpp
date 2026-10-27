@@ -37,7 +37,7 @@ namespace {
     struct Fixture {
         int n_cols = 4;
         int n_levels = 5;
-        int n_species = 22;
+        int n_species = 23;
         std::vector<double> lat, lon, ps, ustar, ts, pblh, z0h, hflux, obk, dluse, lai, frsno, swgdn, frlake, gwettop,
             lwi, u10m, v10m, z0, salinity, cldfrc, suncosmid;
         std::vector<double> temperature, airden, qv, pmid, cldf, bxheight, rh, delp;
@@ -63,17 +63,24 @@ namespace {
     };
 
     std::shared_ptr<catchem::StateManager> bind_state(const std::shared_ptr<catchem::Core>& core, Fixture& fix,
-                                                      unsigned flags) {
+                                                      unsigned flags, const YAML::Node& scheme_options = YAML::Node()) {
         auto state = core->get_state_manager();
         auto runtime_config = std::make_shared<catchem::ConfigManager>();
         runtime_config->load_from_file("CATChem_new_config.yml");
         // The Default inventory exercises the GOCART aerosol scheme, whose
         // hghte slot is the z_edges bridge argument.  The shared test config
         // may select zhang; force gocart so the US2 regression is observable.
+        // Callers may additionally merge nested scheme blocks (for example
+        // wesely/skip_so2) for the US2 routing gates; the top-level scheme
+        // selectors stay fixed here.
         {
             YAML::Node settings;
             settings["gas_scheme"] = "wesely";
             settings["aero_scheme"] = "gocart";
+            if (scheme_options.IsDefined() && scheme_options.IsMap()) {
+                for (const auto& block : scheme_options)
+                    settings[block.first.as<std::string>()] = block.second;
+            }
             auto& proc = runtime_config->data.processes["drydep"];
             proc.activate = true;
             proc.diagnostics = true;
@@ -82,7 +89,7 @@ namespace {
         }
         state->attach_config_manager(runtime_config);
 
-        // The parity oracle uses the Default 22-species inventory.
+        // The parity oracle uses the Default 23-species inventory.
         const std::string species_name = "Configs/Default/CATChem_species.yml";
         std::string species_path = "CATChem_species.yml";
         for (const std::string& candidate : {species_name, "tests/" + species_name, "../tests/" + species_name,
@@ -210,8 +217,18 @@ int main(int argc, char* argv[]) {
             auto drydep = catchem::ProcessRegistry::get_instance().create("drydep");
             drydep->prepare_inputs(state);
             drydep->init(state);
+            const auto initial_concentrations = fix.chem_conc;
             drydep->run(state);
             state->sync_to_host();
+            const std::size_t slab = static_cast<std::size_t>(fix.n_cols) * fix.n_levels;
+            for (std::size_t species = 0; species < state->chemistry().species_list.size(); ++species) {
+                if (state->chemistry().species_list[species].is_drydep)
+                    continue;
+                check(std::equal(initial_concentrations.begin() + species * slab,
+                                 initial_concentrations.begin() + (species + 1) * slab,
+                                 fix.chem_conc.begin() + species * slab),
+                      "drydep-disabled species remain bitwise unchanged");
+            }
 
             auto* diag = state->diagnostic_manager().get();
             check(diag != nullptr && diag->has_field("drydep_velocity_per_species"),
@@ -308,6 +325,89 @@ int main(int argc, char* argv[]) {
             }
             check(diagnostic_matches_loss,
                   "drydep_con_so2 equals the applied SO2 loss in every column (including min/max ordering)");
+        }
+
+        // --- US2 routing gates: wesely/skip_so2 and gocart/skip_sulfate_aero --
+        // Differential runs over the identical fixture: with a skip flag the
+        // gated species must stay at its initial concentration (the scheme
+        // cycles before touching it, so the bridge echoes it bit-exactly),
+        // every other species must reproduce the unflagged run exactly
+        // (fp=f8 echo through the bridge), and the per-species deposition
+        // diagnostic slot for a skipped species must stay zero.  Without the
+        // flags the same species must deposit, proving the gates are not
+        // vacuous.
+        {
+            auto run_case = [](const YAML::Node& options, Fixture& fix) {
+                auto core = std::make_shared<catchem::Core>(fix.n_cols, fix.n_levels, fix.n_species);
+                auto state = bind_state(core, fix, F_ALL, options);
+                // MSA is disabled in the ordinary catalog. Enable it only in
+                // this routing fixture so the sulfate skip test is non-vacuous.
+                for (auto& species : state->chemistry().species_list)
+                    if (species.short_name == "msa")
+                        species.is_drydep = true;
+                state->clock().timestep = 3600.0;
+                auto drydep = catchem::ProcessRegistry::get_instance().create("drydep");
+                drydep->prepare_inputs(state);
+                drydep->init(state);
+                drydep->run(state);
+                state->sync_to_host();
+                return state;
+            };
+            auto conc_at = [](const Fixture& fix, int species, int level) {
+                return fix.chem_conc[static_cast<std::size_t>(species) * fix.n_cols * fix.n_levels +
+                                     static_cast<std::size_t>(level) * fix.n_cols];
+            };
+            auto diagnostic_slot = [](const std::shared_ptr<catchem::StateManager>& state, const std::string& label,
+                                      int col) {
+                auto* diag = state->diagnostic_manager().get();
+                if (!diag || !diag->has_field("drydep_con_per_species"))
+                    throw std::runtime_error("missing drydep_con_per_species diagnostic");
+                const auto& labels = diag->get_unpack_labels("drydep_con_per_species");
+                const auto it = std::find(labels.begin(), labels.end(), label);
+                if (it == labels.end())
+                    throw std::runtime_error("missing diagnostic label " + label);
+                const int slot = static_cast<int>(std::distance(labels.begin(), it));
+                const auto& dims = diag->get_field("drydep_con_per_species")->dimensions;
+                const double* values =
+                    static_cast<const double*>(diag->get_host_read_pointer("drydep_con_per_species"));
+                return values[static_cast<std::size_t>(col) +
+                              static_cast<std::size_t>(dims[0]) * static_cast<std::size_t>(slot)];
+            };
+
+            // Default catalog order (tests/Configs/Default/CATChem_species.yml).
+            const double initial = 1.0e-8;
+            const int idx_so2 = 0, idx_oh = 2, idx_so4 = 5, idx_msa = 8, idx_seas1 = 18;
+
+            Fixture base_fix;
+            auto base_state = run_case(YAML::Node(), base_fix);
+            check(conc_at(base_fix, idx_so2, 0) < initial, "default run deposits SO2 (gate test is non-vacuous)");
+            check(conc_at(base_fix, idx_so4, 0) < initial, "default run deposits SO4 (gate test is non-vacuous)");
+            check(conc_at(base_fix, idx_msa, 0) < initial, "default run deposits MSA (gate test is non-vacuous)");
+
+            YAML::Node skip_so2_opts;
+            skip_so2_opts["wesely"]["skip_so2"] = true;
+            Fixture skip_fix;
+            auto skip_state = run_case(skip_so2_opts, skip_fix);
+            check(conc_at(skip_fix, idx_so2, 0) == initial, "wesely/skip_so2 leaves SO2 untouched");
+            check(conc_at(skip_fix, idx_so4, 0) == conc_at(base_fix, idx_so4, 0),
+                  "wesely/skip_so2 reproduces SO4 bit-exactly");
+            check(conc_at(skip_fix, idx_oh, 0) == conc_at(base_fix, idx_oh, 0),
+                  "wesely/skip_so2 reproduces OH bit-exactly");
+            check(diagnostic_slot(skip_state, "so2", 0) == 0.0,
+                  "wesely/skip_so2 reports zero SO2 deposition diagnostic");
+
+            YAML::Node skip_aero_opts;
+            skip_aero_opts["gocart"]["skip_sulfate_aero"] = true;
+            Fixture aero_fix;
+            auto aero_state = run_case(skip_aero_opts, aero_fix);
+            check(conc_at(aero_fix, idx_so4, 0) == initial, "gocart/skip_sulfate_aero leaves SO4 untouched");
+            check(conc_at(aero_fix, idx_msa, 0) == initial, "gocart/skip_sulfate_aero leaves MSA untouched");
+            check(conc_at(aero_fix, idx_so2, 0) == conc_at(base_fix, idx_so2, 0),
+                  "gocart/skip_sulfate_aero reproduces SO2 bit-exactly");
+            check(conc_at(aero_fix, idx_seas1, 0) == conc_at(base_fix, idx_seas1, 0),
+                  "gocart/skip_sulfate_aero reproduces seasalt bit-exactly");
+            check(diagnostic_slot(aero_state, "so4", 0) == 0.0,
+                  "gocart/skip_sulfate_aero reports zero SO4 deposition diagnostic");
         }
 
         std::cout << (failures == 0 ? "SUCCESS: all drydep assertions passed.\n"

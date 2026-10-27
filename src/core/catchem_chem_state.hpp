@@ -1,6 +1,25 @@
+/**
+ * @file catchem_chem_state.hpp
+ * @brief Chemical mechanism state: species metadata, categories, and the
+ *        unified concentration field.
+ *
+ * @details ChemState owns the runtime view of one configured mechanism. The
+ * concentration array is a single 3D InteropField (column, level, species)
+ * whose units are species-native as declared in the mechanism file;
+ * StateManager binds it from host memory and this struct never allocates it.
+ * Species classification (gas, aerosol, deposition, photolysis, ...) is
+ * pre-filtered into 0-based index vectors at load time so process loops can
+ * iterate a category without re-testing flags. The MechanismDefinition and the
+ * flat Fortran-name buffer are rebuilt from scratch on every load; loading is
+ * not thread-safe with respect to concurrent readers.
+ *
+ * @see catchem_species_metadata.hpp for SpeciesMetadata and MechanismDefinition,
+ * catchem_config_manager.hpp for the YAML source of the data.
+ */
 #pragma once
 #include "catchem_config_manager.hpp"
 #include "catchem_interop_field.hpp"
+#include "catchem_manifest.hpp"
 #include "catchem_species_metadata.hpp"
 #include <algorithm>
 #include <cctype>
@@ -12,30 +31,61 @@
 
 namespace catchem {
 
+    /**
+     * @brief Species metadata and concentration storage for the active mechanism.
+     *
+     * @details Plain aggregate owned by StateManager. conc is a shared view
+     * over host memory (never owned here); mechanism and the index vectors
+     * are rebuilt wholesale by load_from_config_manager().
+     */
     struct ChemState {
-        // Single unified 3D View (cols, levels, species)
-        std::shared_ptr<InteropField<double, 3>> conc;
-        std::shared_ptr<const MechanismDefinition> mechanism;
+        /// Single unified 3D View (cols, levels, species)
+        std::shared_ptr<InteropField<double, 3>>
+            conc; ///< Host-bound concentration array, null until bind_unified_chemistry().
+        std::shared_ptr<const MechanismDefinition> mechanism; ///< Immutable indexed mechanism, rebuilt on every load.
 
-        // Species metadata database
-        std::vector<SpeciesMetadata> species_list;
-        std::unordered_map<std::string, int> species_name_to_index; // 0-based indexing
+        /// Species metadata database
+        std::vector<SpeciesMetadata> species_list;                  ///< Metadata in concentration-array index order.
+        std::unordered_map<std::string, int> species_name_to_index; //!< Uppercased short names to 0-based index.
 
-        // Pre-filtered category lists (0-based)
-        std::vector<int> gas_indices;
-        std::vector<int> aerosol_indices;
-        std::vector<int> settling_indices;
-        std::vector<int> tracer_indices;
-        std::vector<int> advected_indices;
-        std::vector<int> drydep_indices;
-        std::vector<int> wetdep_indices;
-        std::vector<int> photolysis_indices;
-        std::vector<int> dust_indices;
-        std::vector<int> seasalt_indices;
+        /// Pre-filtered category lists (0-based species indices)
+        std::vector<int> gas_indices;        ///< is_gas species.
+        std::vector<int> aerosol_indices;    ///< is_aerosol species.
+        std::vector<int> settling_indices;   ///< Aerosols with do_settling.
+        std::vector<int> tracer_indices;     ///< is_tracer species.
+        std::vector<int> advected_indices;   ///< is_advected species.
+        std::vector<int> drydep_indices;     ///< is_drydep species.
+        std::vector<int> wetdep_indices;     ///< is_wetdep species.
+        std::vector<int> photolysis_indices; ///< is_photolysis species.
+        std::vector<int> dust_indices;       ///< is_dust species.
+        std::vector<int> seasalt_indices;    ///< is_seasalt species.
 
-        // Cached flat C-character array of short names
-        std::vector<char> species_names_c_arr;
+        /// Pre-compute and cache flat C-linkable species name character array
+        std::vector<char> species_names_c_arr; //!< 32 blank-padded uppercase chars per species, for Fortran interop.
 
+        /**
+         * @brief Rebuild the whole state from a parsed configuration.
+         *
+         * @param config_mgr Fully populated ConfigManager; only borrowed for
+         *        the duration of the call (its data is copied into this state).
+         *
+         * @details Clears every list and map, then walks
+         * config_mgr.data.species in order, converting each entry through
+         * make_species_metadata() and appending it to species_list. The
+         * uppercase short name becomes the key of species_name_to_index (its
+         * 0-based position) and selects the category index vectors. A
+         * MechanismDefinition is assembled in parallel with identity
+         * "configured" when the mechanism block carries none, source = the
+         * config file path, a configuration_fingerprint() value, and the
+         * declared capabilities canonicalised to uppercase.
+         *
+         * @note Throws std::invalid_argument on an empty species name or a
+         * name that duplicates an earlier one after case folding; the state is
+         * left partially rebuilt in that case, so callers must treat a throw
+         * as fatal. Finally caches a 32-character-per-species blank-padded,
+         * uppercase name array for the Fortran interop layer
+         * (species_names_c_arr[i * 32 + j]).
+         */
         void load_from_config_manager(const ConfigManager& config_mgr) {
             species_list.clear();
             species_name_to_index.clear();
@@ -56,59 +106,11 @@ namespace catchem {
             descriptor->identity =
                 config_mgr.data.mechanism_identity.empty() ? "configured" : config_mgr.data.mechanism_identity;
             descriptor->source = config_mgr.config_file_path;
+            descriptor->fingerprint = configuration_fingerprint(config_mgr);
             for (const auto& capability : config_mgr.data.mechanism_capabilities)
                 descriptor->capabilities.insert(canonical_species_name(capability));
             for (const auto& sp : config_mgr.data.species) {
-                SpeciesMetadata meta;
-                meta.short_name = sp.name;
-                meta.long_name = sp.long_name.empty() ? sp.name : sp.long_name;
-                meta.description = sp.description;
-                meta.aliases = sp.aliases;
-                meta.roles = sp.roles;
-
-                meta.is_gas = sp.is_gas;
-                // A species explicitly declared gas is never passed to
-                // particle-only processes, even if a legacy species file
-                // also carries a stale aerosol flag.  This preserves the
-                // configured gas classification without inventing particle
-                // radius or density properties.
-                meta.is_aerosol = sp.is_aerosol && !meta.is_gas;
-                meta.is_tracer = sp.is_tracer;
-                meta.is_advected = sp.is_advected;
-                meta.is_drydep = sp.is_drydep;
-                meta.is_wetdep = sp.is_wetdep;
-                meta.do_settling = sp.do_settling && meta.is_aerosol;
-                meta.is_photolysis = sp.is_photolysis;
-                meta.is_gocart_aero = sp.is_gocart_aero && !meta.is_gas;
-                meta.is_dust = sp.is_dust && !meta.is_gas;
-                meta.is_seasalt = sp.is_seasalt && !meta.is_gas;
-                meta.is_hydrophilic = sp.is_hydrophilic;
-
-                meta.mw_g = sp.mw_g > 0.0 ? sp.mw_g : sp.molecular_weight_kg_mol * 1000.0;
-                meta.density = sp.density;
-                meta.radius = sp.radius;
-                meta.lower_radius = sp.lower_radius;
-                meta.upper_radius = sp.upper_radius;
-                meta.viscosity = sp.viscosity;
-
-                meta.dd_f0 = sp.dd_f0;
-                meta.dd_hstar = sp.dd_hstar;
-                meta.dd_DvzAerSnow = sp.dd_DvzAerSnow;
-                meta.dd_DvzMinVal_snow = sp.dd_DvzMinVal_snow;
-                meta.dd_DvzMinVal_land = sp.dd_DvzMinVal_land;
-
-                meta.henry_k0 = sp.henry_k0;
-                meta.henry_cr = sp.henry_cr;
-                meta.henry_pKa = sp.henry_pKa;
-                meta.wd_retfactor = sp.wd_retfactor;
-                meta.wd_LiqAndGas = sp.wd_LiqAndGas;
-                meta.wd_convfacI2G = sp.wd_convfacI2G;
-                meta.wd_rainouteff = sp.wd_rainouteff;
-                meta.wd_reevap_frac = sp.wd_reevap_frac;
-
-                meta.t_chem_loss = sp.t_chem_loss;
-                meta.BackgroundVV = sp.BackgroundVV;
-                meta.mie_name = sp.mie_name;
+                SpeciesMetadata meta = make_species_metadata(sp);
 
                 species_list.push_back(meta);
                 descriptor->species.push_back(meta);
@@ -160,6 +162,21 @@ namespace catchem {
             }
         }
 
+        /**
+         * @brief Load a species mechanism YAML file and rebuild the state.
+         *
+         * @param filename  Path to a CATChem species file (sequence of species
+         *                  entries); opened with yaml-cpp, must exist.
+         * @param cfg       Optional existing ConfigManager to reuse. When
+         *                  provided, the species are merged into it and the
+         *                  state is loaded from it; when null a temporary
+         *                  ConfigManager is used, so the mechanism identity,
+         *                  source path, and fingerprint fall back to
+         *                  "configured"/empty defaults.
+         *
+         * @note Any species already held by cfg remain; load_species_file()
+         * clears and replaces only the species list.
+         */
         void load_species_config(const std::string& filename, ConfigManager* cfg = nullptr) {
             if (cfg) {
                 cfg->load_species_file(filename);

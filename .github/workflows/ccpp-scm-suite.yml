@@ -1,0 +1,42 @@
+name: CCPP single-column suite
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  gfs-v17-catchem-suite:
+    name: GFS v17 CATChem emission/removal suite
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the locked SCM toolchain image
+        run: >-
+          docker build --platform linux/amd64
+          -f tests/ccpp-scm/docker/Dockerfile
+          -t catchem-ccpp-scm-ci .
+
+      - name: Fetch inputs, capgen, build and run one SCM suite
+        run: >-
+          docker run --rm --platform linux/amd64
+          --mount type=bind,source="$PWD",target=/workspace
+          --workdir /workspace
+          catchem-ccpp-scm-ci
+          bash -lc 'python3 tests/run_ccpp_scm_suite.py'
+
+      - name: Archive SCM suite evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ccpp-scm-gfs-v17-suite-evidence
+          path: |
+            build/ccpp-scm-ci/evidence/
+            build/ccpp-scm-ci/cases/emission-chemistry-removal-gabls3_noahmp-CATChem_EmissionChemistryRemoval/evidence.json
+            build/ccpp-scm-ci/cases/emission-chemistry-removal-gabls3_noahmp-CATChem_EmissionChemistryRemoval/logs/
+            build/ccpp-scm-ci/cases/emission-chemistry-removal-gabls3_noahmp-CATChem_EmissionChemistryRemoval/output/
+          if-no-files-found: warn

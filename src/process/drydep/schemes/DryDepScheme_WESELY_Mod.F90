@@ -258,6 +258,12 @@ contains
          do species_idx = 1, num_species
             ! Skip species that don't match scheme type (gas vs aerosol)
             if (.not. is_gas(species_idx)) cycle
+            ! Optionally skip SO2 so its dry deposition is handled by so4chem
+            ! (GOCART SulfateChemDriver) instead.  The core marshals species
+            ! labels upper-cased, so the lowercase branch keeps the gate
+            ! correct for direct Fortran callers that pass catalog names.
+            if (params%skip_so2 .and. (trim(species_short_name(species_idx)) == 'SO2' .or. &
+               trim(species_short_name(species_idx)) == 'so2')) cycle
             ! Add option for non-local PBL mixing scheme: THIK must be the first box height.
             ! TODO: we only use non-local mixing here
             !IF (.NOT. LNLPBL) THIK = MAX( ZH, THIK )
@@ -548,7 +554,7 @@ contains
       real(fp), intent(in)  :: XLAI        !< Leaf area index
       integer,  intent(in)  :: II          !< Index of the drydep land type
       !integer,  intent(in)  :: N_SPC      !< Species ID (TODO: may be changed to species name)
-      character(len=20), intent(in) :: SPC !< Species name
+      character(len=*), intent(in) :: SPC !< Species name; caller metadata can be longer than 20 chars
       !some inputs are for O3 over water and Hg over Amazon forest (not sure if we should include them for now)
       real(fp), intent(in)  :: SALINITY    !< Salinity of the ocean
       real(fp), intent(in)  :: TSKIN       !< Skin temperature

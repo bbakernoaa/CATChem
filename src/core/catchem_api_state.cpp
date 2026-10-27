@@ -1,3 +1,16 @@
+/**
+ * @file catchem_api_state.cpp
+ * @brief C entry points for state field binding, access, and derived meteorology.
+ *
+ * @details Implements the state section of catchem_api.hpp: bind/pointer
+ * accessors for met, chemistry, and species fields with extent checks against
+ * the column/level/species contract (PEDGE, Z, PFILSAN, PFLLSAN require
+ * level+1 interfaces), 1-based species offsets into species_conc, and the
+ * derive_bxheight/derive_airden_dry physical kernels whose std::domain_error
+ * maps to CATCHEM_PHYSICAL_VALIDATION_FAILURE. _checked pointer variants
+ * refresh the host mirror via host_read() first for NUOPC-style export.
+ * Member documentation lives on catchem_api.hpp.
+ */
 #include "catchem_api.hpp"
 #include "catchem_api_internal.hpp"
 #include "catchem_core.hpp"
@@ -188,7 +201,9 @@ int catchem_state_bind_met_3d_checked(void* state_ptr, const char* name, double*
         auto* state = static_cast<catchem::StateManager*>(state_ptr);
         std::string key(name);
         std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return std::toupper(c); });
-        const int expected_levels = (key == "PEDGE" || key == "Z") ? state->level_count() + 1 : state->level_count();
+        const int expected_levels = (key == "PEDGE" || key == "Z" || key == "PFILSAN" || key == "PFLLSAN")
+                                        ? state->level_count() + 1
+                                        : state->level_count();
         if (dim1 != state->column_count() || dim2 != expected_levels || dim3 != 1)
             return fail(catchem::BoundaryStatus::ExtentMismatch, "state_bind_met_3d", name,
                         "field extents do not match the state contract");
@@ -293,14 +308,20 @@ int catchem_state_set_time_checked(void* state_ptr, int yr, int mo, int dy, int 
         return status;
     try {
         auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        state->clock().year = yr;
-        state->clock().month = mo;
-        state->clock().day = dy;
-        state->clock().hour = hr;
-        state->clock().minute = mn;
-        state->clock().second = sc;
-        state->clock().doy = doy;
-        state->clock().timestep = tstep;
+        auto candidate = state->clock();
+        candidate.year = yr;
+        candidate.month = mo;
+        candidate.day = dy;
+        candidate.hour = hr;
+        candidate.minute = mn;
+        candidate.second = sc;
+        candidate.doy = doy;
+        candidate.timestep = tstep;
+        if (!candidate.valid())
+            return fail(catchem::BoundaryStatus::ContractViolation, "state_set_time", "time",
+                        "date, day-of-year, or timestep is invalid");
+        candidate.calculate_derived_fields();
+        state->clock() = candidate;
         return CATCHEM_SUCCESS;
     } catch (const std::exception& error) {
         return fail(catchem::BoundaryStatus::InternalError, "state_set_time", "time", error.what());

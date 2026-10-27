@@ -1,3 +1,13 @@
+/**
+ * @file catchem_process_seasalt.cpp
+ * @brief Implements the Gong/GEOS sea-salt emission adapter and its Fortran bridge call.
+ *
+ * @details The canonical SEAS1..SEAS5 bins are resolved by name through the
+ * shared anonymous-namespace helper so init()'s diagnostic ids and run()'s
+ * physics arrays use one ordering. The bridge operates on the full unified
+ * concentration array and resolves bins by name, so no slice buffers or
+ * copy-back are needed; all borrowed host pointers must outlive the call.
+ */
 #include "catchem_process_seasalt.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
@@ -5,9 +15,28 @@
 #include "catchem_process_registry.hpp"
 #include <array>
 #include <cctype>
-#include <iostream>
+#include <iomanip>
+#include <sstream>
 
 extern "C" {
+/**
+ * @brief Flat C entry point into the Fortran sea-salt emission science bridge.
+ *
+ * @details Implemented in src/process/seasalt/SeaSaltScienceBridge.F90, which
+ * reconstitutes the flat buffers and dispatches to the gong97/gong03/geos12
+ * emission kernel. Every pointer argument is a borrowed host buffer that must
+ * stay alive and un-reallocated for the whole call. The per-bin metadata
+ * arrays (density [kg/m3], radius/lower_radius/upper_radius [µm], mw_g [g/mol],
+ * is_gas) span only the resolved SEAS1..SEAS5 bins in canonical order — the
+ * scheme's local species_idx space (1..n_seasalt) is defined by that sequence
+ * — while `species_names` and `conc`/`tendency` span the full catalog, with
+ * bins resolved into concentration slots by name via `bin_species_names`
+ * (blank-padded, upper-cased, 32 chars per name).
+ *
+ * @note The bridge returns no status code: a scheme failure aborts inside
+ *       Fortran. `diagnostic_species_id` carries 1-based LOCAL bin positions
+ *       and is always a valid array (a size-1 zero dummy when disabled).
+ */
 void run_seasalt_science_bridge(int n_cols, int n_levels, int n_species, int n_total_species, double dt,
                                 const char* active_scheme, int diagnostics, double gong97_scale_factor,
                                 int gong97_weibull_flag, double gong03_scale_factor, int gong03_weibull_flag,
@@ -30,6 +59,7 @@ namespace catchem {
         /// schemes' local species_idx space (1..n_seasalt) is defined by THIS
         /// sequence.  Every bin must exist by canonical name and carry valid
         /// physical properties (same throws run() has always enforced).
+        /// @return 0-based global catalog positions of SEAS1..SEAS5, in bin order.
         std::vector<int> resolved_seasalt_bins(const std::shared_ptr<StateManager>& state) {
             // Route legacy size bins by canonical name rather than declaration
             // position.  Their ordering is part of the GEOS/Gong scheme contract.
@@ -312,6 +342,22 @@ namespace catchem {
             bin_species_names.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, full_tendency.data(),
             diag_mass_total_ptr, diag_num_total_ptr, diag_mass_bin_ptr, diag_num_bin_ptr, diag_ids, n_diag_species);
 
+        /// Report the emitted-bin closure used by the CCPP-SCM acceptance case.
+        if (diag_mass_total_ptr && diag_mass_bin_ptr && n_diag_species > 0) {
+            double total_sum = 0.0;
+            double bin_sum = 0.0;
+            for (int column = 0; column < state->column_count(); ++column) {
+                total_sum += diag_mass_total_ptr[column];
+                for (int bin = 0; bin < n_diag_species; ++bin)
+                    bin_sum += diag_mass_bin_ptr[column + state->column_count() * bin];
+            }
+            std::ostringstream budget_record;
+            budget_record << std::setprecision(17)
+                          << "CATCHEM_BUDGET name=seasalt_bin_closure RESIDUAL=" << (total_sum - bin_sum)
+                          << " TOTAL=" << total_sum << " BIN_SUM=" << bin_sum;
+            Logger::info(state.get(), budget_record.str());
+        }
+
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();
     }
@@ -319,6 +365,14 @@ namespace catchem {
 } // namespace catchem
 
 extern "C" {
+/**
+ * @brief Register the "seasalt" process and its settings schema with the ProcessRegistry.
+ *
+ * @details Called once by the API layer's built-in registration pass. The
+ * validator accepts the six gong97/gong03/geos12 scale_factor and weibull_flag
+ * options under processes.seasalt, so an unknown nested option fails at
+ * initialization instead of silently keeping its compiled default.
+ */
 void catchem_register_seasalt_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "seasalt", []() { return std::make_shared<catchem::SeaSaltProcess>(); }, {},

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "components": {
+    "catchem": {
+      "repository": "https://github.com/bbakernoaa/CATChem",
+      "revision": "900ec02691ae9a4ef250183ec86f7050b1d2d6b9"
+    },
+    "scm": {
+      "repository": "https://github.com/climbfuji/ccpp-scm.git",
+      "revision": "47db8cd920aa010cefd70511be9adc33e5245974"
+    },
+    "framework": {
+      "repository": "https://github.com/NCAR/ccpp-framework.git",
+      "revision": "c4b7d9aed935e8985309e2d974ed43cb46324e50"
+    },
+    "physics": {
+      "repository": "https://github.com/NCAR/ccpp-physics.git",
+      "revision": "3de6efae740ed673406cfe1cbc8cb2b334c13801"
+    },
+    "gocart": {
+      "repository": "https://github.com/GEOS-ESM/GOCART",
+      "revision": "9ff3df9545dd582f415f682d3297e8c6c841e5cb"
+    },
+    "musica": {
+      "repository": "https://github.com/NCAR/musica.git",
+      "revision": "31bd9aa0f1936bcd52277e5885e631fb9f0d4e65"
+    }
+  },
+  "overlay_sha256": "e2d94813c79474f4a64ff19fd88a11ccfadbd73906e396d2f038b73521bc99ea",
+  "overlay_hash_scope": "SHA-256 of sorted relative path, NUL, and file bytes for files under tests/ccpp-scm/patches",
+  "data": {
+    "scm_release": "v7.0.0",
+    "checksums_file": "tests/ccpp-scm/data-lock.json",
+    "checksums_file_sha256": "dcd071604cdfb4abfa082acd1b59694e07c385740b604fb2ab5a6d696135656a"
+  }
+}

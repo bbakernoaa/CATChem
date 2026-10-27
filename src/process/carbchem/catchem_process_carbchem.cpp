@@ -1,3 +1,13 @@
+/**
+ * @file catchem_process_carbchem.cpp
+ * @brief Implements the GOCART carbon-chemistry adapter and its Fortran bridge call.
+ *
+ * @details All buffers handed to run_carbchem_science_bridge are borrowed host
+ * pointers owned by StateManager or by per-call local scratch vectors; the
+ * bridge mutates CONCENTRATION in place, after which the adapter snapshots a
+ * BC1/BC2/OC1/OC2 mass closure for the acceptance suite and marks the view
+ * host-modified so coupled hosts export the updated state.
+ */
 #include "catchem_process_carbchem.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
@@ -5,9 +15,31 @@
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <cctype>
-#include <iostream>
+#include <iomanip>
+#include <sstream>
 
 extern "C" {
+/**
+ * @brief Flat C entry point into the Fortran carbon-chemistry science bridge.
+ *
+ * @details Implemented in src/process/carbchem/CarbChemScienceBridge.F90, which
+ * reconstitutes the flat buffers into Fortran allocatables and dispatches to the
+ * GOCART scheme. Every pointer argument is a borrowed host buffer — either
+ * StateManager-owned met/concentration storage or a caller-local scratch
+ * vector — and must stay alive and un-reallocated for the whole call; the
+ * bridge writes `conc`, `tendency`, and the four `diag_*` buffers in place.
+ * Array shapes follow the Fortran column-major convention: 3-D met fields are
+ * [n_cols, n_levels], species-packed diagnostics are [n_cols, n_levels,
+ * n_diag_species] (mass) and [n_cols, n_diag_species] (flux), and species
+ * names use the blank-padded 32-characters-per-name flat layout of
+ * `species_names_char`.
+ *
+ * @note The bridge returns no status code: a scheme failure aborts inside
+ *       Fortran. `species_t_chem_loss` must be forwarded verbatim, including
+ *       negative values, which the scheme reads as its "loss disabled"
+ *       sentinel. `diagnostic_species_id` carries GLOBAL 1-based catalog
+ *       indices and is always a valid array, even when `n_diag_species` is 0.
+ */
 void run_carbchem_science_bridge(int n_cols, int n_levels, int n_species, double dt, const char* active_scheme,
                                  int diagnostics, double gocart_time_days_hydrophobic_to_hydrophilic, int year,
                                  int month, int day, int hour, int minute, int second, double* airden, double* delp,
@@ -155,6 +187,13 @@ namespace catchem {
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("CarbChem", "CHEM_CONC", conc_ptr);
 
+        // The GOCART ageing operation transfers BC/OC between hydrophobic
+        // and hydrophilic bins. Keep the pre-call inventory so the selected
+        // process can report a column-integrated carbon mass closure.
+        const std::size_t concentration_size =
+            static_cast<std::size_t>(state->column_count()) * state->level_count() * state->species_count();
+        std::vector<double> concentration_before(conc_ptr, conc_ptr + concentration_size);
+
         // Allocate local tendencies buffer
         std::vector<double> mock_tendency(state->column_count() * state->level_count() * state->species_count(), 0.0);
 
@@ -185,6 +224,58 @@ namespace catchem {
             mock_tendency.data(), diag_prod_mass, diag_loss_flux, diag_phobic_mass, diag_phobic_flux, diag_ids,
             n_diag_species);
 
+        double carbon_mass_before = 0.0;
+        double carbon_mass_after = 0.0;
+        const std::size_t species_slab = static_cast<std::size_t>(state->column_count()) * state->level_count();
+        if (diag_phobic_mass && diag_prod_mass) {
+            for (std::size_t slot = 0; slot < diagnostic_species_id.size(); ++slot) {
+                const auto& metadata = state->chemistry().species_list.at(diagnostic_species_id[slot] - 1);
+                std::string name = metadata.short_name;
+                std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
+                if (name != "bc1" && name != "bc2" && name != "oc1" && name != "oc2")
+                    continue;
+                double transfer = 0.0, chemical_loss = 0.0;
+                for (std::size_t cell = 0; cell < species_slab; ++cell) {
+                    transfer += diag_phobic_mass[slot * species_slab + cell] * delp_ptr[cell] / 9.80665;
+                    chemical_loss += diag_prod_mass[slot * species_slab + cell] * delp_ptr[cell] / 9.80665;
+                }
+                const bool donor = name.back() == '1';
+                std::ostringstream record;
+                record << std::setprecision(17) << "CATCHEM_COLUMN_TERM process=carbchem species=" << name
+                       << " source=" << (donor ? 0.0 : transfer)
+                       << " sink=" << (chemical_loss + (donor ? transfer : 0.0)) << " units=kg_m-2";
+                Logger::info(state.get(), record.str());
+            }
+        }
+        for (const char* carbon_species : {"BC1", "BC2", "OC1", "OC2"}) {
+            bool found = false;
+            for (std::size_t species = 0; species < state->chemistry().species_list.size(); ++species) {
+                std::string short_name = state->chemistry().species_list[species].short_name;
+                std::transform(short_name.begin(), short_name.end(), short_name.begin(),
+                               [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+                if (short_name != carbon_species)
+                    continue;
+                found = true;
+                const std::size_t offset = species * species_slab;
+                for (std::size_t cell = 0; cell < species_slab; ++cell) {
+                    carbon_mass_before += concentration_before[offset + cell];
+                    carbon_mass_after += conc_ptr[offset + cell];
+                }
+                break;
+            }
+            if (!found)
+                throw std::runtime_error(std::string("CarbChem carbon mass budget is missing species ") +
+                                         carbon_species);
+        }
+        const double carbon_mass_residual =
+            std::abs(carbon_mass_before - carbon_mass_after) /
+            std::max(std::abs(carbon_mass_before) + std::abs(carbon_mass_after), 1.0e-30);
+        std::ostringstream budget_record;
+        budget_record << "CATCHEM_BUDGET name=carbchem_carbon_mass RESIDUAL=" << std::scientific
+                      << std::setprecision(16) << carbon_mass_residual << " TOTAL=" << carbon_mass_before
+                      << " BIN_SUM=" << carbon_mass_after;
+        Logger::info(state.get(), budget_record.str());
+
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();
     }
@@ -194,6 +285,14 @@ namespace catchem {
 } // namespace catchem
 
 extern "C" {
+/**
+ * @brief Register the "carbchem" process and its settings schema with the ProcessRegistry.
+ *
+ * @details Called once by the API layer's built-in registration pass. The
+ * validator accepts only `gocart/time_days_hydrophobic_to_hydrophilic`, so an
+ * unknown nested option under processes.carbchem fails at initialization
+ * instead of silently keeping its compiled default.
+ */
 void catchem_register_carbchem_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "carbchem", []() { return std::make_shared<catchem::CarbChemProcess>(); }, {},

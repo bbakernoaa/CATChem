@@ -31,7 +31,7 @@ namespace {
     struct Fixture {
         int n_cols = 4;
         int n_levels = 5;
-        int n_species = 22;
+        int n_species = 23;  // Default fixture inventory (incl. o3)
         std::vector<double> T, AIRDEN, DELP, RH, PMID, Zedge, conc;
 
         Fixture() {

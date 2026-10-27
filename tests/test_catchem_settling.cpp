@@ -26,7 +26,7 @@ namespace {
     struct Fixture {
         int n_cols = 4;
         int n_levels = 5;
-        int n_species = 22;
+        int n_species = 23;
         std::vector<double> T, AIRDEN, DELP, RH, PMID, Zedge, conc;
 
         Fixture() {
@@ -74,7 +74,7 @@ namespace {
         config->load_from_file("CATChem_new_config.yml");
         state->attach_config_manager(config);
 
-        // The parity oracle uses the Default 22-species inventory; the local
+        // The parity oracle uses the Default 23-species inventory; the local
         // 49-species test file would change the aerosol set and slab count.
         const std::string species_name = "Configs/Default/CATChem_species.yml";
         std::string species_path = "CATChem_species.yml";

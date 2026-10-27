@@ -17,13 +17,21 @@ void catchem_register_photolysis_cpp();
 void catchem_register_gaschem_cpp();
 }
 
+/** @brief Check whether a required mechanism fixture is available. */
 bool file_exists(const std::string& name) {
     return std::filesystem::exists(name);
 }
 
-// Runs the full coupled photolysis+gaschem scenario once for a given gaschem
-// mechanism configuration (a v0 CAMP directory, a v1 single file, or a v1
-// directory relying on config.yaml auto-detection).
+/** @brief Verify mechanism loading and rejection of incompatible PHOTO product names.
+ * @param label Description of the mechanism layout being tested.
+ * @param config_key Configuration key selecting a file or directory.
+ * @param config_value Path to the pinned MUSICA mechanism fixture.
+ *
+ * The from_host TUV-x fixture produces jfoo, while these Chapman fixtures
+ * require different named PHOTO channels. A valid configuration loader must
+ * preserve those dependencies and reject the schedule before chemistry runs.
+ * Physical coupling is exercised by the locked SCM/native replay acceptance.
+ */
 static void run_coupled_case(const std::string& label, const std::string& config_key, const std::string& config_value) {
     std::cout << "\n------------------------------------------" << std::endl;
     std::cout << "CASE: gaschem mechanism via " << config_key << " (" << label << ")" << std::endl;
@@ -110,31 +118,38 @@ static void run_coupled_case(const std::string& label, const std::string& config
 
     auto gaschem_proc = catchem::ProcessRegistry::get_instance().create("gaschem");
     gaschem_proc->init(state);
-    core->add_process(gaschem_proc);
+    const auto concentrations_before = conc_data;
+    bool rejected = false;
+    try {
+        core->add_process(gaschem_proc);
+    } catch (const std::invalid_argument& error) {
+        const std::string message = error.what();
+        rejected = message.find("missing-product-producer") != std::string::npos &&
+                   message.find("photolysis_rate_") != std::string::npos;
+    }
+    assert(rejected && "Incompatible PHOTO names must fail schedule validation before execution");
+    assert(core->get_num_processes() == 1 && "Rejected GasChem must not remain in the Core schedule");
+    assert(conc_data == concentrations_before && "Rejected coupling must preserve chemistry state");
 
-    // 5. Execute timestep
-    core->run_timestep(3600.0);
-    std::cout << "SUCCESS: Timestep run completed without error." << std::endl;
-
-    // 6. Verify photolysis rate diagnostics calculation
+    // Initialization registers products; it must not mark uncomputed rates current.
     auto diag_mgr = core->get_diagnostic_manager();
     assert(diag_mgr->has_field("photolysis_rate_jfoo") && "TUV-x jfoo diagnostic must exist!");
 
-    double* jfoo_rates = static_cast<double*>(diag_mgr->get_host_pointer("photolysis_rate_jfoo"));
-    assert(jfoo_rates != nullptr);
-    assert(jfoo_rates[0] > 0.0 && "Photolysis rates must be non-zero at noon!");
-
-    std::cout << "SUCCESS: Dynamic J-rates calculated and coupled successfully!" << std::endl;
+    assert(diag_mgr->get_field("photolysis_rate_jfoo")->availability != catchem::AvailabilityState::Current);
+    gaschem_proc->finalize();
+    core->shutdown();
+    std::cout << "SUCCESS: Incompatible PHOTO prerequisites rejected without changing state." << std::endl;
 
     std::remove(temp_main_coupled_config.c_str());
     std::cout << "CASE PASSED: " << label << std::endl;
 }
 
+/** @brief Exercise all supported MUSICA configuration layouts with strict PHOTO dependencies. */
 int main(int argc, char* argv[]) {
     Kokkos::initialize(argc, argv);
     {
         std::cout << "\n==========================================" << std::endl;
-        std::cout << "RUNNING INTEGRATION TEST: Photolysis and GasChem Coupling" << std::endl;
+        std::cout << "RUNNING TEST: MUSICA configuration loading and PHOTO prerequisite validation" << std::endl;
         std::cout << "==========================================\n" << std::endl;
 
         // 1. Dynamic registrations
@@ -161,7 +176,7 @@ int main(int argc, char* argv[]) {
         run_coupled_case("v1 directory (config.yaml auto-detect)", "config_dir", v1_dir);
 
         std::cout << "\n==========================================" << std::endl;
-        std::cout << "COUPLED INTEGRATION TESTS PASSED (v0 dir, v1 file, v1 auto-detect)!" << std::endl;
+        std::cout << "MECHANISM AND DEPENDENCY TESTS PASSED (v0 dir, v1 file, v1 auto-detect)!" << std::endl;
         std::cout << "==========================================\n" << std::endl;
     }
     Kokkos::finalize();

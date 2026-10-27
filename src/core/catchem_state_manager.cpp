@@ -1,3 +1,12 @@
+/**
+ * @file catchem_state_manager.cpp
+ * @brief Out-of-line definition of the StateManager constructor.
+ *
+ * @details All other StateManager behaviour lives inline in
+ * catchem_state_manager.hpp; documentation is inherited from the header. The
+ * only cpp-local work here is generating the random 8-character trace ID, so
+ * log records from concurrent runs remain distinguishable.
+ */
 #include "catchem_state_manager.hpp"
 #include <cstdlib>
 

@@ -1,3 +1,13 @@
+/**
+ * @file catchem_physical_validation.cpp
+ * @brief Merge-and-render implementation for PhysicalValidationReport.
+ *
+ * @details observe() folds repeated (field, rule) violations into a single
+ * issue — exact count and extrema, first 16 locations — and format() renders
+ * the one-line-per-issue text used by Reject-mode exception messages and by
+ * catchem_state_get_physical_validation_report_checked(). Member documentation
+ * lives on catchem_physical_validation.hpp.
+ */
 #include "catchem_physical_validation.hpp"
 #include <algorithm>
 #include <sstream>

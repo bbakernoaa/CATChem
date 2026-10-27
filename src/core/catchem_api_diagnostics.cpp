@@ -1,3 +1,15 @@
+/**
+ * @file catchem_api_diagnostics.cpp
+ * @brief C entry points for diagnostic registration, access, and reset.
+ *
+ * @details Implements the diagnostic section of catchem_api.hpp against the
+ * Core's DiagnosticManager. Lookups are exact-name (no case folding); rank
+ * and extent checks return CATCHEM_RANK_MISMATCH or CATCHEM_EXTENT_MISMATCH
+ * literals directly. Host-modification and sync helpers operate on the
+ * DiagnosticField behind the admitted handle and bypass per-field admission
+ * once the manager lookup succeeded. Member documentation lives on
+ * catchem_api.hpp.
+ */
 #include "catchem_api.hpp"
 #include "catchem_api_internal.hpp"
 #include "catchem_core.hpp"

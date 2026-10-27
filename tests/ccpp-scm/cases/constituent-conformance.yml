@@ -1,0 +1,421 @@
+schema_version: 1
+case_id: ccpp-constituent-conformance
+processes:
+- dust
+- seasalt
+- drydep
+- wetdep
+- settling
+- so4chem
+- carbchem
+- photolysis
+- gaschem
+inputs:
+- name: ccpp_constituents
+  units: per-constituent-property
+  basis: complete shared state and tendency arrays, including nonadvected chemistry
+- name: air_density
+  units: kg m-3
+  basis: separate host-basis and dry-air density; total-with-condensate must be declared
+- name: layer_pressure_mass
+  units: kg m-2
+  basis: DELP/g with interface pressure differences and standard gravity
+- name: dry_layer_mass
+  units: kg m-2
+  basis: dry-air density times geometric layer thickness
+outputs:
+- name: gas_mass_ratio_from_ppmv
+  units: kg kg-1
+  basis: dry-air, independently calculated as ppmv * M_species / M_dry_air * 1e-6
+  must_be_nonzero: true
+- name: aerosol_micrograms_per_kilogram
+  units: ug kg-1
+  basis: dry-air, independently calculated as mass ratio * 1e9
+  must_be_nonzero: true
+- name: ozone_number_density
+  units: molecule cm-3
+  basis: dry-air number density times ozone dry-air ppmv * 1e-6
+  must_be_nonzero: true
+- name: unrelated_constituent_and_tendency_slots
+  units: unchanged host representation
+  basis: exact bitwise preservation for unrelated host slots and preexisting contributions
+  must_be_nonzero: false
+reference:
+  method: analytic
+  description: Independently calculate physical amounts from SI definitions, molar
+    masses, density ratios, and DELP/g layer masses; do not use adapter inverse routines
+    as references.
+  source_revision: 900ec02691ae9a4ef250183ec86f7050b1d2d6b9
+tolerances:
+- quantity: unit_conversion_relative_error
+  absolute: 1.0e-300
+  relative: 1.4210854715202004e-14
+  rationale: 64 times binary64 epsilon, with nonzero analytic values and a small absolute
+    floor.
+- quantity: registry_slots_and_unrelated_state
+  absolute: 0.0
+  relative: 0.0
+  rationale: Mapping identities are exact and unrelated host state and tendencies
+    must remain bitwise unchanged.
+budgets:
+- quantity: dry_to_pressure_layer_mass
+  equation: solver_representation = dry_air_representation * dry_layer_mass / (DELP/g)
+  units: species-native mixing amount
+  basis: dry-layer to pressure-layer conversion, with dry-layer mass no greater than
+    hydrostatic pressure-layer mass
+  residual_tolerance: 1.4210854715202004e-14
+  rationale: Analytic denominator conversion; physically impossible dry mass greater
+    than total layer pressure mass is rejected.
+- quantity: humid_wetdep_drydep_exchange
+  equation: preserve absolute species mass while converting host-basis concentration
+    through dry-air mass and the pressure-layer solver denominator
+  units: kg m-2
+  basis: explicit moist/total-with-condensate density definition and matching layer
+    thickness
+  residual_tolerance: 1.0e-12
+  rationale: Compare mass before and after the independently derived density and pressure-mass
+    conversions.
+registry_conformance:
+  host_slot_scenarios:
+  - name: canonical
+    mapping:
+    - dust1
+    - so2
+    - so4
+    - h2o2
+    - unrelated_tracer
+  - name: permuted_nonadjacent
+    mapping:
+    - unrelated_tracer
+    - so4
+    - dust1
+    - unrelated_nonadvected
+    - so2
+    - h2o2
+  - name: nonadvected_species
+    mapping:
+    - so2
+    - unrelated_tracer
+    - h2o2
+    - msa
+    - so4
+  duplicate_registration:
+    identical_full_properties: merge_to_one_registry_entry
+    conflicting_full_properties: reject_before_allocation
+  negative_cases:
+  - duplicate_physical_slot
+  - out_of_range_index
+  - missing_required_species
+  - colliding_alias
+  - changed_registry_order_invalidates_entire_binding
+  - unsupported_number_concentration
+  - unknown_air_basis
+  - nonpositive_density
+  - nonpositive_molar_mass
+  - zero_column_layer_or_species_extent
+  - zero_or_negative_interface_or_soil_extent
+  process_permutations:
+    dust:
+      participating_species:
+      - dust1
+      - dust2
+      - dust3
+      - dust4
+      - dust5
+      canonical_slot_order:
+      - dust1
+      - dust2
+      - dust3
+      - dust4
+      - dust5
+      - unrelated_tracer
+      permuted_slot_order:
+      - unrelated_tracer
+      - dust5
+      - dust2
+      - dust4
+      - dust1
+      - dust3
+      - unrelated_nonadvected
+    seasalt:
+      participating_species:
+      - seas1
+      - seas2
+      - seas3
+      - seas4
+      - seas5
+      canonical_slot_order:
+      - seas1
+      - seas2
+      - seas3
+      - seas4
+      - seas5
+      - unrelated_tracer
+      permuted_slot_order:
+      - unrelated_tracer
+      - seas5
+      - seas2
+      - seas4
+      - seas1
+      - seas3
+      - unrelated_nonadvected
+    drydep:
+      participating_species:
+      - so2
+      - so4
+      - seas1
+      - seas2
+      - seas3
+      - seas4
+      - seas5
+      - bc1
+      - bc2
+      - oc1
+      - oc2
+      canonical_slot_order:
+      - so2
+      - so4
+      - seas1
+      - seas2
+      - seas3
+      - seas4
+      - seas5
+      - bc1
+      - bc2
+      - oc1
+      - oc2
+      - unrelated_tracer
+      permuted_slot_order:
+      - unrelated_tracer
+      - oc2
+      - so4
+      - seas3
+      - bc1
+      - so2
+      - seas5
+      - oc1
+      - seas1
+      - bc2
+      - seas4
+      - seas2
+      - unrelated_nonadvected
+    wetdep:
+      participating_species:
+      - dust1
+      - dust2
+      - dust3
+      - dust4
+      - dust5
+      - seas1
+      - seas2
+      - seas3
+      - seas4
+      - seas5
+      - so4
+      - msa
+      - bc1
+      - bc2
+      - oc1
+      - oc2
+      canonical_slot_order:
+      - dust1
+      - dust2
+      - dust3
+      - dust4
+      - dust5
+      - seas1
+      - seas2
+      - seas3
+      - seas4
+      - seas5
+      - so4
+      - msa
+      - bc1
+      - bc2
+      - oc1
+      - oc2
+      - unrelated_tracer
+      permuted_slot_order:
+      - unrelated_tracer
+      - oc2
+      - so4
+      - dust3
+      - seas5
+      - bc1
+      - dust1
+      - msa
+      - seas2
+      - oc1
+      - dust5
+      - bc2
+      - seas1
+      - dust2
+      - seas4
+      - dust4
+      - seas3
+      - unrelated_nonadvected
+    settling:
+      participating_species:
+      - dust1
+      - dust2
+      - dust3
+      - dust4
+      - dust5
+      - seas1
+      - seas2
+      - seas3
+      - seas4
+      - seas5
+      - so4
+      - msa
+      - bc1
+      - bc2
+      - oc1
+      - oc2
+      canonical_slot_order:
+      - dust1
+      - dust2
+      - dust3
+      - dust4
+      - dust5
+      - seas1
+      - seas2
+      - seas3
+      - seas4
+      - seas5
+      - so4
+      - msa
+      - bc1
+      - bc2
+      - oc1
+      - oc2
+      - unrelated_tracer
+      permuted_slot_order:
+      - unrelated_tracer
+      - oc2
+      - so4
+      - dust3
+      - seas5
+      - bc1
+      - dust1
+      - msa
+      - seas2
+      - oc1
+      - dust5
+      - bc2
+      - seas1
+      - dust2
+      - seas4
+      - dust4
+      - seas3
+      - unrelated_nonadvected
+    so4chem:
+      participating_species:
+      - so2
+      - dms
+      - h2o2
+      - oh
+      - so4
+      - msa
+      canonical_slot_order:
+      - so2
+      - dms
+      - h2o2
+      - oh
+      - so4
+      - msa
+      - unrelated_tracer
+      permuted_slot_order:
+      - unrelated_tracer
+      - msa
+      - h2o2
+      - so4
+      - dms
+      - oh
+      - so2
+      - unrelated_nonadvected
+    carbchem:
+      participating_species:
+      - bc1
+      - bc2
+      - oc1
+      - oc2
+      canonical_slot_order:
+      - bc1
+      - bc2
+      - oc1
+      - oc2
+      - unrelated_tracer
+      permuted_slot_order:
+      - unrelated_tracer
+      - oc2
+      - bc1
+      - oc1
+      - bc2
+      - unrelated_nonadvected
+    photolysis:
+      participating_species:
+      - ozone and mechanism photolysis constituents
+      canonical_slot_order:
+      - ozone
+      - mechanism_constituents
+      - unrelated_tracer
+      permuted_slot_order:
+      - unrelated_tracer
+      - mechanism_constituents_reordered
+      - ozone
+      - unrelated_nonadvected
+    gaschem:
+      participating_species:
+      - ozone and configured mechanism constituents
+      canonical_slot_order:
+      - ozone
+      - mechanism_constituents
+      - unrelated_tracer
+      permuted_slot_order:
+      - unrelated_tracer
+      - mechanism_constituents_reordered
+      - ozone
+      - unrelated_nonadvected
+representations:
+  gas:
+  - amount_type: volume_mixing_ratio
+    air_basis: dry
+    units: ppmv
+  - amount_type: mass_mixing_ratio
+    air_basis: dry
+    units: kg kg-1
+  - amount_type: mass_mixing_ratio
+    air_basis: moist
+    units: kg kg-1
+  - amount_type: mass_mixing_ratio
+    air_basis: total_with_condensate
+    units: kg kg-1
+  aerosol:
+  - amount_type: mass_mixing_ratio
+    air_basis: dry
+    units: kg kg-1
+  - amount_type: mass_mixing_ratio
+    air_basis: moist
+    units: kg kg-1
+  - amount_type: mass_mixing_ratio
+    air_basis: total_with_condensate
+    units: kg kg-1
+array_layout:
+  full_state_axes:
+  - column
+  - vertical_layer
+  - constituent
+  canonical_order:
+  - column_fast
+  - declared_vertical_layer_order
+  - manifest_species_order
+  required_checks:
+  - noncontiguous_stride
+  - host_precision_conversion
+  - layer_order_permutation
+  - slot_permutation
+  - layer_interface_extent
+  - soil_layer_extent
+  - output_atomicity
+frozen_before_candidate_comparison: true

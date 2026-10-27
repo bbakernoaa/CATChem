@@ -1,0 +1,42 @@
+schema_version: 1
+case_id: carbchem-bomex-carbonaceous
+scm_case: bomex
+processes:
+  - carbchem
+acceptance_fixture:
+  aerosol_mixing_ratio_kg_kg: 1.0e-12
+  species: bc1, bc2, oc1, oc2
+  basis: uniform initial host mass mixing ratio for carbonaceous aerosols in the full CCPP constituent array
+inputs:
+  - name: ccpp_constituents
+    units: species-declared
+    basis: full framework constituent array mapped by registered standard names, including black and organic carbon bins
+  - name: carbchem_meteorology
+    units: Pa, K, kg kg-1, kg m-3, m
+    basis: GFS v17 layer pressure, temperature, specific humidity, dry-air density and interface thickness
+outputs:
+  - name: carbchem_constituent_tendency
+    signal_name: carbchem_constituent_max_abs_delta
+    units: host constituent representation
+    basis: selected GOCART hydrophobic to hydrophilic aerosol update over one 600 s interval
+    must_be_nonzero: true
+    minimum_abs_value: 1.0e-14
+reference:
+  method: native_parity
+  description: Matched native GOCART CarbChem replay from the exact BOMEX GFS v17 process-input ledger and pre-update 23-species CCPP state. All 2,921 mapped species-level values compare at the same 600 s interval and host-update boundary; maximum absolute and relative errors are both zero.
+  source_revision: 900ec02691ae9a4ef250183ec86f7050b1d2d6b9
+  evidence:
+    - build/ccpp-scm-phase6-clean/native-replay/carbchem-bomex-parity.json
+tolerances:
+  - quantity: carbchem_constituent_state_after_update
+    absolute: 1.0e-12
+    relative: 1.0e-6
+    rationale: Frozen before comparison using the established full-state native replay limit; all 2,921 values passed with zero observed error.
+budgets:
+  - quantity: carbchem_carbon_mass
+    equation: integrated hydrophobic to hydrophilic conversion preserves total black and organic carbon aerosol mass
+    units: kg kg-1
+    basis: sum of carbonaceous bins across the column
+    residual_tolerance: 1.0e-10
+    rationale: CarbChem is a mass-conserving hydrophobic-to-hydrophilic aerosol aging conversion.
+frozen_before_candidate_comparison: true
