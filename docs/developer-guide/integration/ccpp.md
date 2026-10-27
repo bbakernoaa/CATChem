@@ -18,13 +18,14 @@ interval ID/token, coupling site, subcycle and duration. Final releases that pro
 context participation. The generated CCPP cap supplies its normal `errmsg/errflg`
 lifecycle contract; scheme run calls also return `errcode/errmsg` as declared in metadata.
 
-The test SDFs keep the host `phys_ps` and `phys_ts` groups unchanged and schedule CATChem in
-two separate groups: `catchem1` for surface emissions/removal after `phys_ps`, and `catchem2`
-for photolysis and chemistry after `phys_ts`. The host calls those groups at the corresponding
-integration points and synchronizes its constituent array between them. Apply each staged
-concentration tendency immediately after its process. Runtime-disabled processes return without
-importing fields, and a tendency update with no staged contribution is a no-op. The `_ps` test
-suites change prescribed surface forcing while reusing the same process drivers.
+The test SDFs keep CATChem calls out of the host `phys_ps` and `phys_ts` groups and schedule
+them in two separate groups: `catchem1` for surface emissions/removal after `phys_ps`, and
+`catchem2` for photolysis and chemistry after `phys_ts`. The test-only SCM host calls those
+groups at the corresponding integration points and synchronizes its constituent array between
+them. `_ps` suites intentionally change the `phys_ps` surface forcing while reusing the same
+CATChem groups and process drivers. Apply each staged concentration tendency immediately after
+its process. Runtime-disabled processes return without importing fields, and a tendency update
+with no staged contribution is a no-op.
 Each suite lists `catchem_ccpp` once: CCPP calls its timestep initializer and finalizer around
 the complete suite interval, so another entry would open the same CATChem interval a second time.
 

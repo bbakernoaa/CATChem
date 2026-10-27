@@ -13,10 +13,11 @@ It runs `CATChem_EmissionChemistryRemoval` with GFS v17 physics on the
 `gabls3_noahmp` SCM case. The selected CATChem calls are Dust, SeaSalt, WetDep, Settling, DryDep,
 SO4Chem, and CarbChem.
 
-CATChem test suites keep the GFS `phys_ps` and `phys_ts` groups intact and place CATChem calls
-in two separate groups. The SCM test host runs `catchem1` after `phys_ps` and `catchem2` after
-`phys_ts`, synchronizing the shared constituent array between groups. Surface emissions and
-removal are in `catchem1`; photolysis and chemistry are in `catchem2`. Each concentration
+CATChem test suites keep CATChem calls out of the GFS `phys_ps` and `phys_ts` groups and place
+them in two separate groups. The SCM test host runs `catchem1` after `phys_ps` and `catchem2`
+after `phys_ts`, synchronizing the shared constituent array between groups. `_ps` suites
+intentionally change `phys_ps` surface forcing but keep the same CATChem schedule. Surface
+emissions and removal are in `catchem1`; photolysis and chemistry are in `catchem2`. Each concentration
 process is followed by `catchem_apply_tendency`. There is one process driver and metadata table
 per CATChem process; `_ps` suites vary surface forcing and reuse those same drivers. A process
 whose `activate` setting is false returns without importing its fields, and the following
