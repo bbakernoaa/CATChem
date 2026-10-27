@@ -91,8 +91,5 @@
     </subcycle>
   </group>
   <group name="catchem2">
-    <subcycle loop="1">
-      <scheme>catchem_ccpp</scheme>
-    </subcycle>
   </group>
 </suite>

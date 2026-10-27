@@ -21,6 +21,8 @@ process is followed by `catchem_apply_tendency`. There is one process driver and
 per CATChem process; `_ps` suites vary surface forcing and reuse those same drivers. A process
 whose `activate` setting is false returns without importing its fields, and the following
 tendency update is a no-op when nothing was staged.
+Each suite includes one `catchem_ccpp` lifecycle entry. CCPP invokes its timestep initializer
+and finalizer around the full suite interval; a second entry would begin the same interval twice.
 
 GasChem consumes fresh CATChem photolysis rates. The combined `PhotolysisGasChem` suite makes
 that prerequisite explicit by running Photolysis before GasChem. There is no separate GasChem

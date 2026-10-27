@@ -75,8 +75,5 @@
       <scheme>catchem_so4chem_driver</scheme>
       <scheme>catchem_apply_tendency</scheme>
     </subcycle>
-    <subcycle loop="1">
-      <scheme>catchem_ccpp</scheme>
-    </subcycle>
   </group>
 </suite>

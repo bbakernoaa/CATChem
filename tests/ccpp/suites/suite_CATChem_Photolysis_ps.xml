@@ -73,8 +73,5 @@
     <subcycle loop="1">
       <scheme>catchem_photolysis_driver</scheme>
     </subcycle>
-    <subcycle loop="1">
-      <scheme>catchem_ccpp</scheme>
-    </subcycle>
   </group>
 </suite>

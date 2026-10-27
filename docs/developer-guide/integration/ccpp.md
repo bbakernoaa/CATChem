@@ -25,6 +25,8 @@ integration points and synchronizes its constituent array between them. Apply ea
 concentration tendency immediately after its process. Runtime-disabled processes return without
 importing fields, and a tendency update with no staged contribution is a no-op. The `_ps` test
 suites change prescribed surface forcing while reusing the same process drivers.
+Each suite lists `catchem_ccpp` once: CCPP calls its timestep initializer and finalizer around
+the complete suite interval, so another entry would open the same CATChem interval a second time.
 
 GasChem requires fresh CATChem photolysis rates. The test suite named `PhotolysisGasChem`
 expresses that prerequisite explicitly by running Photolysis before GasChem; there is no
