@@ -183,8 +183,8 @@ def main() -> int:
     summary["source_sha256"] = {
         name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in (
             "src/core/catchem_core.cpp", "drivers/ccpp/catchem_ccpp_lifecycle.F90",
-            "drivers/ccpp/catchem_photolysis.meta", "drivers/ccpp/catchem_photolysis_ps.meta",
-            "drivers/ccpp/catchem_gaschem.meta", "drivers/ccpp/catchem_gaschem_ps.meta",
+            "drivers/ccpp/catchem_photolysis.meta",
+            "drivers/ccpp/catchem_gaschem.meta",
             "tests/default_parity_candidate_runner.cpp",
             "tests/ccpp-scm/stage_time_recovery_case.py",
             "tests/ccpp-scm/replay_ccpp_subcycles.py",

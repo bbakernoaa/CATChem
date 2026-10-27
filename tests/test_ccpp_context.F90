@@ -7,6 +7,7 @@ program test_ccpp_context
    implicit none
    type(ccpp_context_handle) :: a, b, c, stale
    integer(c_int) :: status
+   logical :: tendency_pending
    real(c_double), allocatable, target :: state_a(:, :, :), state_b(:, :, :), candidate(:, :, :)
    real(c_double), allocatable :: contribution(:, :, :), shared_tendency(:, :, :)
    integer, allocatable :: reverse_indices(:)
@@ -113,8 +114,12 @@ program test_ccpp_context
    call ccpp_context_open_interval(a, 11_c_int64_t, status)
    errflg = int(status)
    call require(errflg == 0, 'repeated interval init is idempotent')
+   call ccpp_context_tendency_pending(a, 11_c_int64_t, tendency_pending, status)
+   call require(status == CCPP_CTX_OK .and. .not. tendency_pending, 'empty interval has no pending tendency')
    call ccpp_context_stage_tendency(a, 11_c_int64_t, contribution, status)
    call require(status == CCPP_CTX_OK, 'stage token-bound host tendency')
+   call ccpp_context_tendency_pending(a, 11_c_int64_t, tendency_pending, status)
+   call require(status == CCPP_CTX_OK .and. tendency_pending, 'staged tendency is reported pending')
    call ccpp_context_begin_exchange(a, state_a, status)
    call require(status == CCPP_CTX_PENDING, 'new exchange cannot discard an unapplied contribution')
 #ifdef CATCHEM_CONTEXT_WITH_CCPP
@@ -128,6 +133,8 @@ program test_ccpp_context
    call ccpp_context_apply_tendency(a, 11_c_int64_t, 2.0_c_double, shared_tendency, status)
    call require(status == CCPP_CTX_OK .and. maxval(abs(shared_tendency - 9.0_c_double)) < 1.0e-12_c_double, &
       'matching token applies duration times the tendency exactly once')
+   call ccpp_context_tendency_pending(a, 11_c_int64_t, tendency_pending, status)
+   call require(status == CCPP_CTX_OK .and. .not. tendency_pending, 'applied tendency is no longer pending')
    call ccpp_context_apply_tendency(a, 11_c_int64_t, 2.0_c_double, shared_tendency, status)
    call require(status == CCPP_CTX_PENDING .and. maxval(abs(shared_tendency - 9.0_c_double)) < 1.0e-12_c_double, &
       'a contribution token is consumed once')

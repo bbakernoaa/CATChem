@@ -18,6 +18,18 @@ interval ID/token, coupling site, subcycle and duration. Final releases that pro
 context participation. The generated CCPP cap supplies its normal `errmsg/errflg`
 lifecycle contract; scheme run calls also return `errcode/errmsg` as declared in metadata.
 
+The test SDFs keep the host `phys_ps` and `phys_ts` groups unchanged and schedule CATChem in
+two separate groups: `catchem1` for surface emissions/removal after `phys_ps`, and `catchem2`
+for photolysis and chemistry after `phys_ts`. The host calls those groups at the corresponding
+integration points and synchronizes its constituent array between them. Apply each staged
+concentration tendency immediately after its process. Runtime-disabled processes return without
+importing fields, and a tendency update with no staged contribution is a no-op. The `_ps` test
+suites change prescribed surface forcing while reusing the same process drivers.
+
+GasChem requires fresh CATChem photolysis rates. The test suite named `PhotolysisGasChem`
+expresses that prerequisite explicitly by running Photolysis before GasChem; there is no
+standalone GasChem suite that implicitly runs the Photolysis process.
+
 Create a CATChem context through `catchem_ccpp_context` before registration, using a
 unique context ID and generation per host instance. The host owns the full CCPP constituent
 state and tendency arrays. CATChem owns only context-local canonical state and reusable

@@ -24,7 +24,8 @@ SUITE_TO_PROCESS = {"CATChem_Dust": "dust", "CATChem_SeaSalt": "seasalt",
                     "CATChem_DryDep": "drydep", "CATChem_WetDep": "wetdep",
                     "CATChem_Settling": "settling", "CATChem_SO4Chem": "so4chem",
                     "CATChem_CarbChem": "carbchem", "CATChem_Photolysis": "photolysis",
-                    "CATChem_GasChem": "gaschem"}
+                    "CATChem_PhotolysisGasChem": "gaschem",
+                    "CATChem_PhotolysisGasChemSubcycle": "gaschem"}
 
 
 def all_catchem_suites() -> list[str]:
@@ -737,7 +738,7 @@ def build(args: argparse.Namespace) -> None:
         # chemistry and radiation libraries for every other process suite.
         _run_case_command(args, process, case, suite, build_only=True, science_profile='all',
                           keep_existing=True, suite_set=all_catchem_suites(),
-                          process_set=list(SUITE_TO_PROCESS.values()),
+                          process_set=list(dict.fromkeys(SUITE_TO_PROCESS.values())),
                           shared_build_dir=Path(args.work_dir).resolve() / 'cases/coupled-shared-cap/build')
 
 
@@ -762,7 +763,7 @@ def run_cases(args: argparse.Namespace) -> None:
             "CATChem_EmissionChemistryRemoval": ["dust", "seasalt", "wetdep", "settling", "drydep", "so4chem", "carbchem"],
             "CATChem_PhotolysisGasChem": ["photolysis", "gaschem"],
         }
-        selected_processes = (list(SUITE_TO_PROCESS.values()) if not args.suite else
+        selected_processes = (list(dict.fromkeys(SUITE_TO_PROCESS.values())) if not args.suite else
                               list(dict.fromkeys(process for name in selected_groups for process in group_processes[name])))
         suite_set = (all_catchem_suites() if not args.suite else
                      [variant for name in selected_groups for variant in (name, f"{name}_ps")])
@@ -793,7 +794,8 @@ def run_cases(args: argparse.Namespace) -> None:
         selected = [(name, args.case or case, None) for name, case in defaults.items()]
     for process, case, suite in selected:
         _run_case_command(args, process, case, suite, science_profile='all', keep_existing=True,
-                          suite_set=all_catchem_suites(), process_set=list(SUITE_TO_PROCESS.values()),
+                          suite_set=all_catchem_suites(),
+                          process_set=list(dict.fromkeys(SUITE_TO_PROCESS.values())),
                           shared_build_dir=Path(args.work_dir).resolve() / 'cases/coupled-shared-cap/build')
 
 

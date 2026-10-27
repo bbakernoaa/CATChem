@@ -56,17 +56,32 @@
     </subcycle>
     <subcycle loop="1">
       <scheme>mp_thompson_post</scheme>
-      <scheme>catchem_ccpp</scheme>
+
     </subcycle>
     <subcycle loop="2">
       <scheme>GFS_MP_generic_post</scheme>
-      <scheme>catchem_photolysis_ps_driver</scheme>
-      <scheme>catchem_gaschem_ps_driver</scheme>
-      <scheme>catchem_apply_tendency</scheme>
+
+
+
     </subcycle>
     <subcycle loop="1">
       <scheme>maximum_hourly_diagnostics</scheme>
       <scheme>GFS_physics_post</scheme>
+    </subcycle>
+  </group>
+  <group name="catchem1">
+    <subcycle loop="1">
+      <scheme>catchem_ccpp</scheme>
+    </subcycle>
+  </group>
+  <group name="catchem2">
+    <subcycle loop="2">
+      <scheme>catchem_photolysis_driver</scheme>
+      <scheme>catchem_gaschem_driver</scheme>
+      <scheme>catchem_apply_tendency</scheme>
+    </subcycle>
+    <subcycle loop="1">
+      <scheme>catchem_ccpp</scheme>
     </subcycle>
   </group>
 </suite>

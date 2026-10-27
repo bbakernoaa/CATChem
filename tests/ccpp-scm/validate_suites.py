@@ -25,17 +25,38 @@ def validate_suite(path: Path) -> list[str]:
     """Check lifecycle pairing, process ordering, update placement, and metadata names."""
     schemes = suite_schemes(path)
     errors: list[str] = []
-    process_schemes = [item for item in schemes if re.fullmatch(r"catchem_(dust|seasalt|drydep|wetdep|settling|so4chem|carbchem|photolysis|gaschem)(?:_ps)?_driver", item)]
+    process_schemes = [item for item in schemes if re.fullmatch(r"catchem_(dust|seasalt|drydep|wetdep|settling|so4chem|carbchem|photolysis|gaschem)_driver", item)]
     lifecycle_occurrences = schemes.count("catchem_ccpp")
-    expected_lifecycle_occurrences = 2 if (
-        path.name.startswith("suite_CATChem_SO4Chem") or path.name.startswith("suite_CATChem_Photolysis.")
-        or path.name.startswith("suite_CATChem_Photolysis_ps.")
-    ) else 1
+    expected_lifecycle_occurrences = 2
     if process_schemes and lifecycle_occurrences != expected_lifecycle_occurrences:
         errors.append(f"suite must schedule catchem_ccpp {expected_lifecycle_occurrences} time(s) for its host lifecycle boundaries")
     if any(item in schemes for item in ("catchem_ccpp_timestep_init", "catchem_ccpp_timestep_final")):
         errors.append("suite must name the catchem_ccpp scheme table; CCPP generates lifecycle calls from its phase entry points")
     suite_root = ET.parse(path).getroot()
+    groups = {group.get("name"): group for group in suite_root.findall("group")}
+    if not {"catchem1", "catchem2"}.issubset(groups):
+        errors.append("suite must expose the two host-called CATChem schedule groups catchem1 and catchem2")
+    if {"catchem1", "catchem2"}.issubset(groups):
+        catchem1 = [item.text.strip() for item in groups["catchem1"].iter("scheme") if item.text]
+        catchem2 = [item.text.strip() for item in groups["catchem2"].iter("scheme") if item.text]
+        early = {"catchem_dust_driver", "catchem_seasalt_driver", "catchem_wetdep_driver",
+                 "catchem_settling_driver", "catchem_drydep_driver"}
+        late = {"catchem_photolysis_driver", "catchem_gaschem_driver", "catchem_so4chem_driver",
+                "catchem_carbchem_driver"}
+        if early.intersection(catchem2) or late.intersection(catchem1):
+            errors.append("surface emissions/deposition belong in catchem1 and post-microphysics chemistry in catchem2")
+        if not catchem1 or catchem1[0] != "catchem_ccpp" or not catchem2 or catchem2[-1] != "catchem_ccpp":
+            errors.append("catchem_ccpp must open catchem1 and close catchem2 around the shared interval")
+    if groups.get("phys_ps") is not None and any(
+        item.text and item.text.strip().startswith("catchem_")
+        for item in groups["phys_ps"].iter("scheme")
+    ):
+        errors.append("CATChem schemes must be isolated from the host phys_ps group")
+    if groups.get("phys_ts") is not None and any(
+        item.text and item.text.strip().startswith("catchem_")
+        for item in groups["phys_ts"].iter("scheme")
+    ):
+        errors.append("CATChem schemes must be isolated from the host phys_ts group")
     expected_updates = sum(
         int(subcycle.attrib.get("loop", "1")) * sum(
             1 for item in subcycle.findall("scheme")
@@ -54,7 +75,7 @@ def validate_suite(path: Path) -> list[str]:
     )
     if process_schemes and scheduled_updates != expected_updates:
         errors.append("each concentration-changing process invocation needs one tendency update; photolysis does not")
-    selected = [item.removeprefix("catchem_").removesuffix("_driver").removesuffix("_ps")
+    selected = [item.removeprefix("catchem_").removesuffix("_driver")
                 for item in process_schemes]
     if path.name.startswith("suite_CATChem_EmissionChemistryRemoval"):
         expected = ["dust", "seasalt", "wetdep", "settling", "drydep", "so4chem", "carbchem"]
@@ -87,10 +108,7 @@ def validate_suite(path: Path) -> list[str]:
         errors.append(f"photolysis/GasChem process order must be ['photolysis', 'gaschem']; found {selected}")
     if path.name.startswith("suite_CATChem_PhotolysisGasChem"):
         expected_order = ["catchem_ccpp", "catchem_photolysis_driver",
-                          "catchem_gaschem_driver", "catchem_apply_tendency"]
-        if path.name.endswith("_ps.xml"):
-            expected_order = ["catchem_ccpp", "catchem_photolysis_ps_driver",
-                              "catchem_gaschem_ps_driver", "catchem_apply_tendency"]
+                          "catchem_gaschem_driver", "catchem_apply_tendency", "catchem_ccpp"]
         selected_order = [item for item in schemes if item.startswith("catchem_")]
         if selected_order != expected_order:
             errors.append(f"photolysis/GasChem sequence must be {expected_order}; photolysis has no tendency to apply, found {selected_order}")
@@ -104,21 +122,7 @@ def validate_suite(path: Path) -> list[str]:
             "GFS_surface_composites_post",
         )):
             errors.append("ARM Photolysis/GasChem must omit uninitialized land/ocean surface models")
-    if path.name.startswith("suite_CATChem_GasChem"):
-        expected = ["photolysis", "gaschem"]
-        if selected != expected:
-            errors.append(f"GasChem's required PHOTO producer must run first; expected {expected}, found {selected}")
-        expected_order = ["catchem_ccpp", "catchem_photolysis_driver",
-                          "catchem_gaschem_driver", "catchem_apply_tendency"]
-        if path.name.endswith("_ps.xml"):
-            expected_order = ["catchem_ccpp", "catchem_photolysis_ps_driver",
-                              "catchem_gaschem_ps_driver", "catchem_apply_tendency"]
-        selected_order = [item for item in schemes if item.startswith("catchem_")]
-        if selected_order != expected_order:
-            errors.append(f"GasChem prerequisite suite must be {expected_order}; found {selected_order}")
-    if (path.name.startswith("suite_CATChem_GasChem") or path.name in {
-        "suite_CATChem_Photolysis.xml", "suite_CATChem_Photolysis_ps.xml"
-    }):
+    if path.name in {"suite_CATChem_Photolysis.xml", "suite_CATChem_Photolysis_ps.xml"}:
         phys_ps = next((group for group in suite_root.findall("group") if group.get("name") == "phys_ps"), None)
         surface_schemes = ([item.text.strip() for item in phys_ps.iter("scheme") if item.text]
                            if phys_ps is not None else [])
@@ -171,8 +175,6 @@ def main() -> int:
         "suite_CATChem_PhotolysisGasChem_ps.xml",
         "suite_CATChem_PhotolysisGasChemSubcycle.xml",
         "suite_CATChem_PhotolysisGasChemSubcycle_ps.xml",
-        "suite_CATChem_GasChem.xml",
-        "suite_CATChem_GasChem_ps.xml",
         "suite_CATChem_Photolysis.xml",
         "suite_CATChem_Photolysis_ps.xml",
         "suite_CATChem_SO4Chem.xml",

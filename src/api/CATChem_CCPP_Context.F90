@@ -65,6 +65,7 @@ module CATChem_Context_Registry
    public :: ccpp_context_get_manifest_species, ccpp_context_manifest_species_count, ccpp_context_get_model
    public :: ccpp_context_set_species_map, ccpp_context_get_species_map, ccpp_context_clear_species_map
    public :: ccpp_context_stage_tendency, ccpp_context_apply_tendency, ccpp_context_cancel_tendency
+   public :: ccpp_context_tendency_pending
 #ifdef CATCHEM_CONTEXT_TESTING
    public :: ccpp_context_exhaust_generations_for_test
 #endif
@@ -734,6 +735,28 @@ contains
       slots(i)%tendency = contribution
       slots(i)%contribution_token = token
       slots(i)%contribution_pending = .true.
+      status = CCPP_CTX_OK
+   end subroutine
+
+   !> Report whether this interval has a staged tendency for the host update scheme.
+   !! A false result is a valid no-op when every scheduled process is disabled.
+   subroutine ccpp_context_tendency_pending(handle, token, pending, status)
+      type(ccpp_context_handle), intent(in) :: handle
+      integer(c_int64_t), intent(in) :: token
+      logical, intent(out) :: pending
+      integer(c_int), intent(out) :: status
+      type(registry_guard) :: guard
+      integer :: i
+      call guard%acquire()
+      pending = .false.
+      i = checked_slot(handle)
+      status = CCPP_CTX_STALE
+      if (i == 0) return
+      if (.not. slots(i)%interval_open .or. token /= slots(i)%interval_token) then
+         status = CCPP_CTX_PENDING
+         return
+      end if
+      pending = slots(i)%contribution_pending .and. token == slots(i)%contribution_token
       status = CCPP_CTX_OK
    end subroutine
 

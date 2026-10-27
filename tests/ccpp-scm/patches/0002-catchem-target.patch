@@ -105,9 +105,6 @@ index ac058bd1..24c04e88 100644
 +    "${_catchem_checkout_dir}/drivers/ccpp/catchem_apply_tendency.meta")
 +  foreach(_catchem_process IN LISTS _catchem_process_list)
 +    list(APPEND SCHEME_METADATA_FILES "${_catchem_checkout_dir}/drivers/ccpp/catchem_${_catchem_process}.meta")
-+    if(EXISTS "${_catchem_checkout_dir}/drivers/ccpp/catchem_${_catchem_process}_ps.meta")
-+      list(APPEND SCHEME_METADATA_FILES "${_catchem_checkout_dir}/drivers/ccpp/catchem_${_catchem_process}_ps.meta")
-+    endif()
 +  endforeach()
 +endif()
 
@@ -972,6 +969,15 @@ index c7cc65ec..112351dd 100644
 +  if (errflg /= 0) error stop 'Unrelated host tendency was not preserved: '//trim(errmsg)
 +  call catchem_sync_constituents_to_tracers(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
 +  if (errflg /= 0) error stop 'Unable to export CCPP constituents after process-split physics: '//trim(errmsg)
+  call catchem_sync_tracers_to_constituents(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
+  if (errflg /= 0) error stop 'Unable to import SCM tracers before CATChem group 1: '//trim(errmsg)
+  call ccpp_physics_run(suite_name=scm_state%physics_suite_name, group_name="catchem1", &
+          errflg=errflg, errmsg=errmsg, CCPP_PHYSICS_STATIC_ARGS)
+  if (errflg /= 0) error stop 'Unable to run CATChem group 1: '//trim(errmsg)
+  call catchem_verify_acceptance_unrelated_tendency(errmsg, errflg)
+  if (errflg /= 0) error stop 'Unrelated host tendency was not preserved: '//trim(errmsg)
+  call catchem_sync_constituents_to_tracers(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
+  if (errflg /= 0) error stop 'Unable to export CCPP constituents after CATChem group 1: '//trim(errmsg)
    ! time-split physics
 +  call catchem_sync_tracers_to_constituents(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
 +  if (errflg /= 0) error stop 'Unable to import SCM tracers before time-split physics: '//trim(errmsg)
@@ -983,6 +989,13 @@ index c7cc65ec..112351dd 100644
    end if
 +  call catchem_sync_constituents_to_tracers(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
 +  if (errflg /= 0) error stop 'Unable to export CCPP constituents after time-split physics: '//trim(errmsg)
+  call catchem_sync_tracers_to_constituents(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
+  if (errflg /= 0) error stop 'Unable to import SCM tracers before CATChem group 2: '//trim(errmsg)
+  call ccpp_physics_run(suite_name=scm_state%physics_suite_name, group_name="catchem2", &
+          errflg=errflg, errmsg=errmsg, CCPP_PHYSICS_STATIC_ARGS)
+  if (errflg /= 0) error stop 'Unable to run CATChem group 2: '//trim(errmsg)
+  call catchem_sync_constituents_to_tracers(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
+  if (errflg /= 0) error stop 'Unable to export CCPP constituents after CATChem group 2: '//trim(errmsg)
    call ccpp_physics_timestep_final(suite_name=scm_state%physics_suite_name, group_name='all', &
            errflg=errflg, errmsg=errmsg, CCPP_PHYSICS_STATIC_ARGS)
    if (errflg/=0) then

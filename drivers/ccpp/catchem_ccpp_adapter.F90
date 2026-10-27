@@ -24,6 +24,7 @@ module catchem_ccpp_adapter
    integer, parameter :: amount_mass_ratio = 2, amount_number = 3
    integer, parameter :: basis_dry = 1, basis_moist = 2, basis_total = 3
    public :: catchem_ccpp_register_constituents, catchem_ccpp_build_mapping
+   public :: catchem_ccpp_process_is_active
    public :: catchem_ccpp_gather, catchem_ccpp_run_selected, catchem_ccpp_convert_to_host
    public :: catchem_ccpp_stage_tendency, catchem_ccpp_apply_tendency, catchem_ccpp_cancel_tendency
    public :: catchem_ccpp_begin_import, catchem_ccpp_bind_met_2d, catchem_ccpp_bind_met_3d
@@ -66,6 +67,29 @@ module catchem_ccpp_adapter
    end interface
 
 contains
+
+   !> Check the runtime configuration before importing process-specific fields.
+   !! A process listed in an SDF can remain disabled in the CATChem YAML.
+   subroutine catchem_ccpp_process_is_active(handle, process, active, errmsg, errflg)
+      type(ccpp_context_handle), intent(in) :: handle
+      character(len=*), intent(in) :: process
+      logical, intent(out) :: active
+      character(len=*), intent(out) :: errmsg
+      integer, intent(out) :: errflg
+      type(CATChem_Model), pointer :: model
+      integer(c_int) :: status
+
+      active = .false.
+      errmsg = ''
+      errflg = 0
+      call catchem_ccpp_context_model(handle, model, status)
+      if (status /= CATCHEM_CONTEXT_SUCCESS) then
+         errmsg = 'CATChem process activation requires a valid initialized context.'
+         errflg = int(status)
+         return
+      end if
+      active = model%is_process_active(trim(process))
+   end subroutine catchem_ccpp_process_is_active
 
    !> \brief Start one timestep input generation before binding this call's host fields.
    !> \param handle Host-owned context receiving the imports.

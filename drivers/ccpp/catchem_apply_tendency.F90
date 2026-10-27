@@ -5,6 +5,7 @@ module catchem_apply_tendency
    use machine, only: kind_phys
    use catchem_ccpp_context, only: ccpp_context_handle, CATChem_Manifest_Species_v1
    use catchem_ccpp_context, only: catchem_ccpp_context_get_mapping, catchem_ccpp_context_species
+   use catchem_ccpp_context, only: catchem_ccpp_context_tendency_pending
    use catchem_ccpp_adapter, only: catchem_ccpp_apply_tendency
    use ccpp_host_constituents, only: ccpp_model_constituents_obj
    implicit none
@@ -38,6 +39,7 @@ contains
       real(kind_phys), allocatable :: full_state_before(:, :, :)
       real(kind_phys) :: max_increment, invocation_duration
       integer(c_int) :: status
+      logical :: pending
       integer :: trace_status
       character(len=8) :: trace_switch
       if (loop_counter < 1 .or. loop_extent < 1 .or. loop_counter > loop_extent) then
@@ -48,6 +50,17 @@ contains
       invocation_duration = duration_seconds/real(loop_extent, kind_phys)
       handle%id = context_id
       handle%generation = context_generation
+      call catchem_ccpp_context_tendency_pending(handle, interval_token, pending, status)
+      if (status /= 0_c_int) then
+         errmsg = 'CATChem update scheme could not inspect the interval contribution state.'
+         errflg = int(status)
+         return
+      end if
+      if (.not. pending) then
+         errmsg = ''
+         errflg = 0
+         return
+      end if
       call catchem_ccpp_context_get_mapping(handle, host_species_index, status)
       if (status /= 0_c_int) then
          errmsg = 'CATChem update scheme has no context-local constituent map.'

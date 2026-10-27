@@ -515,7 +515,7 @@ def run_case(args: argparse.Namespace) -> None:
     process_suite_name = {
         "dust": "Dust", "seasalt": "SeaSalt", "drydep": "DryDep", "wetdep": "WetDep",
         "settling": "Settling", "so4chem": "SO4Chem", "carbchem": "CarbChem",
-        "photolysis": "Photolysis", "gaschem": "GasChem",
+        "photolysis": "Photolysis", "gaschem": "PhotolysisGasChem",
     }[args.process]
     if args.suite != "SCM_GFS_v17_p8_ugwpv1":
         suite_name = args.suite.removeprefix("CATChem_")

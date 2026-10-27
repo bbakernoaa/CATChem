@@ -11,15 +11,10 @@ set(
   catchem_wetdep.F90
   catchem_settling.F90
   catchem_so4chem.F90
-  catchem_so4chem_ps.F90
   catchem_carbchem.F90
-  catchem_carbchem_ps.F90
   catchem_drydep.F90
-  catchem_drydep_ps.F90
   catchem_photolysis.F90
-  catchem_photolysis_ps.F90
   catchem_gaschem.F90
-  catchem_gaschem_ps.F90
   catchem_apply_tendency.F90
 )
 

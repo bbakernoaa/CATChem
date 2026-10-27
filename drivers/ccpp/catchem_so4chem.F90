@@ -8,7 +8,8 @@ module catchem_so4chem_driver
    use ccpp_constituent_prop_mod, only: ccpp_constituent_properties_t, ccpp_constituent_prop_ptr_t
    use catchem_ccpp_context, only: ccpp_context_handle, catchem_ccpp_context_species_count, &
                                    catchem_ccpp_context_set_mapping, catchem_ccpp_context_get_mapping
-   use catchem_ccpp_adapter, only: catchem_ccpp_register_constituents, catchem_ccpp_build_mapping, &
+   use catchem_ccpp_adapter, only: catchem_ccpp_process_is_active, &
+                                    catchem_ccpp_register_constituents, catchem_ccpp_build_mapping, &
                                    catchem_ccpp_begin_import, catchem_ccpp_bind_met_2d, catchem_ccpp_bind_met_3d, &
                          catchem_ccpp_bind_met_vertical, catchem_ccpp_gather, catchem_ccpp_run_selected, catchem_ccpp_stage_tendency
    use catchem_ccpp_conversion, only: catchem_gfs_density_state
@@ -133,8 +134,11 @@ contains
       integer(c_int) :: conversion_status, operation_status
       integer(c_int64_t) :: import_generation
       logical :: publication_eligible
+      logical :: process_active
       handle%id = context_id
       handle%generation = context_generation
+      call catchem_ccpp_process_is_active(handle, 'so4chem', process_active, errmsg, errflg)
+      if (errflg /= 0 .or. .not. process_active) return
       errmsg = ''
       errflg = 0
       call catchem_ccpp_context_get_mapping(handle, host_to_catchem, operation_status)

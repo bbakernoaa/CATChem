@@ -52,10 +52,10 @@
       <scheme>ugwpv1_gsldrag</scheme>
       <scheme>ugwpv1_gsldrag_post</scheme>
       <scheme>GFS_GWD_generic_post</scheme>
-      <scheme>catchem_ccpp</scheme>
-      <scheme>catchem_drydep_driver</scheme>
-      <scheme>catchem_apply_tendency</scheme>
-      <scheme>catchem_ccpp</scheme>
+
+
+
+
     </subcycle>
   </group>
   <group name="phys_ts">
@@ -79,6 +79,20 @@
       <scheme>GFS_MP_generic_post</scheme>
       <scheme>maximum_hourly_diagnostics</scheme>
       <scheme>GFS_physics_post</scheme>
+    </subcycle>
+  </group>
+  <group name="catchem1">
+    <subcycle loop="1">
+      <scheme>catchem_ccpp</scheme>
+    </subcycle>
+    <subcycle loop="1">
+      <scheme>catchem_drydep_driver</scheme>
+      <scheme>catchem_apply_tendency</scheme>
+    </subcycle>
+  </group>
+  <group name="catchem2">
+    <subcycle loop="1">
+      <scheme>catchem_ccpp</scheme>
     </subcycle>
   </group>
 </suite>

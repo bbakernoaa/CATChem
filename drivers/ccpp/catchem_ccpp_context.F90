@@ -13,6 +13,7 @@ module catchem_ccpp_context
                                        ccpp_context_stage_tendency_registry => ccpp_context_stage_tendency, &
                                        ccpp_context_apply_tendency_registry => ccpp_context_apply_tendency, &
                                        ccpp_context_cancel_tendency_registry => ccpp_context_cancel_tendency, &
+                                       ccpp_context_tendency_pending_registry => ccpp_context_tendency_pending, &
                                 CCPP_CTX_OK, CCPP_CTX_ABSENT, CCPP_CTX_STALE, CCPP_CTX_EXHAUSTED, CCPP_CTX_INVALID, CCPP_CTX_PENDING
    implicit none
    private
@@ -37,6 +38,7 @@ module catchem_ccpp_context
    public :: catchem_ccpp_context_set_mapping, catchem_ccpp_context_get_mapping, catchem_ccpp_context_clear_mapping
    public :: catchem_ccpp_context_stage_tendency, catchem_ccpp_context_apply_tendency
    public :: catchem_ccpp_context_cancel_tendency
+   public :: catchem_ccpp_context_tendency_pending
 
    integer(c_int), parameter :: CATCHEM_CONTEXT_SUCCESS = CCPP_CTX_OK
    integer(c_int), parameter :: CATCHEM_CONTEXT_ABSENT = CCPP_CTX_ABSENT
@@ -322,6 +324,15 @@ contains
       real(c_double), intent(in) :: contribution(:, :, :)
       integer(c_int), intent(out) :: status
       call ccpp_context_stage_tendency_registry(handle, token, contribution, status)
+   end subroutine
+
+   !> Query whether a host interval has a tendency waiting to be applied.
+   subroutine catchem_ccpp_context_tendency_pending(handle, token, pending, status)
+      type(ccpp_context_handle), intent(in) :: handle
+      integer(c_int64_t), intent(in) :: token
+      logical, intent(out) :: pending
+      integer(c_int), intent(out) :: status
+      call ccpp_context_tendency_pending_registry(handle, token, pending, status)
    end subroutine
 
    !> \brief Implements catchem ccpp context apply tendency for the CATChem CCPP boundary.
