@@ -756,8 +756,9 @@ index c7cc65ec..112351dd 100644
 +  catchem_acceptance_unrelated_tendency_value = 2.468013e-9_kind_phys
 +  ccpp_model_constituents_obj(1)%vars_layer_tend(:,:,catchem_acceptance_unrelated_index) = &
 +    catchem_acceptance_unrelated_tendency_value
-+  write(*,'(a,i0,a,es14.6)') 'CATCHEM_UNRELATED_TENDENCY_SEEDED slot=', &
-+    catchem_acceptance_unrelated_index, ' VALUE=', catchem_acceptance_unrelated_tendency_value
++  write(*,'(a,i0,a,i0,a,es14.6)') 'CATCHEM_UNRELATED_TENDENCY_SEEDED interval=', &
++    catchem_interval_token, ' slot=', catchem_acceptance_unrelated_index, &
++    ' VALUE=', catchem_acceptance_unrelated_tendency_value
 +end subroutine catchem_seed_acceptance_unrelated_tendency
 +
 +!> Require the unrelated host tendency contribution to survive the CATChem host update.
@@ -789,8 +790,9 @@ index c7cc65ec..112351dd 100644
 +    errflg = 1
 +    return
 +  end if
-+  write(*,'(a,i0,a,es14.6)') 'CATCHEM_UNRELATED_TENDENCY_PRESERVED slot=', &
-+    catchem_acceptance_unrelated_index, ' VALUE=', catchem_acceptance_unrelated_tendency_value
++  write(*,'(a,i0,a,i0,a,es14.6)') 'CATCHEM_UNRELATED_TENDENCY_PRESERVED interval=', &
++    catchem_interval_token, ' slot=', catchem_acceptance_unrelated_index, &
++    ' VALUE=', catchem_acceptance_unrelated_tendency_value
 +end subroutine catchem_verify_acceptance_unrelated_tendency
 +
 +!> Synchronize matching species between qgrs and the registered CCPP constituent state.
@@ -996,6 +998,8 @@ index c7cc65ec..112351dd 100644
 +  if (errflg /= 0) error stop 'Unable to run CATChem group 2: '//trim(errmsg)
 +  call catchem_sync_constituents_to_tracers(physics%Statein%qgrs, scm_state%tracer_names, errmsg, errflg)
 +  if (errflg /= 0) error stop 'Unable to export CCPP constituents after CATChem group 2: '//trim(errmsg)
++  call catchem_verify_acceptance_unrelated_tendency(errmsg, errflg)
++  if (errflg /= 0) error stop 'Unrelated host tendency changed during CATChem group 2: '//trim(errmsg)
    call ccpp_physics_timestep_final(suite_name=scm_state%physics_suite_name, group_name='all', &
            errflg=errflg, errmsg=errmsg, CCPP_PHYSICS_STATIC_ARGS)
    if (errflg/=0) then

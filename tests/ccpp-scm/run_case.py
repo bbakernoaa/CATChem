@@ -961,17 +961,30 @@ def run_case(args: argparse.Namespace) -> None:
         raise RuntimeError(
             "SCM run did not prove bitwise preservation of the unrelated nonadvected CCPP host constituent"
         )
+    interval_tokens = re.findall(r"CATCHEM_INTERVAL_CLOCK interval=(\d+)", run_text)
     tendency_seeded = re.findall(
-        r"CATCHEM_UNRELATED_TENDENCY_SEEDED slot=(\d+) VALUE=\s*([0-9.eEdD+-]+)", run_text
+        r"CATCHEM_UNRELATED_TENDENCY_SEEDED interval=(\d+) slot=(\d+) VALUE=\s*([0-9.eEdD+-]+)", run_text
     )
     tendency_preserved = re.findall(
-        r"CATCHEM_UNRELATED_TENDENCY_PRESERVED slot=(\d+) VALUE=\s*([0-9.eEdD+-]+)", run_text
+        r"CATCHEM_UNRELATED_TENDENCY_PRESERVED interval=(\d+) slot=(\d+) VALUE=\s*([0-9.eEdD+-]+)", run_text
     )
-    if (not tendency_seeded or len(tendency_seeded) != len(tendency_preserved)
-            or tendency_seeded != tendency_preserved):
+    seeded_by_interval = {interval: (slot, value) for interval, slot, value in tendency_seeded}
+    preserved_counts = {
+        interval: sum(1 for token, _, _ in tendency_preserved if token == interval)
+        for interval in interval_tokens
+    }
+    checkpoint_proofs_match = all(
+        seeded_by_interval.get(interval) == (slot, value)
+        for interval, slot, value in tendency_preserved
+    )
+    if (not interval_tokens or len(set(interval_tokens)) != len(interval_tokens)
+            or [interval for interval, _, _ in tendency_seeded] != interval_tokens
+            or len(seeded_by_interval) != len(tendency_seeded)
+            or any(preserved_counts[interval] != 3 for interval in interval_tokens)
+            or not checkpoint_proofs_match):
         raise RuntimeError(
-            "SCM run did not prove bitwise preservation of a preexisting unrelated CCPP constituent tendency "
-            "at every host interval"
+            "SCM run did not prove bitwise preservation of a preexisting unrelated CCPP tendency at all three "
+            "host checkpoints for every interval"
         )
     number_pattern = r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:(?:[EeDd])?[+-][0-9]+)?"
     process_loop_extents: dict[str, int] = {}
