@@ -85,11 +85,7 @@
   type = integer
   intent = out
 
-[ccpp-table-properties]
-  name = catchem_ccpp
-  type = scheme
-  dependencies = catchem_ccpp_context.F90
-
+########################################################################
 [ccpp-arg-table]
   name = catchem_ccpp_timestep_final
   type = scheme

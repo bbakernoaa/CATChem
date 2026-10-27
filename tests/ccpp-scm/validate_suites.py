@@ -151,10 +151,14 @@ def validate_suite(path: Path) -> list[str]:
                 r"(?m)^\s*standard_name\s*=\s*surface_roughness_length\s*$", roughness.group(1)
             ):
                 errors.append(f"{metadata.name} must bind Z0 to effective surface_roughness_length, not an uninitialized land-tile roughness")
-    if "catchem_ccpp" in schemes and not re.search(
-        r"(?m)^\s*name\s*=\s*catchem_ccpp\s*$", (METADATA / "catchem_ccpp_lifecycle.meta").read_text()
-    ):
-        errors.append("lifecycle metadata table is not named catchem_ccpp")
+    if "catchem_ccpp" in schemes:
+        lifecycle_metadata = (METADATA / "catchem_ccpp_lifecycle.meta").read_text()
+        if len(re.findall(r"(?m)^\[ccpp-table-properties\]\s*$", lifecycle_metadata)) != 1:
+            errors.append("lifecycle metadata must define one table-properties section for its init and final arg tables")
+        if len(re.findall(r"(?m)^\[ccpp-arg-table\]\s*$", lifecycle_metadata)) != 2:
+            errors.append("lifecycle metadata must define both timestep init and final arg tables")
+        if not re.search(r"(?m)^\s*name\s*=\s*catchem_ccpp\s*$", lifecycle_metadata):
+            errors.append("lifecycle metadata table is not named catchem_ccpp")
     if "catchem_apply_tendency" in schemes and not re.search(
         r"(?m)^\s*name\s*=\s*catchem_apply_tendency\s*$",
         (ROOT / "drivers/ccpp/catchem_apply_tendency.meta").read_text(),
