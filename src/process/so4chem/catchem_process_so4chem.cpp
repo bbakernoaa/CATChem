@@ -1,3 +1,16 @@
+/**
+ * @file catchem_process_so4chem.cpp
+ * @brief Implements the GOCART sulfate-chemistry adapter and its Fortran bridge call.
+ *
+ * @details Every bridge field pointer is borrowed from StateManager and must
+ * outlive the call; the persistent oxidant/production vectors are
+ * process-owned across timesteps and round-trip through the bridge in place.
+ * Bridge diagnostics arrive in one packed [n_cols, n_levels, n_diag_species]
+ * scratch buffer that run() scatters into per-species Production_rate_<sp>
+ * fields, while PSO4/DMS products are copied straight from the persistent
+ * accumulators. Units: gases ppmv, aerosols ug/kg; production rates kg/kg/s
+ * (budget check converts with 1e9 × dt to ug/kg).
+ */
 #include "catchem_process_so4chem.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
@@ -5,9 +18,30 @@
 #include "catchem_process_registry.hpp"
 #include <algorithm>
 #include <array>
-#include <iostream>
+#include <iomanip>
+#include <sstream>
 
 extern "C" {
+/**
+ * @brief Flat C entry point into the Fortran sulfur-chemistry science bridge.
+ *
+ * @details Implemented in src/process/so4chem/SO4chemScienceBridge.F90, which
+ * reconstitutes the flat buffers, iterates columns, and drives the GOCART
+ * SulfateChemDriver. Met arrays are intent(in) host views over [n_cols,
+ * n_levels] (2-D surface inputs over [n_cols]); `conc` is intent(inout) and
+ * written in place with gases in ppmv and SO4/MSA in ug/kg; `tendency` is
+ * caller scratch. The c_* persistent arrays are intent(inout) cross-timestep
+ * state owned by the C++ adapter (see SO4chemProcess members) and updated in
+ * place per column, except `c_pso2_dms`, which is bound for ABI completeness
+ * but left untouched (see the member note). `c_diag_prod_rate` receives one
+ * [n_cols, n_levels] slab per diagnostic slot in GLOBAL 1-based
+ * `diagnostic_species_id` order.
+ *
+ * @note The bridge returns no status code: a scheme failure stops the run
+ *       inside Fortran. `z0h` must already be thermal roughness in metres —
+ *       run() supplies the Z0-derived fallback before the call. Calendar
+ *       components drive the scheme's daily H2O2 oxidant recycle.
+ */
 void run_so4chem_science_bridge(int n_cols, int n_levels, int n_species, double dt, int diagnostics,
                                 int gocart_update_so2, int gocart_do_drydep, int year, int month, int day, int hour,
                                 int minute, int second, double* airden, double* cldf, double* delp, double* pmid,
@@ -36,11 +70,20 @@ namespace catchem {
                          host_field_2d("Z0", "m", FieldRequirement::Optional), host_concentration()});
     }
 
-    SO4chemProcess::SO4chemProcess() : active_scheme_("gocart"), diagnostics_enabled_(true) {}
+    SO4chemProcess::SO4chemProcess() : active_scheme("gocart"), diagnostics_enabled(true) {}
 
+    // Documentation lives on the header declaration; this reminder preserves the
+    // derivation/validation contract locally: derive shared meteorology and
+    // validate the SO4Chem roughness alternative.
     void SO4chemProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_delp();
         state->derive_airden();
+        // GOCART's surface resistance needs thermal roughness. A host may
+        // supply Z0H directly or provide momentum roughness Z0 for the
+        // documented conversion in run(); reject the case where neither is
+        // current before entering the science bridge.
+        if (!state->read_field<2>("Z0H") && !state->read_field<2>("Z0"))
+            throw std::runtime_error("SO4Chem requires current Z0H or fallback Z0 roughness input");
     }
 
     void SO4chemProcess::init(std::shared_ptr<StateManager> state) {
@@ -50,21 +93,21 @@ namespace catchem {
         const auto configured = config->data.processes.find("so4chem");
         if (configured == config->data.processes.end() || configured->second.scheme != "gocart")
             throw std::invalid_argument("SO4Chem requires processes.so4chem.scheme: gocart");
-        diagnostics_enabled_ = configured->second.diagnostics;
+        diagnostics_enabled = configured->second.diagnostics;
 
         // Read scheme tuning options from the runtime YAML.  Each lookup falls
         // back to the compiled default declared in SO4chemCommon_Mod.F90, so a
         // configuration that omits the option keeps current behavior.
         const auto& settings = configured->second;
-        gocart_update_so2_ = settings.get_bool("gocart/update_so2", gocart_update_so2_);
-        gocart_do_drydep_ = settings.get_bool("gocart/do_drydep", gocart_do_drydep_);
+        gocart_update_so2 = settings.get_bool("gocart/update_so2", gocart_update_so2);
+        gocart_do_drydep = settings.get_bool("gocart/do_drydep", gocart_do_drydep);
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and will be passed to the bridge.
-        Logger::debug(*state, "SO4Chem scheme options",
-                      {{"scheme", active_scheme_},
-                       {"gocart/update_so2", gocart_update_so2_ ? "true" : "false"},
-                       {"gocart/do_drydep", gocart_do_drydep_ ? "true" : "false"}});
+        Logger::debug(state.get(), "SO4Chem scheme options",
+                      {{"scheme", active_scheme},
+                       {"gocart/update_so2", gocart_update_so2 ? "true" : "false"},
+                       {"gocart/do_drydep", gocart_do_drydep ? "true" : "false"}});
 
         // Preserve the unit contract of ProcessSO4chemInterface_Mod and
         // SO4chemScheme_GOCART_Mod: gases are carried in ppmv, while SO4 and
@@ -92,14 +135,14 @@ namespace catchem {
         }
 
         // 1. Allocate persistent states
-        firsttime_.assign(state->column_count(), 1);
-        nymd_last_.assign(state->column_count(), 0);
-        nhms_last_recycle_.assign(state->column_count(), 0);
-        xh2o2_init_.assign(state->column_count() * state->level_count(), 0.0);
-        pso4_g_so2_.assign(state->column_count() * state->level_count(), 0.0);
-        pso4_aq_so2_.assign(state->column_count() * state->level_count(), 0.0);
-        pso2_dms_.assign(state->column_count() * state->level_count(), 0.0);
-        dms_flux_.assign(state->column_count(), 0.0);
+        firsttime.assign(state->column_count(), 1);
+        nymd_last.assign(state->column_count(), 0);
+        nhms_last_recycle.assign(state->column_count(), 0);
+        xh2o2_init.assign(state->column_count() * state->level_count(), 0.0);
+        pso4_g_so2.assign(state->column_count() * state->level_count(), 0.0);
+        pso4_aq_so2.assign(state->column_count() * state->level_count(), 0.0);
+        pso2_dms.assign(state->column_count() * state->level_count(), 0.0);
+        dms_flux.assign(state->column_count(), 0.0);
 
         // 2. Resolve the diagnostic species set (parity with legacy).  The
         // GOCART scheme matches diagnostic_species_id(diag_idx) == species_idx
@@ -112,7 +155,7 @@ namespace catchem {
         // resolve case-insensitively against the mechanism.
         // Built before the diagnostics gate so the ids are always available to
         // run() (mirrors dust/seasalt/carbchem).
-        diagnostic_species_id_.clear();
+        diagnostic_species_id.clear();
         {
             const std::vector<std::string> default_sulfur = {"dms", "so2", "so4", "msa", "h2o2", "oh", "no3", "dms_in"};
             const auto& requested = settings.diag_species.empty() ? default_sulfur : settings.diag_species;
@@ -122,11 +165,11 @@ namespace catchem {
                         continue; // default set: tolerate species absent from this mechanism
                     throw std::invalid_argument("SO4Chem diag_species names an unknown species: " + species_name);
                 }
-                diagnostic_species_id_.push_back(static_cast<int>(chemistry.mechanism->index_of(species_name)) + 1);
+                diagnostic_species_id.push_back(static_cast<int>(chemistry.mechanism->index_of(species_name)) + 1);
             }
         }
 
-        if (!diagnostics_enabled_)
+        if (!diagnostics_enabled)
             return;
 
         // 3. Register diagnostics.  Axes are explicit so the writer never
@@ -151,7 +194,7 @@ namespace catchem {
             // One Production_rate_<sp> field per selected species (names
             // unchanged from the legacy per-species convention).  run() fills
             // each field from its OWN slot of the bridge's packed buffer.
-            for (const int global_index : diagnostic_species_id_) {
+            for (const int global_index : diagnostic_species_id) {
                 const auto& meta = state->chemistry().species_list[static_cast<std::size_t>(global_index - 1)];
                 std::string diag_name = "Production_rate_" + meta.short_name;
                 state->diagnostic_manager()->register_field_contract(diag_name, "Production rate " + meta.short_name,
@@ -227,6 +270,9 @@ namespace catchem {
         // 3. Chemical and Tendency Views
         double* conc_ptr = state->chemistry().conc ? state->chemistry().conc->host_write() : nullptr;
         require_field_pointer("SO4chem", "CHEM_CONC", conc_ptr);
+        const int diagnostic_slab = state->column_count() * state->level_count();
+        std::vector<double> concentration_before(conc_ptr, conc_ptr + static_cast<std::size_t>(diagnostic_slab) *
+                                                                          state->species_count());
 
 #ifdef CATCHEM_TRACE_NUOPC
         // This is deliberately immediately before the science bridge.  It
@@ -243,7 +289,7 @@ namespace catchem {
                 conc_ptr + static_cast<std::size_t>(index) * state->column_count() * state->level_count();
             const auto count = static_cast<std::size_t>(state->column_count()) * state->level_count();
             auto [lo, hi] = std::minmax_element(values, values + count);
-            Logger::debug(*state, "SO4chem pre-bridge concentration",
+            Logger::debug(state.get(), "SO4chem pre-bridge concentration",
                           {{"species", name}, {"min", std::to_string(*lo)}, {"max", std::to_string(*hi)}});
         };
         trace_species("dms");
@@ -276,24 +322,79 @@ namespace catchem {
         // species onto slot 1).  When diagnostics are off, forward a valid
         // size-1 id dummy holding 0 and a zero count (mirrors the other
         // bridges' no_diag_species guard).
-        const bool forward_diag = diagnostics_enabled_ && !diagnostic_species_id_.empty();
+        const bool forward_diag = diagnostics_enabled && !diagnostic_species_id.empty();
         static const int no_diag_species = 0;
-        const int* diag_ids = forward_diag ? diagnostic_species_id_.data() : &no_diag_species;
-        const int n_diag_species = forward_diag ? static_cast<int>(diagnostic_species_id_.size()) : 0;
+        const int* diag_ids = forward_diag ? diagnostic_species_id.data() : &no_diag_species;
+        const int n_diag_species = forward_diag ? static_cast<int>(diagnostic_species_id.size()) : 0;
         const int slab = state->column_count() * state->level_count();
         std::vector<double> diag_prod_rate(static_cast<size_t>(slab) * (forward_diag ? n_diag_species : 1), 0.0);
         run_so4chem_science_bridge(
             state->column_count(), state->level_count(), state->species_count(), state->clock().timestep,
-            diagnostics_enabled_ ? 1 : 0, gocart_update_so2_ ? 1 : 0, gocart_do_drydep_ ? 1 : 0, state->clock().year,
+            diagnostics_enabled ? 1 : 0, gocart_update_so2 ? 1 : 0, gocart_do_drydep ? 1 : 0, state->clock().year,
             state->clock().month, state->clock().day, state->clock().hour, state->clock().minute, state->clock().second,
             airden_ptr, cldf_ptr, delp_ptr, pmid_ptr, t_ptr, z_ptr, hflux_ptr, lat_ptr, lon_ptr, lwi.data(), pblh_ptr,
             u10m_ptr, ustar_ptr, v10m_ptr, const_cast<double*>(z0h_ptr), mw_g.data(),
-            state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(), firsttime_.data(),
-            nymd_last_.data(), nhms_last_recycle_.data(), xh2o2_init_.data(), pso4_g_so2_.data(), pso4_aq_so2_.data(),
-            pso2_dms_.data(), dms_flux_.data(), diag_prod_rate.data(), diag_ids, n_diag_species);
+            state->chemistry().species_names_c_arr.data(), conc_ptr, mock_tendency.data(), firsttime.data(),
+            nymd_last.data(), nhms_last_recycle.data(), xh2o2_init.data(), pso4_g_so2.data(), pso4_aq_so2.data(),
+            pso2_dms.data(), dms_flux.data(), diag_prod_rate.data(), diag_ids, n_diag_species);
+
+        // Close each selected GOCART SO4/MSA production diagnostic against
+        // that species' updated aerosol concentration. The bridge emits rates
+        // in kg/kg/s while aerosol state is ug/kg. An explicit diagnostic
+        // subset may omit one product, so only close products with a matching
+        // registered diagnostic slot.
+        for (const char* species_name : {"so4", "msa"}) {
+            if (!diagnostics_enabled)
+                break;
+            if (!state->chemistry().mechanism->contains(species_name))
+                continue;
+            const auto species_index = state->chemistry().mechanism->index_of(species_name);
+            if (state->chemistry().species_list[species_index].is_gas)
+                throw std::runtime_error(std::string("SO4Chem production budget requires aerosol species ") +
+                                         species_name);
+            int diagnostic_slot = -1;
+            for (int diagnostic = 0; diagnostic < n_diag_species; ++diagnostic) {
+                if (diagnostic_species_id[diagnostic] == static_cast<int>(species_index + 1)) {
+                    diagnostic_slot = diagnostic;
+                    break;
+                }
+            }
+            if (diagnostic_slot < 0)
+                continue;
+            const std::size_t species_offset = species_index * diagnostic_slab;
+            const std::size_t diagnostic_offset = static_cast<std::size_t>(diagnostic_slot) * diagnostic_slab;
+            double aerosol_change_ug_kg = 0.0;
+            double integrated_production_ug_kg = 0.0;
+            double column_production_kg_m2 = 0.0;
+            for (int cell = 0; cell < diagnostic_slab; ++cell) {
+                aerosol_change_ug_kg += conc_ptr[species_offset + cell] - concentration_before[species_offset + cell];
+                integrated_production_ug_kg +=
+                    diag_prod_rate[diagnostic_offset + cell] * state->clock().timestep * 1.0e9;
+                column_production_kg_m2 +=
+                    diag_prod_rate[diagnostic_offset + cell] * state->clock().timestep * delp_ptr[cell] / 9.80665;
+            }
+            std::ostringstream record;
+            record << std::setprecision(17) << "CATCHEM_COLUMN_TERM process=so4chem species=" << species_name
+                   << " source=" << column_production_kg_m2 << " sink=0 units=kg_m-2";
+            Logger::info(state.get(), record.str());
+            constexpr double production_budget_absolute_tolerance_ug_kg = 1.0e-10;
+            const double production_budget_absolute_error_ug_kg =
+                std::abs(aerosol_change_ug_kg - integrated_production_ug_kg);
+            const double production_budget_scale_ug_kg =
+                std::abs(aerosol_change_ug_kg) + std::abs(integrated_production_ug_kg);
+            const double production_budget_residual =
+                production_budget_absolute_error_ug_kg / std::max(production_budget_scale_ug_kg, 1.0e-30);
+            std::ostringstream budget_record;
+            budget_record << "CATCHEM_BUDGET name=so4chem_production species=" << species_name
+                          << " RESIDUAL=" << std::scientific << std::setprecision(16) << production_budget_residual
+                          << " TOTAL=" << aerosol_change_ug_kg << " BIN_SUM=" << integrated_production_ug_kg
+                          << " ABS_ERROR=" << production_budget_absolute_error_ug_kg
+                          << " ABS_TOLERANCE=" << production_budget_absolute_tolerance_ug_kg;
+            Logger::info(state.get(), budget_record.str());
+        }
 
         // 6. Map persistent column diagnostics straight to registered C++ Diagnostics Views
-        if (state->diagnostic_manager() && diagnostics_enabled_) {
+        if (state->diagnostic_manager() && diagnostics_enabled) {
             double* diag_pso4_g =
                 (double*)state->diagnostic_manager()->get_host_write_pointer("PSO4_from_gaseous_SO2_per_level");
             double* diag_pso4_aq =
@@ -301,17 +402,17 @@ namespace catchem {
             double* diag_dms_flux = (double*)state->diagnostic_manager()->get_host_write_pointer("DMS_emission_flux");
 
             if (diag_pso4_g)
-                std::copy(pso4_g_so2_.begin(), pso4_g_so2_.end(), diag_pso4_g);
+                std::copy(pso4_g_so2.begin(), pso4_g_so2.end(), diag_pso4_g);
             if (diag_pso4_aq)
-                std::copy(pso4_aq_so2_.begin(), pso4_aq_so2_.end(), diag_pso4_aq);
+                std::copy(pso4_aq_so2.begin(), pso4_aq_so2.end(), diag_pso4_aq);
             if (diag_dms_flux)
-                std::copy(dms_flux_.begin(), dms_flux_.end(), diag_dms_flux);
+                std::copy(dms_flux.begin(), dms_flux.end(), diag_dms_flux);
 
             // Scatter each packed slot into its own Production_rate_<sp> field
             // (field names unchanged from the legacy per-species convention).
             for (int d = 0; d < n_diag_species; ++d) {
                 const auto& meta =
-                    state->chemistry().species_list[static_cast<std::size_t>(diagnostic_species_id_[d]) - 1];
+                    state->chemistry().species_list[static_cast<std::size_t>(diagnostic_species_id[d]) - 1];
                 std::string diag_name = "Production_rate_" + meta.short_name;
                 double* diag_prod = (double*)state->diagnostic_manager()->get_host_write_pointer(diag_name);
                 if (diag_prod)
@@ -327,6 +428,14 @@ namespace catchem {
 } // namespace catchem
 
 extern "C" {
+/**
+ * @brief Register the "so4chem" process and its settings schema with the ProcessRegistry.
+ *
+ * @details Called once by the API layer's built-in registration pass. The
+ * validator accepts the two gocart/update_so2 and gocart/do_drydep options
+ * under processes.so4chem, so an unknown nested option fails at
+ * initialization instead of silently keeping its compiled default.
+ */
 void catchem_register_so4chem_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "so4chem", []() { return std::make_shared<catchem::SO4chemProcess>(); }, {},

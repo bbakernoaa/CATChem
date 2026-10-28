@@ -27,8 +27,6 @@ module catchem_nuopc_interface
 
    use iso_c_binding, only: c_loc, c_null_char, c_null_ptr, c_char, c_double, c_ptr, c_int, c_long_long, c_associated, c_f_pointer, c_intptr_t
    use ESMF
-   use catchem_nuopc_lengths
-   use catchem_nuopc_strings
    use NUOPC
    use MPI
    use CATChem_API, only: CATChem_Model
@@ -368,13 +366,13 @@ module catchem_nuopc_interface
    !! including metadata for proper data transformation and validation.
    !! \{
    type :: field_mapping_type
-      character(len=NUOPC_LONG_NAME_LEN) :: standard_name !< NUOPC/CF standard field name
-      character(len=NUOPC_LONG_NAME_LEN) :: catchem_var   !< Corresponding CATChem variable path
+      character(len=128) :: standard_name !< NUOPC/CF standard field name
+      character(len=128) :: catchem_var   !< Corresponding CATChem variable path
       integer :: dimensions               !< Number of spatial dimensions (2D/3D)
-      character(len=NUOPC_NAME_LEN) :: units          !< Physical units for conversion
-      character(len=NUOPC_KEYWORD_LEN) :: vertical_axis = 'level' !< Vertical coordinate semantic for 3D fields
-      character(len=NUOPC_LONG_NAME_LEN) :: host_tracer_name = '' !< Host tracer to expose as a CATChem met field
-      character(len=NUOPC_LONG_NAME_LEN) :: host_tracer_var = ''  !< CATChem met name for host_tracer_name
+      character(len=64) :: units          !< Physical units for conversion
+      character(len=32) :: vertical_axis = 'level' !< Vertical coordinate semantic for 3D fields
+      character(len=128) :: host_tracer_name = '' !< Host tracer to expose as a CATChem met field
+      character(len=128) :: host_tracer_var = ''  !< CATChem met name for host_tracer_name
       logical :: optional = .false.       !< Whether field is required or optional
       logical :: advertise = .false.      !< Advertise an optional field for a host coupling contract
    end type field_mapping_type
@@ -402,8 +400,8 @@ module catchem_nuopc_interface
    type :: tracer_index_map
       integer, allocatable :: nuopc_to_cc(:)  !< mapping index from NUOPC to CATChem
       integer, allocatable :: entry_kind(:)   !< 1=CATChem species, 2=diagnostic pseudo-tracer, 0=host-owned
-      character(len=NUOPC_LONG_NAME_LEN), allocatable :: names(:) !< NUOPC tracer name
-      character(len=NUOPC_LONG_NAME_LEN), allocatable :: units(:) !< NUOPC tracer unit
+      character(len=128), allocatable :: names(:) !< NUOPC tracer name
+      character(len=128), allocatable :: units(:) !< NUOPC tracer unit
       real(c_double), allocatable :: host_to_catchem(:) !< kg kg-1 to CATChem native unit
       real(c_double), allocatable :: catchem_to_host(:) !< CATChem native unit to kg kg-1
    end type tracer_index_map
@@ -447,8 +445,8 @@ module catchem_nuopc_interface
       type(ESMF_TimeInterval) :: timeStep
       logical :: output_timing_initialized = .false.
       integer :: timestep_counter = 0  !< Per-component run counter; never shared across CATChem instances.
-      character(len=NUOPC_PATH_LEN) :: output_directory = './output'
-      character(len=NUOPC_NAME_LEN) :: output_prefix = 'catchem_diag'
+      character(len=256) :: output_directory = './output'
+      character(len=64) :: output_prefix = 'catchem_diag'
       integer :: output_frequency = 3600  ! Default: 1 hour in seconds
       integer :: compress_lev = 0         !< Compression level for output NC files (0-9)
       type(ESMF_GridComp) :: iocomp
@@ -466,6 +464,31 @@ module catchem_nuopc_interface
 
 contains
 
+   !> Return the one-based Gregorian day-of-year for a calendar date.
+   !! @param year Calendar year, using the proleptic Gregorian leap-year rule.
+   !! @param month Calendar month in 1..12.
+   !! @param day Day within the selected month.
+   !! @return One-based day-of-year, or zero when month/day is invalid.
+   pure integer function calendar_day_of_year(year, month, day)
+      integer, intent(in) :: year, month, day
+      integer, parameter :: days_in_month(12) = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+      integer :: month_index
+
+      calendar_day_of_year = 0
+      if (year < 1 .or. month < 1 .or. month > 12) return
+      if (day < 1 .or. day > days_in_month(month)) then
+         if (.not. (month == 2 .and. day == 29 .and. &
+            (mod(year, 400) == 0 .or. (mod(year, 4) == 0 .and. mod(year, 100) /= 0)))) return
+      end if
+      calendar_day_of_year = day
+      do month_index = 1, month - 1
+         calendar_day_of_year = calendar_day_of_year + days_in_month(month_index)
+         if (month_index == 2 .and. &
+            (mod(year, 400) == 0 .or. (mod(year, 4) == 0 .and. mod(year, 100) /= 0))) &
+            calendar_day_of_year = calendar_day_of_year + 1
+      end do
+   end function calendar_day_of_year
+
    pure function lowercase(value) result(lower)
       character(len=*), intent(in) :: value
       character(len=len(value)) :: lower
@@ -479,7 +502,7 @@ contains
 
    pure logical function is_mass_mixing_ratio_unit(unit)
       character(len=*), intent(in) :: unit
-      character(len=NUOPC_LONG_NAME_LEN) :: normalized
+      character(len=128) :: normalized
       normalized = trim(adjustl(lowercase(unit)))
       is_mass_mixing_ratio_unit = normalized == 'kg kg-1' .or. normalized == 'kg/kg' .or. &
          normalized == 'kg kg^-1' .or. normalized == 'kg kg**-1'
@@ -487,7 +510,7 @@ contains
 
    pure logical function is_ppm_unit(unit)
       character(len=*), intent(in) :: unit
-      character(len=NUOPC_LONG_NAME_LEN) :: normalized
+      character(len=128) :: normalized
       normalized = trim(adjustl(lowercase(unit)))
       ! UFS/NUOPC metadata uses both ``ppm`` and ``ppmv`` for gas-volume
       ! mixing ratios.  They are the same CATChem-native unit; accepting both
@@ -498,7 +521,7 @@ contains
 
    pure logical function is_micro_mass_mixing_ratio_unit(unit)
       character(len=*), intent(in) :: unit
-      character(len=NUOPC_LONG_NAME_LEN) :: normalized
+      character(len=128) :: normalized
       normalized = trim(adjustl(lowercase(unit)))
       is_micro_mass_mixing_ratio_unit = normalized == 'ug kg-1' .or. normalized == 'ug/kg' .or. &
          normalized == 'ug kg^-1' .or. normalized == 'ug kg**-1'
@@ -508,7 +531,7 @@ contains
    ! transported aerosol tracers, which are mass mixing ratios.
    pure logical function is_micro_mass_concentration_unit(unit)
       character(len=*), intent(in) :: unit
-      character(len=NUOPC_LONG_NAME_LEN) :: normalized
+      character(len=128) :: normalized
       normalized = trim(adjustl(lowercase(unit)))
       is_micro_mass_concentration_unit = normalized == 'ug m-3' .or. normalized == 'ug/m3' .or. &
          normalized == 'ug m^-3' .or. normalized == 'ug m**-3'
@@ -516,7 +539,7 @@ contains
 
    pure logical function is_pm_diagnostic_name(name)
       character(len=*), intent(in) :: name
-      character(len=NUOPC_LONG_NAME_LEN) :: normalized
+      character(len=128) :: normalized
       normalized = trim(adjustl(lowercase(name)))
       is_pm_diagnostic_name = normalized == 'pm25' .or. normalized == 'pm10'
    end function is_pm_diagnostic_name
@@ -536,9 +559,9 @@ contains
    subroutine catchem_append_timestep_failure(core_ptr, errmsg)
       type(c_ptr), intent(in) :: core_ptr
       character(len=*), intent(inout) :: errmsg
-      character(kind=c_char) :: c_process(NUOPC_LONG_NAME_LEN), c_cause(NUOPC_MSG_LEN)
-      character(len=NUOPC_LONG_NAME_LEN) :: process_name
-      character(len=NUOPC_MSG_LEN) :: cause
+      character(kind=c_char) :: c_process(128), c_cause(512)
+      character(len=128) :: process_name
+      character(len=512) :: cause
       integer(c_int) :: status, process_index, state_classification, outcome_rc
       integer(c_long_long) :: timestep, import_generation
       real(c_double) :: duration
@@ -556,20 +579,16 @@ contains
 
    !> Emit a low-volume, per-PET run-phase marker when enabled in runtime YAML.
    !! The final marker in an ESMF PET log identifies the phase that stalled.
-   subroutine catchem_log_run_phase(cc_wrap, step, phase, rc)
+   subroutine catchem_log_run_phase(cc_wrap, step, phase)
       type(cc_wrap_type), intent(in) :: cc_wrap
       integer, intent(in) :: step
       character(len=*), intent(in) :: phase
-      integer, intent(out) :: rc
-      character(len=NUOPC_PATH_LEN) :: message
+      character(len=256) :: message
       integer :: localrc
 
-      rc = CC_SUCCESS
       if (.not. cc_wrap%verbose_logging) return
       write(message, '(A,I0,A,A)') 'CATChem run step=', step, ' phase=', trim(phase)
       call ESMF_LogWrite(trim(message), ESMF_LOGMSG_INFO, rc=localrc)
-      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
    end subroutine catchem_log_run_phase
 
    subroutine catchem_nuopc_get_physical_validation_report(cc_wrap, issue_count, detail, rc)
@@ -634,20 +653,20 @@ contains
 
       ! Local variables
       integer :: nx, ny, num_processes, stat, i, j
+      integer :: clock_year, clock_month, clock_day, clock_hour, clock_minute, clock_second, clock_doy
       integer(c_int) :: catchem_status, species_index, is_gas, is_aerosol
       real(c_double) :: molecular_weight, conversion_factor
       integer(ESMF_KIND_I8) :: tstep_seconds
-      character(len=NUOPC_LONG_NAME_LEN), allocatable :: tracer_names(:) !< NUOPC tracer name
-      character(len=NUOPC_LONG_NAME_LEN), allocatable :: tracer_units(:) !< NUOPC tracer unit
+      character(len=128), allocatable :: tracer_names(:) !< NUOPC tracer name
+      character(len=128), allocatable :: tracer_units(:) !< NUOPC tracer unit
       type(CATChem_InternalState) :: is
       type(CATChem_InternalState) :: verify_is
       type(cc_wrap_type), pointer:: cc_wrap
       integer :: verify_rc
       type(ESMF_VM) :: vm
-      integer :: localPet
+      integer :: localPet, vmrc
 
       ! Initialize
-      integer :: localrc
       rc = CC_SUCCESS
 
       ! -- allocate memory for the internal state and store it into component
@@ -664,12 +683,11 @@ contains
       ! Every PET parses the same YAML, so echo the effective configuration to
       ! stdout only on the root PET; the C++ core prints it during the
       ! initialize() call below (see catchem_set_config_echo_enabled).
-      call ESMF_GridCompGet(model, vm=vm, rc=rc)
-      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-      call ESMF_VMGet(vm, localPet=localPet, rc=rc)
-      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      call ESMF_VMGetCurrent(vm, rc=vmrc)
+      if (vmrc == ESMF_SUCCESS) then
+         call ESMF_VMGet(vm, localPet=localPet, rc=vmrc)
+      end if
+      if (vmrc /= ESMF_SUCCESS) localPet = 0  ! single-PET or query failed: print
       if (localPet /= 0) call catchem_set_config_echo_enabled(0_c_int)
 
       ! Initialize catchem using process-local variable
@@ -708,87 +726,46 @@ contains
       block
          type(ESMF_Field) :: areaField
          real(ESMF_KIND_R8), pointer :: areaPtr(:,:)
-         logical :: areaIsPresent, area_ok
+         integer :: arc
+         logical :: areaIsPresent
          nullify(areaPtr)
          areaIsPresent = .false.
-         area_ok = .false.
          call ESMF_GridGetItem(input_grid, itemflag=ESMF_GRIDITEM_AREA, &
-            staggerloc=ESMF_STAGGERLOC_CENTER, isPresent=areaIsPresent, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-         if (areaIsPresent) then
+            staggerloc=ESMF_STAGGERLOC_CENTER, isPresent=areaIsPresent, rc=arc)
+         if (arc == ESMF_SUCCESS .and. areaIsPresent) then
             call ESMF_GridGetItem(input_grid, itemflag=ESMF_GRIDITEM_AREA, &
-               staggerloc=ESMF_STAGGERLOC_CENTER, farrayPtr=areaPtr, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-            if (associated(areaPtr)) then
-               if (size(areaPtr,1) == nx .and. size(areaPtr,2) == ny) then
-                  cc_wrap%area_m2 = real(areaPtr, c_double)
-                  area_ok = .true.
-               else
-                  call ESMF_LogWrite('catchem_nuopc_init: grid-cell area item has the wrong shape', &
-                     ESMF_LOGMSG_ERROR, rc=localrc)
-                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-                  rc = CC_FAILURE
-                  return
-               end if
-            end if
+               staggerloc=ESMF_STAGGERLOC_CENTER, farrayPtr=areaPtr, rc=arc)
+         else
+            arc = ESMF_RC_NOT_FOUND
          end if
-         if (.not. area_ok) then
-            ! Fall back to computing cell areas from the grid geometry.  Creating
-            ! the field needs no coordinates, so a failure there is an error.
-            ! The area computation does need them, and test harnesses and some
-            ! standalone grids have none, so a failure there is reported but
-            ! not fatal.
+         if (arc == ESMF_SUCCESS .and. associated(areaPtr)) then
+            if (size(areaPtr,1) == nx .and. size(areaPtr,2) == ny) then
+               cc_wrap%area_m2 = real(areaPtr, c_double)
+            end if
+         else
+            ! Fall back to computing cell areas from the grid geometry.
             nullify(areaPtr)
             areaField = ESMF_FieldCreate(input_grid, typekind=ESMF_TYPEKIND_R8, &
-               staggerloc=ESMF_STAGGERLOC_CENTER, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-            call ESMF_FieldRegridGetArea(areaField, rc=localrc)
-            if (localrc == ESMF_SUCCESS) then
-               call ESMF_FieldGet(areaField, farrayPtr=areaPtr, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-               if (associated(areaPtr)) then
-                  if (size(areaPtr,1) == nx .and. size(areaPtr,2) == ny) then
-                     cc_wrap%area_m2 = real(areaPtr, c_double) * real(Re * Re, c_double)
-                     area_ok = .true.
-                  end if
+               staggerloc=ESMF_STAGGERLOC_CENTER, rc=arc)
+            if (arc == ESMF_SUCCESS) call ESMF_FieldRegridGetArea(areaField, rc=arc)
+            if (arc == ESMF_SUCCESS) call ESMF_FieldGet(areaField, farrayPtr=areaPtr, rc=arc)
+            if (arc == ESMF_SUCCESS .and. associated(areaPtr)) then
+               if (size(areaPtr,1) == nx .and. size(areaPtr,2) == ny) then
+                  cc_wrap%area_m2 = real(areaPtr, c_double) * real(Re * Re, c_double)
                end if
             else
-               call ESMF_LogWrite('catchem_nuopc_init: ESMF_FieldRegridGetArea failed; '// &
-                  'the grid may carry no coordinates', ESMF_LOGMSG_WARNING, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               call ESMF_LogWrite('catchem_nuopc_init: could not determine grid-cell '// &
+                  'areas; AREA_M2 left unset (point emissions will be skipped)', &
+                  ESMF_LOGMSG_WARNING, rc=arc)
             end if
-            call ESMF_FieldDestroy(areaField, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            call ESMF_FieldDestroy(areaField, rc=arc)
          end if
-         if (area_ok) then
-            call cc_wrap%catchem_model%bind_met_2d("AREA_M2", cc_wrap%area_m2, rc)
-            if (rc /= CC_SUCCESS) return
-         else
-            ! AREA_M2 stays unbound: point-source emissions check for it and
-            ! fail with a clear error at first use instead of using zero areas.
-            call ESMF_LogWrite('catchem_nuopc_init: could not determine grid-cell areas; '// &
-               'AREA_M2 is not bound and point emissions will fail if used', &
-               ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-         end if
+         call cc_wrap%catchem_model%bind_met_2d("AREA_M2", cc_wrap%area_m2, rc)
+         if (rc /= CC_SUCCESS) return
       end block
 
       !initialize extemission data here
       call catchem_emis_init(cc_wrap%ext_emis, cc_wrap%catchem_model%cpp_core_ptr, nx, ny, nlev, clock, rc)
-      if (rc /= CC_SUCCESS) then
-         call ESMF_LogWrite('catchem_nuopc_init: external emission initialization failed', ESMF_LOGMSG_ERROR, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-         return
-      end if
 
       !get output information from config
       cc_wrap%output_frequency = cc_wrap%catchem_model%get_output_frequency()
@@ -887,18 +864,14 @@ contains
                cc_wrap%catchem_model%state_mgr_ptr, species_index, is_aerosol)
             if (catchem_status /= 0_c_int) then
                call ESMF_LogWrite('Unable to classify CATChem tracer: ' // trim(cc_wrap%tracer_map%names(i)), &
-                  ESMF_LOGMSG_ERROR, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  ESMF_LOGMSG_ERROR, rc=rc)
                rc = ESMF_FAILURE
                return
             end if
             if ((is_gas == 0_c_int .and. is_aerosol == 0_c_int) .or. &
                (is_gas /= 0_c_int .and. is_aerosol /= 0_c_int)) then
                call ESMF_LogWrite('CATChem tracer must be exactly one of gas or aerosol: ' // &
-                  trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=rc)
                rc = ESMF_FAILURE
                return
             end if
@@ -906,9 +879,7 @@ contains
                if (.not. is_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i)) .and. &
                   .not. is_ppm_unit(cc_wrap%tracer_map%units(i))) then
                   call ESMF_LogWrite('Unsupported units for CATChem gas tracer ' // trim(cc_wrap%tracer_map%names(i)) // &
-                     ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1 or ppm', ESMF_LOGMSG_ERROR, rc=localrc)
-                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                     ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1 or ppm', ESMF_LOGMSG_ERROR, rc=rc)
                   rc = ESMF_FAILURE
                   return
                end if
@@ -917,9 +888,7 @@ contains
                   species_index, molecular_weight)
                if (catchem_status /= 0_c_int .or. .not. ieee_is_finite(molecular_weight) .or. molecular_weight <= 0.0_c_double) then
                   call ESMF_LogWrite('Invalid molecular weight for CATChem gas tracer: ' // &
-                     trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=localrc)
-                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                     trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=rc)
                   rc = ESMF_FAILURE
                   return
                end if
@@ -935,9 +904,7 @@ contains
                   .not. is_micro_mass_mixing_ratio_unit(cc_wrap%tracer_map%units(i)) .and. &
                   .not. is_ppm_unit(cc_wrap%tracer_map%units(i))) then
                   call ESMF_LogWrite('Unsupported units for CATChem aerosol tracer ' // trim(cc_wrap%tracer_map%names(i)) // &
-                     ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1, ug kg-1, or ppm', ESMF_LOGMSG_ERROR, rc=localrc)
-                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                     ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected kg kg-1, ug kg-1, or ppm', ESMF_LOGMSG_ERROR, rc=rc)
                   rc = ESMF_FAILURE
                   return
                end if
@@ -957,9 +924,7 @@ contains
             end if
             if (.not. ieee_is_finite(conversion_factor) .or. conversion_factor <= 0.0_c_double) then
                call ESMF_LogWrite('Invalid conversion factor for CATChem tracer: ' // &
-                  trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=rc)
                rc = ESMF_FAILURE
                return
             end if
@@ -968,9 +933,7 @@ contains
             do j = 1, i - 1
                if (cc_wrap%tracer_map%nuopc_to_cc(j) == cc_wrap%tracer_map%nuopc_to_cc(i)) then
                   call ESMF_LogWrite("Duplicate tracer mapping for species: " // &
-                     trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=localrc)
-                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                     trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_ERROR, rc=rc)
                   rc = ESMF_FAILURE
                   return
                end if
@@ -978,9 +941,7 @@ contains
          else if (is_pm_diagnostic_name(cc_wrap%tracer_map%names(i))) then
             if (.not. is_micro_mass_concentration_unit(cc_wrap%tracer_map%units(i))) then
                call ESMF_LogWrite('Unsupported units for PM diagnostic ' // trim(cc_wrap%tracer_map%names(i)) // &
-                  ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected ug m-3', ESMF_LOGMSG_ERROR, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  ': "' // trim(cc_wrap%tracer_map%units(i)) // '"; expected ug m-3', ESMF_LOGMSG_ERROR, rc=rc)
                rc = ESMF_FAILURE
                return
             end if
@@ -993,9 +954,7 @@ contains
             ! configuration-driven; no host tracer names are hardcoded here.
             cc_wrap%tracer_map%entry_kind(i) = TRACER_HOST_OWNED
             call ESMF_LogWrite("Ignoring host-owned tracer not present in active mechanism: " // &
-               trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_INFO, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               trim(cc_wrap%tracer_map%names(i)), ESMF_LOGMSG_INFO, rc=rc)
          end if
       end do
 
@@ -1016,9 +975,7 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) then
             call ESMF_LogWrite('AQMIO_LatlonInit failed, lat/lon output disabled', &
-               ESMF_LOGMSG_WARNING, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               ESMF_LOGMSG_WARNING, rc=rc)
             rc = ESMF_SUCCESS  ! Non-fatal
          end if
       end if
@@ -1034,13 +991,27 @@ contains
       if (present(timeStep)) then
          cc_wrap%timeStep = timeStep
          call ESMF_TimeIntervalGet(timeStep, s_i8=tstep_seconds, rc=rc)
+         if (present(startTime)) then
+            call ESMF_TimeGet(startTime, yy=clock_year, mm=clock_month, dd=clock_day, &
+               h=clock_hour, m=clock_minute, s=clock_second, rc=rc)
+            if (rc /= ESMF_SUCCESS) return
+            clock_doy = calendar_day_of_year(clock_year, clock_month, clock_day)
+         else
+            clock_year = 2000
+            clock_month = 1
+            clock_day = 1
+            clock_doy = 1
+            clock_hour = 0
+            clock_minute = 0
+            clock_second = 0
+         end if
          catchem_status = catchem_state_set_time_checked(cc_wrap%catchem_model%state_mgr_ptr, &
-            0_c_int, 0_c_int, 0_c_int, 0_c_int, 0_c_int, 0_c_int, 0_c_int, real(tstep_seconds, c_double))
+            int(clock_year, c_int), int(clock_month, c_int), int(clock_day, c_int), &
+            int(clock_hour, c_int), int(clock_minute, c_int), int(clock_second, c_int), &
+            int(clock_doy, c_int), real(tstep_seconds, c_double))
          if (catchem_status /= 0_c_int) then
             call ESMF_LogWrite("Failed to set CATChem time state: "// &
-               trim(cc_wrap%catchem_model%last_error), ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               trim(cc_wrap%catchem_model%last_error), ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
             return
          end if
@@ -1061,8 +1032,7 @@ contains
             line=__LINE__, file=__FILE__, rcToReturn=rc)
          return  ! bail out
       end if
-      call catchem_log_run_phase(cc_wrap, 0, 'initialize: processes registered', rc)
-      if (rc /= CC_SUCCESS) return
+      call catchem_log_run_phase(cc_wrap, 0, 'initialize: processes registered')
 
       ! Mark this process as initialized
       cc_wrap%initialized = .true.
@@ -1100,7 +1070,7 @@ contains
 
    !   type(CATChem_InternalState), target :: is
    !   integer                    :: verbosity, localrc
-   !   character(len=NUOPC_LONG_NAME_LEN) :: name
+   !   character(len=128) :: name
 
    !   ! -- get component's information
    !   call NUOPC_CompGet(model, rc=localrc)
@@ -1139,8 +1109,7 @@ contains
       errmsg = ''
 
       cc_wrap%timestep_counter = cc_wrap%timestep_counter + 1
-      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter emissions update', rc)
-      if (rc /= CC_SUCCESS) return
+      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter emissions update')
 
       ! Update extemission data first
 #ifdef CATCHEM_TRACE_NUOPC
@@ -1151,8 +1120,7 @@ contains
       call catchem_emis_update(cc_wrap%ext_emis, cc_wrap%catchem_model%cpp_core_ptr, current_time, cc_wrap%catchem_model%nz, cc_wrap%iocomp, cc_wrap%grid, real(dt, fp), rc)
 
       if (rc == CC_SUCCESS) then
-         call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter static-met bind', rc)
-         if (rc /= CC_SUCCESS) return
+         call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter static-met bind')
          call bind_static_met_from_aqmio(cc_wrap, rc)
       end if
       if (rc /= CC_SUCCESS) then
@@ -1166,8 +1134,7 @@ contains
 #endif
 
       !Run CATChem processes
-      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter core process dispatch', rc)
-      if (rc /= CC_SUCCESS) return
+      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter core process dispatch')
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionEnter("cc_wrap%catchem_model%run_timestep", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -1189,8 +1156,7 @@ contains
       ! DiagnosticManager so they are available both for NetCDF output and for
       ! NUOPC export, and must be computed after run_timestep (so concentrations
       ! are current) and before the export transform.
-      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter PM diagnostics', rc)
-      if (rc /= CC_SUCCESS) return
+      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter PM diagnostics')
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionEnter("update_pm_diagnostics", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -1208,8 +1174,7 @@ contains
 #endif
 
       ! Write NetCDF output diagnostics if needed
-      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter diagnostics output', rc)
-      if (rc /= CC_SUCCESS) return
+      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'enter diagnostics output')
 #ifdef CATCHEM_TRACE_NUOPC
       call ESMF_TraceRegionEnter("catchem_diagnostics_write", rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -1226,9 +1191,7 @@ contains
          line=__LINE__, file=__FILE__)) return
 #endif
 
-      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'complete', rc)
-
-      if (rc /= CC_SUCCESS) return
+      call catchem_log_run_phase(cc_wrap, cc_wrap%timestep_counter, 'complete')
 
    end subroutine catchem_nuopc_run
 
@@ -1242,15 +1205,11 @@ contains
       type(cc_wrap_type), intent(inout) :: cc_wrap
       integer, intent(out) :: rc
 
-#ifdef CATCHEM_TRACE_NUOPC
-      integer :: localrc
-#endif
       rc = CC_SUCCESS
       if (cc_wrap%ext_emis%n_categories == 0) then
 #ifdef CATCHEM_TRACE_NUOPC
-         call ESMF_LogWrite('[CATCHEM DEBUG] bind_static_met_from_aqmio: no emission categories available', ESMF_LOGMSG_DEBUG, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A)') '[CATCHEM DEBUG] bind_static_met_from_aqmio: no emission categories available'
+         call flush(6)
 #endif
          return
       end if
@@ -1299,10 +1258,10 @@ contains
       real(c_double), intent(out) :: map_scale
       real(c_double), intent(out) :: category_scale
       character(len=*), intent(out) :: category_out
-      character(len=NUOPC_NAME_LEN) :: field_out
+      character(len=64) :: field_out
 
       type(c_ptr) :: core_ptr
-      character(len=NUOPC_NAME_LEN) :: category_name, field_name, mapped_species
+      character(len=64) :: category_name, field_name, mapped_species
       integer(c_int) :: n_categories, n_fields, n_maps
       integer :: icat, ifield, imap, jcat
       real(c_double) :: scale_factor
@@ -1318,19 +1277,19 @@ contains
 
       n_categories = catchem_config_get_emission_category_count(core_ptr)
       do icat = 0, n_categories - 1
-         call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, int(NUOPC_NAME_LEN, c_int))
+         call catchem_config_get_emission_category_name_at(core_ptr, icat, category_name, 64_c_int)
          call trim_at_null(category_name)
          n_fields = catchem_config_get_emission_field_count(core_ptr, trim(category_name) // c_null_char)
          do ifield = 0, n_fields - 1
             call catchem_config_get_emission_field_name_at(core_ptr, trim(category_name) // c_null_char, &
-               ifield, field_name, int(NUOPC_NAME_LEN, c_int))
+               ifield, field_name, 64_c_int)
             call trim_at_null(field_name)
             n_maps = catchem_config_get_emission_species_map_count(core_ptr, &
                trim(category_name) // c_null_char, trim(field_name) // c_null_char)
             do imap = 0, n_maps - 1
                call catchem_config_get_emission_species_map_at(core_ptr, &
                   trim(category_name) // c_null_char, trim(field_name) // c_null_char, imap, &
-                  mapped_species, int(len(mapped_species), c_int), scale_factor, species_index)
+                  mapped_species, 64_c_int, scale_factor, species_index)
                call trim_at_null(mapped_species)
                if (trim(mapped_species) == trim(target_name)) then
                   field_out = trim(field_name)
@@ -1370,16 +1329,13 @@ contains
       integer, intent(out) :: rc
 
       type(ExtEmisFieldType), pointer :: src_field
-      character(len=NUOPC_NAME_LEN) :: resolved_field, resolved_category
+      character(len=64) :: resolved_field, resolved_category
       real(c_double) :: map_scale, category_scale
 #ifdef CATCHEM_TRACE_NUOPC
-      character(len=NUOPC_PATH_LEN) :: resolved_source_file
+      character(len=256) :: resolved_source_file
       integer :: i, j
 #endif
 
-#ifdef CATCHEM_TRACE_NUOPC
-      integer :: localrc
-#endif
       rc = CC_SUCCESS
 
       ! Resolve the emission field NAME that declares target_name in its `map:`
@@ -1402,24 +1358,17 @@ contains
                exit
             end if
          end do
-         call ESMF_LogWrite('[CATCHEM DEBUG] bind_static_field met=' // trim(met_name) // ' source_category=' // &
-            trim(resolved_category) // ' source_field=' // trim(resolved_field) // ' source_file=' // &
-            trim(resolved_source_file) // ' scale=' // &
-            real_to_string_sci(scale * map_scale * category_scale * real(cc_wrap%ext_emis%global_scale, c_double)), ESMF_LOGMSG_DEBUG, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A,A,A,A,A,A,A,A,A,ES12.4)') '[CATCHEM DEBUG] bind_static_field met=', trim(met_name), &
+            ' source_category=', trim(resolved_category), ' source_field=', trim(resolved_field), &
+            ' source_file=', trim(resolved_source_file), &
+            ' scale=', scale * map_scale * category_scale * real(cc_wrap%ext_emis%global_scale, c_double)
          if (allocated(src_field%emission_data)) then
-            call ESMF_LogWrite('[CATCHEM DEBUG] bind_static_field source=' // trim(resolved_field) // ' min=' // &
-               real_to_string_sci(minval(src_field%emission_data(:,:,1,1))) // ' max=' // &
-               real_to_string_sci(maxval(src_field%emission_data(:,:,1,1))), ESMF_LOGMSG_DEBUG, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A,A,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] bind_static_field source=', trim(resolved_field), &
+               ' min=', minval(src_field%emission_data(:,:,1,1)), ' max=', maxval(src_field%emission_data(:,:,1,1))
          else
-            call ESMF_LogWrite('[CATCHEM DEBUG] bind_static_field source has no emission_data: ' // &
-               trim(resolved_field), ESMF_LOGMSG_DEBUG, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A,A)') '[CATCHEM DEBUG] bind_static_field source has no emission_data: ', trim(resolved_field)
          end if
+         call flush(6)
 #endif
          call bind_static_field_data(cc_wrap, src_field, met_name, met_buffer, &
             scale * map_scale * category_scale * real(cc_wrap%ext_emis%global_scale, c_double), rc)
@@ -1429,25 +1378,20 @@ contains
       ! Not found: leave the met buffer unbound (the dust process validates the
       ! required inputs and will error clearly if a mandatory field is missing).
 #ifdef CATCHEM_TRACE_NUOPC
-      call ESMF_LogWrite('[CATCHEM DEBUG] bind_static_field missing met=' // trim(met_name) // &
-         ' n_categories=' // int_to_string(cc_wrap%ext_emis%n_categories), ESMF_LOGMSG_DEBUG, rc=localrc)
-      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      write(*,'(A,A,A,I0)') '[CATCHEM DEBUG] bind_static_field missing met=', trim(met_name), &
+         ' n_categories=', cc_wrap%ext_emis%n_categories
+      call flush(6)
       do i = 1, cc_wrap%ext_emis%n_categories
-         call ESMF_LogWrite('[CATCHEM DEBUG]   category=' // &
-            trim(cc_wrap%ext_emis%categories(i)%category_name) // ' n_fields=' // &
-            int_to_string(cc_wrap%ext_emis%categories(i)%n_fields), ESMF_LOGMSG_DEBUG, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A,A,A,I0)') '[CATCHEM DEBUG]   category=', trim(cc_wrap%ext_emis%categories(i)%category_name), &
+            ' n_fields=', cc_wrap%ext_emis%categories(i)%n_fields
+         call flush(6)
          if (.not. allocated(cc_wrap%ext_emis%categories(i)%fields)) cycle
          do j = 1, cc_wrap%ext_emis%categories(i)%n_fields
-            call ESMF_LogWrite('[CATCHEM DEBUG]     field=' // &
-               trim(cc_wrap%ext_emis%categories(i)%fields(j)%field_name) // ' emission_data=' // &
-               logical_to_string(allocated(cc_wrap%ext_emis%categories(i)%fields(j)%emission_data)) // &
-               ' interp_t1=' // &
-               logical_to_string(allocated(cc_wrap%ext_emis%categories(i)%fields(j)%interp_data_t1)), ESMF_LOGMSG_DEBUG, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A,A,A,L1,A,L1)') '[CATCHEM DEBUG]     field=', &
+               trim(cc_wrap%ext_emis%categories(i)%fields(j)%field_name), &
+               ' emission_data=', allocated(cc_wrap%ext_emis%categories(i)%fields(j)%emission_data), &
+               ' interp_t1=', allocated(cc_wrap%ext_emis%categories(i)%fields(j)%interp_data_t1)
+            call flush(6)
          end do
       end do
 #endif
@@ -1466,9 +1410,6 @@ contains
 
       integer :: nx, ny
 
-#ifdef CATCHEM_TRACE_NUOPC
-      integer :: localrc
-#endif
       rc = CC_SUCCESS
 
       ! emission_data is the canonical current field.  For temporally
@@ -1487,11 +1428,9 @@ contains
          end if
          met_buffer = real(src_field%emission_data(:,:,1,1), c_double) * scale
 #ifdef CATCHEM_TRACE_NUOPC
-         call ESMF_LogWrite('[CATCHEM DEBUG] bind_static_field final=' // trim(met_name) // ' min=' // &
-            real_to_string_sci(minval(met_buffer)) // ' max=' // &
-            real_to_string_sci(maxval(met_buffer)), ESMF_LOGMSG_DEBUG, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A,A,A,ES12.4,A,ES12.4)') '[CATCHEM DEBUG] bind_static_field final=', trim(met_name), &
+            ' min=', minval(met_buffer), ' max=', maxval(met_buffer)
+         call flush(6)
 #endif
       else
          return
@@ -1595,38 +1534,35 @@ contains
       type(ESMF_Field) :: field
       logical, allocatable :: set_required_met(:)
       integer(ESMF_KIND_I8) :: timestep_seconds
-      integer :: year, month, day, hour, minute, second
+      integer :: year, month, day, day_of_year, hour, minute, second
       integer :: i, n, n_met
       logical :: required_from_import
       integer(c_int) :: catchem_status
 
-      integer :: localrc
       rc = ESMF_SUCCESS
 
       if (catchem_state_begin_import_generation(cc_wrap%catchem_model%state_mgr_ptr) /= 0_c_int) then
-         call ESMF_LogWrite("Failed to begin CATChem import generation", ESMF_LOGMSG_ERROR, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         call ESMF_LogWrite("Failed to begin CATChem import generation", ESMF_LOGMSG_ERROR, rc=rc)
          rc = ESMF_FAILURE
          return
       end if
 
       ! assign time to catchem model's time state
-      call ESMF_TimeGet(currTime, yy=year, mm=month, dd=day, &
-         h=hour, m=minute, s=second, rc=localrc)
-      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-      call ESMF_TimeIntervalGet(cc_wrap%timeStep, s_i8=timestep_seconds, rc=localrc)
-      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      call ESMF_TimeGet(currTime, yy=year, mm=month, dd=day, h=hour, m=minute, s=second, rc=rc)
+      if (rc /= ESMF_SUCCESS) return
+      day_of_year = calendar_day_of_year(year, month, day)
+      call ESMF_TimeIntervalGet(cc_wrap%timeStep, s_i8=timestep_seconds, rc=rc)
+      if (rc /= ESMF_SUCCESS .or. day_of_year == 0) then
+         call ESMF_LogWrite("Invalid NUOPC calendar date or timestep", ESMF_LOGMSG_ERROR, rc=rc)
+         rc = ESMF_FAILURE
+         return
+      end if
       catchem_status = catchem_state_set_time_checked(cc_wrap%catchem_model%state_mgr_ptr, &
          int(year, c_int), int(month, c_int), int(day, c_int), &
          int(hour, c_int), int(minute, c_int), int(second, c_int), &
-         0_c_int, real(timestep_seconds, c_double))
+         int(day_of_year, c_int), real(timestep_seconds, c_double))
       if (catchem_status /= 0_c_int) then
-         call ESMF_LogWrite("Failed to set CATChem time state", ESMF_LOGMSG_ERROR, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         call ESMF_LogWrite("Failed to set CATChem time state", ESMF_LOGMSG_ERROR, rc=rc)
          rc = ESMF_FAILURE
          return
       end if
@@ -1664,9 +1600,7 @@ contains
          if (rc /= ESMF_SUCCESS) then
             if (.not. cc_wrap%field_config%import_fields(n)%optional) then
                call ESMF_LogWrite("Required field not found: "// &
-                  trim(cc_wrap%field_config%import_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  trim(cc_wrap%field_config%import_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
                rc = ESMF_FAILURE
                return
             else
@@ -1687,9 +1621,7 @@ contains
       if (catchem_status == 0_c_int) &
          catchem_status = catchem_state_derive_bxheight_checked(cc_wrap%catchem_model%state_mgr_ptr)
       if (catchem_status /= 0_c_int) then
-         call ESMF_LogWrite("CATChem physical derivation failed", ESMF_LOGMSG_ERROR, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         call ESMF_LogWrite("CATChem physical derivation failed", ESMF_LOGMSG_ERROR, rc=rc)
          rc = ESMF_FAILURE
          return
       end if
@@ -1714,10 +1646,9 @@ contains
             end do
             if (.not. required_from_import) cycle
             if (.not. set_required_met(i)) then
+               !write(*,*) 'Wait. A required field is not set: ' // trim(cc_wrap%catchem_model%required_fields(i))
                call ESMF_LogWrite("Required met field not set yet: "// &
-                  trim(cc_wrap%catchem_model%required_fields(i)), ESMF_LOGMSG_ERROR, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  trim(cc_wrap%catchem_model%required_fields(i)), ESMF_LOGMSG_ERROR, rc=rc)
                rc = ESMF_FAILURE
                return
             end if
@@ -1747,7 +1678,6 @@ contains
       integer :: n
       !type(cc_wrap_type), pointer :: cc_wrap
 
-      integer :: localrc
       rc = ESMF_SUCCESS
 
       ! Get process-local state
@@ -1762,9 +1692,7 @@ contains
          if (rc /= ESMF_SUCCESS) then
             if (.not. cc_wrap%field_config%export_fields(n)%optional) then
                call ESMF_LogWrite("Required export field not found: "// &
-                  trim(cc_wrap%field_config%export_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  trim(cc_wrap%field_config%export_fields(n)%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
                rc = ESMF_FAILURE
                return
             else
@@ -1818,7 +1746,7 @@ contains
       integer(c_int) :: catchem_status, species_count
       logical :: tracer_shape_valid
       type(ESMF_Info) :: field_info
-      character(len=NUOPC_NAME_LEN) :: observed_units
+      character(len=64) :: observed_units
 #ifdef CATCHEM_TRACE_NUOPC
       real(ESMF_KIND_R8) :: bc1_raw_min, bc1_raw_max, bc1_raw_sum
       real(ESMF_KIND_R8) :: bc1_mapped_min, bc1_mapped_max, bc1_mapped_sum
@@ -1840,9 +1768,7 @@ contains
             if (trim(observed_units) /= trim(field_map%units)) then
                call ESMF_LogWrite("Unit mismatch for import field " // trim(field_map%standard_name) // &
                   ": expected " // trim(field_map%units) // ", observed " // trim(observed_units), &
-                  ESMF_LOGMSG_ERROR, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  ESMF_LOGMSG_ERROR, rc=rc)
                rc = ESMF_FAILURE
                return
             end if
@@ -1860,17 +1786,13 @@ contains
             line=__LINE__, file=__FILE__)) return
          if (.not. associated(fptr2d)) then
 #ifdef CATCHEM_TRACE_NUOPC
-            call ESMF_LogWrite('[CATCHEM DEBUG] transform_field_to_catchem 2D UNASSOCIATED: ' // &
-               trim(field_map%standard_name) // ' -> ' // &
-               trim(field_map%catchem_var), ESMF_LOGMSG_DEBUG, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 2D UNASSOCIATED: ', &
+               trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
+            call flush(6)
 #endif
             call ESMF_LogWrite("transform_field_to_catchem: fptr2d NOT associated for "// &
                trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
-               ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
             return
          end if
@@ -1878,9 +1800,7 @@ contains
          if (size(fptr2d, 1) /= cc_wrap%catchem_model%nx .or. &
             size(fptr2d, 2) /= cc_wrap%catchem_model%ny) then
             call ESMF_LogWrite("Shape mismatch for 2D import field: " // trim(field_map%standard_name) // &
-               " -> " // trim(field_map%catchem_var), ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               " -> " // trim(field_map%catchem_var), ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
             return
          end if
@@ -1917,17 +1837,13 @@ contains
             line=__LINE__, file=__FILE__)) return
          if (.not. associated(fptr3d)) then
 #ifdef CATCHEM_TRACE_NUOPC
-            call ESMF_LogWrite('[CATCHEM DEBUG] transform_field_to_catchem 3D UNASSOCIATED: ' // &
-               trim(field_map%standard_name) // ' -> ' // &
-               trim(field_map%catchem_var), ESMF_LOGMSG_DEBUG, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 3D UNASSOCIATED: ', &
+               trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
+            call flush(6)
 #endif
             call ESMF_LogWrite("transform_field_to_catchem: fptr3d NOT associated for "// &
                trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
-               ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
             return
          end if
@@ -1947,18 +1863,14 @@ contains
           case default
             call ESMF_LogWrite("Unsupported vertical_axis for 3D import field: " // &
                trim(field_map%standard_name) // " (" // trim(field_map%vertical_axis) // ")", &
-               ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
             return
          end select
          if (size(fptr3d,1) /= cc_wrap%catchem_model%nx .or. &
             size(fptr3d,2) /= cc_wrap%catchem_model%ny .or. size(fptr3d,3) /= expected_levels) then
             call ESMF_LogWrite("Shape mismatch for 3D import field: " // trim(field_map%standard_name), &
-               ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
             return
          end if
@@ -2026,17 +1938,13 @@ contains
             line=__LINE__, file=__FILE__)) return
          if (.not. associated(fptr4d)) then
 #ifdef CATCHEM_TRACE_NUOPC
-            call ESMF_LogWrite('[CATCHEM DEBUG] transform_field_to_catchem 4D UNASSOCIATED: ' // &
-               trim(field_map%standard_name) // ' -> ' // &
-               trim(field_map%catchem_var), ESMF_LOGMSG_DEBUG, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*, '(A,A,A,A)') '[CATCHEM DEBUG] transform_field_to_catchem 4D UNASSOCIATED: ', &
+               trim(field_map%standard_name), ' -> ', trim(field_map%catchem_var)
+            call flush(6)
 #endif
             call ESMF_LogWrite("transform_field_to_catchem: fptr4d NOT associated for "// &
                trim(field_map%standard_name)//" -> "//trim(field_map%catchem_var), &
-               ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
             return
          end if
@@ -2080,9 +1988,7 @@ contains
             size(fptr4d,3) /= cc_wrap%catchem_model%nz .or. &
             .not. tracer_shape_valid) then
             call ESMF_LogWrite("Shape mismatch for 4D chemistry import field: " // &
-               trim(field_map%standard_name), ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               trim(field_map%standard_name), ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
             return
          end if
@@ -2109,9 +2015,7 @@ contains
                end if
             end do
          else
-            call ESMF_LogWrite('Missing validated tracer mapping for rank-4 chemistry import', ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            call ESMF_LogWrite('Missing validated tracer mapping for rank-4 chemistry import', ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
             return
          end if
@@ -2137,22 +2041,17 @@ contains
             bc1_mapped_min = minval(cc_wrap%chem_buf_4d(:,:,:,bc1_catchem_index))
             bc1_mapped_max = maxval(cc_wrap%chem_buf_4d(:,:,:,bc1_catchem_index))
             bc1_mapped_sum = sum(cc_wrap%chem_buf_4d(:,:,:,bc1_catchem_index))
-            call ESMF_LogWrite('[CATCHEM TRACE] BC1 import host_slot=' // int_to_string(bc1_host_index) // &
-               ' catchem_index=' // int_to_string(bc1_catchem_index) // ' units=' // &
-               trim(cc_wrap%tracer_map%units(bc1_host_index)) // ' factor=' // &
-               real_to_string_sci(cc_wrap%tracer_map%host_to_catchem(bc1_host_index)) // ' raw_min=' // &
-               real_to_string_sci(bc1_raw_min) // ' raw_max=' // real_to_string_sci(bc1_raw_max) // &
-               ' raw_sum=' // real_to_string_sci(bc1_raw_sum) // ' mapped_min=' // &
-               real_to_string_sci(bc1_mapped_min) // ' mapped_max=' // real_to_string_sci(bc1_mapped_max) // &
-               ' mapped_sum=' // real_to_string_sci(bc1_mapped_sum), ESMF_LOGMSG_DEBUG, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A,I0,A,I0,A,A,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4,A,ES12.4)') &
+               '[CATCHEM TRACE] BC1 import host_slot=', bc1_host_index, &
+               ' catchem_index=', bc1_catchem_index, ' units=', trim(cc_wrap%tracer_map%units(bc1_host_index)), &
+               ' factor=', cc_wrap%tracer_map%host_to_catchem(bc1_host_index), &
+               ' raw_min=', bc1_raw_min, ' raw_max=', bc1_raw_max, ' raw_sum=', bc1_raw_sum, &
+               ' mapped_min=', bc1_mapped_min, ' mapped_max=', bc1_mapped_max, ' mapped_sum=', bc1_mapped_sum
+            call flush(6)
          else
-            call ESMF_LogWrite('[CATCHEM TRACE] BC1 import mapping missing host_slot=' // &
-               int_to_string(bc1_host_index) // ' catchem_index=' // &
-               int_to_string(bc1_catchem_index), ESMF_LOGMSG_DEBUG, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A,I0,A,I0)') '[CATCHEM TRACE] BC1 import mapping missing host_slot=', bc1_host_index, &
+               ' catchem_index=', bc1_catchem_index
+            call flush(6)
          end if
 #endif
 
@@ -2180,9 +2079,7 @@ contains
                ! Do not manufacture a meteorological profile: processes that
                ! truly require this field will fail their own contract.
                call ESMF_LogWrite("Configured host tracer is unavailable; leaving met field unbound: " // &
-                  trim(field_map%host_tracer_name), ESMF_LOGMSG_INFO, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  trim(field_map%host_tracer_name), ESMF_LOGMSG_INFO, rc=rc)
                rc = ESMF_SUCCESS
                return
             end if
@@ -2201,9 +2098,7 @@ contains
 
        case default
          call ESMF_LogWrite("Unknown field mapping dimension for: " // trim(field_map%catchem_var), &
-            ESMF_LOGMSG_ERROR, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            ESMF_LOGMSG_ERROR, rc=rc)
          rc = ESMF_FAILURE
 
       end select
@@ -2230,11 +2125,10 @@ contains
       real(c_double), pointer :: cc_species_conc(:,:)
       real(fp), allocatable :: cc_diag_data(:,:,:)
       type(c_ptr) :: raw_species_ptr
-      character(len=NUOPC_LONG_NAME_LEN), allocatable :: diagnostic_names(:)
+      character(len=128), allocatable :: diagnostic_names(:)
       integer :: i, j, k, v, col, ni, nj, nk, kk, nv, found_index
-      character(len=NUOPC_PATH_LEN) :: export_msg
+      character(len=256) :: export_msg
 
-      integer :: localrc
       rc = ESMF_SUCCESS
 
       !TODO: we assume all the export fields are from DiagManager
@@ -2259,9 +2153,7 @@ contains
             if (rc == ESMF_SUCCESS .and. allocated(cc_diag_data)) then
                if (size(cc_diag_data, 1) /= size(fptr2d, 1) .or. size(cc_diag_data, 2) /= size(fptr2d, 2)) then
                   call ESMF_LogWrite("Shape mismatch for 2D export field: " // trim(field_map%catchem_var) // "; zeroing field", &
-                     ESMF_LOGMSG_WARNING, rc=localrc)
-                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                     ESMF_LOGMSG_WARNING, rc=rc)
                   fptr2d = 0.0_ESMF_KIND_R8
                   rc = ESMF_SUCCESS
                else
@@ -2269,9 +2161,7 @@ contains
                end if
             else
                call ESMF_LogWrite("Could not retrieve diagnostic data for: " // trim(diagnostic_names(found_index)) // "; zeroing field", &
-                  ESMF_LOGMSG_WARNING, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  ESMF_LOGMSG_WARNING, rc=rc)
                fptr2d = 0.0_ESMF_KIND_R8
                rc = ESMF_SUCCESS
             end if
@@ -2299,9 +2189,7 @@ contains
                nk = size(fptr3d, 3)
                if (size(cc_diag_data, 1) /= ni .or. size(cc_diag_data, 2) /= nj .or. size(cc_diag_data, 3) /= nk) then
                   call ESMF_LogWrite("Shape mismatch for 3D export field: " // trim(field_map%catchem_var) // "; zeroing field", &
-                     ESMF_LOGMSG_WARNING, rc=localrc)
-                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                     ESMF_LOGMSG_WARNING, rc=rc)
                   fptr3d = 0.0_ESMF_KIND_R8
                   rc = ESMF_SUCCESS
                else
@@ -2316,9 +2204,7 @@ contains
                end if
             else
                call ESMF_LogWrite("Could not retrieve diagnostic data for: " // trim(diagnostic_names(found_index)) // "; zeroing field", &
-                  ESMF_LOGMSG_WARNING, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  ESMF_LOGMSG_WARNING, rc=rc)
                fptr3d = 0.0_ESMF_KIND_R8
                rc = ESMF_SUCCESS
             end if
@@ -2340,9 +2226,7 @@ contains
          write(export_msg, '(A,A,A,I0,A,I0,A,I0,A,I0)') &
             'CATChem export field ', trim(field_map%standard_name), ' shape=', &
             size(fptr4d,1), 'x', size(fptr4d,2), 'x', size(fptr4d,3), 'x', size(fptr4d,4)
-         call ESMF_LogWrite(trim(export_msg), ESMF_LOGMSG_INFO, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         call ESMF_LogWrite(trim(export_msg), ESMF_LOGMSG_INFO, rc=rc)
          if (rc /= ESMF_SUCCESS) return
 
          ! As above, avoid relying on logical short-circuiting when checking
@@ -2380,9 +2264,7 @@ contains
                nullify(cc_species_conc)
             end do
          else
-            call ESMF_LogWrite('Missing validated tracer mapping for rank-4 chemistry export', ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            call ESMF_LogWrite('Missing validated tracer mapping for rank-4 chemistry export', ESMF_LOGMSG_ERROR, rc=rc)
             rc = ESMF_FAILURE
             return
          end if
@@ -2409,9 +2291,7 @@ contains
 
        case default
          call ESMF_LogWrite("Unknown export field dimension for: "//trim(field_map%catchem_var), &
-            ESMF_LOGMSG_WARNING, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            ESMF_LOGMSG_WARNING, rc=rc)
 
       end select
 
@@ -2434,9 +2314,8 @@ contains
       !type(cc_wrap_type), pointer :: cc_wrap
       type(ESMF_Time) :: time_on_file
       logical :: time_to_write
-      character(len=NUOPC_PATH_LEN) :: filename
+      character(len=256) :: filename
 
-      integer :: localrc
       rc = CC_SUCCESS
 
       ! Check top-level diagnostics/output/enabled switch before doing anything
@@ -2458,9 +2337,7 @@ contains
       ! Use grid (must be set during initialization)
       if (.not. ESMF_GridIsCreated(cc_wrap%grid)) then
          rc = CC_FAILURE
-         call ESMF_LogWrite('Error: grid not initialized.', ESMF_LOGMSG_ERROR, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A)') 'Error: grid not initialized.'
          return
       end if
 
@@ -2476,47 +2353,36 @@ contains
       ! diagnostics.output.attributes) onto the file just created (FR-011).
       call write_global_attributes(cc_wrap, filename, rc)
       if (rc /= CC_SUCCESS) then
-         call ESMF_LogWrite('Warning: Failed to write diagnostic global attributes.', ESMF_LOGMSG_WARNING, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A)') 'Warning: Failed to write diagnostic global attributes.'
          rc = CC_SUCCESS
       end if
 
       !write extemission fields if needed
       call catchem_emis_write_diagnostics(cc_wrap%ext_emis, cc_wrap%current_time_slice, cc_wrap%iocomp, cc_wrap%grid, filename, rc)
       if (rc /= CC_SUCCESS) then
-         call ESMF_LogWrite('Error: Failed to write external emission diagnostics.', ESMF_LOGMSG_ERROR, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A)') 'Error: Failed to write external emission diagnostics.'
          return
       end if
 
       ! Write chemical species concentration diagnostics
       call write_chem_diagnostics(cc_wrap, filename, rc)
       if (rc /= CC_SUCCESS) then
-         call ESMF_LogWrite('Error: Failed to write chemical species diagnostics.', ESMF_LOGMSG_ERROR, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A)') 'Error: Failed to write chemical species diagnostics.'
          return
       end if
 
       ! Write per-process diagnostic variables (dust/seasalt emissions,
-      ! fluxes, thresholds) when diagnostics output is enabled.
+      ! fluxes, thresholds) when diagnostics.output/process_diagnostics is on.
       call write_process_diagnostics(cc_wrap, 'all', filename, rc)
       if (rc /= CC_SUCCESS) then
-         call ESMF_LogWrite('Warning: Failed to write process diagnostics.', ESMF_LOGMSG_WARNING, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A)') 'Warning: Failed to write process diagnostics.'
          rc = CC_SUCCESS
       end if
 
       ! Update last output time
       cc_wrap%last_output_time = current_time
 
-      call ESMF_LogWrite('CATChem: Wrote diagnostic output to ' // &
-         trim(filename), ESMF_LOGMSG_INFO, rc=localrc)
-      if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-         line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+      write(*,'(A,A)') 'CATChem: Wrote diagnostic output to ', trim(filename)
 
    end subroutine catchem_diagnostics_write
 
@@ -2562,15 +2428,15 @@ contains
       integer(c_int) :: c_status, c_count, i, rank
       integer(c_int) :: dims(3), axes(3)
       integer :: nx, ny, slot, nslot
-      character(kind=c_char) :: c_name(NUOPC_NAME_LEN)
-      character(kind=c_char) :: c_units(NUOPC_KEYWORD_LEN), c_desc(NUOPC_PATH_LEN), c_label(NUOPC_NAME_LEN)
-      character(len=NUOPC_NAME_LEN) :: field_name, label_str
-      character(len=NUOPC_LONG_NAME_LEN) :: var_name
-      character(len=NUOPC_KEYWORD_LEN) :: units_str
-      character(len=NUOPC_PATH_LEN) :: desc_str
-      character(len=NUOPC_LONG_NAME_LEN), allocatable :: selectors(:)
+      character(kind=c_char) :: c_name(64)
+      character(kind=c_char) :: c_units(32), c_desc(256), c_label(64)
+      character(len=64) :: field_name, label_str
+      character(len=128) :: var_name
+      character(len=32) :: units_str
+      character(len=256) :: desc_str
+      character(len=128), allocatable :: selectors(:)
       logical, allocatable :: sel_matched(:)
-      character(len=NUOPC_WARN_MSG_LEN) :: warn_msg
+      character(len=4096) :: warn_msg
       integer :: ns, s
       logical :: selected
       type(c_ptr) :: raw_ptr
@@ -2578,7 +2444,6 @@ contains
       real(fp), pointer :: view_4d(:,:,:,:) => null()
       logical :: packed
 
-      integer :: localrc
       rc = CC_SUCCESS
 
       nx = cc_wrap%catchem_model%nx
@@ -2613,7 +2478,7 @@ contains
 
       do i = 0, c_count - 1
          c_status = catchem_diag_get_name_at_checked(cc_wrap%catchem_model%cpp_core_ptr, &
-            int(i, c_int), c_name, int(NUOPC_NAME_LEN, c_int))
+            int(i, c_int), c_name, 64_c_int)
          if (c_status /= 0_c_int) cycle
          call catchem_c_string_to_fortran(c_name, field_name)
 
@@ -2635,10 +2500,7 @@ contains
          c_status = catchem_diag_get_axes_checked(cc_wrap%catchem_model%cpp_core_ptr, &
             trim(field_name) // c_null_char, axes, 3_c_int)
          if (c_status /= 0_c_int) then
-            call ESMF_LogWrite('ERROR: Cannot read the axis contract for diagnostic: ' // &
-               trim(field_name), ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A,A)') 'ERROR: Cannot read the axis contract for diagnostic: ', trim(field_name)
             rc = CC_FAILURE
             return
          end if
@@ -2646,30 +2508,24 @@ contains
          ! Process diagnostics are flattened over this PE's columns; a field
          ! whose leading extent is not nx*ny cannot be mapped onto the grid.
          if (axes(1) /= AXIS_COLUMN .or. dims(1) /= nx * ny) then
-            call ESMF_LogWrite('Warning: Skipping process diagnostic with unexpected shape: ' // &
-               trim(field_name), ESMF_LOGMSG_WARNING, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A,A)') 'Warning: Skipping process diagnostic with unexpected shape: ', trim(field_name)
             cycle
          end if
 
          units_str = ''
          c_status = catchem_diag_get_units_checked(cc_wrap%catchem_model%cpp_core_ptr, &
-            trim(field_name) // c_null_char, c_units, int(NUOPC_KEYWORD_LEN, c_int))
+            trim(field_name) // c_null_char, c_units, 32_c_int)
          if (c_status == 0_c_int) call catchem_c_string_to_fortran(c_units, units_str)
          desc_str = ''
          c_status = catchem_diag_get_description_checked(cc_wrap%catchem_model%cpp_core_ptr, &
-            trim(field_name) // c_null_char, c_desc, int(NUOPC_PATH_LEN, c_int))
+            trim(field_name) // c_null_char, c_desc, 256_c_int)
          if (c_status == 0_c_int) call catchem_c_string_to_fortran(c_desc, desc_str)
 
          raw_ptr = c_null_ptr
          c_status = catchem_diag_get_pointer_checked(cc_wrap%catchem_model%cpp_core_ptr, &
             trim(field_name) // c_null_char, rank, dims, raw_ptr)
          if (c_status /= 0_c_int .or. .not. c_associated(raw_ptr)) then
-            call ESMF_LogWrite('Warning: Could not map process diagnostic storage: ' // &
-               trim(field_name), ESMF_LOGMSG_WARNING, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A,A)') 'Warning: Could not map process diagnostic storage: ', trim(field_name)
             cycle
          end if
 
@@ -2682,10 +2538,7 @@ contains
             select case (int(axes(2)))
              case (AXIS_SINGLETON)
                if (dims(2) /= 1) then
-                  call ESMF_LogWrite('ERROR: Singleton-axis diagnostic without extent 1: ' // &
-                     trim(field_name), ESMF_LOGMSG_ERROR, rc=localrc)
-                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  write(*,'(A,A)') 'ERROR: Singleton-axis diagnostic without extent 1: ', trim(field_name)
                   rc = CC_FAILURE
                   return
                end if
@@ -2695,19 +2548,13 @@ contains
                packed = .true.
                nslot = int(dims(2))
              case default
-               call ESMF_LogWrite('ERROR: Unsupported second axis on diagnostic: ' // &
-                  trim(field_name), ESMF_LOGMSG_ERROR, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               write(*,'(A,A)') 'ERROR: Unsupported second axis on diagnostic: ', trim(field_name)
                rc = CC_FAILURE
                return
             end select
           case (3)
             if (int(axes(2)) /= AXIS_LEVEL) then
-               call ESMF_LogWrite('ERROR: Unsupported second axis on diagnostic: ' // &
-                  trim(field_name), ESMF_LOGMSG_ERROR, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               write(*,'(A,A)') 'ERROR: Unsupported second axis on diagnostic: ', trim(field_name)
                rc = CC_FAILURE
                return
             end if
@@ -2716,18 +2563,12 @@ contains
                packed = .true.
                nslot = int(dims(3))
              case default
-               call ESMF_LogWrite('ERROR: Unsupported third axis on diagnostic: ' // &
-                  trim(field_name), ESMF_LOGMSG_ERROR, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               write(*,'(A,A)') 'ERROR: Unsupported third axis on diagnostic: ', trim(field_name)
                rc = CC_FAILURE
                return
             end select
           case default
-            call ESMF_LogWrite('ERROR: Unsupported rank on diagnostic: ' // &
-               trim(field_name), ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A,A)') 'ERROR: Unsupported rank on diagnostic: ', trim(field_name)
             rc = CC_FAILURE
             return
          end select
@@ -2751,10 +2592,7 @@ contains
                end if
                nullify(view_3d)
                if (rc /= CC_SUCCESS) then
-                  call ESMF_LogWrite('Warning: Failed to write process diagnostic: ' // &
-                     trim(field_name), ESMF_LOGMSG_WARNING, rc=localrc)
-                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  write(*,'(A,A)') 'Warning: Failed to write process diagnostic: ', trim(field_name)
                   rc = CC_SUCCESS
                end if
             end if
@@ -2770,12 +2608,10 @@ contains
                c_label = ' '
                c_status = catchem_diag_get_unpack_label_at_checked( &
                   cc_wrap%catchem_model%cpp_core_ptr, trim(field_name) // c_null_char, &
-                  int(slot - 1, c_int), c_label, int(NUOPC_NAME_LEN, c_int))
+                  int(slot - 1, c_int), c_label, 64_c_int)
                if (c_status /= 0_c_int) then
-                  call ESMF_LogWrite('ERROR: Packed diagnostic slot ' // int_to_string(slot - 1) // &
-                     ' has no label for field: ' // trim(field_name), ESMF_LOGMSG_ERROR, rc=localrc)
-                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  write(*,'(A,I0,A,A)') 'ERROR: Packed diagnostic slot ', slot - 1, &
+                     ' has no label for field: ', trim(field_name)
                   rc = CC_FAILURE
                   return
                end if
@@ -2793,10 +2629,7 @@ contains
                      units=trim(units_str), filename=filename, rc=rc)
                end if
                if (rc /= CC_SUCCESS) then
-                  call ESMF_LogWrite('Warning: Failed to write process diagnostic: ' // &
-                     trim(var_name), ESMF_LOGMSG_WARNING, rc=localrc)
-                  if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                     line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+                  write(*,'(A,A)') 'Warning: Failed to write process diagnostic: ', trim(var_name)
                   rc = CC_SUCCESS
                end if
             end do
@@ -2816,12 +2649,8 @@ contains
             end if
          end do
          if (len_trim(warn_msg) > 0) then
-            ! Passed straight through: warn_msg can exceed NUOPC_MSG_LEN, and a
-            ! formatted internal write into a shorter buffer is a runtime error.
-            call ESMF_LogWrite('Warning: diag_list selector(s) matched no diagnostic field: ' // &
-               trim(warn_msg), ESMF_LOGMSG_WARNING, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A,A)') 'Warning: diag_list selector(s) matched no diagnostic field: ', &
+               trim(warn_msg)
          end if
          cc_wrap%diag_list_warned = .true.
       end if
@@ -2919,7 +2748,6 @@ contains
       ! are part of the generic writer signature and intentionally unused.
       ! (array_1d_ptr is an optional pointer, so it may only be referenced via
       ! present(); scalar_value is a plain intent(in) value.)
-      integer :: localrc
       associate(unused_scalar => scalar_value); end associate
       if (present(array_1d_ptr)) continue
 
@@ -2946,12 +2774,8 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return  ! bail out
 
-         call ESMF_InfoSet(info, "units", trim(units), rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-         call ESMF_InfoSet(info, "description", trim(description), rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         call ESMF_InfoSet(info, "units", trim(units), rc=rc)
+         call ESMF_InfoSet(info, "description", trim(description), rc=rc)
 
          !set values
          call ESMF_FieldGet(esmf_field, farrayPtr=field_data_2d, rc=rc)
@@ -2982,12 +2806,8 @@ contains
          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, file=__FILE__)) return  ! bail out
 
-         call ESMF_InfoSet(info, "units", trim(units), rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-         call ESMF_InfoSet(info, "description", trim(description), rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         call ESMF_InfoSet(info, "units", trim(units), rc=rc)
+         call ESMF_InfoSet(info, "description", trim(description), rc=rc)
 
          !set values
          call ESMF_FieldGet(esmf_field, farrayPtr=field_data_3d, rc=rc)
@@ -3009,9 +2829,7 @@ contains
 
       ! Clean up
       if (ESMF_FieldIsCreated(esmf_field)) then
-         call ESMF_FieldDestroy(esmf_field, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         call ESMF_FieldDestroy(esmf_field, rc=rc)
       end if
 
    end subroutine write_diagnostic_field
@@ -3033,11 +2851,11 @@ contains
       integer, intent(out) :: rc
 
       ! Local variables
-      character(len=NUOPC_NAME_LEN), allocatable :: diag_species(:)
+      character(len=64), allocatable :: diag_species(:)
       integer :: num_diag_species, i, species_idx, num_total_species, dims(3)
-      character(len=NUOPC_NAME_LEN) :: species_name, field_name, units_str
-      character(kind=c_char) :: c_species_name(NUOPC_NAME_LEN)
-      character(len=NUOPC_LONG_NAME_LEN) :: description
+      character(len=64) :: species_name, field_name, units_str
+      character(kind=c_char) :: c_species_name(64)
+      character(len=128) :: description
       logical :: save_all_species, is_gas, is_aerosol
       real(fp), pointer :: conc_data(:,:,:) => null()
       real(fp), pointer :: converted_conc(:,:,:) => null()
@@ -3047,7 +2865,6 @@ contains
       integer(c_int) :: species_count, species_index_out, gas_value, aerosol_value
 
       ! Initialize return code
-      integer :: localrc
       rc = CC_SUCCESS
 
       if (.not. cc_wrap%catchem_model%is_diag_enabled()) then
@@ -3100,7 +2917,7 @@ contains
          ! Save all available chemical species
          do i = 1, num_total_species
             catchem_status = catchem_state_get_species_name_at_checked( &
-               cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), c_species_name, int(NUOPC_NAME_LEN, c_int))
+               cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), c_species_name, 64_c_int)
             if (catchem_status == 0_c_int) catchem_status = catchem_state_is_species_gas_checked( &
                cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), gas_value)
             if (catchem_status == 0_c_int) catchem_status = catchem_state_is_species_aerosol_checked( &
@@ -3139,10 +2956,7 @@ contains
             end if
 
             if (rc /= CC_SUCCESS) then
-               call ESMF_LogWrite('Warning: Failed to write diagnostics for species: ' // &
-                  trim(species_name), ESMF_LOGMSG_WARNING, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               write(*,'(A,A)') 'Warning: Failed to write diagnostics for species: ', trim(species_name)
                rc = CC_SUCCESS
             end if
          end do
@@ -3156,10 +2970,7 @@ contains
             species_idx = int(species_index_out)
 
             if (catchem_status /= 0_c_int .or. species_idx <= 0) then
-               call ESMF_LogWrite('Warning: Requested diagnostic species not found: ' // &
-                  trim(species_name), ESMF_LOGMSG_WARNING, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               write(*,'(A,A)') 'Warning: Requested diagnostic species not found: ', trim(species_name)
                cycle
             end if
 
@@ -3180,19 +2991,13 @@ contains
                units_str = 'ug/m3'
                description = 'Aerosol mass concentration of ' // trim(species_name)
             else
-               call ESMF_LogWrite('Warning: Species is neither gas nor aerosol: ' // &
-                  trim(species_name), ESMF_LOGMSG_WARNING, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               write(*,'(A,A)') 'Warning: Species is neither gas nor aerosol: ', trim(species_name)
                cycle
             end if
 
             call cc_wrap%catchem_model%get_species_conc_ptr(species_idx, conc_data, dims, rc)
             if (rc /= 0 .or. .not. associated(conc_data)) then
-               call ESMF_LogWrite('Warning: Concentration data not available for species: ' // &
-                  trim(species_name), ESMF_LOGMSG_WARNING, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               write(*,'(A,A)') 'Warning: Concentration data not available for species: ', trim(species_name)
                cycle
             end if
 
@@ -3210,10 +3015,7 @@ contains
             end if
 
             if (rc /= CC_SUCCESS) then
-               call ESMF_LogWrite('Warning: Failed to write diagnostics for species: ' // &
-                  trim(species_name), ESMF_LOGMSG_WARNING, rc=localrc)
-               if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-                  line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               write(*,'(A,A)') 'Warning: Failed to write diagnostics for species: ', trim(species_name)
                rc = CC_SUCCESS
             end if
          end do
@@ -3342,12 +3144,11 @@ contains
       real(c_double), pointer :: conc_data(:,:,:) => null()
       integer :: i, num_total_species, dims(3)
       real(fp) :: w25, w10
-      character(len=NUOPC_NAME_LEN) :: species_name
-      character(kind=c_char) :: c_species_name(NUOPC_NAME_LEN)
+      character(len=64) :: species_name
+      character(kind=c_char) :: c_species_name(64)
       type(c_ptr) :: raw_airden_ptr, raw_conc_ptr
       integer(c_int) :: catchem_status, species_count, aerosol_value
 
-      integer :: localrc
       rc = CC_SUCCESS
 
       dims = [cc_wrap%catchem_model%nx, cc_wrap%catchem_model%ny, cc_wrap%catchem_model%nz]
@@ -3359,9 +3160,7 @@ contains
             cc_wrap%catchem_model%state_mgr_ptr, "AIRDEN_DRY" // c_null_char, raw_airden_ptr)
       end if
       if (.not. c_associated(raw_airden_ptr)) then
-         call ESMF_LogWrite('Error: AIRDEN not available for PM diagnostics', ESMF_LOGMSG_ERROR, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A)') 'Error: AIRDEN not available for PM diagnostics'
          rc = CC_FAILURE
          return
       end if
@@ -3386,7 +3185,7 @@ contains
          if (catchem_status /= 0_c_int .or. aerosol_value == 0_c_int) cycle
 
          catchem_status = catchem_state_get_species_name_at_checked( &
-            cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), c_species_name, int(NUOPC_NAME_LEN, c_int))
+            cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), c_species_name, 64_c_int)
          if (catchem_status /= 0_c_int) cycle
          call catchem_c_string_to_fortran(c_species_name, species_name)
          w25 = pm_tracer_weight(trim(species_name), 'PM25')
@@ -3430,7 +3229,6 @@ contains
       integer(c_int) :: diag_dims(3), catchem_status
       type(c_ptr) :: raw_diag_ptr
 
-      integer :: localrc
       rc = CC_SUCCESS
 
       ! Compute current PM mass concentrations
@@ -3449,18 +3247,14 @@ contains
          call cc_wrap%catchem_model%register_diagnostic('pm25', &
             'PM2.5 aerosol mass concentration', 'ug m-3', (/ni, nj, nk/), rc, persistent=.true.)
          if (rc /= 0) then
-            call ESMF_LogWrite('Error: could not register pm25 diagnostic', ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A)') 'Error: could not register pm25 diagnostic'
             rc = CC_FAILURE
             return
          end if
          call cc_wrap%catchem_model%register_diagnostic('pm10', &
             'PM10 aerosol mass concentration', 'ug m-3', (/ni, nj, nk/), rc, persistent=.true.)
          if (rc /= 0) then
-            call ESMF_LogWrite('Error: could not register pm10 diagnostic', ESMF_LOGMSG_ERROR, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A)') 'Error: could not register pm10 diagnostic'
             rc = CC_FAILURE
             return
          end if
@@ -3472,9 +3266,7 @@ contains
       catchem_status = catchem_diag_get_pointer_checked(cc_wrap%catchem_model%cpp_core_ptr, &
          'pm25' // c_null_char, 3_c_int, diag_dims, raw_diag_ptr)
       if (catchem_status /= 0_c_int .or. .not. c_associated(raw_diag_ptr)) then
-         call ESMF_LogWrite('Error: could not map pm25 diagnostic storage', ESMF_LOGMSG_ERROR, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A)') 'Error: could not map pm25 diagnostic storage'
          rc = CC_FAILURE
          return
       end if
@@ -3485,9 +3277,7 @@ contains
       catchem_status = catchem_diag_get_pointer_checked(cc_wrap%catchem_model%cpp_core_ptr, &
          'pm10' // c_null_char, 3_c_int, diag_dims, raw_diag_ptr)
       if (catchem_status /= 0_c_int .or. .not. c_associated(raw_diag_ptr)) then
-         call ESMF_LogWrite('Error: could not map pm10 diagnostic storage', ESMF_LOGMSG_ERROR, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         write(*,'(A)') 'Error: could not map pm10 diagnostic storage'
          rc = CC_FAILURE
          return
       end if
@@ -3529,11 +3319,10 @@ contains
       type(ESMF_Grid) :: grid
       integer :: ibuf(1)  ! Buffer for MPI broadcast
       integer :: tileCount, tile
-      character(len=NUOPC_PATH_LEN) :: tileFilename
-      character(len=NUOPC_SHORT_LEN) :: tileSuffix
+      character(len=256) :: tileFilename
+      character(len=16) :: tileSuffix
       integer :: dotpos
 
-      integer :: localrc
       rc = CC_SUCCESS
 
       ! Create reference time (Unix epoch: 1970-01-01 00:00:00)
@@ -3586,9 +3375,7 @@ contains
       if (rc == ESMF_SUCCESS) then
          ! Use buffer for broadcast (ESMF_VMBroadcast expects arrays)
          ibuf(1) = time_slice
-         call ESMF_VMBroadcast(vm, ibuf, 1, 0, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         call ESMF_VMBroadcast(vm, ibuf, 1, 0, rc=rc)
          time_slice = ibuf(1)
       end if
 
@@ -3619,12 +3406,12 @@ contains
       integer, intent(out) :: rc
 
       integer, parameter :: max_attrs = 64
-      character(len=NUOPC_LONG_NAME_LEN) :: names(max_attrs)
-      character(len=NUOPC_MSG_LEN) :: values(max_attrs)
-      character(len=NUOPC_NAME_LEN) :: version_str, commit_str
-      character(len=NUOPC_MSG_LEN) :: config_str, attr_key, attr_val
-      character(len=NUOPC_PATH_LEN) :: tileFilename
-      character(len=NUOPC_SHORT_LEN) :: tileSuffix
+      character(len=128) :: names(max_attrs)
+      character(len=512) :: values(max_attrs)
+      character(len=64) :: version_str, commit_str
+      character(len=512) :: config_str, attr_key, attr_val
+      character(len=256) :: tileFilename
+      character(len=16) :: tileSuffix
       type(ESMF_Grid) :: grid
       type(ESMF_VM) :: vm
       integer :: n, na, i, tile, tileCount, dotpos, localrc
@@ -3650,10 +3437,8 @@ contains
       na = cc_wrap%catchem_model%get_output_attribute_count()
       do i = 1, na
          if (n >= max_attrs) then
-            call ESMF_LogWrite('Warning: global attributes truncated at ' // int_to_string(max_attrs) // &
-               ' entries; remaining diagnostics.output.attributes ignored.', ESMF_LOGMSG_WARNING, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+            write(*,'(A,I0,A)') 'Warning: global attributes truncated at ', max_attrs, &
+               ' entries; remaining diagnostics.output.attributes ignored.'
             exit
          end if
          call cc_wrap%catchem_model%get_output_attribute_at(i, attr_key, attr_val)
@@ -3785,7 +3570,7 @@ contains
       ! !!!!!log to debug
       ! block
       !   integer :: year, month, day, hour, minute, second
-      !   character(len=NUOPC_NAME_LEN) :: time_str_current, time_str_next, time_str_end
+      !   character(len=64) :: time_str_current, time_str_next, time_str_end
 
       !   call ESMF_TimeGet(current_time, yy=year, mm=month, dd=day, &
       !                    h=hour, m=minute, s=second, rc=rc)
@@ -3817,7 +3602,7 @@ contains
       !type(cc_wrap_type), pointer :: cc_wrap
       type(ESMF_VM) :: vm
       integer :: year, month, day, hour, minute, second, localPet
-      character(len=NUOPC_PATH_LEN) :: time_string
+      character(len=256) :: time_string
       logical :: dir_exists
 
       rc = CC_SUCCESS
@@ -3955,7 +3740,7 @@ contains
       character(len=*), intent(out) :: errmsg
 
       integer :: unit_num, io_stat, indent_level, section_indent
-      character(len=NUOPC_PATH_LEN) :: line, trimmed_line, field_name, field_value
+      character(len=256) :: line, trimmed_line, field_name, field_value
       logical :: in_section, found_section
       integer :: line_number, colon_pos
       type(field_mapping_type), allocatable :: temp_fields(:)
@@ -4178,7 +3963,7 @@ contains
       character(len=*), intent(in) :: property_value
       type(field_mapping_type), intent(inout) :: field
 
-      character(len=NUOPC_PATH_LEN) :: clean_value
+      character(len=256) :: clean_value
       integer :: read_stat
 
       ! Remove quotes from string values

@@ -1,0 +1,74 @@
+schema_version: 1
+case_id: emission-chemistry-removal-gfs-v17
+scm_case: gabls3_noahmp
+processes: [dust, seasalt, wetdep, settling, drydep, so4chem, carbchem]
+acceptance_fixture:
+  aerosol_mixing_ratio_kg_kg: 1.0e-8
+  sulfur_dioxide_mole_fraction_ppmv: 0.1
+  dimethyl_sulfide_mole_fraction_ppmv: 0.05
+  hydrogen_peroxide_mole_fraction_ppmv: 0.001
+  hydroxyl_radical_mole_fraction_ppmv: 1.0e-8
+  nitrate_radical_mole_fraction_ppmv: 1.0e-4
+  soil_moisture_m3_m3: 0.2
+  large_scale_precipitation_amount_m: 0.001
+  large_scale_precipitation_flux_kg_m2_s: 1.0e-4
+  species: dust1..dust5, seas1..seas5, so4, msa, bc1..bc2, oc1..oc2, so2, dms, h2o2, oh, no3
+  basis: GFS v17 GABLS3 NoahMP land case with initialized land surface, mapped full CCPP constituent array, calibrated SO4Chem gases, and explicit wet deposition precipitation fixture
+  expected_regime: SeaSalt source is zero for this land-only acceptance site; validate active marine emissions in the dedicated SeaSalt ocean case.
+  expected_zero_processes: [dust, seasalt]
+  expected_nonzero_processes: [wetdep, settling, drydep, so4chem, carbchem]
+suite_variants: [suite_CATChem_EmissionChemistryRemoval, suite_CATChem_EmissionChemistryRemoval_ps]
+primary_suite: suite_CATChem_EmissionChemistryRemoval
+case_runtime_overrides:
+  do_spinup: false
+  spinup_timesteps: 0
+  rationale: Use the SCM case's initialized NoahMP state without repeating its 12-step pre-integration spinup, which reuses a CATChem interval identity in a one-step acceptance run.
+schedule:
+  phys_ps: [dust, seasalt, wetdep, settling, drydep]
+  phys_ts: [so4chem, carbchem]
+  rationale: Use the ordinary surface-physics suite so the initialized GABLS3 NoahMP land surface supplies finite fluxes and land fields. Dust and sea-salt emissions, wet removal, settling and DryDep run at the phys_ps surface-process stage. SO4Chem runs later in phys_ts, after the requested Dust, SeaSalt, WetDep and Settling updates; CarbChem follows SO4Chem.
+runtime_config: tests/ccpp-scm/cases/configs/emission-chemistry-removal.yml
+inputs:
+  - name: ccpp_constituents
+    units: species-declared
+    basis: complete framework-owned state gathered by registered constituent properties and updated after each process contribution
+  - name: gfs_v17_surface_and_precipitation
+    units: GFS scheme-declared
+    basis: meteorology, surface fields, precipitation amounts and interface fluxes at the pinned CCPP-SCM stages
+outputs:
+  - name: coupled_aerosol_and_sulfur_state
+    signal_name: catchem_constituent_max_abs_delta
+    units: host constituent representation
+    basis: ordered emissions, wet removal, settling, sulfur/carbon chemistry, and dry deposition
+    must_be_nonzero: true
+reference:
+  method: native_parity
+  description: Sequential native process replays consume each exact CCPP meteorology block and the prior process's host-state snapshot; every process matches its corresponding 600-second CCPP publication boundary across all 2,921 mapped values.
+  source_revision: 900ec02691ae9a4ef250183ec86f7050b1d2d6b9
+  evidence:
+    - build/ccpp-scm-phase6-clean/native-replay/dust-state-parity.json
+    - build/ccpp-scm-phase6-clean/native-replay/seasalt-state-parity.json
+    - build/ccpp-scm-phase6-clean/native-replay/wetdep-state-parity.json
+    - build/ccpp-scm-phase6-clean/native-replay/settling-state-parity.json
+    - build/ccpp-scm-phase6-clean/native-replay/drydep-state-parity.json
+    - build/ccpp-scm-phase6-clean/native-replay/so4chem-state-parity.json
+    - build/ccpp-scm-phase6-clean/native-replay/carbchem-state-parity.json
+tolerances:
+  - quantity: each_process_after_update_constituent_state
+    absolute: 1.0e-12
+    relative: 1.0e-6
+    rationale: All seven sequential replays compared 2,921 values per process; maximum observed relative error was 3.81e-15.
+budgets:
+  - quantity: aerosol_mass_by_species
+    equation: initial column species mass plus emissions and diagnosed chemical production and net carbon aging transfer minus wet and dry deposition and settling boundary flux equals final column species mass
+    units: kg m-2
+    basis: per species in the native GOCART pressure-coordinate inventory DELP/g across all explicit host updates; sulfur elemental exchange is assessed separately
+    residual_tolerance: 1.0e-6
+    rationale: Use the existing frozen native state comparison bound (1e-6 relative) for the pressure-coordinate inventory DELP/g used by the pinned GOCART kernels. Account for each aerosol species' independently diagnosed removal, settling boundary flux, sulfate/MSA production, and carbon aging transfers over the actual host-stage duration. The configured land case independently diagnoses zero dust and sea-salt emissions. Freeze this bound before instrumented candidate comparison.
+  - quantity: sulfur_atoms
+    equation: sulfur atoms in SO2, DMS, SO4 and MSA at interval entry equal sulfur atoms at interval exit plus independently diagnosed wet deposition, dry deposition, and settling boundary loss
+    units: mol S m-2
+    basis: sulfur-bearing mechanism species and diagnosed deposition over the coupled interval
+    residual_tolerance: 1.0e-6
+    rationale: Use the existing frozen native state relative tolerance for sulfur atom inventory in the native pressure-coordinate representation. Divide SO2, DMS, SO4, and MSA mass by declared kg/mol molecular weights; independently integrate wet deposition, SO2 dry deposition, and settling boundary losses. This permits the pinned GOCART kernel's molecular-weight rounding while rejecting material sulfur imbalance.
+frozen_before_candidate_comparison: true

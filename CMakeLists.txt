@@ -56,6 +56,14 @@ option(CATCHEM_ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
 # Option to build with MUSICA chemistry library (defaults to OFF)
 option(CATCHEM_BUILD_MUSICA "Build with MUSICA chemistry library" OFF)
 
+# Acceptance-only fault injection. This is disabled in normal builds and adds
+# a one-shot GasChem failure hook for generated-cap publication/recovery probes.
+option(
+  CATCHEM_ENABLE_ACCEPTANCE_FAILURE_INJECTION
+  "Enable the opt-in CCPP acceptance process-body failure hook"
+  OFF
+)
+
 # MUSICA's gaschem/photolysis processes build on the Kokkos-backed C++ core.
 if(CATCHEM_BUILD_MUSICA AND NOT CATCHEM_ENABLE_KOKKOS)
   message(
@@ -226,6 +234,12 @@ set(
   ""
   CACHE PATH
   "Directory containing host CCPP Fortran modules"
+)
+set(
+  CATCHEM_CCPP_HOST_TARGET
+  ""
+  CACHE STRING
+  "Optional host target that exports CCPP modules and libraries"
 )
 option(CATCHEM_BUILD_TESTING "Build CATChem testing framework" ON)
 option(

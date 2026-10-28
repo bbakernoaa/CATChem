@@ -1,8 +1,20 @@
+/**
+ * @file catchem_api_config.cpp
+ * @brief C entry points for Core configuration, logging, and species metadata.
+ *
+ * @details Implements the configuration section of catchem_api.hpp: log level
+ * and file sinks, diagnostic output paths, and the per-species property
+ * getters/setters generated from catchem_species_properties.def. Species
+ * indices follow the 1-based Fortran convention used by the legacy getters
+ * (0-based internally, offset by one at the boundary). Every entry point
+ * admits its handle through api_internal::admit_handle() and converts
+ * BoundaryStatus or exceptions to CATCHEM_* status codes with fail(); member
+ * documentation lives on catchem_api.hpp.
+ */
 #include "catchem_api.hpp"
 #include "catchem_api_internal.hpp"
 #include "catchem_core.hpp"
 #include "catchem_diagnostic_manager.hpp"
-#include "catchem_logger.hpp"
 #include "catchem_process_registry.hpp"
 #include "catchem_state_manager.hpp"
 #include "catchem_unit_conversion.hpp"
@@ -15,36 +27,14 @@
 
 using namespace catchem::api_internal;
 
-// The C enum in catchem_api.hpp must mirror catchem::SpeciesCategory exactly.
-#define CATCHEM_ASSERT_CATEGORY(c_name, cpp_name)                                                                      \
-    static_assert(CATCHEM_SPECIES_CATEGORY_##c_name == static_cast<int>(catchem::SpeciesCategory::cpp_name),           \
-                  "catchem_species_category and catchem::SpeciesCategory disagree on " #cpp_name)
-CATCHEM_ASSERT_CATEGORY(GAS, Gas);
-CATCHEM_ASSERT_CATEGORY(AEROSOL, Aerosol);
-CATCHEM_ASSERT_CATEGORY(SETTLING, Settling);
-CATCHEM_ASSERT_CATEGORY(TRACER, Tracer);
-CATCHEM_ASSERT_CATEGORY(ADVECTED, Advected);
-CATCHEM_ASSERT_CATEGORY(DRYDEP, DryDep);
-CATCHEM_ASSERT_CATEGORY(WETDEP, WetDep);
-CATCHEM_ASSERT_CATEGORY(PHOTOLYSIS, Photolysis);
-CATCHEM_ASSERT_CATEGORY(DUST, Dust);
-CATCHEM_ASSERT_CATEGORY(SEASALT, SeaSalt);
-CATCHEM_ASSERT_CATEGORY(COUNT, Count);
-#undef CATCHEM_ASSERT_CATEGORY
-
 extern "C" {
-int catchem_state_load_species_config(void* state_ptr, const char* filename) {
-    if (!state_ptr || !filename)
-        return fail(catchem::BoundaryStatus::NullArgument, "state_load_species_config", "argument",
-                    "state and filename are required");
+void catchem_state_load_species_config(void* state_ptr, const char* filename) {
     try {
         auto* state = static_cast<catchem::StateManager*>(state_ptr);
         state->load_species_config(filename);
-        return CATCHEM_SUCCESS;
     } catch (const std::exception& e) {
-        return fail(catchem::BoundaryStatus::InvalidConfiguration, "state_load_species_config", filename, e.what());
-    } catch (...) {
-        return fail(catchem::BoundaryStatus::InternalError, "state_load_species_config", filename, "unknown exception");
+        std::cerr << "CATChem API Error: Failed to load species configuration '" << filename
+                  << "'. Details: " << e.what() << std::endl;
     }
 }
 
@@ -64,6 +54,20 @@ int catchem_state_get_species_count_checked(void* state_ptr, int* count_out) {
         return status;
     *count_out = static_cast<int>(static_cast<catchem::StateManager*>(state_ptr)->chemistry().species_list.size());
     return CATCHEM_SUCCESS;
+}
+
+int catchem_state_get_species_index(void* state_ptr, const char* name) {
+    if (!state_ptr || !name)
+        return -1;
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    std::string canonical_name(name);
+    std::transform(canonical_name.begin(), canonical_name.end(), canonical_name.begin(),
+                   [](unsigned char c) { return std::toupper(c); });
+    auto it = state->chemistry().species_name_to_index.find(canonical_name);
+    if (it != state->chemistry().species_name_to_index.end()) {
+        return it->second + 1; // Translate 0-based C++ index to 1-based Fortran index
+    }
+    return -1;
 }
 
 int catchem_state_get_species_index_checked(void* state_ptr, const char* name, int* index_out) {
@@ -87,44 +91,28 @@ int catchem_state_get_species_index_checked(void* state_ptr, const char* name, i
     return CATCHEM_SUCCESS;
 }
 
-int catchem_state_get_category_species_count(void* state_ptr, int category) {
-    if (!state_ptr || category < 0 || category >= static_cast<int>(catchem::species_category_count))
-        return -1;
-    auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    return static_cast<int>(state->chemistry().indices(static_cast<catchem::SpeciesCategory>(category)).size());
-}
-
-int catchem_state_get_category_indices(void* state_ptr, int category, int* indices_out, int max_count) {
-    if (!state_ptr || !indices_out || max_count < 0 || category < 0 ||
-        category >= static_cast<int>(catchem::species_category_count))
-        return -1;
-    auto* state = static_cast<catchem::StateManager*>(state_ptr);
-    const auto& list = state->chemistry().indices(static_cast<catchem::SpeciesCategory>(category));
-    const size_t n = std::min(list.size(), static_cast<size_t>(max_count));
-    for (size_t i = 0; i < n; ++i) {
-        indices_out[i] = list[i] + 1; // 1-based
-    }
-    return static_cast<int>(list.size());
-}
-
 int catchem_state_get_gas_species_count(void* state_ptr) {
-    return catchem_state_get_category_species_count(state_ptr, CATCHEM_SPECIES_CATEGORY_GAS);
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    return static_cast<int>(state->chemistry().gas_indices.size());
 }
 
 void catchem_state_get_gas_indices(void* state_ptr, int* indices_out) {
-    // Legacy getter: the caller sized the buffer from the count getter.
-    const int count = catchem_state_get_gas_species_count(state_ptr);
-    (void)catchem_state_get_category_indices(state_ptr, CATCHEM_SPECIES_CATEGORY_GAS, indices_out, count);
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    for (size_t i = 0; i < state->chemistry().gas_indices.size(); ++i) {
+        indices_out[i] = state->chemistry().gas_indices[i] + 1; // 1-based
+    }
 }
 
 int catchem_state_get_aerosol_species_count(void* state_ptr) {
-    return catchem_state_get_category_species_count(state_ptr, CATCHEM_SPECIES_CATEGORY_AEROSOL);
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    return static_cast<int>(state->chemistry().aerosol_indices.size());
 }
 
 void catchem_state_get_aerosol_indices(void* state_ptr, int* indices_out) {
-    // Legacy getter: the caller sized the buffer from the count getter.
-    const int count = catchem_state_get_aerosol_species_count(state_ptr);
-    (void)catchem_state_get_category_indices(state_ptr, CATCHEM_SPECIES_CATEGORY_AEROSOL, indices_out, count);
+    auto* state = static_cast<catchem::StateManager*>(state_ptr);
+    for (size_t i = 0; i < state->chemistry().aerosol_indices.size(); ++i) {
+        indices_out[i] = state->chemistry().aerosol_indices[i] + 1; // 1-based
+    }
 }
 
 double catchem_state_get_species_mw(void* state_ptr, int index) {
@@ -152,7 +140,17 @@ int catchem_state_get_species_mw_checked(void* state_ptr, int index, double* mol
     *molecular_weight_out = species[static_cast<std::size_t>(index - 1)].mw_g;
     return CATCHEM_SUCCESS;
 }
-
+/**
+ * @brief Shared body for the checked species-classification getters.
+ *
+ * @param state_ptr  State handle; admitted for HandleType::State.
+ * @param index      1-based Fortran species index.
+ * @param value_out  Output: 1 when the flag is set, 0 otherwise; zeroed first.
+ * @param operation  Boundary operation name used in error reporting.
+ * @param member     Pointer-to-member selecting is_gas, is_aerosol, or is_advected.
+ * @return CATCHEM_SUCCESS, or NullArgument / InvalidHandle-family /
+ *         InvalidIndex status codes.
+ */
 static int checked_species_classification(void* state_ptr, int index, int* value_out, const char* operation,
                                           bool catchem::SpeciesMetadata::*member) {
     if (!value_out)
@@ -402,6 +400,14 @@ void catchem_config_get_config_file_path(void* core_ptr, char* buffer, int max_l
 // IntelLLVM's compiler wrapper strips quotes from command-line definitions.
 // Its compiler macros select token stringification; other compilers receive
 // regular string-literal definitions from CMake.
+/**
+ * @brief Normalises build-provenance macros to string literals.
+ *
+ * @details Under IntelLLVM, CATCHEM_BUILD_VERSION and CATCHEM_BUILD_COMMIT
+ * reach the compiler as unquoted tokens, so CATCHEM_PROVENANCE_STRING
+ * stringifies them; other toolchains get quoted literals from CMake and the
+ * macro is a pass-through.
+ */
 #if defined(__INTEL_LLVM_COMPILER) || defined(__INTEL_COMPILER)
 #define CATCHEM_STRINGIFY_IMPL(value) #value
 #define CATCHEM_STRINGIFY(value) CATCHEM_STRINGIFY_IMPL(value)
@@ -553,10 +559,8 @@ void catchem_config_get_emission_species_map_at(void* core_ptr, const char* cate
                 *scale_out = (map_idx < static_cast<int>(fit->second.scale.size())) ? fit->second.scale[map_idx] : 1.0;
             }
             if (species_idx_out) {
-                int species_index = 0;
-                const int status = catchem_state_get_species_index_checked(
-                    core->get_state_manager().get(), fit->second.map[map_idx].c_str(), &species_index);
-                *species_idx_out = (status == CATCHEM_SUCCESS) ? species_index : -1;
+                *species_idx_out =
+                    catchem_state_get_species_index(core->get_state_manager().get(), fit->second.map[map_idx].c_str());
             }
             return;
         }
@@ -633,40 +637,48 @@ void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int 
 // =========================================================================
 // Species Metadata and Property Query C-API
 // =========================================================================
+/**
+ * @brief Expander macros generating the species property getters.
+ *
+ * @details catchem_species_properties.def lists one invocation per legacy
+ * Fortran getter. CATCHEM_SPECIES_DOUBLE_PROPERTY(api, member, fallback) emits
+ * catchem_state_get_species_api returning species_list[index-1].member, or the
+ * fallback for out-of-range indices; CATCHEM_SPECIES_BOOL_PROPERTY emits the
+ * same value as a 0/1 int; CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY emits the older
+ * catchem_state_is_species_api spelling. All three swallow exceptions and use
+ * the 1-based Fortran index convention.
+ */
 #define CATCHEM_SPECIES_DOUBLE_PROPERTY(api, member, fallback)                                                         \
     double catchem_state_get_species_##api(void* state_ptr, int index) {                                               \
-        if (state_ptr) {                                                                                               \
+        try {                                                                                                          \
             auto* state = static_cast<catchem::StateManager*>(state_ptr);                                              \
             const int idx_0 = index - 1;                                                                               \
             if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size()))                        \
                 return state->chemistry().species_list[idx_0].member;                                                  \
+        } catch (...) {                                                                                                \
         }                                                                                                              \
-        catchem::Logger::error("species property query failed: null state or index out of range",                      \
-                               {{"property", #api}, {"index", std::to_string(index)}});                                \
         return fallback;                                                                                               \
     }
 #define CATCHEM_SPECIES_BOOL_PROPERTY(api, member)                                                                     \
     int catchem_state_get_species_##api(void* state_ptr, int index) {                                                  \
-        if (state_ptr) {                                                                                               \
+        try {                                                                                                          \
             auto* state = static_cast<catchem::StateManager*>(state_ptr);                                              \
             const int idx_0 = index - 1;                                                                               \
             if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size()))                        \
                 return state->chemistry().species_list[idx_0].member ? 1 : 0;                                          \
+        } catch (...) {                                                                                                \
         }                                                                                                              \
-        catchem::Logger::error("species property query failed: null state or index out of range",                      \
-                               {{"property", #api}, {"index", std::to_string(index)}});                                \
         return 0;                                                                                                      \
     }
 #define CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY(api, member)                                                              \
     int catchem_state_is_species_##api(void* state_ptr, int index) {                                                   \
-        if (state_ptr) {                                                                                               \
+        try {                                                                                                          \
             auto* state = static_cast<catchem::StateManager*>(state_ptr);                                              \
             const int idx_0 = index - 1;                                                                               \
             if (idx_0 >= 0 && idx_0 < static_cast<int>(state->chemistry().species_list.size()))                        \
                 return state->chemistry().species_list[idx_0].member ? 1 : 0;                                          \
+        } catch (...) {                                                                                                \
         }                                                                                                              \
-        catchem::Logger::error("species property query failed: null state or index out of range",                      \
-                               {{"property", #api}, {"index", std::to_string(index)}});                                \
         return 0;                                                                                                      \
     }
 #include "catchem_species_properties.def"
@@ -684,12 +696,9 @@ void catchem_state_get_species_wd_rainouteff(void* state_ptr, int index, double*
                 eff_out[i] = i < eff.size() ? eff[i] : 0.0;
             }
         } else {
-            catchem::Logger::error("species property query failed: index out of range",
-                                   {{"property", "wd_rainouteff"}, {"index", std::to_string(index)}});
             eff_out[0] = eff_out[1] = eff_out[2] = 0.0;
         }
-    } catch (const std::exception& e) {
-        catchem::Logger::error("species property query failed", {{"property", "wd_rainouteff"}, {"error", e.what()}});
+    } catch (...) {
         eff_out[0] = eff_out[1] = eff_out[2] = 0.0;
     }
 }

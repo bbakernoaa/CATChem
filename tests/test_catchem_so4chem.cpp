@@ -217,7 +217,7 @@ int main(int argc, char* argv[]) {
         run_case(false, off_conc);
         run_case(true, on_conc);
 
-        // Default catalog slots: so2=0, h2o2=1, oh=2, no3=3, so4=4, msa=7.
+        // Local process fixture slots: so2=0, h2o2=1, oh=2, no3=3, so4=4, msa=7.
         // Chemistry layout is species-outermost column-major: element
         // (col, level, species) = species*n_cols*n_levels + level*n_cols + col,
         // so each species occupies a contiguous block of n_cols*n_levels.

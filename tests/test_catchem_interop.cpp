@@ -337,9 +337,7 @@ int main(int argc, char* argv[]) {
                 }
             }
             assert(!config_path.empty() && "ERROR: Could not find CATChem_species.yml");
-            assert(catchem_state_load_species_config(state, config_path.c_str()) == CATCHEM_SUCCESS);
-            assert(catchem_state_load_species_config(nullptr, config_path.c_str()) != CATCHEM_SUCCESS);
-            assert(catchem_state_load_species_config(state, nullptr) != CATCHEM_SUCCESS);
+            catchem_state_load_species_config(state, config_path.c_str());
 
             // 2. Validate species counts and offsets
             int count = catchem_state_get_species_count(state);
@@ -391,52 +389,12 @@ int main(int argc, char* argv[]) {
             }
             assert(found_so2);
 
-            // 6. Generic category getters agree with the legacy gas/aerosol ones,
-            //    honour the buffer capacity, and reject bad arguments.
-            const int cat_gas = CATCHEM_SPECIES_CATEGORY_GAS;
-            const int cat_aerosol = CATCHEM_SPECIES_CATEGORY_AEROSOL;
-            const int cat_settling = CATCHEM_SPECIES_CATEGORY_SETTLING;
-            assert(catchem_state_get_category_species_count(state, cat_gas) == gas_count);
-            std::vector<int> gas_again(gas_count, 0);
-            assert(catchem_state_get_category_indices(state, cat_gas, gas_again.data(), gas_count) == gas_count);
-            assert(gas_again == gas_indices);
-
-            const int aerosol_count = catchem_state_get_category_species_count(state, cat_aerosol);
-            assert(aerosol_count == catchem_state_get_aerosol_species_count(state));
+            // 6. Validate the public aerosol list alongside the gas list.
+            const int aerosol_count = catchem_state_get_aerosol_species_count(state);
             assert(aerosol_count > 0);
             std::vector<int> aerosol_indices(aerosol_count, 0);
-            assert(catchem_state_get_category_indices(state, cat_aerosol, aerosol_indices.data(), aerosol_count) ==
-                   aerosol_count);
-            std::vector<int> aerosol_legacy(aerosol_count, 0);
-            catchem_state_get_aerosol_indices(state, aerosol_legacy.data());
-            assert(aerosol_legacy == aerosol_indices);
-
-            // Settling species are the aerosols with do_settling: a subset, in order.
-            const int settling_count = catchem_state_get_category_species_count(state, cat_settling);
-            assert(settling_count >= 0 && settling_count <= aerosol_count);
-            std::vector<int> settling_indices(settling_count, 0);
-            assert(catchem_state_get_category_indices(state, cat_settling, settling_indices.data(), settling_count) ==
-                   settling_count);
-            for (int idx : settling_indices)
-                assert(std::find(aerosol_indices.begin(), aerosol_indices.end(), idx) != aerosol_indices.end());
-            assert(std::is_sorted(settling_indices.begin(), settling_indices.end()));
-
-            // A short buffer gets max_count entries; the return value is still the full count.
-            std::vector<int> one(2, -7);
-            assert(catchem_state_get_category_indices(state, cat_gas, one.data(), 1) == gas_count);
-            assert(one[0] == gas_indices[0]);
-            assert(one[1] == -7);
-            assert(catchem_state_get_category_indices(state, cat_gas, one.data(), 0) == gas_count);
-
-            assert(catchem_state_get_category_species_count(state, CATCHEM_SPECIES_CATEGORY_COUNT) == -1);
-            assert(catchem_state_get_category_species_count(state, -1) == -1);
-            assert(catchem_state_get_category_species_count(nullptr, cat_gas) == -1);
-            assert(catchem_state_get_category_indices(state, cat_gas, nullptr, 1) == -1);
-            assert(catchem_state_get_category_indices(state, cat_gas, one.data(), -1) == -1);
-            assert(catchem_state_get_category_indices(state, 42, one.data(), 1) == -1);
-
-            // A missing species file is reported through the status, not thrown.
-            assert(catchem_state_load_species_config(state, "/nonexistent/CATChem_species.yml") != CATCHEM_SUCCESS);
+            catchem_state_get_aerosol_indices(state, aerosol_indices.data());
+            assert(std::find(aerosol_indices.begin(), aerosol_indices.end(), idx_so4) != aerosol_indices.end());
 
             catchem_core_destroy(core);
             std::cout << "SUCCESS: C++ Species Metadata & State Initialization Validation Passed!\n";
@@ -448,24 +406,10 @@ int main(int argc, char* argv[]) {
         {
             int n_cols = 4;
             int n_levels = 5;
-            int n_species = 22;
-
             void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
             assert(core != nullptr);
             void* state = catchem_core_get_state_manager(core);
-
-            // Load species config so we have aerosols to process
-            std::string config_path = "";
-            std::vector<std::string> candidates = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
-                                                   "../../tests/CATChem_species.yml", "CATChem_species.yml"};
-            for (const auto& path : candidates) {
-                std::ifstream f(path);
-                if (f.good()) {
-                    config_path = path;
-                    break;
-                }
-            }
-            catchem_state_load_species_config(state, config_path.c_str());
+            const int n_species = catchem_state_get_species_count(state);
 
             // Allocate mock meteorological arrays
             std::vector<double> temp_array(n_cols * n_levels, 298.15);          // Temperature [K]
@@ -583,14 +527,13 @@ int main(int argc, char* argv[]) {
             std::cout << "\n--- TEST 9: Direct Flat-Science Interop Adapter for DryDep ---\n";
             int n_cols = 4;
             int n_levels = 5;
-            int n_species = 22; // Must match CATChem_species.yml species list count
-
             // Register drydep C++ process dynamically
             catchem_register_drydep_cpp();
 
             void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
             assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
+            const int n_species = state->species_count();
 
             // Set up mock temperature and concentrations (so4 at index 4)
             std::vector<double> mock_t(n_cols * n_levels, 288.15);
@@ -667,19 +610,36 @@ int main(int argc, char* argv[]) {
             catchem_core_add_process_by_name(core, "drydep");
 
             // Execute the timestep which triggers drydep calculation
-            catchem_core_run_timestep(core, 3600.0);
+            std::cerr << "interop DryDep: starting timestep\n";
+            assert(catchem_core_run_timestep(core, 3600.0) == CATCHEM_SUCCESS);
+            std::cerr << "interop DryDep: timestep complete\n";
 
-            // Fetch dynamic diagnostic pointer
-            double* host_diag_con = (double*)catchem_diag_get_pointer(core, "drydep_con_per_species");
-            double* host_diag_vel = (double*)catchem_diag_get_pointer(core, "drydep_velocity_per_species");
+            // Fetch dynamic diagnostic pointers through the checked C API so
+            // a missing field or shape mismatch becomes a test failure rather
+            // than an exception escaping the legacy pointer wrapper.
+            const char* diagnostic_names[] = {"drydep_con_per_species", "drydep_velocity_per_species"};
+            void* diagnostic_pointers[2] = {nullptr, nullptr};
+            for (int index = 0; index < 2; ++index) {
+                int rank = 0;
+                int dims[3] = {0, 0, 0};
+                std::cerr << "interop DryDep: querying rank " << index << "\n";
+                assert(catchem_diag_get_rank_checked(core, diagnostic_names[index], &rank) == CATCHEM_SUCCESS);
+                std::cerr << "interop DryDep: querying dimensions " << index << " rank=" << rank << "\n";
+                assert(catchem_diag_get_dims_checked(core, diagnostic_names[index], dims, 3) == CATCHEM_SUCCESS);
+                std::cerr << "interop DryDep: querying pointer " << index << " dims=" << dims[0] << "x" << dims[1]
+                          << "\n";
+                assert(catchem_diag_get_pointer_checked(core, diagnostic_names[index], rank, dims,
+                                                        &diagnostic_pointers[index]) == CATCHEM_SUCCESS);
+                std::cerr << "interop DryDep: pointer available " << index << "\n";
+                assert(diagnostic_pointers[index] != nullptr);
+            }
 
-            assert(host_diag_con != nullptr);
-            assert(host_diag_vel != nullptr);
-
-            std::cout << "INFO: Retrieved host diagnostic pointer: " << host_diag_con << "\n";
+            std::cout << "INFO: Retrieved host diagnostic pointer: " << diagnostic_pointers[0] << "\n";
             std::cout << "SUCCESS: DryDep Direct Adapter executed and populated diagnostics!\n";
 
+            std::cerr << "interop DryDep: destroying core\n";
             catchem_core_destroy(core);
+            std::cerr << "interop DryDep: core destroyed\n";
         }
 
         // ==========================================
@@ -689,24 +649,12 @@ int main(int argc, char* argv[]) {
             std::cout << "\n--- TEST 10: Direct Flat-Science Interop Adapter for SeaSalt ---\n";
             int n_cols = 4;
             int n_levels = 5;
-            int n_species = 22;
-
             catchem_register_seasalt_cpp();
 
             void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
             assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
-
-            // Load species
-            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
-                                              "../../tests/CATChem_species.yml"};
-            for (const auto& path : paths) {
-                try {
-                    state->load_species_config(path);
-                    break;
-                } catch (...) {
-                }
-            }
+            const int n_species = state->species_count();
 
             // Allocate met fields dynamically (FROCEAN, FRSEAICE, SST, DELP)
             std::vector<double> mock_frocean(n_cols, 1.0);
@@ -759,24 +707,12 @@ int main(int argc, char* argv[]) {
             std::cout << "\n--- TEST 11: Direct Flat-Science Interop Adapter for WetDep ---\n";
             int n_cols = 4;
             int n_levels = 5;
-            int n_species = 22;
-
             catchem_register_wetdep_cpp();
 
             void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
             assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
-
-            // Load species
-            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
-                                              "../../tests/CATChem_species.yml"};
-            for (const auto& path : paths) {
-                try {
-                    state->load_species_config(path);
-                    break;
-                } catch (...) {
-                }
-            }
+            const int n_species = state->species_count();
 
             // Allocate met fields dynamically (AIRDEN_DRY, AIRDEN, MAIRDEN, PEDGE, PFILSAN, PFLLSAN, REEVAPLS, T)
             std::vector<double> mock_airden_dry(n_cols * n_levels, 1.2);
@@ -816,24 +752,12 @@ int main(int argc, char* argv[]) {
             std::cout << "\n--- TEST 12: Direct Flat-Science Interop Adapter for SO4chem ---\n";
             int n_cols = 4;
             int n_levels = 5;
-            int n_species = 22;
-
             catchem_register_so4chem_cpp();
 
             void* core = catchem_core_create_from_config_with_grid("CATChem_config.yml", n_cols, n_levels);
             assert(core != nullptr);
             auto* state = static_cast<catchem::StateManager*>(catchem_core_get_state_manager(core));
-
-            // Load species
-            std::vector<std::string> paths = {"tests/CATChem_species.yml", "../tests/CATChem_species.yml",
-                                              "../../tests/CATChem_species.yml"};
-            for (const auto& path : paths) {
-                try {
-                    state->load_species_config(path);
-                    break;
-                } catch (...) {
-                }
-            }
+            const int n_species = state->species_count();
 
             // Allocate met fields dynamically (AIRDEN, CLDF, DELP, PMID, T, PEDGE, HFLUX, LAT, LON, PBLH, USTAR)
             std::vector<double> mock_airden(n_cols * n_levels, 1.2);

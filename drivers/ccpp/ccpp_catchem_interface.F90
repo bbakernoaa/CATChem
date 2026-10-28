@@ -3,117 +3,118 @@
 !!
 module ccpp_catchem_interface
 
-  use iso_c_binding,             only: c_loc, c_null_char, c_double, c_ptr, c_associated, c_int, c_char
-  use machine,                   only: kind_phys
-  use CATChem_API,               only: CATChem_Model
-  use catchem_bridge_error,                 only: CC_SUCCESS, CC_FAILURE
-  use ccpp_constituent_prop_mod, only: ccpp_constituent_properties_t, ccpp_constituent_prop_ptr_t
-  use catchem_bridge_precision,             only: fp
+   use iso_c_binding, only: c_loc, c_null_char, c_double, c_ptr, c_associated, c_int, c_char
+   use machine, only: kind_phys
+   use CATChem_API, only: CATChem_Model
+   use catchem_bridge_error, only: CC_SUCCESS, CC_FAILURE
+   use ccpp_constituent_prop_mod, only: ccpp_constituent_properties_t, ccpp_constituent_prop_ptr_t
+   use catchem_bridge_precision, only: fp
 
-  implicit none
+   implicit none
 
-  private
+   private
 
-  public :: ccpp_catchem_interface_register, &
-            ccpp_catchem_interface_init, &
-            ccpp_catchem_interface_run, &
-            ccpp_catchem_interface_finalize, &
-            ccpp_catchem_interface_get_staging_metrics, &
-            ccpp_catchem_interface_get_physical_validation_report
+   public :: ccpp_catchem_interface_register, &
+             ccpp_catchem_interface_init, &
+             ccpp_catchem_interface_run, &
+             ccpp_catchem_interface_finalize, &
+             ccpp_catchem_interface_get_staging_metrics, &
+             ccpp_catchem_interface_get_physical_validation_report
 
-  ! Module-scope wrapper mapping directly to the C++ core
-  type(CATChem_Model), save :: cc_model
+   ! Module-scope wrapper mapping directly to the C++ core
+   type(CATChem_Model), save :: cc_model
 
-  ! Saved dynamic index mapper array to store host index for each species
-  integer, allocatable, save :: catchem_indices_constituent_props(:)
-  real(kind_phys), target, allocatable, save :: subset_constituents(:,:,:)
-  integer, save :: staging_im = 0, staging_kte = 0, staging_nspec = 0
-  integer, save :: staging_allocation_count = 0
-  integer, save :: staging_gather_count = 0
-  integer, save :: staging_scatter_count = 0
-  integer, save :: ccpp_timestep_count = 0
+   ! Saved dynamic index mapper array to store host index for each species
+   integer, allocatable, save :: catchem_indices_constituent_props(:)
+   real(kind_phys), target, allocatable, save :: subset_constituents(:, :, :)
+   integer, save :: staging_im = 0, staging_kte = 0, staging_nspec = 0
+   integer, save :: staging_allocation_count = 0
+   integer, save :: staging_gather_count = 0
+   integer, save :: staging_scatter_count = 0
+   integer, save :: ccpp_timestep_count = 0
 
-  ! Linkable BIND(C) external declarations to avoid circular dependencies
-  interface
-     integer(c_int) function catchem_state_get_species_count_checked(state_ptr, count_out) &
-        bind(C, name="catchem_state_get_species_count_checked")
-        import :: c_ptr, c_int
-        type(c_ptr), value :: state_ptr
-        integer(c_int), intent(out) :: count_out
-     end function
+   ! Linkable BIND(C) external declarations to avoid circular dependencies
+   interface
+      integer(c_int) function catchem_state_get_species_count_checked(state_ptr, count_out) &
+         bind(C, name="catchem_state_get_species_count_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), intent(out) :: count_out
+      end function
 
-     integer(c_int) function catchem_state_get_species_name_at_checked(state_ptr, index, name_out, name_length) &
-        bind(C, name="catchem_state_get_species_name_at_checked")
-        import :: c_ptr, c_int, c_char
-        type(c_ptr), value :: state_ptr
-        integer(c_int), value :: index, name_length
-        character(kind=c_char), intent(out) :: name_out(*)
-     end function
+      integer(c_int) function catchem_state_get_species_name_at_checked(state_ptr, index, name_out, name_length) &
+         bind(C, name="catchem_state_get_species_name_at_checked")
+         import :: c_ptr, c_int, c_char
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index, name_length
+         character(kind=c_char), intent(out) :: name_out(*)
+      end function
 
-     integer(c_int) function catchem_state_get_species_mw_checked(state_ptr, index, molecular_weight_out) &
-        bind(C, name="catchem_state_get_species_mw_checked")
-        import :: c_ptr, c_int, c_double
-        type(c_ptr), value :: state_ptr
-        integer(c_int), value :: index
-        real(c_double), intent(out) :: molecular_weight_out
-     end function
+      integer(c_int) function catchem_state_get_species_mw_checked(state_ptr, index, molecular_weight_out) &
+         bind(C, name="catchem_state_get_species_mw_checked")
+         import :: c_ptr, c_int, c_double
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+         real(c_double), intent(out) :: molecular_weight_out
+      end function
 
-     integer(c_int) function catchem_state_get_species_is_advected_checked(state_ptr, index, value_out) &
-        bind(C, name="catchem_state_get_species_is_advected_checked")
-        import :: c_ptr, c_int
-        type(c_ptr), value :: state_ptr
-        integer(c_int), value :: index
-        integer(c_int), intent(out) :: value_out
-     end function
+      integer(c_int) function catchem_state_get_species_is_advected_checked(state_ptr, index, value_out) &
+         bind(C, name="catchem_state_get_species_is_advected_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+         integer(c_int), intent(out) :: value_out
+      end function
 
-     integer(c_int) function catchem_state_is_species_gas_checked(state_ptr, index, value_out) &
-        bind(C, name="catchem_state_is_species_gas_checked")
-        import :: c_ptr, c_int
-        type(c_ptr), value :: state_ptr
-        integer(c_int), value :: index
-        integer(c_int), intent(out) :: value_out
-     end function
+      integer(c_int) function catchem_state_is_species_gas_checked(state_ptr, index, value_out) &
+         bind(C, name="catchem_state_is_species_gas_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         integer(c_int), value :: index
+         integer(c_int), intent(out) :: value_out
+      end function
 
-     integer(c_int) function catchem_state_begin_import_generation(state_ptr) bind(C, name="catchem_state_begin_import_generation")
-        import :: c_ptr, c_int
-        type(c_ptr), value :: state_ptr
-     end function
+      integer(c_int) function catchem_state_begin_import_generation(state_ptr) bind(C, &
+                                                                                    name="catchem_state_begin_import_generation")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+      end function
 
-     integer(c_int) function catchem_state_bind_met_3d_checked(state_ptr, name, ptr, dim1, dim2, dim3) &
-        bind(C, name="catchem_state_bind_met_3d_checked")
-        import :: c_ptr, c_char, c_int
-        type(c_ptr), value :: state_ptr
-        character(kind=c_char), intent(in) :: name(*)
-        type(c_ptr), value :: ptr
-        integer(c_int), value :: dim1, dim2, dim3
-     end function
+      integer(c_int) function catchem_state_bind_met_3d_checked(state_ptr, name, ptr, dim1, dim2, dim3) &
+         bind(C, name="catchem_state_bind_met_3d_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: state_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         type(c_ptr), value :: ptr
+         integer(c_int), value :: dim1, dim2, dim3
+      end function
 
-     integer(c_int) function catchem_state_bind_met_3d_axis_checked(state_ptr, name, ptr, dim1, dim2, dim3, axis) &
-        bind(C, name="catchem_state_bind_met_3d_axis_checked")
-        import :: c_ptr, c_char, c_int
-        type(c_ptr), value :: state_ptr
-        character(kind=c_char), intent(in) :: name(*)
-        type(c_ptr), value :: ptr
-        integer(c_int), value :: dim1, dim2, dim3, axis
-     end function
+      integer(c_int) function catchem_state_bind_met_3d_axis_checked(state_ptr, name, ptr, dim1, dim2, dim3, axis) &
+         bind(C, name="catchem_state_bind_met_3d_axis_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: state_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         type(c_ptr), value :: ptr
+         integer(c_int), value :: dim1, dim2, dim3, axis
+      end function
 
-     integer(c_int) function catchem_state_bind_met_2d_checked(state_ptr, name, ptr, dim1, dim2) &
-        bind(C, name="catchem_state_bind_met_2d_checked")
-        import :: c_ptr, c_char, c_int
-        type(c_ptr), value :: state_ptr
-        character(kind=c_char), intent(in) :: name(*)
-        type(c_ptr), value :: ptr
-        integer(c_int), value :: dim1, dim2
-     end function
+      integer(c_int) function catchem_state_bind_met_2d_checked(state_ptr, name, ptr, dim1, dim2) &
+         bind(C, name="catchem_state_bind_met_2d_checked")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: state_ptr
+         character(kind=c_char), intent(in) :: name(*)
+         type(c_ptr), value :: ptr
+         integer(c_int), value :: dim1, dim2
+      end function
 
-     integer(c_int) function catchem_state_bind_unified_chemistry_checked(state_ptr, ptr, dim1, dim2, dim3) &
-        bind(C, name="catchem_state_bind_unified_chemistry_checked")
-        import :: c_ptr, c_int
-        type(c_ptr), value :: state_ptr
-        type(c_ptr), value :: ptr
-        integer(c_int), value :: dim1, dim2, dim3
-     end function
-  end interface
+      integer(c_int) function catchem_state_bind_unified_chemistry_checked(state_ptr, ptr, dim1, dim2, dim3) &
+         bind(C, name="catchem_state_bind_unified_chemistry_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: state_ptr
+         type(c_ptr), value :: ptr
+         integer(c_int), value :: dim1, dim2, dim3
+      end function
+   end interface
 
 contains
 
@@ -140,12 +141,15 @@ contains
    !! \param[out] constituent_props Array of dynamically registered CCPP constituent properties
    !! \param[out] errmsg Error message string set if registration fails
    !! \param[out] errflg Error code flag (0=success, non-zero=failure)
+   !> \section arg_table_ccpp_catchem_interface_register Argument Table
+   !! \htmlinclude arg_table_ccpp_catchem_interface_register.hml
+   !!
    subroutine ccpp_catchem_interface_register(constituent_props, errmsg, errflg)
       implicit none
 
       type(ccpp_constituent_properties_t), allocatable, intent(out) :: constituent_props(:)
-      character(len=*),                                 intent(out) :: errmsg
-      integer,                                          intent(out) :: errflg
+      character(len=*), intent(out) :: errmsg
+      integer, intent(out) :: errflg
 
       ! Local variables
       character(len=512)     :: config_path
@@ -184,7 +188,7 @@ contains
       n_spec = int(c_count)
 
       ! 3. Allocate and populate constituent_props
-      allocate(constituent_props(n_spec), stat=errflg)
+      allocate (constituent_props(n_spec), stat=errflg)
       if (errflg /= 0) then
          errmsg = 'CATChem Register: Memory allocation failure.'
          return
@@ -193,11 +197,11 @@ contains
       do i = 1, n_spec
          status = catchem_state_get_species_name_at_checked(state_mgr, int(i, c_int), c_buf, 128_c_int)
          if (status == 0_c_int) status = catchem_state_get_species_mw_checked( &
-            state_mgr, int(i, c_int), c_molar_mass)
+                                         state_mgr, int(i, c_int), c_molar_mass)
          if (status == 0_c_int) status = catchem_state_get_species_is_advected_checked( &
-            state_mgr, int(i, c_int), c_advected)
+                                         state_mgr, int(i, c_int), c_advected)
          if (status == 0_c_int) status = catchem_state_is_species_gas_checked( &
-            state_mgr, int(i, c_int), c_gas)
+                                         state_mgr, int(i, c_int), c_gas)
          if (status /= 0_c_int) then
             errflg = int(status)
             errmsg = 'CATChem Register: Failed to query runtime species metadata.'
@@ -206,36 +210,36 @@ contains
          call c_to_f_string(c_buf, f_name)
 
          molar_mass_g_mol = real(c_molar_mass, kind_phys)
-         molar_mass_kg_mol = molar_mass_g_mol * 1.0e-3_kind_phys
+         molar_mass_kg_mol = molar_mass_g_mol*1.0e-3_kind_phys
          is_advected = (c_advected == 1_c_int)
          is_gas = (c_gas == 1_c_int)
 
          if (is_gas) then
             call constituent_props(i)%instantiate( &
-               std_name      = trim(f_name), &
-               long_name     = trim(f_name), &
-               diag_name     = trim(f_name), &
-               units         = 'kg kg-1', &
-               vertical_dim  = 'vertical_layer_dimension', &
-               default_value = 0.0_kind_phys, &
-               min_value     = 0.0_kind_phys, &
-               molar_mass    = molar_mass_kg_mol, &
-               advected      = is_advected, &
-               errcode       = errflg, &
-               errmsg        = errmsg )
+               std_name=trim(f_name), &
+               long_name=trim(f_name), &
+               diag_name=trim(f_name), &
+               units='kg kg-1', &
+               vertical_dim='vertical_layer_dimension', &
+               default_value=0.0_kind_phys, &
+               min_value=0.0_kind_phys, &
+               molar_mass=molar_mass_kg_mol, &
+               advected=is_advected, &
+               errcode=errflg, &
+               errmsg=errmsg)
          else
             ! Aerosol species do not have a constant gas-phase molar mass, so we omit the molar_mass argument
             call constituent_props(i)%instantiate( &
-               std_name      = trim(f_name), &
-               long_name     = trim(f_name), &
-               diag_name     = trim(f_name), &
-               units         = 'kg kg-1', &
-               vertical_dim  = 'vertical_layer_dimension', &
-               default_value = 0.0_kind_phys, &
-               min_value     = 0.0_kind_phys, &
-               advected      = is_advected, &
-               errcode       = errflg, &
-               errmsg        = errmsg )
+               std_name=trim(f_name), &
+               long_name=trim(f_name), &
+               diag_name=trim(f_name), &
+               units='kg kg-1', &
+               vertical_dim='vertical_layer_dimension', &
+               default_value=0.0_kind_phys, &
+               min_value=0.0_kind_phys, &
+               advected=is_advected, &
+               errcode=errflg, &
+               errmsg=errmsg)
          end if
          if (errflg /= 0) return
       end do
@@ -251,7 +255,7 @@ contains
    !! host-provided physical, meteorological, and land/soil grid dimensions (such as horizontal columns,
    !! vertical layers, soil layers, soil categories, and vegetation categories). It then resolves the
    !! global host-model runtime index mapping for each registered chemical species using CCPP's standard
-   !! index retrieval utility `ccpp_const_get_idx`.
+   !! full constituent property array and each property's registered constituent index.
    !!
    !! \param[in]  im Horizontal loop extent / dimension of the chunk
    !! \param[in]  kte Vertical layer dimension / number of layers
@@ -263,28 +267,31 @@ contains
    !! \param[in]  constituent_props_ptr CCPP constituent properties pointer array
    !! \param[out] errmsg Error message string set if initialization fails
    !! \param[out] errflg Error code flag (0=success, non-zero=failure)
+   !> \section arg_table_ccpp_catchem_interface_init Argument Table
+   !! \htmlinclude arg_table_ccpp_catchem_interface_init.hml
+   !!
    subroutine ccpp_catchem_interface_init(im, kte, nsoil, nlndcat, nsoilcat, &
                                           do_catchem, catchem_configfile_in, &
                                           constituent_props_ptr, errmsg, errflg)
-      use ccpp_const_utils, only: ccpp_const_get_idx
       implicit none
 
-      integer,                           intent(in)  :: im
-      integer,                           intent(in)  :: kte
-      integer,                           intent(in)  :: nsoil
-      integer,                           intent(in)  :: nlndcat
-      integer,                           intent(in)  :: nsoilcat
-      logical,                           intent(in)  :: do_catchem
-      character(len=*),                  intent(in)  :: catchem_configfile_in
+      integer, intent(in)  :: im
+      integer, intent(in)  :: kte
+      integer, intent(in)  :: nsoil
+      integer, intent(in)  :: nlndcat
+      integer, intent(in)  :: nsoilcat
+      logical, intent(in)  :: do_catchem
+      character(len=*), intent(in)  :: catchem_configfile_in
       type(ccpp_constituent_prop_ptr_t), intent(in)  :: constituent_props_ptr(:)
-      character(len=*),                  intent(out) :: errmsg
-      integer,                           intent(out) :: errflg
+      character(len=*), intent(out) :: errmsg
+      integer, intent(out) :: errflg
 
       character(kind=c_char) :: c_buf(128)
       character(len=64)      :: f_name
-      integer                :: n_spec, i
+      integer                :: n_spec, i, j, property_rc, host_index
       integer(c_int)         :: status, c_count
       type(c_ptr)            :: state_mgr
+      character(len=256)     :: property_name
 
       errmsg = ''
       errflg = 0
@@ -310,8 +317,8 @@ contains
       n_spec = int(c_count)
 
       ! 2. Resolve index mappings from CCPP global constituent properties pointer
-      if (allocated(catchem_indices_constituent_props)) deallocate(catchem_indices_constituent_props)
-      allocate(catchem_indices_constituent_props(n_spec))
+      if (allocated(catchem_indices_constituent_props)) deallocate (catchem_indices_constituent_props)
+      allocate (catchem_indices_constituent_props(n_spec))
 
       do i = 1, n_spec
          status = catchem_state_get_species_name_at_checked(state_mgr, int(i, c_int), c_buf, 128_c_int)
@@ -322,16 +329,32 @@ contains
          end if
          call c_to_f_string(c_buf, f_name)
 
-         call ccpp_const_get_idx(constituent_props_ptr, trim(f_name), &
-                                 catchem_indices_constituent_props(i), errmsg, errflg)
-         if (errflg /= 0) then
-            errmsg = "CATChem Init: Missing required tracer: " // trim(f_name)
+         catchem_indices_constituent_props(i) = 0
+         do j = 1, size(constituent_props_ptr)
+            call constituent_props_ptr(j)%standard_name(property_name, property_rc, errmsg)
+            if (property_rc /= 0) then
+               errflg = property_rc
+               return
+            end if
+            if (trim(property_name) /= trim(f_name)) cycle
+            call constituent_props_ptr(j)%const_index(host_index, property_rc, errmsg)
+            if (property_rc /= 0 .or. host_index <= 0) then
+               errflg = max(1, property_rc)
+               errmsg = 'CATChem Init: Invalid registered index for tracer: '//trim(f_name)
+               return
+            end if
+            catchem_indices_constituent_props(i) = host_index
+            exit
+         end do
+         if (catchem_indices_constituent_props(i) == 0) then
+            errflg = 1
+            errmsg = "CATChem Init: Missing required tracer: "//trim(f_name)
             return
          end if
       end do
 
-      if (allocated(subset_constituents)) deallocate(subset_constituents)
-      allocate(subset_constituents(im, kte, n_spec), stat=errflg)
+      if (allocated(subset_constituents)) deallocate (subset_constituents)
+      allocate (subset_constituents(im, kte, n_spec), stat=errflg)
       if (errflg /= 0) then
          errmsg = 'CATChem Init: Failed to allocate reusable constituent staging.'
          return
@@ -353,49 +376,52 @@ contains
    !! \param[in]  do_catchem Logical coupling flag controlling activation of CATChem
    !! \param[out] errmsg Error message string set if finalization fails
    !! \param[out] errflg Error code flag (0=success, non-zero=failure)
+   !> \section arg_table_ccpp_catchem_interface_finalize Argument Table
+   !! \htmlinclude arg_table_ccpp_catchem_interface_finalize.hml
+   !!
    subroutine ccpp_catchem_interface_finalize(do_catchem, errmsg, errflg)
-     implicit none
+      implicit none
 
-     logical, intent(in) :: do_catchem
+      logical, intent(in) :: do_catchem
 
-     character(len=*), intent(out) :: errmsg
-     integer,          intent(out) :: errflg
+      character(len=*), intent(out) :: errmsg
+      integer, intent(out) :: errflg
 
-     errmsg = ''
-     errflg = 0
+      errmsg = ''
+      errflg = 0
 
-     if (.not. do_catchem) return
+      if (.not. do_catchem) return
 
-     call cc_model%finalize(errflg)
-     if (errflg /= CC_SUCCESS) then
+      call cc_model%finalize(errflg)
+      if (errflg /= CC_SUCCESS) then
          errmsg = 'CATChem Finalize: Error finalising C++ Core via cc_model'
-     end if
+      end if
 
-     if (allocated(catchem_indices_constituent_props)) deallocate(catchem_indices_constituent_props)
-     if (allocated(subset_constituents)) deallocate(subset_constituents)
-     staging_im = 0
-     staging_kte = 0
-     staging_nspec = 0
-     ccpp_timestep_count = 0
+      if (allocated(catchem_indices_constituent_props)) deallocate (catchem_indices_constituent_props)
+      if (allocated(subset_constituents)) deallocate (subset_constituents)
+      staging_im = 0
+      staging_kte = 0
+      staging_nspec = 0
+      ccpp_timestep_count = 0
 
-  end subroutine ccpp_catchem_interface_finalize
+   end subroutine ccpp_catchem_interface_finalize
 
-  subroutine ccpp_catchem_interface_get_staging_metrics(allocation_count, gather_count, scatter_count)
-     integer, intent(out) :: allocation_count, gather_count, scatter_count
-     allocation_count = staging_allocation_count
-     gather_count = staging_gather_count
-     scatter_count = staging_scatter_count
-  end subroutine ccpp_catchem_interface_get_staging_metrics
+   subroutine ccpp_catchem_interface_get_staging_metrics(allocation_count, gather_count, scatter_count)
+      integer, intent(out) :: allocation_count, gather_count, scatter_count
+      allocation_count = staging_allocation_count
+      gather_count = staging_gather_count
+      scatter_count = staging_scatter_count
+   end subroutine ccpp_catchem_interface_get_staging_metrics
 
-  subroutine ccpp_catchem_interface_get_physical_validation_report(issue_count, detail, errflg)
-     integer, intent(out) :: issue_count
-     character(len=*), intent(out) :: detail
-     integer, intent(out) :: errflg
+   subroutine ccpp_catchem_interface_get_physical_validation_report(issue_count, detail, errflg)
+      integer, intent(out) :: issue_count
+      character(len=*), intent(out) :: detail
+      integer, intent(out) :: errflg
 
-     call cc_model%get_physical_validation_report(issue_count, detail, errflg)
-  end subroutine ccpp_catchem_interface_get_physical_validation_report
+      call cc_model%get_physical_validation_report(issue_count, detail, errflg)
+   end subroutine ccpp_catchem_interface_get_physical_validation_report
 
-  !> \brief Execute CATChem chemistry, deposition, and emission calculations
+   !> \brief Execute CATChem chemistry, deposition, and emission calculations
   !!
   !! \details This is the primary execution entry point of the CCPP driver. It dynamically extracts
   !! the active chemical tracer mixing ratios from the non-contiguous global host array `constituents`
@@ -475,209 +501,243 @@ contains
   !! \param[inout] constituents Global 3D CCPP unified tracer array [cols, levels, species]
   !! \param[out]   errmsg Error message string set if execution fails
   !! \param[out]   errflg Error code flag (0=success, non-zero=failure)
-  subroutine ccpp_catchem_interface_run(im, kte, kme, garea, nsoil, nlndcat, nsoilcat, &
-     lat, lon, &
-     do_catchem, &
-     dt, jdate, &
-     xcosz, &
-     lwi, frlanduse, gvf, seaicefrac, oceanfrac, lakefrac, landfrac, &
-     stype, vtype, snowdepth, frsnow, lai, frsoil, pores, resid, &
-     ustar, u10m, v10m, tskin, ts, hf2d, lf2d, znt, prsfc, pblh, &
-     dswsfc, nirbmdi, nirdfdi, visbmdi, visdfdi, &
-     sfc_alb_nir_dir, sfc_alb_nir_dif, sfc_alb_uvvis_dir, sfc_alb_uvvis_dif, &
-     soilmoist, pr3d, phl3d, prl3d, tk3d, q3d, us3d, vs3d, rh, &
-     delp, airden, pfl_lsan, pfl_isan, &
-     rain_cpl, cldf, &
-     clayfrac, rdrag, sandfrac, ssm, ustar_threshold, &
-     constituent_props, constituents, &
-     errmsg, errflg)
+   !> \section arg_table_ccpp_catchem_interface_run Argument Table
+   !! \htmlinclude arg_table_ccpp_catchem_interface_run.hml
+   !!
+   subroutine ccpp_catchem_interface_run(im, kte, kme, garea, nsoil, nlndcat, nsoilcat, &
+                                         lat, lon, &
+                                         do_catchem, &
+                                         dt, jdate, &
+                                         xcosz, &
+                                         lwi, frlanduse, gvf, seaicefrac, oceanfrac, lakefrac, landfrac, &
+                                         stype, vtype, snowdepth, frsnow, lai, frsoil, pores, resid, &
+                                         ustar, u10m, v10m, tskin, ts, hf2d, lf2d, znt, prsfc, pblh, &
+                                         dswsfc, nirbmdi, nirdfdi, visbmdi, visdfdi, &
+                                         sfc_alb_nir_dir, sfc_alb_nir_dif, sfc_alb_uvvis_dir, sfc_alb_uvvis_dif, &
+                                         soilmoist, pr3d, phl3d, prl3d, tk3d, q3d, us3d, vs3d, rh, &
+                                         delp, airden, pfl_lsan, pfl_isan, &
+                                         rain_cpl, cldf, &
+                                         clayfrac, rdrag, sandfrac, ssm, ustar_threshold, &
+                                         constituent_props, constituents, &
+                                         errmsg, errflg)
 
-     implicit none
+      implicit none
 
-     integer, intent(in) :: im
-     integer, intent(in) :: kte
-     integer, intent(in) :: kme
-     integer, intent(in) :: nsoil
-     integer, intent(in) :: nlndcat
-     integer, intent(in) :: nsoilcat
-     real(kind_phys), dimension(im), intent(in), target :: garea
-     real(kind_phys), dimension(im), intent(in), target :: lat
-     real(kind_phys), dimension(im), intent(in), target :: lon
-     real(kind_phys), dimension(im), intent(in), target :: xcosz
+      integer, intent(in) :: im
+      integer, intent(in) :: kte
+      integer, intent(in) :: kme
+      integer, intent(in) :: nsoil
+      integer, intent(in) :: nlndcat
+      integer, intent(in) :: nsoilcat
+      real(kind_phys), dimension(im), intent(in), target :: garea
+      real(kind_phys), dimension(im), intent(in), target :: lat
+      real(kind_phys), dimension(im), intent(in), target :: lon
+      real(kind_phys), dimension(im), intent(in), target :: xcosz
 
-     real(kind_phys), intent(in) :: dt
-     integer, intent(in) :: jdate(8)
+      real(kind_phys), intent(in) :: dt
+      integer, intent(in) :: jdate(8)
 
-     logical, intent(in) :: do_catchem
+      logical, intent(in) :: do_catchem
 
-     integer, dimension(im), intent(in), target                :: lwi
-     integer, dimension(im), intent(in), target                :: stype
-     integer, dimension(im), intent(in), target                :: vtype
+      integer, dimension(im), intent(in), target                :: lwi
+      integer, dimension(im), intent(in), target                :: stype
+      integer, dimension(im), intent(in), target                :: vtype
 
-     real(kind_phys), dimension(im, nlndcat), intent(in), target :: frlanduse
-     real(kind_phys), dimension(im, nsoilcat), intent(in), target :: frsoil
-     real(kind_phys), dimension(30), intent(in), target        :: pores
-     real(kind_phys), dimension(30), intent(in), target        :: resid
-     real(kind_phys), dimension(im), intent(in), target        :: seaicefrac
-     real(kind_phys), dimension(im), intent(in), target        :: oceanfrac
-     real(kind_phys), dimension(im), intent(in), target        :: frsnow
-     real(kind_phys), dimension(im), intent(in), target        :: lakefrac
-     real(kind_phys), dimension(im), intent(in), target        :: landfrac
-     real(kind_phys), dimension(im), intent(in), target        :: gvf
-     real(kind_phys), dimension(im), intent(in), target        :: lai
+      real(kind_phys), dimension(im, nlndcat), intent(in), target :: frlanduse
+      real(kind_phys), dimension(im, nsoilcat), intent(in), target :: frsoil
+      real(kind_phys), dimension(30), intent(in), target        :: pores
+      real(kind_phys), dimension(30), intent(in), target        :: resid
+      real(kind_phys), dimension(im), intent(in), target        :: seaicefrac
+      real(kind_phys), dimension(im), intent(in), target        :: oceanfrac
+      real(kind_phys), dimension(im), intent(in), target        :: frsnow
+      real(kind_phys), dimension(im), intent(in), target        :: lakefrac
+      real(kind_phys), dimension(im), intent(in), target        :: landfrac
+      real(kind_phys), dimension(im), intent(in), target        :: gvf
+      real(kind_phys), dimension(im), intent(in), target        :: lai
 
-     real(kind_phys), dimension(im, nsoil), intent(in), target :: soilmoist
-     real(kind_phys), dimension(im), intent(in), target        :: snowdepth
-     real(kind_phys), dimension(im), intent(in), target        :: prsfc
-     real(kind_phys), dimension(im), intent(in), target        :: pblh
-     real(kind_phys), dimension(im), intent(in), target        :: u10m
-     real(kind_phys), dimension(im), intent(in), target        :: v10m
-     real(kind_phys), dimension(im), intent(in), target        :: ustar
-     real(kind_phys), dimension(im), intent(in), target        :: tskin
-     real(kind_phys), dimension(im), intent(in), target        :: ts
-     real(kind_phys), dimension(im), intent(in), target        :: hf2d
-     real(kind_phys), dimension(im), intent(in), target        :: lf2d
-     real(kind_phys), dimension(im), intent(in), target        :: znt
-     real(kind_phys), dimension(im), intent(in), target        :: dswsfc
-     real(kind_phys), dimension(im), intent(in), target        :: sfc_alb_nir_dir
-     real(kind_phys), dimension(im), intent(in), target        :: sfc_alb_nir_dif
-     real(kind_phys), dimension(im), intent(in), target        :: sfc_alb_uvvis_dir
-     real(kind_phys), dimension(im), intent(in), target        :: sfc_alb_uvvis_dif
-     real(kind_phys), dimension(im), intent(in), target        :: nirbmdi
-     real(kind_phys), dimension(im), intent(in), target        :: nirdfdi
-     real(kind_phys), dimension(im), intent(in), target        :: visbmdi
-     real(kind_phys), dimension(im), intent(in), target        :: visdfdi
+      real(kind_phys), dimension(im, nsoil), intent(in), target :: soilmoist
+      real(kind_phys), dimension(im), intent(in), target        :: snowdepth
+      real(kind_phys), dimension(im), intent(in), target        :: prsfc
+      real(kind_phys), dimension(im), intent(in), target        :: pblh
+      real(kind_phys), dimension(im), intent(in), target        :: u10m
+      real(kind_phys), dimension(im), intent(in), target        :: v10m
+      real(kind_phys), dimension(im), intent(in), target        :: ustar
+      real(kind_phys), dimension(im), intent(in), target        :: tskin
+      real(kind_phys), dimension(im), intent(in), target        :: ts
+      real(kind_phys), dimension(im), intent(in), target        :: hf2d
+      real(kind_phys), dimension(im), intent(in), target        :: lf2d
+      real(kind_phys), dimension(im), intent(in), target        :: znt
+      real(kind_phys), dimension(im), intent(in), target        :: dswsfc
+      real(kind_phys), dimension(im), intent(in), target        :: sfc_alb_nir_dir
+      real(kind_phys), dimension(im), intent(in), target        :: sfc_alb_nir_dif
+      real(kind_phys), dimension(im), intent(in), target        :: sfc_alb_uvvis_dir
+      real(kind_phys), dimension(im), intent(in), target        :: sfc_alb_uvvis_dif
+      real(kind_phys), dimension(im), intent(in), target        :: nirbmdi
+      real(kind_phys), dimension(im), intent(in), target        :: nirdfdi
+      real(kind_phys), dimension(im), intent(in), target        :: visbmdi
+      real(kind_phys), dimension(im), intent(in), target        :: visdfdi
 
-     real(kind_phys), dimension(im, kme), intent(in), target :: pr3d
-     real(kind_phys), dimension(im, kte), intent(in), target :: prl3d
-     real(kind_phys), dimension(im, kte), intent(in), target :: delp
-     real(kind_phys), dimension(im, kte), intent(in), target :: phl3d
-     real(kind_phys), dimension(im, kte), intent(in), target :: tk3d
-     real(kind_phys), dimension(im, kte), intent(in), target :: us3d
-     real(kind_phys), dimension(im, kte), intent(in), target :: vs3d
-     real(kind_phys), dimension(im, kte), intent(in), target :: q3d
-     real(kind_phys), dimension(im, kte), intent(in), target :: airden
-     real(kind_phys), dimension(im, kte), intent(in), target :: rh
-     real(kind_phys), dimension(im, kte), intent(in), target :: pfl_lsan
-     real(kind_phys), dimension(im, kte), intent(in), target :: pfl_isan
+      real(kind_phys), dimension(im, kme), intent(in), target :: pr3d
+      real(kind_phys), dimension(im, kte), intent(in), target :: prl3d
+      real(kind_phys), dimension(im, kte), intent(in), target :: delp
+      real(kind_phys), dimension(im, kte), intent(in), target :: phl3d
+      real(kind_phys), dimension(im, kte), intent(in), target :: tk3d
+      real(kind_phys), dimension(im, kte), intent(in), target :: us3d
+      real(kind_phys), dimension(im, kte), intent(in), target :: vs3d
+      real(kind_phys), dimension(im, kte), intent(in), target :: q3d
+      real(kind_phys), dimension(im, kte), intent(in), target :: airden
+      real(kind_phys), dimension(im, kte), intent(in), target :: rh
+      real(kind_phys), dimension(im, kte), intent(in), target :: pfl_lsan
+      real(kind_phys), dimension(im, kte), intent(in), target :: pfl_isan
 
-     real(kind_phys), dimension(im), intent(in), target        :: rain_cpl
-     real(kind_phys), dimension(im), intent(in), target        :: cldf
-     real(kind_phys), dimension(im), intent(in), target        :: clayfrac
-     real(kind_phys), dimension(im), intent(in), target        :: rdrag
-     real(kind_phys), dimension(im), intent(in), target        :: sandfrac
-     real(kind_phys), dimension(im), intent(in), target        :: ssm
-     real(kind_phys), dimension(im), intent(in), target        :: ustar_threshold
+      real(kind_phys), dimension(im), intent(in), target        :: rain_cpl
+      real(kind_phys), dimension(im), intent(in), target        :: cldf
+      real(kind_phys), dimension(im), intent(in), target        :: clayfrac
+      real(kind_phys), dimension(im), intent(in), target        :: rdrag
+      real(kind_phys), dimension(im), intent(in), target        :: sandfrac
+      real(kind_phys), dimension(im), intent(in), target        :: ssm
+      real(kind_phys), dimension(im), intent(in), target        :: ustar_threshold
 
-     type(ccpp_constituent_prop_ptr_t), intent(in)    :: constituent_props(:)
-     real(kind_phys), target,           intent(inout) :: constituents(:,:,:)
+      type(ccpp_constituent_prop_ptr_t), intent(in)    :: constituent_props(:)
+      real(kind_phys), target, intent(inout) :: constituents(:, :, :)
 
-     character(len=*), intent(out) :: errmsg
-     integer,          intent(out) :: errflg
+      character(len=*), intent(out) :: errmsg
+      integer, intent(out) :: errflg
 
-     ! Local variables
-     integer :: n_spec, i, status
-     type(c_ptr) :: state_mgr
+      ! Local variables
+      integer :: n_spec, i, status
+      type(c_ptr) :: state_mgr
 
-     errmsg = ''
-     errflg = 0
+      errmsg = ''
+      errflg = 0
 
-     if (.not. do_catchem) return
+      if (.not. do_catchem) return
 
-     ! 1. Extract non-contiguous indices into a contiguous local subset array
-     n_spec = size(catchem_indices_constituent_props)
-     if (.not. allocated(subset_constituents) .or. im /= staging_im .or. &
-         kte /= staging_kte .or. n_spec /= staging_nspec) then
-        errmsg = 'CATChem Run: decomposition or mechanism changed after initialization.'
-        errflg = CC_FAILURE
-        return
-     end if
+      ! 1. Extract non-contiguous indices into a contiguous local subset array
+      n_spec = size(catchem_indices_constituent_props)
+      if (.not. allocated(subset_constituents) .or. im /= staging_im .or. &
+          kte /= staging_kte .or. n_spec /= staging_nspec) then
+         errmsg = 'CATChem Run: decomposition or mechanism changed after initialization.'
+         errflg = CC_FAILURE
+         return
+      end if
 
-     do i = 1, n_spec
-        subset_constituents(:,:,i) = constituents(:,:,catchem_indices_constituent_props(i))
-     end do
-     staging_gather_count = staging_gather_count + 1
+      do i = 1, n_spec
+         subset_constituents(:, :, i) = constituents(:, :, catchem_indices_constituent_props(i))
+      end do
+      staging_gather_count = staging_gather_count + 1
 
-     ! 2. Meterological pointer mapping (Direct Flat C-API bindings avoiding shape restrictions)
-     state_mgr = cc_model%state_mgr_ptr
-     status = catchem_state_begin_import_generation(state_mgr)
-     if (status /= CC_SUCCESS) then
-        errmsg = 'CATChem Run: failed to begin checked import generation.'
-        errflg = CC_FAILURE
-        return
-     end if
+      ! 2. Meterological pointer mapping (Direct Flat C-API bindings avoiding shape restrictions)
+      state_mgr = cc_model%state_mgr_ptr
+      status = catchem_state_begin_import_generation(state_mgr)
+      if (status /= CC_SUCCESS) then
+         errmsg = 'CATChem Run: failed to begin checked import generation.'
+         errflg = CC_FAILURE
+         return
+      end if
 
-     ! 3D volumetric met fields
-     status = catchem_state_bind_met_3d_checked(state_mgr, "T"//c_null_char, c_loc(tk3d(1,1)), im, kte, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "QV"//c_null_char, c_loc(q3d(1,1)), im, kte, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "RH"//c_null_char, c_loc(rh(1,1)), im, kte, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "PMID"//c_null_char, c_loc(prl3d(1,1)), im, kte, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "PEDGE"//c_null_char, c_loc(pr3d(1,1)), im, kme, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "DELP"//c_null_char, c_loc(delp(1,1)), im, kte, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "AIRDEN"//c_null_char, c_loc(airden(1,1)), im, kte, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "AIRDEN_DRY"//c_null_char, c_loc(airden(1,1)), im, kte, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "PFILSAN"//c_null_char, c_loc(pfl_isan(1,1)), im, kte, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "PFLLSAN"//c_null_char, c_loc(pfl_lsan(1,1)), im, kte, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_axis_checked(state_mgr, "soil_moisture"//c_null_char, c_loc(soilmoist(1,1)), im, nsoil, 1, 2)
-     if (status /= CC_SUCCESS) then
-        errmsg = 'CATChem Run: checked 3D meteorology import failed.'
-        errflg = CC_FAILURE
-        return
-     end if
+      ! 3D volumetric met fields
+      status = catchem_state_bind_met_3d_checked(state_mgr, "T"//c_null_char, c_loc(tk3d(1, 1)), im, kte, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "QV"//c_null_char, &
+                                                                           c_loc(q3d(1, 1)), im, kte, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "RH"//c_null_char, &
+                                                                           c_loc(rh(1, 1)), im, kte, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "PMID"//c_null_char, &
+                                                                           c_loc(prl3d(1, 1)), im, kte, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "PEDGE"//c_null_char, &
+                                                                           c_loc(pr3d(1, 1)), im, kme, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "DELP"//c_null_char, &
+                                                                           c_loc(delp(1, 1)), im, kte, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "AIRDEN"//c_null_char, &
+                                                                           c_loc(airden(1, 1)), im, kte, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "AIRDEN_DRY"//c_null_char, &
+                                                                           c_loc(airden(1, 1)), im, kte, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "PFILSAN"//c_null_char, &
+                                                                           c_loc(pfl_isan(1, 1)), im, kte, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_checked(state_mgr, "PFLLSAN"//c_null_char, &
+                                                                           c_loc(pfl_lsan(1, 1)), im, kte, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_3d_axis_checked(state_mgr, &
+                                                              "soil_moisture"//c_null_char, c_loc(soilmoist(1, 1)), im, nsoil, 1, 2)
+      if (status /= CC_SUCCESS) then
+         errmsg = 'CATChem Run: checked 3D meteorology import failed.'
+         errflg = CC_FAILURE
+         return
+      end if
 
-     ! 2D surface met fields
-     status = catchem_state_bind_met_2d_checked(state_mgr, "PS"//c_null_char, c_loc(prsfc(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "TS"//c_null_char, c_loc(ts(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "LAT"//c_null_char, c_loc(lat(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "LON"//c_null_char, c_loc(lon(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "PBLH"//c_null_char, c_loc(pblh(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "USTAR"//c_null_char, c_loc(ustar(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "HFLUX"//c_null_char, c_loc(hf2d(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "AREA_M2"//c_null_char, c_loc(garea(1)), im, 1)
+      ! 2D surface met fields
+      status = catchem_state_bind_met_2d_checked(state_mgr, "PS"//c_null_char, c_loc(prsfc(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "TS"//c_null_char, &
+                                                                           c_loc(ts(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "LAT"//c_null_char, &
+                                                                           c_loc(lat(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "LON"//c_null_char, &
+                                                                           c_loc(lon(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "PBLH"//c_null_char, &
+                                                                           c_loc(pblh(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "USTAR"//c_null_char, &
+                                                                           c_loc(ustar(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "HFLUX"//c_null_char, &
+                                                                           c_loc(hf2d(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "AREA_M2"//c_null_char, &
+                                                                           c_loc(garea(1)), im, 1)
 
-     ! Auxiliary physics surface variables
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "u_10m"//c_null_char, c_loc(u10m(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "v_10m"//c_null_char, c_loc(v10m(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "skin_temperature"//c_null_char, c_loc(tskin(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "roughness_length"//c_null_char, c_loc(znt(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "vegetation_fraction"//c_null_char, c_loc(gvf(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "leaf_area_index"//c_null_char, c_loc(lai(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "lake_fraction"//c_null_char, c_loc(lakefrac(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "snow_fraction"//c_null_char, c_loc(frsnow(1)), im, 1)
+      ! Auxiliary physics surface variables
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "u_10m"//c_null_char, &
+                                                                           c_loc(u10m(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "v_10m"//c_null_char, &
+                                                                           c_loc(v10m(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, &
+                                                                           "skin_temperature"//c_null_char, c_loc(tskin(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, &
+                                                                           "roughness_length"//c_null_char, c_loc(znt(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, &
+                                                                           "vegetation_fraction"//c_null_char, c_loc(gvf(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, &
+                                                                           "leaf_area_index"//c_null_char, c_loc(lai(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, &
+                                                                           "lake_fraction"//c_null_char, c_loc(lakefrac(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, &
+                                                                           "snow_fraction"//c_null_char, c_loc(frsnow(1)), im, 1)
 
-     ! Dynamic climatological dust variables mapped individually
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "clay_fraction"//c_null_char, c_loc(clayfrac(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "drag_coefficient"//c_null_char, c_loc(rdrag(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "sand_fraction"//c_null_char, c_loc(sandfrac(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "surface_soil_moisture"//c_null_char, c_loc(ssm(1)), im, 1)
-     if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, "threshold_friction_velocity"//c_null_char, c_loc(ustar_threshold(1)), im, 1)
-     if (status /= CC_SUCCESS) then
-        errmsg = 'CATChem Run: checked surface import failed.'
-        errflg = CC_FAILURE
-        return
-     end if
+      ! Dynamic climatological dust variables mapped individually
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, &
+                                                                           "clay_fraction"//c_null_char, c_loc(clayfrac(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, &
+                                                                           "drag_coefficient"//c_null_char, c_loc(rdrag(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, &
+                                                                           "sand_fraction"//c_null_char, c_loc(sandfrac(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, &
+                                                                         "surface_soil_moisture"//c_null_char, c_loc(ssm(1)), im, 1)
+      if (status == CC_SUCCESS) status = catchem_state_bind_met_2d_checked(state_mgr, &
+                                                       "threshold_friction_velocity"//c_null_char, c_loc(ustar_threshold(1)), im, 1)
+      if (status /= CC_SUCCESS) then
+         errmsg = 'CATChem Run: checked surface import failed.'
+         errflg = CC_FAILURE
+         return
+      end if
 
-     ! 3. Bind local unified chemistry concentrations subset
-     status = catchem_state_bind_unified_chemistry_checked(state_mgr, c_loc(subset_constituents(1,1,1)), im, kte, n_spec)
-     if (status /= CC_SUCCESS) then
-        errmsg = 'CATChem Run: checked concentration import failed.'
-        errflg = CC_FAILURE
-        return
-     end if
+      ! 3. Bind local unified chemistry concentrations subset
+      status = catchem_state_bind_unified_chemistry_checked(state_mgr, c_loc(subset_constituents(1, 1, 1)), im, &
+                                                            kte, n_spec)
+      if (status /= CC_SUCCESS) then
+         errmsg = 'CATChem Run: checked concentration import failed.'
+         errflg = CC_FAILURE
+         return
+      end if
 
-     ! 4. Central C++ Core timestep solver execution
-     call cc_model%run_timestep(ccpp_timestep_count + 1, real(dt, fp), errflg)
-     if (errflg /= CC_SUCCESS) then
+      ! 4. Central C++ Core timestep solver execution
+      call cc_model%run_timestep(ccpp_timestep_count + 1, real(dt, fp), errflg)
+      if (errflg /= CC_SUCCESS) then
          errmsg = 'CATChem Run Error: Scheduled process execution failed inside C++ Core.'
          return
-     end if
-     ccpp_timestep_count = ccpp_timestep_count + 1
+      end if
+      ccpp_timestep_count = ccpp_timestep_count + 1
 
-     ! 5. Dynamic synchronisation back to the global host tracer array
-     do i = 1, n_spec
-        constituents(:,:,catchem_indices_constituent_props(i)) = subset_constituents(:,:,i)
-     end do
-     staging_scatter_count = staging_scatter_count + 1
+      ! 5. Dynamic synchronisation back to the global host tracer array
+      do i = 1, n_spec
+         constituents(:, :, catchem_indices_constituent_props(i)) = subset_constituents(:, :, i)
+      end do
+      staging_scatter_count = staging_scatter_count + 1
 
    end subroutine ccpp_catchem_interface_run
 

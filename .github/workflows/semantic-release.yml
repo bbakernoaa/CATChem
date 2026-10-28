@@ -77,6 +77,9 @@ jobs:
           token: ${{ steps.app-token.outputs.token || github.token }}
           persist-credentials: true
 
+      - name: Preserve release report helper
+        run: cp .github/workflows/scripts/report_release.py /tmp/report_release.py
+
       - name: Prepare branch for merge preview
         if: inputs.dry_run || github.event_name == 'pull_request'
         env:
@@ -157,4 +160,4 @@ jobs:
           DIFF_MERGE_FILE: /tmp/merge_preview.diff
           DIFF_SQUASH_FILE: /tmp/squash_preview.diff
         run: |
-          python3 .github/workflows/scripts/report_release.py
+          python3 /tmp/report_release.py

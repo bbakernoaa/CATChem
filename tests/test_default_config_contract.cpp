@@ -44,7 +44,7 @@ int main() {
     // rest of the output block (compression level etc.) stays as configured.
     assert(!config.data.diagnostics.output.enabled);
     assert(config.data.diagnostics.output.compress_lev == 2);
-    assert(config.data.species.size() == 22);
+    assert(config.data.species.size() == 23);
     std::cout << "PASS: Default runtime configuration contract\n";
     return 0;
 }
