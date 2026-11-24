@@ -107,9 +107,7 @@ contains
           case ('none', 'NONE')
             ! Should not reach here — caller should skip regridding
             call ESMF_LogWrite("catchem_regrid_field: regrid_method='none' but regrid was called", &
-               ESMF_LOGMSG_WARNING, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               ESMF_LOGMSG_WARNING)
             regridMethod = ESMF_REGRIDMETHOD_BILINEAR
           case ('bilinear', 'BILINEAR')
             regridMethod = ESMF_REGRIDMETHOD_BILINEAR
@@ -123,9 +121,7 @@ contains
             regridMethod = ESMF_REGRIDMETHOD_PATCH
           case default
             call ESMF_LogWrite("catchem_regrid_field: Unknown regrid method '"// &
-               trim(regrid_method_name)//"', using bilinear", ESMF_LOGMSG_WARNING, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+               trim(regrid_method_name)//"', using bilinear", ESMF_LOGMSG_WARNING)
             regridMethod = ESMF_REGRIDMETHOD_BILINEAR
          end select
       end if
@@ -239,14 +235,10 @@ contains
          end if
 
          ! Store in cache
-         call cache%add(nlon, nlat, regridMethod, srcGrid, srcField, routeHandle, idx, localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         call cache%add(nlon, nlat, regridMethod, srcGrid, srcField, routeHandle, idx)
 
          call ESMF_LogWrite("catchem_regrid_field: Computed regrid weights for "// &
             trim(filename), ESMF_LOGMSG_DEBUG, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
       else
          srcField    = cache%entries(idx)%srcField
          routeHandle = cache%entries(idx)%routeHandle
@@ -318,7 +310,7 @@ contains
    !--------------------------------------------------------------------------
    !> \brief Add a new entry to the regrid cache
    !--------------------------------------------------------------------------
-   subroutine regrid_cache_add(self, nlon, nlat, method, srcGrid, srcField, routeHandle, idx, rc)
+   subroutine regrid_cache_add(self, nlon, nlat, method, srcGrid, srcField, routeHandle, idx)
       class(RegridCache),      intent(inout) :: self
       integer,                 intent(in)    :: nlon, nlat
       type(ESMF_RegridMethod_Flag), intent(in) :: method
@@ -326,24 +318,15 @@ contains
       type(ESMF_Field),       intent(in)    :: srcField
       type(ESMF_RouteHandle), intent(in)    :: routeHandle
       integer,                 intent(out)   :: idx
-      integer,                 intent(out)   :: rc
-      integer :: localrc
 
-      rc = ESMF_SUCCESS
       if (self%count < MAX_REGRID_CACHE) then
          self%count = self%count + 1
          idx = self%count
       else
          ! Overwrite the oldest entry (slot 1) — simple eviction
-         call ESMF_RouteHandleDestroy(self%entries(1)%routeHandle, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-         call ESMF_FieldDestroy(self%entries(1)%srcField, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
-         call ESMF_GridDestroy(self%entries(1)%srcGrid, rc=localrc)
-         if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, file=__FILE__, rcToReturn=rc)) return
+         call ESMF_RouteHandleDestroy(self%entries(1)%routeHandle)
+         call ESMF_FieldDestroy(self%entries(1)%srcField)
+         call ESMF_GridDestroy(self%entries(1)%srcGrid)
          idx = 1
       end if
 
@@ -369,14 +352,8 @@ contains
       do i = 1, self%count
          if (self%entries(i)%active) then
             call ESMF_RouteHandleDestroy(self%entries(i)%routeHandle, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
             call ESMF_FieldDestroy(self%entries(i)%srcField, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
             call ESMF_GridDestroy(self%entries(i)%srcGrid, rc=localrc)
-            if (ESMF_LogFoundError(rcToCheck=localrc, msg=ESMF_LOGERR_PASSTHRU, &
-               line=__LINE__, file=__FILE__, rcToReturn=rc)) return
             self%entries(i)%active = .false.
          end if
       end do

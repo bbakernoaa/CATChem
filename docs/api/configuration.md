@@ -65,17 +65,20 @@ grid:
 ```
 
 ### 2. Species Metadata Config (`CATChem_species.yml`)
-Configures active chemical species, molecular weights, and physics flags
-(see `configs/Default/CATChem_species.yml`):
+Configures active chemical species, molecular weights, units, and physics flags
+(see `tests/Configs/Default/CATChem_species.yml`). The `__units` key keeps units in the OpenAtmos v1
+reserved-extension namespace while exposing them through the CATChem metadata API:
 
 ```yaml
 - name: so2
+  __units: "kg kg-1"
   __description: Sulfur dioxide
   __is_gas: true
   __is_drydep: true
   __is_wetdep: true
 
 - name: dust1
+  __units: "kg kg-1"
   __description: Dust bin 1
   __is_dust: true
   __radius: 5.0e-07

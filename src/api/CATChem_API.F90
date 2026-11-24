@@ -14,12 +14,102 @@ module CATChem_API
    implicit none
    private
 
-   public :: CATChem_Model, catchem_diag_register_contract_checked, catchem_diag_get_contract
+   public :: CATChem_Model, CATChem_Host_Interval_v1, CATChem_Process_Contract_v1, CATChem_Process_Field_v1
+   public :: CATChem_Manifest, CATChem_Manifest_Species_v1
+   public :: catchem_diag_register_contract_checked, catchem_diag_get_contract
+
+   type, bind(C) :: CATChem_Host_Interval_v1
+      integer(c_int32_t) :: schema_version, struct_size
+      integer(c_int64_t) :: interval_id
+      integer(c_int) :: year, month, day, hour, minute, second, day_of_year
+      real(c_double) :: duration_seconds
+   end type
+
+   type, bind(C) :: CATChem_Process_Contract_v1
+      integer(c_int32_t) :: schema_version, struct_size
+      integer(c_int32_t) :: recovery_capability
+      integer(c_int) :: process_name_required_len, field_count, diagnostic_count
+      integer(c_int) :: product_requirement_count, produced_product_count
+   end type
+
+   type, bind(C) :: CATChem_Process_Field_v1
+      integer(c_int32_t) :: schema_version, struct_size
+      integer(c_int) :: rank, axes(4), persistence, requirement, access, execution_space, produced
+      integer(c_int) :: name_required_len, units_required_len
+   end type
+
+   type, bind(C) :: catchem_process_invocation_v1
+      integer(c_int32_t) :: schema_version, struct_size
+      integer(c_int64_t) :: interval_id
+      type(c_ptr) :: site
+      integer(c_int32_t) :: subcycle
+      type(c_ptr) :: process
+      real(c_double) :: duration_seconds
+   end type
+
+   type, bind(C) :: CATChem_Manifest_Species_v1
+      integer(c_int32_t) :: schema_version, struct_size, flags, amount_type, air_basis
+      real(c_double) :: molecular_weight_kg_mol
+      integer(c_int) :: name_required_len, standard_name_required_len, units_required_len, alias_count, role_count
+   end type
+
+   type :: CATChem_Manifest
+      type(c_ptr) :: handle = c_null_ptr
+      character(len=512) :: last_error = ''
+   contains
+      procedure :: open => manifest_open
+      procedure :: close => manifest_close
+      procedure :: species_count => manifest_species_count
+      procedure :: get_species => manifest_get_species
+      procedure :: get_fingerprint => manifest_get_fingerprint
+   end type
 
    !=========================================================================
    ! C-API Interfaces to catchem_api.cpp
    !=========================================================================
    interface
+      integer(c_int) function catchem_manifest_open_checked(config_file, manifest_out) &
+         bind(C, name="catchem_manifest_open_checked")
+         import :: c_char, c_ptr, c_int
+         character(kind=c_char), intent(in) :: config_file(*)
+         type(c_ptr), intent(out) :: manifest_out
+      end function
+
+      integer(c_int) function catchem_manifest_destroy_checked(manifest) bind(C, name="catchem_manifest_destroy_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: manifest
+      end function
+
+      integer(c_int) function catchem_manifest_get_species_count_checked(manifest, count_out) &
+         bind(C, name="catchem_manifest_get_species_count_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: manifest
+         integer(c_int), intent(out) :: count_out
+      end function
+
+      integer(c_int) function catchem_manifest_get_fingerprint_checked(manifest, buffer, buffer_len, required_len) &
+         bind(C, name="catchem_manifest_get_fingerprint_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: manifest, buffer
+         integer(c_int), value :: buffer_len
+         integer(c_int), intent(out) :: required_len
+      end function
+
+      integer(c_int) function catchem_manifest_get_species_v1_checked(manifest, index, descriptor, name, name_len, &
+         standard_name, standard_name_len, units, units_len) bind(C, name="catchem_manifest_get_species_v1_checked")
+         import :: c_ptr, c_int, c_char, CATChem_Manifest_Species_v1
+         type(c_ptr), value :: manifest
+         integer(c_int), value :: index, name_len, standard_name_len, units_len
+         type(CATChem_Manifest_Species_v1), intent(inout) :: descriptor
+         character(kind=c_char), intent(out) :: name(*), standard_name(*), units(*)
+      end function
+
+      integer(c_int) function catchem_manifest_validate_core_checked(manifest, core) &
+         bind(C, name="catchem_manifest_validate_core_checked")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: manifest, core
+      end function
+
       integer(c_int) function catchem_core_create_from_config_with_grid_checked(config_file, ncols, nlevels, core_out) &
          bind(C, name="catchem_core_create_from_config_with_grid_checked")
          import :: c_char, c_ptr, c_int
@@ -84,13 +174,8 @@ module CATChem_API
       subroutine catchem_register_wetdep_cpp() bind(C, name="catchem_register_wetdep_cpp")
       end subroutine
 
-#ifdef CATCHEM_BUILD_MUSICA
-      subroutine catchem_register_photolysis_cpp() bind(C, name="catchem_register_photolysis_cpp")
+      subroutine catchem_register_musica_cpp() bind(C, name="catchem_register_musica_cpp")
       end subroutine
-
-      subroutine catchem_register_gaschem_cpp() bind(C, name="catchem_register_gaschem_cpp")
-      end subroutine
-#endif
 
       type(c_ptr) function catchem_core_get_state_manager(core_ptr) bind(C, name="catchem_core_get_state_manager")
          import :: c_ptr
@@ -130,10 +215,63 @@ module CATChem_API
          character(kind=c_char), intent(out) :: name_out(*)
       end function
 
+      integer(c_int) function catchem_core_begin_interval_checked(core_ptr, interval) &
+         bind(C, name="catchem_core_begin_interval_checked")
+         import :: c_ptr, c_int, CATChem_Host_Interval_v1
+         type(c_ptr), value :: core_ptr
+         type(CATChem_Host_Interval_v1), intent(in) :: interval
+      end function
+
+      integer(c_int) function catchem_core_run_process_checked(core_ptr, invocation, operation_status, publication_eligible, import_generation) &
+         bind(C, name="catchem_core_run_process_checked")
+         import :: c_ptr, c_int, c_int64_t, catchem_process_invocation_v1
+         type(c_ptr), value :: core_ptr
+         type(catchem_process_invocation_v1), intent(in) :: invocation
+         integer(c_int), intent(out) :: operation_status, publication_eligible
+         integer(c_int64_t), intent(out) :: import_generation
+      end function
+
+      integer(c_int) function catchem_core_end_interval_checked(core_ptr, interval_id) &
+         bind(C, name="catchem_core_end_interval_checked")
+         import :: c_ptr, c_int, c_int64_t
+         type(c_ptr), value :: core_ptr
+         integer(c_int64_t), value :: interval_id
+      end function
+
+      integer(c_int) function catchem_core_get_process_contract_checked(core_ptr, process_index, descriptor, process_name, name_len) &
+         bind(C, name="catchem_core_get_process_contract_checked")
+         import :: c_ptr, c_int, c_char, CATChem_Process_Contract_v1
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: process_index, name_len
+         type(CATChem_Process_Contract_v1), intent(inout) :: descriptor
+         character(kind=c_char), intent(out) :: process_name(*)
+      end function
+
+      integer(c_int) function catchem_core_get_process_field_checked(core_ptr, process_index, field_index, descriptor, field_name, name_len, units, units_len) &
+         bind(C, name="catchem_core_get_process_field_checked")
+         import :: c_ptr, c_int, c_char, CATChem_Process_Field_v1
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: process_index, field_index, name_len, units_len
+         type(CATChem_Process_Field_v1), intent(inout) :: descriptor
+         character(kind=c_char), intent(out) :: field_name(*), units(*)
+      end function
+
       integer(c_int) function catchem_core_run_timestep(core_ptr, dt) bind(C, name="catchem_core_run_timestep")
          import :: c_ptr, c_double, c_int
          type(c_ptr), value :: core_ptr
          real(c_double), value :: dt
+      end function
+
+      integer(c_int) function catchem_core_get_timestep_outcome(core_ptr, outcome_status, timestep, duration, &
+         import_generation, process_index, state_classification, process_name, process_name_len, cause, cause_len) &
+         bind(C, name="catchem_core_get_timestep_outcome")
+         import :: c_ptr, c_int, c_double, c_long_long, c_char
+         type(c_ptr), value :: core_ptr
+         integer(c_int), intent(out) :: outcome_status, process_index, state_classification
+         integer(c_long_long), intent(out) :: timestep, import_generation
+         real(c_double), intent(out) :: duration
+         integer(c_int), value :: process_name_len, cause_len
+         character(kind=c_char), intent(out) :: process_name(*), cause(*)
       end function
 
       subroutine catchem_state_bind_met_3d(state_ptr, name, ptr) bind(C, name="catchem_state_bind_met_3d")
@@ -517,6 +655,13 @@ module CATChem_API
       procedure :: add_process => model_add_process
       procedure :: get_num_processes => model_get_num_processes
       procedure :: load_required_fields => model_load_required_fields
+      procedure :: begin_interval => model_begin_interval
+      procedure :: run_selected_process => model_run_selected_process
+      procedure :: end_interval => model_end_interval
+      procedure :: get_process_contract => model_get_process_contract
+      procedure :: get_process_field => model_get_process_field
+      procedure :: get_timestep_outcome => model_get_timestep_outcome
+      procedure :: validate_manifest => model_validate_manifest
       procedure :: run_timestep => model_run_timestep
       procedure :: get_diagnostic_names => model_get_diagnostic_names
       procedure :: get_diagnostic => model_get_diagnostic
@@ -554,6 +699,110 @@ module CATChem_API
    end type CATChem_Model
 
 contains
+
+   subroutine manifest_open(this, config_file, rc)
+      class(CATChem_Manifest), intent(inout) :: this
+      character(len=*), intent(in) :: config_file
+      integer, intent(out) :: rc
+      character(kind=c_char) :: c_path(1024)
+      integer(c_int) :: status
+      if (c_associated(this%handle)) call this%close(rc)
+      call to_c_string(config_file, c_path)
+      status = catchem_manifest_open_checked(c_path, this%handle)
+      rc = int(status)
+      this%last_error = ''
+      if (status /= 0_c_int) call capture_manifest_error(this)
+   end subroutine manifest_open
+
+   subroutine manifest_close(this, rc)
+      class(CATChem_Manifest), intent(inout) :: this
+      integer, intent(out) :: rc
+      integer(c_int) :: status
+      if (.not. c_associated(this%handle)) then
+         rc = 0
+         return
+      end if
+      status = catchem_manifest_destroy_checked(this%handle)
+      rc = int(status)
+      if (status == 0_c_int) this%handle = c_null_ptr
+      if (status /= 0_c_int) call capture_manifest_error(this)
+   end subroutine manifest_close
+
+   subroutine manifest_species_count(this, count, rc)
+      class(CATChem_Manifest), intent(inout) :: this
+      integer, intent(out) :: count, rc
+      integer(c_int) :: c_count, status
+      count = 0
+      status = catchem_manifest_get_species_count_checked(this%handle, c_count)
+      rc = int(status)
+      if (status == 0_c_int) then
+         count = int(c_count)
+      else
+         call capture_manifest_error(this)
+      end if
+   end subroutine manifest_species_count
+
+   subroutine manifest_get_species(this, index, descriptor, name, standard_name, units, rc)
+      class(CATChem_Manifest), intent(inout) :: this
+      integer, intent(in) :: index
+      type(CATChem_Manifest_Species_v1), intent(inout) :: descriptor
+      character(len=*), intent(out) :: name, standard_name, units
+      integer, intent(out) :: rc
+      character(kind=c_char) :: c_name(len(name)+1), c_standard(len(standard_name)+1), c_units(len(units)+1)
+      integer(c_int) :: status
+      descriptor%schema_version = 1_c_int32_t
+      descriptor%struct_size = int(c_sizeof(descriptor), c_int32_t)
+      c_name = c_null_char
+      c_standard = c_null_char
+      c_units = c_null_char
+      status = catchem_manifest_get_species_v1_checked(this%handle, int(index-1,c_int), descriptor, &
+         c_name, int(size(c_name),c_int), c_standard, int(size(c_standard),c_int), c_units, int(size(c_units),c_int))
+      call copy_c_to_f(c_name, name)
+      call copy_c_to_f(c_standard, standard_name)
+      call copy_c_to_f(c_units, units)
+      rc = int(status)
+      if (status /= 0_c_int) call capture_manifest_error(this)
+   end subroutine manifest_get_species
+
+   subroutine manifest_get_fingerprint(this, fingerprint, rc)
+      class(CATChem_Manifest), intent(inout) :: this
+      character(len=:), allocatable, intent(out) :: fingerprint
+      integer, intent(out) :: rc
+      integer(c_int) :: required_len, status
+      character(kind=c_char), allocatable, target :: buffer(:)
+      type(c_ptr) :: buffer_ptr
+      required_len = 0_c_int
+      status = catchem_manifest_get_fingerprint_checked(this%handle, c_null_ptr, 0_c_int, required_len)
+      if (status /= 0_c_int .or. required_len <= 0_c_int) then
+         rc = int(status)
+         call capture_manifest_error(this)
+         return
+      end if
+      allocate(buffer(required_len))
+      buffer = c_null_char
+      buffer_ptr = c_loc(buffer(1))
+      status = catchem_manifest_get_fingerprint_checked(this%handle, buffer_ptr, required_len, required_len)
+      rc = int(status)
+      if (status == 0_c_int) then
+         allocate(character(len=required_len-1) :: fingerprint)
+         call copy_c_to_f(buffer,fingerprint)
+      else
+         fingerprint = ''
+         call capture_manifest_error(this)
+      end if
+   end subroutine manifest_get_fingerprint
+
+   subroutine capture_manifest_error(this)
+      class(CATChem_Manifest), intent(inout) :: this
+      character(kind=c_char) :: buffer(512)
+      integer :: i, ignored_status
+      this%last_error = ''
+      ignored_status = catchem_get_last_error(buffer, int(size(buffer),c_int))
+      do i = 1, min(len(this%last_error),size(buffer))
+         if (buffer(i) == c_null_char) exit
+         this%last_error(i:i) = buffer(i)
+      end do
+   end subroutine capture_manifest_error
 
    subroutine capture_boundary_error(this)
       class(CATChem_Model), intent(inout) :: this
@@ -604,10 +853,7 @@ contains
       call catchem_register_settling_cpp()
       call catchem_register_so4chem_cpp()
       call catchem_register_wetdep_cpp()
-#ifdef CATCHEM_BUILD_MUSICA
-      call catchem_register_photolysis_cpp()
-      call catchem_register_gaschem_cpp()
-#endif
+      call catchem_register_musica_cpp()
 
       ! Retain the C++ configuration error if construction fails.  This is a
       ! plain C pointer output, so no ESMF descriptor crosses the ABI.
@@ -650,14 +896,22 @@ contains
       rc = CC_SUCCESS
    end subroutine model_initialize
 
-   ! Finalize model and release memory
+   !> @brief Finalize the model and release its Core.
+   !> @param this Model object whose Core is being destroyed.
+   !> @param rc CC_SUCCESS unless process cleanup reports an error.
    subroutine model_finalize(this, rc)
       class(CATChem_Model), intent(inout) :: this
       integer, intent(out) :: rc
+      integer(c_int) :: c_status
 
       if (c_associated(this%cpp_core_ptr)) then
-         call catchem_core_destroy(this%cpp_core_ptr)
-         rc = CC_SUCCESS
+         c_status = catchem_core_destroy_checked(this%cpp_core_ptr)
+         if (c_status /= 0_c_int) then
+            call capture_boundary_error(this)
+            rc = CC_FAILURE
+         else
+            rc = CC_SUCCESS
+         end if
          this%cpp_core_ptr = c_null_ptr
          this%state_mgr_ptr = c_null_ptr
       else
@@ -730,6 +984,145 @@ contains
       end do
       rc = CC_SUCCESS
    end subroutine model_load_required_fields
+
+   subroutine model_begin_interval(this, interval, rc)
+      class(CATChem_Model), intent(inout) :: this
+      type(CATChem_Host_Interval_v1), intent(inout) :: interval
+      integer, intent(out) :: rc
+      integer(c_int) :: status
+      interval%schema_version = 1_c_int32_t
+      interval%struct_size = int(c_sizeof(interval), c_int32_t)
+      status = catchem_core_begin_interval_checked(this%cpp_core_ptr, interval)
+      rc = int(status)
+      if (status /= 0_c_int) call capture_boundary_error(this)
+   end subroutine model_begin_interval
+
+   subroutine model_run_selected_process(this, interval_id, site, subcycle, process, duration_seconds, &
+      operation_status, publication_eligible, import_generation, rc)
+      class(CATChem_Model), intent(inout) :: this
+      integer(c_int64_t), intent(in) :: interval_id
+      character(len=*), intent(in) :: site, process
+      integer(c_int32_t), intent(in) :: subcycle
+      real(c_double), intent(in) :: duration_seconds
+      integer(c_int), intent(out) :: operation_status
+      logical, intent(out) :: publication_eligible
+      integer(c_int64_t), intent(out) :: import_generation
+      integer, intent(out) :: rc
+      type(catchem_process_invocation_v1) :: invocation
+      character(kind=c_char), allocatable, target :: c_site(:), c_process(:)
+      integer(c_int) :: status, i
+      allocate(c_site(len_trim(site)+1), c_process(len_trim(process)+1))
+      do i = 1, int(size(c_site)-1, c_int)
+         c_site(i) = site(i:i)
+      end do
+      c_site(size(c_site)) = c_null_char
+      do i = 1, int(size(c_process)-1, c_int)
+         c_process(i) = process(i:i)
+      end do
+      c_process(size(c_process)) = c_null_char
+      invocation%schema_version = 1_c_int32_t
+      invocation%struct_size = int(c_sizeof(invocation), c_int32_t)
+      invocation%interval_id = interval_id
+      invocation%site = c_loc(c_site(1))
+      invocation%subcycle = subcycle
+      invocation%process = c_loc(c_process(1))
+      invocation%duration_seconds = duration_seconds
+      status = catchem_core_run_process_checked(this%cpp_core_ptr, invocation, operation_status, &
+         i, import_generation)
+      publication_eligible = i /= 0_c_int
+      rc = int(status)
+      if (status /= 0_c_int) call capture_boundary_error(this)
+   end subroutine model_run_selected_process
+
+   subroutine model_end_interval(this, interval_id, rc)
+      class(CATChem_Model), intent(inout) :: this
+      integer(c_int64_t), intent(in) :: interval_id
+      integer, intent(out) :: rc
+      integer(c_int) :: status
+      status = catchem_core_end_interval_checked(this%cpp_core_ptr, interval_id)
+      rc = int(status)
+      if (status /= 0_c_int) call capture_boundary_error(this)
+   end subroutine model_end_interval
+
+   subroutine model_get_process_contract(this, process_index, descriptor, process_name, rc)
+      class(CATChem_Model), intent(inout) :: this
+      integer, intent(in) :: process_index
+      type(CATChem_Process_Contract_v1), intent(inout) :: descriptor
+      character(len=*), intent(out) :: process_name
+      integer, intent(out) :: rc
+      character(kind=c_char) :: c_name(len(process_name)+1)
+      integer(c_int) :: status
+      descriptor%schema_version = 1_c_int32_t
+      descriptor%struct_size = int(c_sizeof(descriptor), c_int32_t)
+      c_name = c_null_char
+      status = catchem_core_get_process_contract_checked(this%cpp_core_ptr, int(process_index-1,c_int), &
+         descriptor, c_name, int(size(c_name),c_int))
+      call copy_c_to_f(c_name, process_name)
+      rc = int(status)
+      if (status /= 0_c_int) call capture_boundary_error(this)
+   end subroutine model_get_process_contract
+
+   subroutine model_get_process_field(this, process_index, field_index, descriptor, field_name, units, rc)
+      class(CATChem_Model), intent(inout) :: this
+      integer, intent(in) :: process_index, field_index
+      type(CATChem_Process_Field_v1), intent(inout) :: descriptor
+      character(len=*), intent(out) :: field_name, units
+      integer, intent(out) :: rc
+      character(kind=c_char) :: c_name(len(field_name)+1), c_units(len(units)+1)
+      integer(c_int) :: status
+      descriptor%schema_version = 1_c_int32_t
+      descriptor%struct_size = int(c_sizeof(descriptor), c_int32_t)
+      c_name = c_null_char
+      c_units = c_null_char
+      status = catchem_core_get_process_field_checked(this%cpp_core_ptr, int(process_index-1,c_int), &
+         int(field_index-1,c_int), descriptor, c_name, int(size(c_name),c_int), c_units, int(size(c_units),c_int))
+      call copy_c_to_f(c_name, field_name)
+      call copy_c_to_f(c_units, units)
+      rc = int(status)
+      if (status /= 0_c_int) call capture_boundary_error(this)
+   end subroutine model_get_process_field
+
+   subroutine model_get_timestep_outcome(this, outcome_status, timestep, duration, import_generation, &
+      process_index, state_classification, process_name, cause, rc)
+      class(CATChem_Model), intent(inout) :: this
+      integer(c_int), intent(out) :: outcome_status, process_index, state_classification
+      integer(c_long_long), intent(out) :: timestep, import_generation
+      real(c_double), intent(out) :: duration
+      character(len=*), intent(out) :: process_name, cause
+      integer, intent(out) :: rc
+      character(kind=c_char) :: c_process(len(process_name)+1), c_cause(len(cause)+1)
+      integer(c_int) :: status
+      c_process = c_null_char
+      c_cause = c_null_char
+      status = catchem_core_get_timestep_outcome(this%cpp_core_ptr, outcome_status, timestep, duration, &
+         import_generation, process_index, state_classification, c_process, int(size(c_process),c_int), &
+         c_cause, int(size(c_cause),c_int))
+      call copy_c_to_f(c_process, process_name)
+      call copy_c_to_f(c_cause, cause)
+      rc = int(status)
+      if (status /= 0_c_int) call capture_boundary_error(this)
+   end subroutine model_get_timestep_outcome
+
+   subroutine model_validate_manifest(this, manifest, rc)
+      class(CATChem_Model), intent(inout) :: this
+      type(CATChem_Manifest), intent(in) :: manifest
+      integer, intent(out) :: rc
+      integer(c_int) :: status
+      status = catchem_manifest_validate_core_checked(manifest%handle,this%cpp_core_ptr)
+      rc = int(status)
+      if (status /= 0_c_int) call capture_boundary_error(this)
+   end subroutine model_validate_manifest
+
+   subroutine copy_c_to_f(c_arr, f_str)
+      character(kind=c_char), intent(in) :: c_arr(:)
+      character(len=*), intent(out) :: f_str
+      integer :: i
+      f_str = ''
+      do i = 1, min(len(f_str), size(c_arr))
+         if (c_arr(i) == c_null_char) exit
+         f_str(i:i) = c_arr(i)
+      end do
+   end subroutine copy_c_to_f
 
    ! Execute standard timestep
    subroutine model_run_timestep(this, timestep, dt, rc)

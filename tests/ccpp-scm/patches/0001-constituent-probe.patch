@@ -1,0 +1,581 @@
+diff --git a/end-to-end-tests/CMakeLists.txt b/end-to-end-tests/CMakeLists.txt
+index 3ea171a..d1910f2 100644
+--- a/end-to-end-tests/CMakeLists.txt
++++ b/end-to-end-tests/CMakeLists.txt
+@@ -86,3 +86,4 @@ add_subdirectory(instances_advection)
+ # auto-clone-constituents: Remove this test when the legacy switch to support
+ # auto-clone constituents is removed (i.e. after CAM-SIMA updated its physics)
+ add_subdirectory(advection_auto_clone)
++add_subdirectory(constituent_probe)
+diff --git a/end-to-end-tests/constituent_probe/CMakeLists.txt b/end-to-end-tests/constituent_probe/CMakeLists.txt
+new file mode 100644
+index 0000000..f9c7d0a
+--- /dev/null
++++ b/end-to-end-tests/constituent_probe/CMakeLists.txt
+@@ -0,0 +1,58 @@
++set(SCHEME_FILES constituent_probe)
++set(HOST_FILES probe_host_data probe_host)
++set(HOST_METADATA_FILES probe_host.meta)
++set(SUITE_FILES constituent_probe_suite.xml)
++set(HOST probe_host)
++set(OUTPUT_ROOT "${CMAKE_CURRENT_BINARY_DIR}/ccpp")
++list(TRANSFORM SCHEME_FILES APPEND ".F90" OUTPUT_VARIABLE SCHEME_FORTRAN_FILES)
++list(TRANSFORM SCHEME_FILES APPEND ".meta" OUTPUT_VARIABLE SCHEME_METADATA_FILES)
++list(TRANSFORM HOST_FILES APPEND ".F90" OUTPUT_VARIABLE HOST_FORTRAN_FILES)
++ccpp_validator(VERBOSITY ${CCPP_VERBOSITY} SOURCE_FILES ${SCHEME_FORTRAN_FILES}
++               METADATA_FILES ${SCHEME_METADATA_FILES} TYPE SCHEME)
++ccpp_validator(VERBOSITY ${CCPP_VERBOSITY} SOURCE_FILES ${HOST_FORTRAN_FILES}
++               METADATA_FILES ${HOST_METADATA_FILES} TYPE HOST)
++ccpp_capgen(VERBOSITY ${CCPP_VERBOSITY} HOSTFILES ${HOST_METADATA_FILES}
++            SCHEMEFILES ${SCHEME_METADATA_FILES} SUITES ${SUITE_FILES}
++            HOST_NAME ${HOST} OUTPUT_ROOT "${OUTPUT_ROOT}")
++ccpp_datafile(DATATABLE "${OUTPUT_ROOT}/datatable.xml" REPORT_NAME "--dependencies")
++set(CAPGEN_DEPENDENCIES ${CCPP_FILES})
++ccpp_datafile(DATATABLE "${OUTPUT_ROOT}/datatable.xml" REPORT_NAME "--scheme-files")
++set(SCHEME_FORTRAN_FILES_FILTERED ${CCPP_FILES})
++ccpp_datafile(DATATABLE "${OUTPUT_ROOT}/datatable.xml" REPORT_NAME "--capgen-files")
++set(CAPGEN_FILES ${CCPP_FILES})
++set(PROBE_MODULE_DIR "${CMAKE_CURRENT_BINARY_DIR}/modules")
++file(MAKE_DIRECTORY "${PROBE_MODULE_DIR}")
++set(PROBE_BASE_CAPGEN_FILES ${CAPGEN_FILES})
++list(REMOVE_ITEM PROBE_BASE_CAPGEN_FILES
++  "${OUTPUT_ROOT}/probe_host_ccpp_cap.F90"
++  "${OUTPUT_ROOT}/ccpp_constituent_probe_suite_cap.F90")
++
++# Keep generated Fortran module layers in separate targets.  This avoids a
++# GNU Make dependency cycle between the suite dispatcher and its group cap.
++add_library(constituent_probe_base OBJECT ${CAPGEN_DEPENDENCIES}
++  ${SCHEME_FORTRAN_FILES_FILTERED} probe_host_data.F90
++  ${PROBE_BASE_CAPGEN_FILES})
++set_target_properties(constituent_probe_base PROPERTIES
++  Fortran_MODULE_DIRECTORY "${PROBE_MODULE_DIR}")
++target_include_directories(constituent_probe_base PRIVATE "${PROBE_MODULE_DIR}")
++
++add_library(constituent_probe_suite OBJECT
++  "${OUTPUT_ROOT}/ccpp_constituent_probe_suite_cap.F90")
++set_target_properties(constituent_probe_suite PROPERTIES
++  Fortran_MODULE_DIRECTORY "${PROBE_MODULE_DIR}")
++target_include_directories(constituent_probe_suite PRIVATE "${PROBE_MODULE_DIR}")
++add_dependencies(constituent_probe_suite constituent_probe_base)
++
++add_executable(test_constituent_probe.x
++  "${OUTPUT_ROOT}/probe_host_ccpp_cap.F90" probe_host.F90)
++set_target_properties(test_constituent_probe.x PROPERTIES
++  LINKER_LANGUAGE Fortran Fortran_MODULE_DIRECTORY "${PROBE_MODULE_DIR}")
++target_include_directories(test_constituent_probe.x PRIVATE "${PROBE_MODULE_DIR}")
++add_dependencies(test_constituent_probe.x constituent_probe_suite)
++target_link_libraries(test_constituent_probe.x PRIVATE
++  constituent_probe_base constituent_probe_suite MPI::MPI_Fortran)
++target_link_libraries(test_constituent_probe.x PRIVATE MPI::MPI_Fortran)
++if(OPENMP)
++  target_link_libraries(test_constituent_probe.x PRIVATE OpenMP::OpenMP_Fortran)
++endif()
++add_test(NAME test_constituent_probe COMMAND test_constituent_probe.x)
+diff --git a/end-to-end-tests/constituent_probe/constituent_probe.F90 b/end-to-end-tests/constituent_probe/constituent_probe.F90
+new file mode 100644
+index 0000000..4b5c23d
+--- /dev/null
++++ b/end-to-end-tests/constituent_probe/constituent_probe.F90
+@@ -0,0 +1,86 @@
++! Small real-framework scheme used by the G0 constituent probe.
++module constituent_probe
++  use ccpp_kinds, only: kind_phys
++  use ccpp_constituent_prop_mod, only: ccpp_constituent_properties_t
++  use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
++  implicit none
++  private
++  public :: constituent_probe_register, constituent_probe_run
++contains
++  subroutine constituent_probe_register(dyn_const, errmsg, errcode)
++    type(ccpp_constituent_properties_t), allocatable, intent(out) :: dyn_const(:)
++    character(len=*), intent(out) :: errmsg
++    integer, intent(out) :: errcode
++
++    allocate(dyn_const(2), stat=errcode)
++    errmsg = ''
++    if (errcode /= 0) then
++      errmsg = 'constituent_probe_register: allocation failed'
++      return
++    end if
++    call dyn_const(1)%instantiate(std_name='probe_shared_tracer', &
++        long_name='Shared host and scheme probe tracer', diag_name='P_SHARED', &
++        units='kg kg-1', vertical_dim='vertical_layer_dimension', &
++        advected=.true., default_value=0.0_kind_phys, &
++        errcode=errcode, errmsg=errmsg)
++    if (errcode /= 0) return
++    call dyn_const(2)%instantiate(std_name='probe_scheme_tracer', &
++        long_name='Scheme registered probe tracer', diag_name='P_SCHEME', &
++        units='kg kg-1', vertical_dim='vertical_layer_dimension', &
++        advected=.true., default_value=0.0_kind_phys, &
++        errcode=errcode, errmsg=errmsg)
++  end subroutine constituent_probe_register
++
++  subroutine constituent_probe_run(ccpp_constituents, ccpp_constituent_tendencies, &
++      ccpp_constituent_properties, probe_count, errmsg, errcode)
++    real(kind=kind_phys), intent(inout) :: ccpp_constituents(:, :, :)
++    real(kind=kind_phys), intent(inout) :: ccpp_constituent_tendencies(:, :, :)
++    type(ccpp_constituent_prop_ptr_t), intent(in) :: ccpp_constituent_properties(:)
++    integer, intent(in) :: probe_count
++    character(len=*), intent(out) :: errmsg
++    integer, intent(out) :: errcode
++    integer :: index, property_errcode
++    character(len=128) :: property_name
++    character(len=512) :: property_errmsg
++    logical :: found_host, found_shared, found_scheme
++
++    errmsg = ''
++    errcode = 0
++    if (size(ccpp_constituents, 3) /= probe_count .or. &
++        size(ccpp_constituent_tendencies, 3) /= probe_count .or. &
++        size(ccpp_constituent_properties) /= probe_count) then
++      errcode = 1
++      errmsg = 'full constituent state, tendency, and property extents disagree'
++      return
++    end if
++    found_host = .false.
++    found_shared = .false.
++    found_scheme = .false.
++    do index = 1, probe_count
++      call ccpp_constituent_properties(index)%standard_name(property_name, &
++          errcode=property_errcode, errmsg=property_errmsg)
++      if (property_errcode /= 0 .or. len_trim(property_name) == 0) then
++        errcode = 1
++        errmsg = 'invalid entry in full constituent property array: ' // &
++            trim(property_errmsg)
++        return
++      end if
++      select case (trim(property_name))
++      case ('probe_host_tracer')
++        found_host = .true.
++      case ('probe_shared_tracer')
++        found_shared = .true.
++      case ('probe_scheme_tracer')
++        found_scheme = .true.
++      end select
++    end do
++    if (.not. (found_host .and. found_shared .and. found_scheme)) then
++      errcode = 1
++      errmsg = 'full property array is missing a registered probe tracer'
++      return
++    end if
++    ! Touch every constituent column to prove the arrays are full-axis views.
++    ccpp_constituent_tendencies = ccpp_constituent_tendencies + &
++        0.0_kind_phys * ccpp_constituents
++  end subroutine constituent_probe_run
++end module constituent_probe
+diff --git a/end-to-end-tests/constituent_probe/constituent_probe.meta b/end-to-end-tests/constituent_probe/constituent_probe.meta
+new file mode 100644
+index 0000000..6071dd3
+--- /dev/null
++++ b/end-to-end-tests/constituent_probe/constituent_probe.meta
+@@ -0,0 +1,80 @@
++[ccpp-table-properties]
++  name = constituent_probe
++  type = scheme
++  dependencies =
++
++[ccpp-arg-table]
++  name = constituent_probe_register
++  type = scheme
++[dyn_const]
++  standard_name = ccpp_constituent_properties
++  long_name = dynamically registered probe constituent properties
++  units = none
++  dimensions = (number_of_ccpp_constituents)
++  type = ccpp_constituent_properties_t
++  allocatable = True
++  intent = out
++[errmsg]
++  standard_name = ccpp_error_message
++  long_name = error message
++  units = none
++  dimensions = ()
++  type = character
++  kind = len=*
++  intent = out
++[errcode]
++  standard_name = ccpp_error_code
++  long_name = error code
++  units = 1
++  dimensions = ()
++  type = integer
++  intent = out
++
++[ccpp-arg-table]
++  name = constituent_probe_run
++  type = scheme
++[ccpp_constituents]
++  standard_name = ccpp_constituents
++  long_name = complete framework constituent state
++  units = none
++  dimensions = (horizontal_dimension, vertical_layer_dimension, number_of_ccpp_constituents)
++  type = real
++  kind = kind_phys
++  intent = inout
++[ccpp_constituent_tendencies]
++  standard_name = ccpp_constituent_tendencies
++  long_name = complete framework constituent tendencies
++  units = none
++  dimensions = (horizontal_dimension, vertical_layer_dimension, number_of_ccpp_constituents)
++  type = real
++  kind = kind_phys
++  intent = inout
++[ccpp_constituent_properties]
++  standard_name = ccpp_constituent_properties
++  long_name = complete framework constituent properties
++  units = none
++  dimensions = (number_of_ccpp_constituents)
++  type = ccpp_constituent_prop_ptr_t
++  intent = in
++[probe_count]
++  standard_name = number_of_ccpp_constituents
++  long_name = number of registered probe constituents
++  units = count
++  dimensions = ()
++  type = integer
++  intent = in
++[errmsg]
++  standard_name = ccpp_error_message
++  long_name = error message
++  units = none
++  dimensions = ()
++  type = character
++  kind = len=*
++  intent = out
++[errcode]
++  standard_name = ccpp_error_code
++  long_name = error code
++  units = 1
++  dimensions = ()
++  type = integer
++  intent = out
+diff --git a/end-to-end-tests/constituent_probe/constituent_probe_suite.xml b/end-to-end-tests/constituent_probe/constituent_probe_suite.xml
+new file mode 100644
+index 0000000..6037d84
+--- /dev/null
++++ b/end-to-end-tests/constituent_probe/constituent_probe_suite.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<suite name="constituent_probe_suite" version="2.0">
++  <group name="physics"><scheme>constituent_probe</scheme></group>
++</suite>
+diff --git a/end-to-end-tests/constituent_probe/probe_host.F90 b/end-to-end-tests/constituent_probe/probe_host.F90
+new file mode 100644
+index 0000000..cdd08c1
+--- /dev/null
++++ b/end-to-end-tests/constituent_probe/probe_host.F90
+@@ -0,0 +1,197 @@
++program probe_host
++  use, intrinsic :: iso_fortran_env, only: error_unit, output_unit
++  use ccpp_kinds, only: kind_phys
++  use ccpp_constituent_prop_mod, only: ccpp_constituent_properties_t
++  use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
++  use probe_host_data, only: ncols, pver, ninstances
++  use probe_host_ccpp_cap, only: ccpp_register, ccpp_register_constituents
++  use probe_host_ccpp_cap, only: ccpp_initialize_constituents, ccpp_number_constituents
++  use probe_host_ccpp_cap, only: ccpp_const_get_index, ccpp_constituents_array
++  use probe_host_ccpp_cap, only: ccpp_model_const_properties
++  use probe_host_ccpp_cap, only: ccpp_init, ccpp_physics_init, ccpp_physics_run
++  use probe_host_ccpp_cap, only: ccpp_physics_timestep_init, ccpp_physics_timestep_final
++  use probe_host_ccpp_cap, only: ccpp_physics_final, ccpp_final
++  use probe_host_ccpp_cap, only: ccpp_deallocate_dynamic_constituents
++  implicit none
++
++  character(len=*), parameter :: suite = 'constituent_probe_suite'
++  integer, parameter :: host_property_count(ninstances) = [2, 2, 2]
++  character(len=512) :: errmsg
++  integer :: errcode, errflg, instance, count, idx_shared, idx_host, idx_scheme
++  type(ccpp_constituent_properties_t), allocatable, target :: host_props(:, :)
++  type(ccpp_constituent_prop_ptr_t), pointer :: prop_view(:)
++  real(kind=kind_phys), pointer :: state(:, :, :)
++  character(len=128) :: prop_name
++
++  ! Two successful registries deliberately reverse host slot order.  A third
++  ! registry submits an incompatible duplicate and must fail during merge.
++  do instance = 1, ninstances
++    call ccpp_register(suite_name=suite, instance=instance, &
++        ninstances=ninstances, errmsg=errmsg, errflg=errflg)
++    call check_lifecycle('ccpp_register')
++  end do
++  do instance = 1, 2
++    call make_host_properties(instance, conflict=.false.)
++    call ccpp_register_constituents(host_constituents=host_props(1:host_property_count(instance), instance), &
++        instance=instance, ninstances=ninstances, errmsg=errmsg, errcode=errcode)
++    call check('ccpp_register_constituents valid instance')
++  end do
++  call make_host_properties(3, conflict=.true.)
++  call ccpp_register_constituents(host_constituents=host_props(1:host_property_count(3), 3), &
++      instance=3, ninstances=ninstances, errmsg=errmsg, errcode=errcode)
++  if (errcode == 0 .or. len_trim(errmsg) == 0) then
++    write(error_unit, '(a)') 'FAIL: conflicting duplicate properties were accepted'
++    stop 1
++  end if
++
++  do instance = 1, 2
++    call ccpp_initialize_constituents(ncols=ncols, num_layers=pver, &
++        instance=instance, errmsg=errmsg, errcode=errcode)
++    call check('ccpp_initialize_constituents')
++    call ccpp_number_constituents(num_flds=count, instance=instance, &
++        errmsg=errmsg, errcode=errcode)
++    call check('ccpp_number_constituents')
++    if (count /= 3) error stop 'expected host tracer plus two scheme constituents'
++    call ccpp_const_get_index(stdname='probe_shared_tracer', &
++        const_index=idx_shared, instance=instance, errmsg=errmsg, errcode=errcode)
++    call check('lookup shared tracer')
++    call ccpp_const_get_index(stdname='probe_host_tracer', &
++        const_index=idx_host, instance=instance, errmsg=errmsg, errcode=errcode)
++    call check('lookup host tracer')
++    call ccpp_const_get_index(stdname='probe_scheme_tracer', &
++        const_index=idx_scheme, instance=instance, errmsg=errmsg, errcode=errcode)
++    call check('lookup scheme tracer')
++    if (idx_shared == idx_scheme .or. idx_host == idx_scheme) error stop 'duplicate index'
++    if (instance == 1) write(output_unit, '(a)') 'HOST_INPUT_ORDER 1 shared,host'
++    if (instance == 2) write(output_unit, '(a)') 'HOST_INPUT_ORDER 2 host,shared'
++    write(output_unit, '(a,i0,a,4(i0,1x))') 'INSTANCE_RESULT ', instance, &
++        ' count/shared/host/scheme=', count, idx_shared, idx_host, idx_scheme
++
++    ! Framework hash traversal defines final indices; resolve by each
++    ! instance's property view rather than assuming host declaration order.
++    prop_view => ccpp_model_const_properties(instance)
++    call prop_view(idx_shared)%standard_name(prop_name, errcode=errcode, errmsg=errmsg)
++    call check('shared property lookup')
++    if (trim(prop_name) /= 'probe_shared_tracer') error stop 'shared index/property mismatch'
++    call prop_view(idx_host)%standard_name(prop_name, errcode=errcode, errmsg=errmsg)
++    call check('host property lookup')
++    if (trim(prop_name) /= 'probe_host_tracer') error stop 'host index/property mismatch'
++    call prop_view(idx_scheme)%standard_name(prop_name, errcode=errcode, errmsg=errmsg)
++    call check('scheme property lookup')
++    if (trim(prop_name) /= 'probe_scheme_tracer') error stop 'scheme index/property mismatch'
++
++    state => ccpp_constituents_array(instance)
++    if (size(state, 1) /= ncols .or. size(state, 2) /= pver .or. &
++        size(state, 3) /= count) error stop 'full constituent state extent mismatch'
++    state = real(instance, kind_phys)
++    call run_lifecycle(instance)
++  end do
++
++  do instance = 1, 2
++    call ccpp_final(suite_name=suite, instance=instance, ninstances=ninstances, &
++        errmsg=errmsg, errflg=errflg)
++    call check_lifecycle('ccpp_final')
++    call ccpp_deallocate_dynamic_constituents(instance=instance)
++  end do
++  call ccpp_deallocate_dynamic_constituents(instance=3)
++  deallocate(host_props)
++  write(output_unit, '(a)') 'PASS: merge, conflict rejection, slot order, full arrays, two instances'
++
++contains
++  subroutine make_host_properties(which, conflict)
++    integer, intent(in) :: which
++    logical, intent(in) :: conflict
++    if (.not. allocated(host_props)) allocate(host_props(2, ninstances))
++    if (which == 1) then
++      call add_shared(host_props(1, which), conflict)
++      call add_host(host_props(2, which))
++    else
++      call add_host(host_props(1, which))
++      call add_shared(host_props(2, which), conflict)
++    end if
++  end subroutine make_host_properties
++
++  subroutine add_shared(prop, conflict)
++    type(ccpp_constituent_properties_t), intent(inout) :: prop
++    logical, intent(in) :: conflict
++    integer :: status
++    character(len=512) :: message
++    if (conflict) then
++      call prop%instantiate(std_name='probe_shared_tracer', &
++          long_name='Shared host and scheme probe tracer', diag_name='P_SHARED', &
++          units='mol mol-1', vertical_dim='vertical_layer_dimension', &
++          advected=.true., default_value=0.0_kind_phys, errcode=status, errmsg=message)
++    else
++      call prop%instantiate(std_name='probe_shared_tracer', &
++          long_name='Shared host and scheme probe tracer', diag_name='P_SHARED', &
++          units='kg kg-1', vertical_dim='vertical_layer_dimension', &
++          advected=.true., default_value=0.0_kind_phys, errcode=status, errmsg=message)
++    end if
++    if (status /= 0) error stop 'failed to instantiate shared tracer'
++  end subroutine add_shared
++
++  subroutine add_host(prop)
++    type(ccpp_constituent_properties_t), intent(inout) :: prop
++    integer :: status
++    character(len=512) :: message
++    call prop%instantiate(std_name='probe_host_tracer', &
++        long_name='Host-owned probe tracer', diag_name='P_HOST', &
++        units='kg kg-1', vertical_dim='vertical_layer_dimension', &
++        advected=.true., default_value=0.0_kind_phys, errcode=status, errmsg=message)
++    if (status /= 0) error stop 'failed to instantiate host tracer'
++  end subroutine add_host
++
++  subroutine add_named_host(prop, std_name, diagnostic_name)
++    type(ccpp_constituent_properties_t), intent(inout) :: prop
++    character(len=*), intent(in) :: std_name, diagnostic_name
++    integer :: status
++    character(len=512) :: message
++    call prop%instantiate(std_name=std_name, long_name='Additional host probe tracer', &
++        diag_name=diagnostic_name, units='kg kg-1', &
++        vertical_dim='vertical_layer_dimension', advected=.true., &
++        default_value=0.0_kind_phys, errcode=status, errmsg=message)
++    if (status /= 0) error stop 'failed to instantiate additional host tracer'
++  end subroutine add_named_host
++
++  subroutine run_lifecycle(which)
++    integer, intent(in) :: which
++    call ccpp_init(suite_name=suite, instance=which, ninstances=ninstances, &
++        errmsg=errmsg, errflg=errflg)
++    call check_lifecycle('ccpp_init')
++    call ccpp_physics_init(suite_name=suite, group_name='physics', lb=1, ub=ncols, &
++        thread_num=1, nthreads=1, nphys_threads=1, instance=which, &
++        ninstances=ninstances, errmsg=errmsg, errflg=errflg)
++    call check_lifecycle('ccpp_physics_init')
++    call ccpp_physics_timestep_init(suite_name=suite, group_name='physics', &
++        lb=1, ub=ncols, thread_num=1, nthreads=1, nphys_threads=1, &
++        instance=which, ninstances=ninstances, errmsg=errmsg, errflg=errflg)
++    call check_lifecycle('ccpp_physics_timestep_init')
++    call ccpp_physics_run(suite_name=suite, group_name='physics', lb=1, ub=ncols, &
++        thread_num=1, nthreads=1, nphys_threads=1, instance=which, &
++        ninstances=ninstances, errmsg=errmsg, errflg=errflg)
++    call check_lifecycle('ccpp_physics_run')
++    call ccpp_physics_timestep_final(suite_name=suite, group_name='physics', &
++        lb=1, ub=ncols, thread_num=1, nthreads=1, nphys_threads=1, &
++        instance=which, ninstances=ninstances, errmsg=errmsg, errflg=errflg)
++    call check_lifecycle('ccpp_physics_timestep_final')
++    call ccpp_physics_final(suite_name=suite, group_name='physics', lb=1, ub=ncols, &
++        thread_num=1, nthreads=1, nphys_threads=1, instance=which, &
++        ninstances=ninstances, errmsg=errmsg, errflg=errflg)
++    call check_lifecycle('ccpp_physics_final')
++  end subroutine run_lifecycle
++
++  subroutine check(phase)
++    character(len=*), intent(in) :: phase
++    if (errcode /= 0) then
++      write(error_unit, '(3a)') trim(phase), ': ', trim(errmsg)
++      stop 1
++    end if
++  end subroutine check
++  subroutine check_lifecycle(phase)
++    character(len=*), intent(in) :: phase
++    if (errflg /= 0) then
++      write(error_unit, '(3a)') trim(phase), ': ', trim(errmsg)
++      stop 1
++    end if
++  end subroutine check_lifecycle
++end program probe_host
+diff --git a/end-to-end-tests/constituent_probe/probe_host.meta b/end-to-end-tests/constituent_probe/probe_host.meta
+new file mode 100644
+index 0000000..60b1f70
+--- /dev/null
++++ b/end-to-end-tests/constituent_probe/probe_host.meta
+@@ -0,0 +1,99 @@
++[ccpp-table-properties]
++  name = probe_host_data
++  type = host
++  dependencies =
++
++[ccpp-arg-table]
++  name = probe_host_data
++  type = host
++[ncols]
++  standard_name = horizontal_dimension
++  long_name = probe horizontal extent
++  units = count
++  dimensions = ()
++  type = integer
++  protected = True
++[pver]
++  standard_name = vertical_layer_dimension
++  long_name = probe vertical extent
++  units = count
++  dimensions = ()
++  type = integer
++  protected = True
++[ccpp-table-properties]
++  name = probe_host
++  type = control
++  dependencies =
++
++[ccpp-arg-table]
++  name = probe_host
++  type = control
++[instance]
++  standard_name = instance_number
++  long_name = current model instance number
++  units = index
++  dimensions = ()
++  type = integer
++[ninstances]
++  standard_name = number_of_instances
++  long_name = number of registries
++  units = count
++  dimensions = ()
++  type = integer
++[suite_name]
++  standard_name = suite_name
++  long_name = suite to dispatch
++  units = none
++  dimensions = ()
++  type = character
++  kind = len=256
++[group_name]
++  standard_name = group_name
++  long_name = group to dispatch
++  units = none
++  dimensions = ()
++  type = character
++  kind = len=256
++[lb]
++  standard_name = horizontal_loop_begin
++  long_name = first probe column
++  units = index
++  dimensions = ()
++  type = integer
++[ub]
++  standard_name = horizontal_loop_end
++  long_name = last probe column
++  units = index
++  dimensions = ()
++  type = integer
++[thread_num]
++  standard_name = thread_number
++  long_name = current thread
++  units = index
++  dimensions = ()
++  type = integer
++[nthreads]
++  standard_name = number_of_threads
++  long_name = number of host threads
++  units = count
++  dimensions = ()
++  type = integer
++[nphys_threads]
++  standard_name = number_of_physics_threads
++  long_name = number of physics threads
++  units = count
++  dimensions = ()
++  type = integer
++[errmsg]
++  standard_name = ccpp_error_message
++  long_name = CCPP error message
++  units = none
++  dimensions = ()
++  type = character
++  kind = len=512
++[errflg]
++  standard_name = ccpp_error_code
++  long_name = SCM lifecycle error flag
++  units = 1
++  dimensions = ()
++  type = integer
+diff --git a/end-to-end-tests/constituent_probe/probe_host_data.F90 b/end-to-end-tests/constituent_probe/probe_host_data.F90
+new file mode 100644
+index 0000000..c7fccee
+--- /dev/null
++++ b/end-to-end-tests/constituent_probe/probe_host_data.F90
+@@ -0,0 +1,6 @@
++module probe_host_data
++  implicit none
++  integer, parameter :: ncols = 2
++  integer, parameter :: pver = 3
++  integer, parameter :: ninstances = 3
++end module probe_host_data

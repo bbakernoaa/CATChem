@@ -75,7 +75,7 @@ contains
       type(ESMF_GridComp) :: model
       integer, intent(out) :: rc
       ! ESMF specialization signature; this no-op never touches the component.
-      associate(unused_model => model); end associate
+      associate (unused_model => model); end associate
       rc = ESMF_SUCCESS
    end subroutine CheckImport
 
@@ -101,7 +101,7 @@ contains
       ! an empty or nested export state without returning a local list.
       call NUOPC_SetTimestamp(exportState, curr_time, rc=rc)
       if (rc /= ESMF_SUCCESS) return
-      nullify(fields)
+      nullify (fields)
       call NUOPC_GetStateMemberLists(exportState, fieldList=fields, nestedFlag=.true., rc=rc)
       if (rc /= ESMF_SUCCESS) return
       if (.not. associated(fields)) return
@@ -117,14 +117,14 @@ contains
       ! Preserve the driver's current coupling timestamp after updating fields.
       call NUOPC_SetTimestamp(exportState, curr_time, rc=rc)
       if (rc /= ESMF_SUCCESS) return
-      deallocate(fields)
-      nullify(fields)
+      deallocate (fields)
+      nullify (fields)
    end subroutine Advance
 
    subroutine populate_mock_field(field, rc)
       type(ESMF_Field), intent(inout) :: field
       integer, intent(out) :: rc
-      real(ESMF_KIND_R8), pointer :: f2(:,:), f3(:,:,:), f4(:,:,:,:)
+      real(ESMF_KIND_R8), pointer :: f2(:, :), f3(:, :, :), f4(:, :, :, :)
       character(len=ESMF_MAXSTR) :: field_name
       integer :: k, rank
 
@@ -133,28 +133,28 @@ contains
       if (rc /= ESMF_SUCCESS) return
       select case (rank)
        case (2)
-         nullify(f2); call ESMF_FieldGet(field, farrayPtr=f2, rc=rc)
+         nullify (f2); call ESMF_FieldGet(field, farrayPtr=f2, rc=rc)
          if (rc /= ESMF_SUCCESS) return
          f2 = 1.0_ESMF_KIND_R8
        case (3)
-         nullify(f3); call ESMF_FieldGet(field, farrayPtr=f3, rc=rc)
+         nullify (f3); call ESMF_FieldGet(field, farrayPtr=f3, rc=rc)
          if (rc /= ESMF_SUCCESS) return
          select case (trim(field_name))
           case ('inst_pres_interface')
             do k = 1, size(f3, 3)
-               f3(:, :, k) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
+               f3(:, :, k) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8*real(k - 1, ESMF_KIND_R8)
             end do
           case ('inst_pres_levels')
             do k = 1, size(f3, 3)
-               f3(:, :, k) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
+               f3(:, :, k) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8*real(k - 1, ESMF_KIND_R8)
             end do
           case ('inst_geop_interface')
             do k = 1, size(f3, 3)
-               f3(:, :, k) = 1000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
+               f3(:, :, k) = 1000.0_ESMF_KIND_R8*real(k - 1, ESMF_KIND_R8)
             end do
           case ('inst_geop_levels')
             do k = 1, size(f3, 3)
-               f3(:, :, k) = 500.0_ESMF_KIND_R8 + 1000.0_ESMF_KIND_R8 * real(k - 1, ESMF_KIND_R8)
+               f3(:, :, k) = 500.0_ESMF_KIND_R8 + 1000.0_ESMF_KIND_R8*real(k - 1, ESMF_KIND_R8)
             end do
           case ('inst_temp_levels')
             f3 = 300.0_ESMF_KIND_R8
@@ -162,16 +162,16 @@ contains
             f3 = 1.0_ESMF_KIND_R8
          end select
        case (4)
-         nullify(f4); call ESMF_FieldGet(field, farrayPtr=f4, rc=rc)
+         nullify (f4); call ESMF_FieldGet(field, farrayPtr=f4, rc=rc)
          if (rc /= ESMF_SUCCESS) return
          ! Keep host-owned and pseudo-tracer slots distinct from transported
          ! chemistry values so both exchange directions can be checked.
          f4 = 0.0_ESMF_KIND_R8
-         f4(:,:,:,1) = 1.0E-2_ESMF_KIND_R8
-         f4(:,:,:,2) = 1.0E-6_ESMF_KIND_R8
-         f4(:,:,:,3) = 2.0E-6_ESMF_KIND_R8
-         f4(:,:,:,4) = 7.0E-6_ESMF_KIND_R8
-         f4(:,:,:,5) = 8.0E-6_ESMF_KIND_R8
+         f4(:, :, :, 1) = 1.0E-2_ESMF_KIND_R8
+         f4(:, :, :, 2) = 1.0E-6_ESMF_KIND_R8
+         f4(:, :, :, 3) = 2.0E-6_ESMF_KIND_R8
+         f4(:, :, :, 4) = 7.0E-6_ESMF_KIND_R8
+         f4(:, :, :, 5) = 8.0E-6_ESMF_KIND_R8
       end select
    end subroutine populate_mock_field
 
@@ -208,7 +208,7 @@ contains
                name=trim(field_config%import_fields(i)%standard_name), rc=rc)
           case (4)
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-               ungriddedLBound=(/1,1/), ungriddedUBound=(/5,ntr/), &
+               ungriddedLBound=(/1, 1/), ungriddedUBound=(/5, ntr/), &
                name=trim(field_config%import_fields(i)%standard_name), rc=rc)
           case default
             cycle
@@ -242,7 +242,7 @@ contains
                name=trim(field_config%export_fields(i)%standard_name), rc=rc)
           case (4)
             field = ESMF_FieldCreate(grid, typekind=ESMF_TYPEKIND_R8, &
-               ungriddedLBound=(/1,1/), ungriddedUBound=(/5,ntr/), &
+               ungriddedLBound=(/1, 1/), ungriddedUBound=(/5, ntr/), &
                name=trim(field_config%export_fields(i)%standard_name), rc=rc)
           case default
             cycle
@@ -404,7 +404,7 @@ program nuopc_contract_harness
    type(ESMF_Info) :: tracer_info
    type(ESMF_Time) :: currTime
    real(ESMF_KIND_R8), pointer :: fptr2(:, :), fptr3(:, :, :), fptr4(:, :, :, :)
-   real(c_double), pointer :: z0_ptr(:,:) => null()
+   real(c_double), pointer :: z0_ptr(:, :) => null()
    type(c_ptr) :: raw_z0_ptr
    character(len=256) :: errmsg
    integer :: rc, urc, i, nzf, parity_issues, gas_slot, aerosol_slot
@@ -467,12 +467,12 @@ program nuopc_contract_harness
    gas_idx = 0_c_int; aerosol_idx = 0_c_int
    do i = 1, species_count
       gas_flag = 0_c_int; aerosol_flag = 0_c_int
-      if (catchem_state_is_species_gas_checked(cc_wrap%catchem_model%state_mgr_ptr, int(i,c_int), gas_flag) /= 0_c_int) cycle
-      if (catchem_state_is_species_aerosol_checked(cc_wrap%catchem_model%state_mgr_ptr, int(i,c_int), aerosol_flag) /= 0_c_int) cycle
+      if (catchem_state_is_species_gas_checked(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), gas_flag) /= 0_c_int) cycle
+      if (catchem_state_is_species_aerosol_checked(cc_wrap%catchem_model%state_mgr_ptr, int(i, c_int), aerosol_flag) /= 0_c_int) cycle
       if (gas_flag /= 0_c_int .and. gas_slot == 0) then
-         gas_idx = int(i,c_int); gas_slot = 2
+         gas_idx = int(i, c_int); gas_slot = 2
       else if (aerosol_flag /= 0_c_int .and. aerosol_slot == 0) then
-         aerosol_idx = int(i,c_int); aerosol_slot = 3
+         aerosol_idx = int(i, c_int); aerosol_slot = 3
       end if
       if (gas_slot > 0 .and. aerosol_slot > 0) exit
    end do
@@ -494,9 +494,9 @@ program nuopc_contract_harness
    ! catchem_nuopc_init wrapper, so install the same validated descriptor
    ! shape here. Species identity and gas molecular weight remain discovered
    ! from the active state; no mechanism-specific names or ordering are used.
-   allocate(cc_wrap%tracer_map%names(ntr), cc_wrap%tracer_map%units(ntr))
-   allocate(cc_wrap%tracer_map%nuopc_to_cc(ntr), cc_wrap%tracer_map%entry_kind(ntr))
-   allocate(cc_wrap%tracer_map%host_to_catchem(ntr), cc_wrap%tracer_map%catchem_to_host(ntr))
+   allocate (cc_wrap%tracer_map%names(ntr), cc_wrap%tracer_map%units(ntr))
+   allocate (cc_wrap%tracer_map%nuopc_to_cc(ntr), cc_wrap%tracer_map%entry_kind(ntr))
+   allocate (cc_wrap%tracer_map%host_to_catchem(ntr), cc_wrap%tracer_map%catchem_to_host(ntr))
    cc_wrap%tracer_map%names = exchange_tracer_names
    cc_wrap%tracer_map%units = exchange_tracer_units
    cc_wrap%tracer_map%nuopc_to_cc = [0, int(gas_idx), int(aerosol_idx), 0, 0]
@@ -508,7 +508,7 @@ program nuopc_contract_harness
    cc_wrap%tracer_map%host_to_catchem = 1.0_c_double
    cc_wrap%tracer_map%host_to_catchem(2) = 1.0_c_double
    cc_wrap%tracer_map%host_to_catchem(3) = 1.0_c_double
-   cc_wrap%tracer_map%catchem_to_host = 1.0_c_double / cc_wrap%tracer_map%host_to_catchem
+   cc_wrap%tracer_map%catchem_to_host = 1.0_c_double/cc_wrap%tracer_map%host_to_catchem
 
    ! Shared host-conformance fixture: mechanism order, failure category, and report shape.
    call parity_model%initialize('host_conformance/CATChem_config.yml', 2, 1, 3, rc=rc)
@@ -555,7 +555,7 @@ program nuopc_contract_harness
                integer :: ix, iy
                do iy = 1, ny
                   do ix = 1, nx
-                     fptr2(ix, iy) = real(ix + 10 * iy, ESMF_KIND_R8)
+                     fptr2(ix, iy) = real(ix + 10*iy, ESMF_KIND_R8)
                   end do
                end do
             end block
@@ -582,13 +582,13 @@ program nuopc_contract_harness
                       case ('RH')
                         fptr3(ix, iy, iz) = 0.5_ESMF_KIND_R8
                       case ('PEDGE')
-                        fptr3(ix, iy, iz) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(iz - 1, ESMF_KIND_R8)
+                        fptr3(ix, iy, iz) = 100000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8*real(iz - 1, ESMF_KIND_R8)
                       case ('PMID')
-                        fptr3(ix, iy, iz) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8 * real(iz - 1, ESMF_KIND_R8)
+                        fptr3(ix, iy, iz) = 95000.0_ESMF_KIND_R8 - 10000.0_ESMF_KIND_R8*real(iz - 1, ESMF_KIND_R8)
                       case ('CLDF')
                         fptr3(ix, iy, iz) = 0.2_ESMF_KIND_R8
                       case default
-                        fptr3(ix, iy, iz) = real(ix + 10 * iy + 100 * iz, ESMF_KIND_R8)
+                        fptr3(ix, iy, iz) = real(ix + 10*iy + 100*iz, ESMF_KIND_R8)
                      end select
                   end do
                end do
@@ -659,20 +659,20 @@ program nuopc_contract_harness
          size(cc_wrap%met_buf_3d(i)%data, 3) /= nz + 1) then
          error stop 'PF*SAN level_to_interface buffer extent is invalid'
       end if
-      if (.not. exact_equal(cc_wrap%met_buf_3d(i)%data(1,1,1), 111.0_c_double) .or. &
-         .not. exact_equal(cc_wrap%met_buf_3d(i)%data(1,1,nz+1), cc_wrap%met_buf_3d(i)%data(1,1,nz))) then
+      if (.not. exact_equal(cc_wrap%met_buf_3d(i)%data(1, 1, 1), 111.0_c_double) .or. &
+         .not. exact_equal(cc_wrap%met_buf_3d(i)%data(1, 1, nz + 1), cc_wrap%met_buf_3d(i)%data(1, 1, nz))) then
          error stop 'PF*SAN level_to_interface buffer was not reconstructed as upstream'
       end if
    end do
 
    ! Confirm gas and aerosol slots reach their native CATChem units while
    ! the host-owned rank-4 boundary remains otherwise untouched.
-   if (abs(cc_wrap%chem_buf_4d(1,1,1,gas_idx) - 1.0E-6_c_double * &
+   if (abs(cc_wrap%chem_buf_4d(1, 1, 1, gas_idx) - 1.0E-6_c_double* &
       cc_wrap%tracer_map%host_to_catchem(2)) > 1.0E-12_c_double) error stop 'Gas import conversion failed'
-   if (abs(cc_wrap%chem_buf_4d(1,1,1,aerosol_idx) - 2.0E-6_c_double * &
+   if (abs(cc_wrap%chem_buf_4d(1, 1, 1, aerosol_idx) - 2.0E-6_c_double* &
       cc_wrap%tracer_map%host_to_catchem(3)) > 1.0E-12_c_double) error stop 'Aerosol import conversion failed'
-   if (abs(cc_wrap%tracer_map%host_to_catchem(2) * cc_wrap%tracer_map%catchem_to_host(2) - 1.0_c_double) > 1.0E-12_c_double .or. &
-      abs(cc_wrap%tracer_map%host_to_catchem(3) * cc_wrap%tracer_map%catchem_to_host(3) - 1.0_c_double) > 1.0E-12_c_double) &
+   if (abs(cc_wrap%tracer_map%host_to_catchem(2)*cc_wrap%tracer_map%catchem_to_host(2) - 1.0_c_double) > 1.0E-12_c_double .or. &
+      abs(cc_wrap%tracer_map%host_to_catchem(3)*cc_wrap%tracer_map%catchem_to_host(3) - 1.0_c_double) > 1.0E-12_c_double) &
       error stop 'Tracer conversion factors are not reciprocal'
    block
       logical :: sphum_preserved
@@ -680,7 +680,7 @@ program nuopc_contract_harness
       do i = 1, cc_wrap%field_config%n_import_fields
          if (trim(cc_wrap%field_config%import_fields(i)%host_tracer_var) /= 'QV') cycle
          if (allocated(cc_wrap%met_buf_3d(i)%data)) then
-            sphum_preserved = abs(cc_wrap%met_buf_3d(i)%data(1,1,1) - 1.0E-2_c_double) <= 1.0E-12_c_double
+            sphum_preserved = abs(cc_wrap%met_buf_3d(i)%data(1, 1, 1) - 1.0E-2_c_double) <= 1.0E-12_c_double
          end if
       end do
       if (.not. sphum_preserved) error stop 'Host-owned sphum was not preserved'
@@ -688,7 +688,7 @@ program nuopc_contract_harness
    print *, 'PASS: representative gas/aerosol conversion and sphum ownership'
 
    ! 5. Z0 must have landed in the C++ met state
-   raw_z0_ptr = catchem_state_get_pointer_2d(cc_wrap%catchem_model%state_mgr_ptr, "Z0" // c_null_char)
+   raw_z0_ptr = catchem_state_get_pointer_2d(cc_wrap%catchem_model%state_mgr_ptr, "Z0"//c_null_char)
    if (.not. c_associated(raw_z0_ptr)) then
       print *, 'FAIL: Z0 not bound in C++ met state after transform'
       error stop 1
@@ -721,16 +721,16 @@ program nuopc_contract_harness
       end if
    end block
    block
-      real(fp), allocatable :: pm_diag(:,:,:)
+      real(fp), allocatable :: pm_diag(:, :, :)
 
       call cc_wrap%catchem_model%get_diagnostic('pm25', pm_diag, rc)
-      if (rc /= 0 .or. abs(pm_diag(1,1,1)) > 1.0e-3_fp) &
+      if (rc /= 0 .or. abs(pm_diag(1, 1, 1)) > 1.0e-3_fp) &
          error stop 'PM25 diagnostic has an incorrect C++ buffer precision'
-      deallocate(pm_diag)
+      deallocate (pm_diag)
       call cc_wrap%catchem_model%get_diagnostic('pm10', pm_diag, rc)
-      if (rc /= 0 .or. abs(pm_diag(1,1,1)) > 1.0e-3_fp) &
+      if (rc /= 0 .or. abs(pm_diag(1, 1, 1)) > 1.0e-3_fp) &
          error stop 'PM10 diagnostic has an incorrect C++ buffer precision'
-      deallocate(pm_diag)
+      deallocate (pm_diag)
    end block
    print *, 'PASS: PM2.5/PM10 diagnostics updated and registered'
 
@@ -772,27 +772,27 @@ program nuopc_contract_harness
       call check(rc, 'Export StateGet tracer field')
       call ESMF_FieldGet(field, farrayPtr=fptr4, rc=rc)
       call check(rc, 'Export FieldGet tracer pointer')
-      if (abs(fptr4(1,1,1,1) - 1.0E-2_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8) &
+      if (abs(fptr4(1, 1, 1, 1) - 1.0E-2_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8) &
          error stop 'Host-owned sphum changed during export'
-      if (abs(fptr4(1,1,1,2) - 1.0E-6_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8 .or. &
-         abs(fptr4(1,1,1,3) - 2.0E-6_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8) &
+      if (abs(fptr4(1, 1, 1, 2) - 1.0E-6_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8 .or. &
+         abs(fptr4(1, 1, 1, 3) - 2.0E-6_ESMF_KIND_R8) > 1.0E-12_ESMF_KIND_R8) &
          error stop 'Chemical export conversion failed'
       block
-         real(fp), allocatable :: pm_diag(:,:,:)
+         real(fp), allocatable :: pm_diag(:, :, :)
          call cc_wrap%catchem_model%get_diagnostic('pm25', pm_diag, rc)
          if (rc /= 0 .or. .not. allocated(pm_diag)) then
             error stop 'PM25 diagnostic was not exported in ug m-3'
          end if
-         if (abs(fptr4(1,1,1,4) - pm_diag(1,1,1)) > 1.0e-12_ESMF_KIND_R8) &
+         if (abs(fptr4(1, 1, 1, 4) - pm_diag(1, 1, 1)) > 1.0e-12_ESMF_KIND_R8) &
             error stop 'PM25 diagnostic was not exported in ug m-3'
-         deallocate(pm_diag)
+         deallocate (pm_diag)
          call cc_wrap%catchem_model%get_diagnostic('pm10', pm_diag, rc)
          if (rc /= 0 .or. .not. allocated(pm_diag)) then
             error stop 'PM10 diagnostic was not exported in ug m-3'
          end if
-         if (abs(fptr4(1,1,1,5) - pm_diag(1,1,1)) > 1.0e-12_ESMF_KIND_R8) &
+         if (abs(fptr4(1, 1, 1, 5) - pm_diag(1, 1, 1)) > 1.0e-12_ESMF_KIND_R8) &
             error stop 'PM10 diagnostic was not exported in ug m-3'
-         deallocate(pm_diag)
+         deallocate (pm_diag)
       end block
    end do
    print *, 'PASS: transform_catchem_to_nuopc over export state'

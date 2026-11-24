@@ -1,0 +1,99 @@
+[ccpp-table-properties]
+  name = probe_host_data
+  type = host
+  dependencies =
+
+[ccpp-arg-table]
+  name = probe_host_data
+  type = host
+[ncols]
+  standard_name = horizontal_dimension
+  long_name = probe horizontal extent
+  units = count
+  dimensions = ()
+  type = integer
+  protected = True
+[pver]
+  standard_name = vertical_layer_dimension
+  long_name = probe vertical extent
+  units = count
+  dimensions = ()
+  type = integer
+  protected = True
+[ccpp-table-properties]
+  name = probe_host
+  type = control
+  dependencies =
+
+[ccpp-arg-table]
+  name = probe_host
+  type = control
+[instance]
+  standard_name = instance_number
+  long_name = current model instance number
+  units = index
+  dimensions = ()
+  type = integer
+[ninstances]
+  standard_name = number_of_instances
+  long_name = number of registries
+  units = count
+  dimensions = ()
+  type = integer
+[suite_name]
+  standard_name = suite_name
+  long_name = suite to dispatch
+  units = none
+  dimensions = ()
+  type = character
+  kind = len=256
+[group_name]
+  standard_name = group_name
+  long_name = group to dispatch
+  units = none
+  dimensions = ()
+  type = character
+  kind = len=256
+[lb]
+  standard_name = horizontal_loop_begin
+  long_name = first probe column
+  units = index
+  dimensions = ()
+  type = integer
+[ub]
+  standard_name = horizontal_loop_end
+  long_name = last probe column
+  units = index
+  dimensions = ()
+  type = integer
+[thread_num]
+  standard_name = thread_number
+  long_name = current thread
+  units = index
+  dimensions = ()
+  type = integer
+[nthreads]
+  standard_name = number_of_threads
+  long_name = number of host threads
+  units = count
+  dimensions = ()
+  type = integer
+[nphys_threads]
+  standard_name = number_of_physics_threads
+  long_name = number of physics threads
+  units = count
+  dimensions = ()
+  type = integer
+[errmsg]
+  standard_name = ccpp_error_message
+  long_name = CCPP error message
+  units = none
+  dimensions = ()
+  type = character
+  kind = len=512
+[errflg]
+  standard_name = ccpp_error_code
+  long_name = SCM lifecycle error flag
+  units = 1
+  dimensions = ()
+  type = integer

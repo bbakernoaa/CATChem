@@ -1,0 +1,41 @@
+schema_version: 1
+case_id: seasalt-COMBLE
+scm_case: COMBLE
+processes:
+  - seasalt
+acceptance_fixture:
+  aerosol_mixing_ratio_kg_kg: 1.0e-12
+  species: dust1..dust5, seas1..seas5, so4, msa, bc1..bc2, oc1..oc2
+  basis: uniform initial host mass mixing ratio in the full CCPP constituent array
+inputs:
+  - name: ccpp_constituents
+    units: scheme-declared
+    basis: full framework constituent array, mapped by constituent properties
+  - name: gfs_v17_ocean_surface
+    units: frac, degrees, K, m s-1, Pa
+    basis: ocean/ice fractions, geographic position, skin temperature, 10 m winds and surface friction velocity
+outputs:
+  - name: seasalt_mass_emission_total
+    signal_name: seasalt_mass_emission_total
+    units: kg m-2 s-1
+    basis: surface emission flux
+    must_be_nonzero: true
+reference:
+  method: native_parity
+  description: Matched native GEOS12 SeaSalt replay from the exact COMBLE GFS v17 process-input ledger and pre-update 23-species CCPP state. All 2,921 mapped species-level values compare at the same 600 s interval and host-update boundary; maximum absolute and relative errors are both zero.
+  source_revision: 900ec02691ae9a4ef250183ec86f7050b1d2d6b9
+  evidence:
+    - build/ccpp-scm-phase6-clean/native-replay/seasalt-COMBLE-parity.json
+tolerances:
+  - quantity: seasalt_constituent_state_after_update
+    absolute: 1.0e-12
+    relative: 1.0e-6
+    rationale: Frozen before comparison using the established full-state native replay limit; all 2,921 values passed with zero observed error.
+budgets:
+  - quantity: seasalt_bin_closure
+    equation: seasalt_mass_emission_total = sum(seasalt_mass_emission_bin)
+    units: kg m-2 s-1
+    basis: surface emission flux
+    residual_tolerance: 1.0e-12
+    rationale: Total sea-salt emission is the sum of the five GEOS12 aerosol-bin fluxes.
+frozen_before_candidate_comparison: true

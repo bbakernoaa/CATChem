@@ -81,6 +81,7 @@
   __mie_name: SU
 - name: dms_in
   __description: Dimethyl sulfide in ocean water (climatology for emissions calculation)
+  __is_advected: false
   molecular weight [kg mol-1]: 62.13e-3
   __radius: 8.7e-2
 - name: msa

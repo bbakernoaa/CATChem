@@ -1,0 +1,43 @@
+schema_version: 1
+case_id: drydep-arm_sgp_summer_1997_A
+scm_case: arm_sgp_summer_1997_A
+processes:
+  - drydep
+acceptance_fixture:
+  aerosol_mixing_ratio_kg_kg: 1.0e-12
+  surface: land
+  species: so2, so4, seas1..seas5, bc1..bc2, oc1..oc2
+  basis: uniform host mass mixing ratio for eligible dry-deposition species
+inputs:
+  - name: ccpp_constituents
+    units: species-declared
+    basis: full framework constituent array mapped by CCPP constituent properties
+  - name: gfs_v17_drydep_state
+    units: Pa, K, m, m s-1, W m-2, fraction, degrees
+    basis: GFS v17 instantaneous atmospheric, surface, land-use, and radiation fields; RH, moist density, layer height, land-use categories, and solar cosine use CATChem's validated derivation recipes
+outputs:
+  - name: drydep_constituent_tendency
+    signal_name: drydep_constituent_max_abs_delta
+    units: host constituent representation
+    basis: selected Wesely gas and GOCART aerosol removal over one physics interval
+    must_be_nonzero: true
+    minimum_abs_value: 1.0e-14
+reference:
+  method: native_parity
+  description: Matched one-step native DryDep replay from the exact GFS v17 ARM SGP process-input ledger and pre-update 23-species CCPP state; all after-update species and levels compare at the same interval and subcycle boundary.
+  source_revision: 900ec02691ae9a4ef250183ec86f7050b1d2d6b9
+  evidence:
+    - build/ccpp-scm/native-replay/arm-sgp-a-drydep-call-0-parity.json
+tolerances:
+  - quantity: drydep_constituent_state_after_update
+    absolute: 1.0e-12
+    relative: 1.0e-6
+    rationale: Same-boundary replay compared all 2,921 mapped species-level values; maximum observed relative error was 0.0. The 1e-6 limit allows compiler and backend floating-point variation.
+budgets:
+  - quantity: drydep_mass_removal
+    equation: surface-layer aerosol concentration decrease equals the sum of the scheme's per-species removal diagnostics
+    units: ug kg-1
+    basis: host columns and dry-deposition-enabled aerosol species
+    residual_tolerance: 1.0e-10
+    rationale: Integrated species removal closes against the diagnosed dry-deposition flux.
+frozen_before_candidate_comparison: true

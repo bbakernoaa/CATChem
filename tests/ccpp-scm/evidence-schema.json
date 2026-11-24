@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://catchem.example/schemas/ccpp-evidence-1.json",
+  "title": "CATChem CCPP integration evidence",
+  "type": "object",
+  "required": ["schema_version", "source_revisions", "compiler", "commands", "checks", "process_coverage", "case_results", "overlay_sha256", "generated_signatures", "instance_results", "stock_baseline_comparison", "status"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "source_revisions": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{40}$"}},
+    "compiler": {
+      "type": "object",
+      "required": ["fortran", "c", "cxx"],
+      "properties": {"fortran": {"type": "string"}, "c": {"type": "string"}, "cxx": {"type": "string"}},
+      "additionalProperties": false
+    },
+    "commands": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status", "details"],
+        "properties": {"name": {"type": "string"}, "status": {"enum": ["passed", "failed", "blocked", "not_run"]}, "details": {"type": "string"}},
+        "additionalProperties": false
+      }
+    },
+    "process_coverage": {
+      "type": "object",
+      "required": ["required", "completed"],
+      "properties": {
+        "required": {"type": "array", "uniqueItems": true, "minItems": 9, "maxItems": 9, "items": {"enum": ["dust", "seasalt", "drydep", "wetdep", "settling", "so4chem", "carbchem", "photolysis", "gaschem"]}},
+        "completed": {"type": "array", "uniqueItems": true, "items": {"enum": ["dust", "seasalt", "drydep", "wetdep", "settling", "so4chem", "carbchem", "photolysis", "gaschem"]}}
+      },
+      "additionalProperties": false
+    },
+    "case_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["case_id", "status", "outputs", "budgets"],
+        "properties": {"case_id": {"type": "string"}, "status": {"enum": ["passed", "failed", "blocked", "not_run"]}, "outputs": {"type": "array"}, "budgets": {"type": "array"}},
+        "additionalProperties": false
+      }
+    },
+    "overlay_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "generated_signatures": {
+      "type": "object",
+      "required": ["lifecycle", "constituent_helpers", "full_array_bindings", "compatibility_flags"],
+      "properties": {
+        "lifecycle": {"type": "array", "items": {"type": "string"}},
+        "constituent_helpers": {"type": "array", "items": {"type": "string"}},
+        "full_array_bindings": {"type": "array", "items": {"type": "string"}},
+        "compatibility_flags": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "instance_results": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["instance", "host_registration_order", "constituent_count", "indices", "status"],
+        "properties": {
+          "instance": {"type": "integer", "minimum": 1},
+          "host_registration_order": {"type": "array", "items": {"type": "string"}},
+          "constituent_count": {"type": "integer", "minimum": 1},
+          "indices": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 1}},
+          "status": {"enum": ["passed", "failed"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "stock_baseline_comparison": {
+      "type": "object",
+      "required": ["status", "case", "suite", "source_revisions_match", "output_sha256", "comparison_scope"],
+      "properties": {
+        "status": {"enum": ["passed", "failed", "not_comparable"]},
+        "case": {"type": "string"},
+        "suite": {"type": "string"},
+        "source_revisions_match": {"type": "boolean"},
+        "output_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "comparison_scope": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "container_image": {"type": "string"},
+    "status": {"enum": ["passed", "failed", "blocked"]},
+    "failure": {"type": "string"}
+  },
+  "additionalProperties": false
+}

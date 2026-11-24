@@ -595,7 +595,7 @@ contains
       real(fp),   intent(in)  :: c_h2o                !< Mix ratio of H2O [cm3 H2O/cm3 air]
       real(fp),   intent(in)  :: cldice               !< Precipitable cloud ice mixing ratio [cm3 ice/cm3 air]
       real(fp),   intent(in)  :: cldliq               !< Precipitable cloud liquid mixing ratio [cm3 H2O/cm3 air]
-      character(len = 20),  intent(in)  :: spc        !< Species name
+      character(len = *),   intent(in)  :: spc        !< Species name
       real(fp),   intent(out) :: lossfrac             !< Fraction of species lost to rainout [unitless]
       real(fp),   intent(in) :: SO2                   !< SO2 concentration [kg/kg]; depleted in rainout_loss, not here
       real(fp),   intent(inout) :: H2O2               !< H2O2 concentration [kg/kg]; depleted by SO2 oxidation (written back)
@@ -739,7 +739,7 @@ contains
       real(fp),  intent(in)  :: qdwn           !< Instant precip rate in grid box (cm3 (H2O) / cm2 (air) / s)
       real(fp),  intent(in)  :: dz             !< Height of grid box [cm]
       real(fp),  intent(in)  :: dt             !< Timestep (s)
-      character(len = 20),  intent(in) :: spc  !< Species name
+      character(len = *),   intent(in) :: spc  !< Species name
       logical,   intent(in)  :: is_aero        !< aerosol washout flag
       real(fp),  intent(in) :: k0              !< Henry's solubility constant [M/atm]
       real(fp),  intent(in) :: cr              !< Henry's volatility constant [K]
@@ -1141,7 +1141,7 @@ contains
       real(fp),  dimension(:), intent(inout) :: conc    !< concentration [kg/m2]
       real(fp),  dimension(:), intent(inout) :: dconc   !< concentration loss kg/m2
       real(fp),  dimension(:), intent(inout) :: SO4     !< SO4 concentration [kg/m2]
-      character(len = 20),  intent(in) :: spc           !< Species name
+      character(len = *),   intent(in) :: spc           !< Species name
       real(fp),  intent(in)    :: reevap_resusp_frac    !< fraction of re-evaporated mass resuspended (0.5 GEOS-Chem/Luo default; 1.0 GOCART)
       logical,   intent(in)    :: so4_gocart_resusp     !< if .true., sulfate (SO4/SO2) uses GOCART SU_Wet_Removal resuspension alpha
 
@@ -1258,7 +1258,7 @@ contains
       integer,   intent(in)    :: k                     !< layer index
       real(fp),  dimension(:), intent(inout) :: conc    !< concentration [kg/m2]
       real(fp),  dimension(:), intent(inout) :: dconc   !< concentration loss kg/m2
-      character(len = 20),  intent(in) :: spc           !< Species name
+      character(len = *),   intent(in) :: spc           !< Species name
       real(fp),  dimension(:), intent(inout)    :: SO4  !< SO4 concentration [kg/m2]
 
       ! -- local variables

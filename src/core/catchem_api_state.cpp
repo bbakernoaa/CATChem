@@ -1,3 +1,16 @@
+/**
+ * @file catchem_api_state.cpp
+ * @brief C entry points for state field binding, access, and derived meteorology.
+ *
+ * @details Implements the state section of catchem_api.hpp: bind/pointer
+ * accessors for met, chemistry, and species fields with extent checks against
+ * the column/level/species contract (PEDGE, Z, PFILSAN, PFLLSAN require
+ * level+1 interfaces), 1-based species offsets into species_conc, and the
+ * derive_bxheight/derive_airden_dry physical kernels whose std::domain_error
+ * maps to CATCHEM_PHYSICAL_VALIDATION_FAILURE. _checked pointer variants
+ * refresh the host mirror via host_read() first for NUOPC-style export.
+ * Member documentation lives on catchem_api.hpp.
+ */
 #include "catchem_api.hpp"
 #include "catchem_api_internal.hpp"
 #include "catchem_core.hpp"
@@ -119,10 +132,8 @@ int catchem_state_begin_import_generation(void* state_ptr) {
     try {
         static_cast<catchem::StateManager*>(state_ptr)->begin_import_generation();
         return CATCHEM_SUCCESS;
-    } catch (const std::exception& e) {
-        return fail(catchem::BoundaryStatus::InternalError, "state_begin_import_generation", "", e.what());
     } catch (...) {
-        return fail(catchem::BoundaryStatus::InternalError, "state_begin_import_generation", "", "unknown exception");
+        return CATCHEM_INTERNAL_ERROR;
     }
 }
 
@@ -174,7 +185,7 @@ int catchem_state_bind_met_2d_checked(void* state_ptr, const char* name, double*
         state->bind_met_field_2d(name, ptr);
         return CATCHEM_SUCCESS;
     } catch (...) {
-        return fail(catchem::BoundaryStatus::InternalError, "state_bind_met_2d", name, "unknown exception");
+        return CATCHEM_INTERNAL_ERROR;
     }
 }
 
@@ -190,7 +201,9 @@ int catchem_state_bind_met_3d_checked(void* state_ptr, const char* name, double*
         auto* state = static_cast<catchem::StateManager*>(state_ptr);
         std::string key(name);
         std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return std::toupper(c); });
-        const int expected_levels = (key == "PEDGE" || key == "Z") ? state->level_count() + 1 : state->level_count();
+        const int expected_levels = (key == "PEDGE" || key == "Z" || key == "PFILSAN" || key == "PFLLSAN")
+                                        ? state->level_count() + 1
+                                        : state->level_count();
         if (dim1 != state->column_count() || dim2 != expected_levels || dim3 != 1)
             return fail(catchem::BoundaryStatus::ExtentMismatch, "state_bind_met_3d", name,
                         "field extents do not match the state contract");
@@ -234,10 +247,8 @@ int catchem_state_bind_met_3d_axis_checked(void* state_ptr, const char* name, do
     try {
         state->bind_met_field_3d_contract(name, ptr, dim2, axis);
         return CATCHEM_SUCCESS;
-    } catch (const std::exception& e) {
-        return fail(catchem::BoundaryStatus::InternalError, "state_bind_met_3d_axis", name, e.what());
     } catch (...) {
-        return fail(catchem::BoundaryStatus::InternalError, "state_bind_met_3d_axis", name, "unknown exception");
+        return CATCHEM_INTERNAL_ERROR;
     }
 }
 
@@ -264,7 +275,7 @@ int catchem_state_bind_unified_chemistry_checked(void* state_ptr, double* ptr, i
         state->bind_unified_chemistry(ptr);
         return CATCHEM_SUCCESS;
     } catch (...) {
-        return fail(catchem::BoundaryStatus::InternalError, "state_bind_unified_chemistry", "", "unknown exception");
+        return CATCHEM_INTERNAL_ERROR;
     }
 }
 
@@ -280,10 +291,8 @@ int catchem_state_mark_chem_host_modified(void* state_ptr) {
             return CATCHEM_INVALID_STATE;
         state->chemistry().conc->mark_host_modified();
         return CATCHEM_SUCCESS;
-    } catch (const std::exception& e) {
-        return fail(catchem::BoundaryStatus::InternalError, "state_mark_chem_host_modified", "", e.what());
     } catch (...) {
-        return fail(catchem::BoundaryStatus::InternalError, "state_mark_chem_host_modified", "", "unknown exception");
+        return CATCHEM_INTERNAL_ERROR;
     }
 }
 
@@ -299,14 +308,20 @@ int catchem_state_set_time_checked(void* state_ptr, int yr, int mo, int dy, int 
         return status;
     try {
         auto* state = static_cast<catchem::StateManager*>(state_ptr);
-        state->clock().year = yr;
-        state->clock().month = mo;
-        state->clock().day = dy;
-        state->clock().hour = hr;
-        state->clock().minute = mn;
-        state->clock().second = sc;
-        state->clock().doy = doy;
-        state->clock().timestep = tstep;
+        auto candidate = state->clock();
+        candidate.year = yr;
+        candidate.month = mo;
+        candidate.day = dy;
+        candidate.hour = hr;
+        candidate.minute = mn;
+        candidate.second = sc;
+        candidate.doy = doy;
+        candidate.timestep = tstep;
+        if (!candidate.valid())
+            return fail(catchem::BoundaryStatus::ContractViolation, "state_set_time", "time",
+                        "date, day-of-year, or timestep is invalid");
+        candidate.calculate_derived_fields();
+        state->clock() = candidate;
         return CATCHEM_SUCCESS;
     } catch (const std::exception& error) {
         return fail(catchem::BoundaryStatus::InternalError, "state_set_time", "time", error.what());
@@ -441,7 +456,7 @@ int catchem_state_get_species_conc_pointer_checked(void* state_ptr, int species_
         *ptr_out = const_cast<double*>(concentration) + static_cast<std::size_t>(species_index - 1) * dim1 * dim2;
         return CATCHEM_SUCCESS;
     } catch (...) {
-        return fail(catchem::BoundaryStatus::InternalError, "state_get_species_conc_pointer", "", "unknown exception");
+        return CATCHEM_INTERNAL_ERROR;
     }
 }
 

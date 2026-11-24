@@ -1,0 +1,82 @@
+simulation:
+  name: ccpp_scm_emission_chemistry_removal
+  species_filename: ../../../../tests/Configs/Default/CATChem_species.yml
+  verbose:
+    activate: true
+grid:
+  number_of_levels: 64
+  number_of_soil_layers: 4
+timesteps:
+  transport_timestep_in_s: 600
+  chemistry_timestep_in_s: 600
+run_phases:
+  ccpp_selected_process:
+    description: Run the ordered emission, aerosol removal, and chemistry processes
+      selected by the coupled CCPP suite
+    processes:
+    - dust
+    - seasalt
+    - wetdep
+    - settling
+    - drydep
+    - so4chem
+    - carbchem
+processes:
+  dust:
+    activate: true
+    diagnostics: true
+    scheme: ginoux
+    ginoux:
+      Ch_DU:
+      - 0.07
+      - 0.07
+      - 0.07
+      - 0.07
+      - 0.07
+  seasalt:
+    activate: true
+    diagnostics: true
+    scheme: geos12
+  wetdep:
+    activate: true
+    diagnostics: true
+    scheme: jacob
+  settling:
+    activate: true
+    diagnostics: true
+    scheme: gocart
+    gocart:
+      simple_scheme: false
+  drydep:
+    activate: true
+    diagnostics: true
+    gas_scheme: wesely
+    aero_scheme: gocart
+    wesely:
+      scale_factor: 1.0
+    gocart:
+      scale_factor: 1.0
+      resuspension: false
+      dust_resuspension_only: true
+  so4chem:
+    activate: true
+    scheme: gocart
+    diagnostics: true
+    diag_species:
+    - so2
+    - so4
+    - msa
+    gocart:
+      update_so2: true
+      do_drydep: false
+  carbchem:
+    activate: true
+    scheme: gocart
+    diagnostics: true
+    diag_species:
+    - bc1
+    - bc2
+    - oc1
+    - oc2
+    gocart:
+      time_days_hydrophobic_to_hydrophilic: 1.0

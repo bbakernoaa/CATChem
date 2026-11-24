@@ -112,14 +112,22 @@ namespace {
                 fix.pedge[g.iface(c, l)] = 101300.0 - 20000.0 * l; // surface (l=0) largest
     }
 
-    // Bind the met fields present in fix.  A field is skipped when its vector
-    // is empty, which is how the negative scenarios omit PRECCON/PRECLSC.
+    /** @brief Bind fixture meteorology, optionally omitting scheme-specific inputs.
+     *  @param state Receives host meteorology fields.
+     *  @param g Defines the column and level extents.
+     *  @param fix Owns the backing arrays for each bound field.
+     *  @param bind_preccon Whether convective rain amount is bound.
+     *  @param bind_preclsc Whether large-scale rain amount is bound.
+     *  @param bind_jacob_fields Whether Jacob-only dry density and re-evaporation are bound.
+     */
     void bind_met(catchem::StateManager& state, [[maybe_unused]] const Grid& g, Fixtures& fix, bool bind_preccon,
-                  bool bind_preclsc) {
+                  bool bind_preclsc, bool bind_jacob_fields = true) {
         state.bind_met_field_3d("T", fix.t.data());
         state.bind_met_field_3d("AIRDEN", fix.airden.data());
-        state.bind_met_field_3d("AIRDEN_DRY", fix.airden_dry.data());
-        state.bind_met_field_3d("REEVAPLS", fix.reevapls.data());
+        if (bind_jacob_fields) {
+            state.bind_met_field_3d("AIRDEN_DRY", fix.airden_dry.data());
+            state.bind_met_field_3d("REEVAPLS", fix.reevapls.data());
+        }
         state.bind_met_field_3d("PEDGE", fix.pedge.data());
         state.bind_met_field_3d("PFILSAN", fix.pfilsan.data());
         state.bind_met_field_3d("PFLLSAN", fix.pfllsan.data());
@@ -170,7 +178,7 @@ namespace {
         return 0;
     }
 
-    // Scenario (a): scheme 'gocart' initializes and runs end-to-end.
+    /** @brief Verify GOCART runs with only its own meteorological inputs. */
     int scenario_gocart_runs() {
         const Grid g{4, 5, 22};
         Env env = make_env(g, "CATChem_species.yml");
@@ -183,11 +191,12 @@ namespace {
         env.state->bind_unified_chemistry(chem.data());
         Fixtures fix;
         fill_met(g, fix, /*with_precip=*/true);
-        bind_met(*env.state, g, fix, /*preccon=*/true, /*preclsc=*/true);
+        bind_met(*env.state, g, fix, /*preccon=*/true, /*preclsc=*/true, /*jacob_fields=*/false);
 
         auto wetdep = catchem::ProcessRegistry::get_instance().create("wetdep");
         try {
             wetdep->init(env.state);
+            wetdep->prepare_inputs(env.state);
             wetdep->run(env.state);
         } catch (const std::exception& error) {
             std::cerr << "FAIL [gocart-runs]: " << error.what() << std::endl;

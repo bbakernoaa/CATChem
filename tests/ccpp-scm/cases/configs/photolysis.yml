@@ -1,0 +1,20 @@
+simulation:
+  name: ccpp_scm_photolysis
+  species_filename: ../../../../tests/Configs/Default/CATChem_species.yml
+  verbose:
+    activate: true
+grid:
+  number_of_levels: 64
+timesteps:
+  transport_timestep_in_s: 600
+  chemistry_timestep_in_s: 600
+run_phases:
+  ccpp_selected_process:
+    description: Run only the CCPP-selected Photolysis process
+    processes:
+      - photolysis
+processes:
+  photolysis:
+    activate: true
+    diagnostics: true
+    config_file: ../../../../../src/external/musica/configs/tuvx/tuv_5_4.yml

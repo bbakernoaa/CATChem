@@ -1,4 +1,9 @@
-set(_srcs CATChem_API.F90)
+set(
+  _srcs
+  CATChem_API.F90
+  CATChem_CCPP_Context.F90
+  catchem_musica_registration.cpp
+)
 add_library(CATChem ${_srcs})
 target_link_libraries(
   CATChem
@@ -19,7 +24,10 @@ if(CATCHEM_BUILD_MUSICA)
     CATChem
     PUBLIC catchem_process_photolysis catchem_process_gaschem
   )
-  target_compile_definitions(CATChem PRIVATE CATCHEM_BUILD_MUSICA)
+  set_source_files_properties(
+    catchem_musica_registration.cpp
+    PROPERTIES COMPILE_DEFINITIONS CATCHEM_BUILD_MUSICA
+  )
 endif()
 set_target_properties(
   CATChem

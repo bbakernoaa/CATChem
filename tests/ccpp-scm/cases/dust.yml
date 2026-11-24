@@ -1,0 +1,45 @@
+schema_version: 1
+case_id: dust-arm_sgp_summer_1997_A
+scm_case: arm_sgp_summer_1997_A
+processes:
+  - dust
+acceptance_fixture:
+  aerosol_mixing_ratio_kg_kg: 1.0e-12
+  soil_moisture_m3_m3: 0.2
+  species: dust1..dust5, seas1..seas5, so4, msa, bc1..bc2, oc1..oc2
+  basis: uniform initial host mass mixing ratio in the full CCPP constituent array, with documented 0.2 m3/m3 acceptance soil moisture for Ginoux
+inputs:
+  - name: scm_arm_sgp_summer_1997_A_profiles
+    units: SCM-native
+    basis: case profile from source-locked CCPP-SCM input; acceptance case selects its declared land surface
+  - name: ccpp_constituents
+    units: scheme-declared
+    basis: full framework constituent array, mapped by constituent properties
+  - name: ginoux_surface_inputs
+    units: scheme-declared
+    basis: GFS v17 sea-land-ice mask, lake and snow fractions, normalized soil wetness, top-layer soil moisture, skin temperature and 10 m winds
+outputs:
+  - name: dust_emission_total
+    signal_name: dust_emission_total
+    units: kg m-2 s-1
+    basis: surface emission flux
+    must_be_nonzero: true
+reference:
+  method: native_parity
+  description: Matched native Ginoux Dust replay from the exact ARM SGP GFS v17 process-input ledger and pre-update 23-species CCPP state. All 2,921 mapped species-level values compare at the same 600 s interval and host-update boundary; maximum absolute and relative errors are both zero.
+  source_revision: 900ec02691ae9a4ef250183ec86f7050b1d2d6b9
+  evidence:
+    - build/ccpp-scm-phase6-clean/native-replay/dust-arm_sgp_summer_1997_A-parity.json
+tolerances:
+  - quantity: dust_constituent_state_after_update
+    absolute: 1.0e-12
+    relative: 1.0e-6
+    rationale: Frozen before comparison using the established full-state native replay limit; all 2,921 values passed with zero observed error.
+budgets:
+  - quantity: dust_bin_closure
+    equation: dust_emission_total = sum(dust_emission_bin)
+    units: kg m-2 s-1
+    basis: surface area and timestep averaged
+    residual_tolerance: 1.0e-12
+    rationale: Dust emission total is the sum of the five Ginoux dust-bin fluxes.
+frozen_before_candidate_comparison: true

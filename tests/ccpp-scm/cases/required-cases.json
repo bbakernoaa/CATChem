@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "feature": "001-ccpp-process-drivers",
+  "phase": 5,
+  "required_cases": [
+    {
+      "id": "registry-mapping",
+      "test": "test_ccpp_context",
+      "coverage": [
+        "permuted_slots",
+        "duplicate_slots",
+        "whole_binding_invalidation",
+        "full_property_signature_conflict",
+        "overlong_property_rejection",
+        "missing_required_species",
+        "nonadvected_unrelated_host_slot",
+        "binding_recovery_after_rejection"
+      ]
+    },
+    {
+      "id": "analytic-conversions",
+      "test": "test_ccpp_conversions",
+      "coverage": [
+        "gas_mass_ratio",
+        "gas_ppmv",
+        "aerosol_mass",
+        "ozone_number_density",
+        "dry_moist_condensate_basis",
+        "pressure_layer_mass"
+      ]
+    },
+    {
+      "id": "array-layout",
+      "test": "test_ccpp_layout",
+      "coverage": [
+        "noncontiguous_strides",
+        "precision_conversion",
+        "vertical_order",
+        "interface_extent_rejection",
+        "soil_extent_rejection",
+        "atomic_output",
+        "zero_extent"
+      ]
+    },
+    {
+      "id": "constituent-conformance",
+      "manifest": "tests/ccpp-scm/cases/constituent-conformance.yml",
+      "processes": [
+        "dust",
+        "seasalt",
+        "drydep",
+        "wetdep",
+        "settling",
+        "so4chem",
+        "carbchem",
+        "photolysis",
+        "gaschem"
+      ]
+    },
+    {
+      "id": "emission-chemistry-removal",
+      "manifest": "tests/ccpp-scm/cases/emission-chemistry-removal.yml",
+      "suite": "tests/ccpp/suites/suite_CATChem_EmissionChemistryRemoval.xml",
+      "processes": [
+        "dust",
+        "seasalt",
+        "wetdep",
+        "settling",
+        "drydep",
+        "so4chem",
+        "carbchem"
+      ],
+      "ordering": [
+        "dust",
+        "seasalt",
+        "wetdep",
+        "settling",
+        "drydep",
+        "so4chem",
+        "carbchem"
+      ],
+      "scm_case": "gabls3_noahmp",
+      "acceptance_surface": "initialized NoahMP land surface; SeaSalt source expected zero",
+      "active_seasalt_reference_case": "seasalt ocean-process acceptance case",
+      "suite": "tests/ccpp/suites/suite_CATChem_EmissionChemistryRemoval.xml",
+      "suite_ps": "tests/ccpp/suites/suite_CATChem_EmissionChemistryRemoval_ps.xml",
+      "primary_suite": "suite_CATChem_EmissionChemistryRemoval"
+    },
+    {
+      "id": "photolysis-gaschem",
+      "manifest": "tests/ccpp-scm/cases/photolysis-gaschem.yml",
+      "suite": "tests/ccpp/suites/suite_CATChem_PhotolysisGasChem.xml",
+      "processes": [
+        "photolysis",
+        "gaschem"
+      ],
+      "ordering": [
+        "photolysis",
+        "gaschem"
+      ],
+      "scm_cases": [
+        "arm_sgp_summer_1997_A",
+        "arm_sgp_summer_1997_A_night"
+      ],
+      "acceptance_surface": "ARM land with prescribed surface fluxes (sfc_type=1, sfc_flux_spec=true); no active LSM",
+      "host_updates": [
+        "after_gaschem"
+      ],
+      "suite_ps": "tests/ccpp/suites/suite_CATChem_PhotolysisGasChem_ps.xml"
+    },
+    {
+      "id": "time-recovery",
+      "manifest": "tests/ccpp-scm/cases/time-recovery.yml",
+      "processes": [
+        "dust",
+        "wetdep",
+        "so4chem",
+        "photolysis",
+        "gaschem"
+      ],
+      "status": "pending_implementation_and_real_cap_evidence",
+      "subcycle_suite": "tests/ccpp/suites/suite_CATChem_PhotolysisGasChemSubcycle.xml",
+      "subcycle_suite_ps": "tests/ccpp/suites/suite_CATChem_PhotolysisGasChemSubcycle_ps.xml",
+      "subcycle_processes": [
+        "photolysis",
+        "gaschem"
+      ],
+      "subcycle_order": [
+        "GFS_MP_generic_post",
+        "photolysis",
+        "gaschem",
+        "host_update"
+      ],
+      "subcycle_extent": 2,
+      "real_cap_subcycle_case": "arm_sgp_summer_1997_A"
+    }
+  ],
+  "failure_expectations": [
+    "conflicting_full_properties",
+    "duplicate_mapping",
+    "missing_required_species",
+    "nonfinite_host_state",
+    "nonfinite_layout_input",
+    "nonpositive_conversion_property",
+    "out_of_range_mapping",
+    "unknown_air_basis",
+    "unsupported_amount_type",
+    "zero_extent"
+  ]
+}

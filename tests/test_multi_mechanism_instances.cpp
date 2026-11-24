@@ -4,6 +4,7 @@
 namespace {
     // SpeciesConfig is an aggregate with several string/vector members; build
     // one from just a name so the test does not depend on member order.
+    /// @brief Construct a minimal test species with the requested name.
     catchem::SpeciesConfig make_species(const char* name) {
         catchem::SpeciesConfig s;
         s.name = name;
@@ -11,6 +12,7 @@ namespace {
     }
 } // namespace
 
+/// @brief Verify independently configured mechanisms have isolated metadata and fingerprints.
 int main() {
     catchem::ConfigManager first_config;
     first_config.data.mechanism_identity = "first";
@@ -26,6 +28,9 @@ int main() {
 
     assert(first.mechanism->identity == "first");
     assert(second.mechanism->identity == "second");
+    assert(!first.mechanism->fingerprint.empty());
+    assert(!second.mechanism->fingerprint.empty());
+    assert(first.mechanism->fingerprint != second.mechanism->fingerprint);
     assert(first.mechanism->species.size() == 2);
     assert(second.mechanism->species.size() == 3);
     assert(!first.mechanism->contains("gamma"));

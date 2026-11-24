@@ -56,6 +56,14 @@ option(CATCHEM_ENABLE_KOKKOS "Enable Kokkos GPU/parallel support" OFF)
 # Option to build with MUSICA chemistry library (defaults to OFF)
 option(CATCHEM_BUILD_MUSICA "Build with MUSICA chemistry library" OFF)
 
+# Acceptance-only fault injection. This is disabled in normal builds and adds
+# a one-shot GasChem failure hook for generated-cap publication/recovery probes.
+option(
+  CATCHEM_ENABLE_ACCEPTANCE_FAILURE_INJECTION
+  "Enable the opt-in CCPP acceptance process-body failure hook"
+  OFF
+)
+
 # MUSICA's gaschem/photolysis processes build on the Kokkos-backed C++ core.
 if(CATCHEM_BUILD_MUSICA AND NOT CATCHEM_ENABLE_KOKKOS)
   message(
@@ -226,6 +234,12 @@ set(
   ""
   CACHE PATH
   "Directory containing host CCPP Fortran modules"
+)
+set(
+  CATCHEM_CCPP_HOST_TARGET
+  ""
+  CACHE STRING
+  "Optional host target that exports CCPP modules and libraries"
 )
 option(CATCHEM_BUILD_TESTING "Build CATChem testing framework" ON)
 option(
@@ -482,6 +496,60 @@ add_subdirectory(src)
 
 if(CATCHEM_BUILD_CCPP)
   add_subdirectory(drivers/ccpp)
+
+  # Parent (UFS) integration: consume the CCPP interface without exporting
+  # target-level dependencies into the parent's install(EXPORT) set. The
+  # interface's Fortran closure only needs machine.mod and the CCPP framework
+  # constituent modules from the host, plus the CATChem API modules; all
+  # CATChem science archives are folded in by file path, mirroring cc_nuopc.
+  if(CATCHEM_CCPP_HOST_TARGET AND TARGET ${CATCHEM_CCPP_HOST_TARGET})
+    add_library(cc_ccpp STATIC $<TARGET_OBJECTS:CCPP_CATChem_interface>)
+    target_include_directories(
+      cc_ccpp
+      PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
+    )
+    if(CATCHEM_CCPP_HOST_MODULE_DIR)
+      target_include_directories(
+        cc_ccpp
+        PRIVATE ${CATCHEM_CCPP_HOST_MODULE_DIR}
+      )
+    endif()
+    add_dependencies(cc_ccpp CCPP_CATChem_interface ${CATCHEM_CCPP_HOST_TARGET})
+    target_link_libraries(
+      cc_ccpp
+      PUBLIC NetCDF::NetCDF_Fortran
+      PRIVATE
+        $<TARGET_FILE:CATChem>
+        $<TARGET_FILE:CATChem_process_seasalt>
+        $<TARGET_FILE:CATChem_process_dust>
+        $<TARGET_FILE:CATChem_process_drydep>
+        $<TARGET_FILE:CATChem_process_wetdep>
+        $<TARGET_FILE:CATChem_process_settling>
+        $<TARGET_FILE:CATChem_process_so4chem>
+        $<TARGET_FILE:CATChem_process_carbchem>
+        $<TARGET_FILE:CATChem_core_cpp>
+        $<TARGET_FILE:catchem_utilities>
+        $<TARGET_FILE:GOCART2G>
+    )
+    if(TARGET yaml-cpp::yaml-cpp)
+      target_link_libraries(cc_ccpp PRIVATE yaml-cpp::yaml-cpp)
+    elseif(TARGET yaml-cpp)
+      target_link_libraries(cc_ccpp PRIVATE yaml-cpp)
+    endif()
+    set_target_properties(
+      cc_ccpp
+      PROPERTIES
+        Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include
+        LINKER_LANGUAGE Fortran
+        EXPORT_NAME cc_ccpp
+    )
+    install(
+      TARGETS cc_ccpp
+      EXPORT ufs-config
+      LIBRARY DESTINATION lib
+      ARCHIVE DESTINATION lib
+    )
+  endif()
 endif()
 
 if(CATCHEM_BUILD_NUOPC)

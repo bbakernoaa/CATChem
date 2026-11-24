@@ -1,0 +1,37 @@
+schema_version: 1
+case_id: photolysis-arm-sgp-gfs-v17
+scm_case: arm_sgp_summer_1997_A
+processes:
+  - photolysis
+acceptance_fixture:
+  species: ozone and configured mechanism constituents in the full CCPP constituent array
+  ozone_profile_source: locked SCM case o3 tracer through its forcing top; CCPP-SCM mid-latitude summer standard atmosphere fills the upper levels
+  basis: SCM-initialized level-resolved host ozone with GFS v17 fields, host clock and GOCART climatology
+inputs:
+  - name: ccpp_constituents
+    units: species-declared
+    basis: full framework constituent array mapped by registered standard names
+  - name: gfs_v17_photolysis_meteorology
+    units: K, Pa, m2 s-2, degrees, m s-1
+    basis: host atmospheric state, column location and interval clock
+outputs:
+  - name: photolysis_rate_products
+    signal_name: photolysis_rate_O3+hv->O2+O(1D)
+    units: s-1 for photolysis; host constituent representation for gas chemistry
+    basis: selected photolysis execution and mechanism-associated products
+    must_be_nonzero: true
+    minimum_abs_value: 1.0e-30
+    maximum_abs_value: 1.0e6
+reference:
+  method: native_parity
+  description: Matched native TUV-x Photolysis replays use the same ARM SGP day and night CCPP states, radiation inputs and host clock. All 109 rate profiles' maxima and sums compare within the limits recorded in build/ccpp-scm/native-replay/arm-sgp-{day,night}-rate-parity.json.
+  source_revision: 900ec02691ae9a4ef250183ec86f7050b1d2d6b9
+  evidence:
+    - build/ccpp-scm/native-replay/arm-sgp-day-rate-parity.json
+    - build/ccpp-scm/native-replay/arm-sgp-night-rate-parity.json
+tolerances:
+  - quantity: photolysis_rate_products
+    absolute: 1.0e-15
+    relative: 1.0e-12
+    rationale: Frozen from matched native day and night rate-profile comparisons; maximum observed absolute error is 6.67e-16 s-1 and maximum relative error is 5.49e-16.
+frozen_before_candidate_comparison: true

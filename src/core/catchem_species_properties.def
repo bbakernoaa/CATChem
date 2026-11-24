@@ -1,3 +1,20 @@
+/**
+ * @file catchem_species_properties.def
+ * @brief X-macro data list driving the species property C-API.
+ *
+ * @details Not compiled on its own: this file is #include'd twice, once by
+ * catchem_api.hpp (to declare the extern "C" accessors) and once by
+ * catchem_api_config.cpp (to define them), each time with the property macros
+ * freshly defined and afterwards undefined. Each entry lists the API suffix,
+ * the SpeciesMetadata member it exposes, and (for double properties) the value
+ * returned when the 1-based species index is out of range or the state is
+ * invalid. CATCHEM_SPECIES_DOUBLE_PROPERTY yields
+ * catchem_state_get_species_<api>, CATCHEM_SPECIES_BOOL_PROPERTY yields the
+ * same prefix returning 0/1, and CATCHEM_SPECIES_LEGACY_BOOL_PROPERTY yields
+ * the older catchem_state_is_species_<api> spelling kept for backwards
+ * compatibility. Adding a metadata field to expose means adding one line here
+ * — no other file changes.
+ */
 // API suffix, SpeciesMetadata member, invalid-index fallback
 CATCHEM_SPECIES_DOUBLE_PROPERTY(density, density, 0.0)
 CATCHEM_SPECIES_DOUBLE_PROPERTY(radius, radius, 0.0)

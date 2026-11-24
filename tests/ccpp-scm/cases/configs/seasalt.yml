@@ -1,0 +1,20 @@
+simulation:
+  name: ccpp_scm_seasalt
+  species_filename: ../../../../tests/Configs/Default/CATChem_species.yml
+  verbose:
+    activate: true
+grid:
+  number_of_levels: 64
+timesteps:
+  transport_timestep_in_s: 600
+  chemistry_timestep_in_s: 600
+run_phases:
+  ccpp_selected_process:
+    description: Run only the CCPP-selected sea-salt process
+    processes:
+      - seasalt
+processes:
+  seasalt:
+    activate: true
+    diagnostics: true
+    scheme: geos12

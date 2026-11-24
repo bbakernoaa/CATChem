@@ -28,10 +28,17 @@ int main() {
     assert(static_cast<const double*>(manager->get_host_read_pointer("persistent"))[0] == 9.0);
     assert(manager->get_field("instant")->latest_writer == catchem::LatestWriter::Synchronized);
     assert(manager->get_field("persistent")->latest_writer == catchem::LatestWriter::HostCurrent);
+    assert(manager->get_field("instant")->last_write_generation == 0);
+    assert(manager->get_field("persistent")->last_write_generation == 0);
+
+    // A retained persistent value is not a new product for the new timestep.
+    assert(manager->get_field("persistent")->generation == manager->generation());
+    assert(manager->get_field("persistent")->last_write_generation != manager->generation());
 
     for (int timestep = 2; timestep <= 3; ++timestep) {
         static_cast<double*>(manager->get_host_write_pointer("instant"))[0] = timestep;
         static_cast<double*>(manager->get_host_write_pointer("accumulated"))[0] += timestep;
+        assert(manager->get_field("instant")->last_write_generation == manager->generation());
         manager->begin_timestep();
         assert(manager->get_field("instant")->generation == static_cast<std::size_t>(timestep));
         assert(manager->get_field("persistent")->generation == static_cast<std::size_t>(timestep));

@@ -1,4 +1,5 @@
 #include "catchem_core.hpp"
+#include "catchem_manifest.hpp"
 #include "catchem_test_config.hpp"
 #include <cassert>
 #include <string>
@@ -30,6 +31,8 @@ int main() {
     const std::string config = std::string(catchem::test::SOURCE_DIR) + "/tests/fixtures/platform_integrity_valid.yml";
     catchem::Core configured(config);
     assert_common_wiring(configured, 2, 1, 3, 3);
+    catchem::MechanismManifest manifest(config);
+    assert(configured.get_state_manager()->chemistry().mechanism->fingerprint == manifest.fingerprint());
 
     catchem::Core host_grid(config, 5, 4);
     assert_common_wiring(host_grid, 5, 1, 4, 3);

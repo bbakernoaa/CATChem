@@ -1,0 +1,22 @@
+simulation:
+  name: ccpp_scm_settling
+  species_filename: ../../../../tests/Configs/Default/CATChem_species.yml
+  verbose:
+    activate: true
+grid:
+  number_of_levels: 64
+timesteps:
+  transport_timestep_in_s: 600
+  chemistry_timestep_in_s: 600
+run_phases:
+  ccpp_selected_process:
+    description: Run only the CCPP-selected particle settling process
+    processes:
+      - settling
+processes:
+  settling:
+    activate: true
+    diagnostics: true
+    scheme: gocart
+    gocart:
+      simple_scheme: false

@@ -1,0 +1,80 @@
+[ccpp-table-properties]
+  name = constituent_probe
+  type = scheme
+  dependencies =
+
+[ccpp-arg-table]
+  name = constituent_probe_register
+  type = scheme
+[dyn_const]
+  standard_name = ccpp_constituent_properties
+  long_name = dynamically registered probe constituent properties
+  units = none
+  dimensions = (number_of_ccpp_constituents)
+  type = ccpp_constituent_properties_t
+  allocatable = True
+  intent = out
+[errmsg]
+  standard_name = ccpp_error_message
+  long_name = error message
+  units = none
+  dimensions = ()
+  type = character
+  kind = len=*
+  intent = out
+[errcode]
+  standard_name = ccpp_error_code
+  long_name = error code
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = out
+
+[ccpp-arg-table]
+  name = constituent_probe_run
+  type = scheme
+[ccpp_constituents]
+  standard_name = ccpp_constituents
+  long_name = complete framework constituent state
+  units = none
+  dimensions = (horizontal_dimension, vertical_layer_dimension, number_of_ccpp_constituents)
+  type = real
+  kind = kind_phys
+  intent = inout
+[ccpp_constituent_tendencies]
+  standard_name = ccpp_constituent_tendencies
+  long_name = complete framework constituent tendencies
+  units = none
+  dimensions = (horizontal_dimension, vertical_layer_dimension, number_of_ccpp_constituents)
+  type = real
+  kind = kind_phys
+  intent = inout
+[ccpp_constituent_properties]
+  standard_name = ccpp_constituent_properties
+  long_name = complete framework constituent properties
+  units = none
+  dimensions = (number_of_ccpp_constituents)
+  type = ccpp_constituent_prop_ptr_t
+  intent = in
+[probe_count]
+  standard_name = number_of_ccpp_constituents
+  long_name = number of registered probe constituents
+  units = count
+  dimensions = ()
+  type = integer
+  intent = in
+[errmsg]
+  standard_name = ccpp_error_message
+  long_name = error message
+  units = none
+  dimensions = ()
+  type = character
+  kind = len=*
+  intent = out
+[errcode]
+  standard_name = ccpp_error_code
+  long_name = error code
+  units = 1
+  dimensions = ()
+  type = integer
+  intent = out

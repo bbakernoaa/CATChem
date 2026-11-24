@@ -1,0 +1,51 @@
+schema_version: 1
+case_id: time-recovery-gfs-v17
+processes: [dust, wetdep, so4chem, photolysis, gaschem]
+reference:
+  method: same_boundary_process_composition
+  source_revision: 900ec02691ae9a4ef250183ec86f7050b1d2d6b9
+  description: Compare every stage at the same incoming constituent state and host-group boundary as the corresponding native process sequence.
+  frozen_before_candidate_comparison: true
+  tolerances:
+    mapped_species_relative: 1.0e-6
+    photolysis_rate_metrics_relative: 1.0e-12
+    photolysis_rate_metrics_absolute_s-1: 1.0e-15
+    rationale: Use the previously frozen day/night process tolerances for both 22.5-second host-update boundaries and the final rate-profile maxima and sums; no tolerance is fitted to the subcycle result.
+real_cap_fixture:
+  scm_case: arm_sgp_summer_1997_A_leap
+  date: 2024-02-29T18:00:00Z
+  case_basis: Clock-shifted locked ARM SGP column with unchanged meteorological profiles; prescribed surface fluxes, no LSM.
+  roughness_mapping: surface_roughness_length (effective SCM momentum roughness), converted from cm to m; surface_roughness_length_over_land is an uninitialized tile field in this setup.
+  native_composition: Retain one native Core/MICM instance through both 22.5-second calls and exact captured meteorology profiles; verify that interleaved host physics preserves mapped chemistry between calls. Retain solver intermediates exactly as SCM does.
+  clock_policy: Both subcycles use the shared SCM host-interval calendar clock and their distinct integration durations.
+schedule:
+  date: 2024-02-29T23:55:00Z
+  host_timestep_seconds: 45
+  site_calls:
+    - [phys_ps, dust, subcycle=1, duration_seconds=15]
+    - [phys_ps, dust, subcycle=2, duration_seconds=15]
+    - [phys_ps, wetdep, subcycle=1, duration_seconds=45]
+    - [host_update, apply_phys_ps_tendencies_once]
+    - [phys_ts, photolysis, subcycle=1, duration_seconds=45]
+    - [phys_ts, gaschem, subcycle=1, duration_seconds=45]
+    - [host_update, apply_phys_ts_tendencies_once]
+    - [phys_ts, so4chem, subcycle=1, duration_seconds=45]
+    - [host_update, apply_so4chem_tendency_once]
+  rate_provenance: Photolysis rates may be consumed only by the immediately following GasChem call using the same interval token, gathered host-state version, and mechanism identity. A repeated call with changed ozone, radiation, date, duration, or mechanism must recompute rates.
+  repeated_subcycle_suite: CATChem_PhotolysisGasChemSubcycle
+  repeated_subcycle_extent: 2
+  subcycle_duration_seconds: 22.5
+  host_physics_interstitial: GFS_MP_generic_post
+  expected_order: [host_physics, photolysis, gaschem, host_update, host_physics, photolysis, gaschem, host_update]
+negative_cases:
+  - duplicate interval/site/subcycle/process key rejected before execution
+  - stale photolysis product rejected after a relevant host input version changes
+  - repeated identical gather preserves product validity and does not allocate a new interval identity
+  - injected reimport failure publishes no constituent state or tendency contribution
+  - injected reinitialization-required failure forbids retry until context reinitialization
+  - reused interval token with a changed date or duration rejected
+acceptance:
+  status: passed_realcap_native_subcycles_and_focused_recovery
+  required_ledgers: [interval_tokens, host_input_versions, process_subcycles, tendency_contributions, consumed_updates]
+  numeric_budget_tolerances: Use the frozen mapped-species and Photolysis-rate tolerances under reference.tolerances; process budgets use their individual manifests.
+  evidence: build/ccpp-scm-phase6-clean/native-replay/leap-day-subcycles-final/summary.json

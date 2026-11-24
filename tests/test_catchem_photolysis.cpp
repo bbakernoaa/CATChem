@@ -1,6 +1,8 @@
 #include "catchem_api.hpp"
+#include "catchem_constants.hpp"
 #include "catchem_core.hpp"
 #include "catchem_diagnostic_manager.hpp"
+#include "catchem_photolysis_conversion.hpp"
 #include "catchem_process_registry.hpp"
 #include "catchem_state_manager.hpp"
 #include "catchem_test_config.hpp"
@@ -16,11 +18,12 @@ extern "C" {
 void catchem_register_photolysis_cpp();
 }
 
-// Simple helper to check if a file exists using C++17 std::filesystem
+/** @brief Check whether a test resource exists on disk. */
 bool file_exists(const std::string& name) {
     return std::filesystem::exists(name);
 }
 
+/** @brief Run TUV-x photolysis integration checks for calibrated ozone and day/night rates. */
 int main(int argc, char* argv[]) {
     Kokkos::initialize(argc, argv);
     {
@@ -84,6 +87,12 @@ int main(int argc, char* argv[]) {
         state->bind_met_field_3d("AIRDEN_DRY", airden.data());
         state->bind_met_field_3d("PMID", pedge.data());
         std::vector<double> conc_data(n_cols * n_levels * n_species, 1.0e-7);
+        for (int species = 0; species < n_species; ++species) {
+            if (state->chemistry().species_list[species].short_name == "o3") {
+                for (int level = 0; level < n_levels; ++level)
+                    conc_data[species * n_cols * n_levels + level * n_cols] = 0.04; // 40 ppbv
+            }
+        }
         state->bind_unified_chemistry(conc_data.data());
 
         // 4. Resolve the TUV-x configuration file path explicitly using configured header
@@ -138,6 +147,26 @@ int main(int argc, char* argv[]) {
 
         assert(total_rate > 0.0 && "Photolysis rates should be non-zero for positive solar zenith angles!");
         std::cout << "SUCCESS: Calculated non-zero finite J-rates for all levels." << std::endl;
+
+        // A calibrated ozone profile is converted to number density at the
+        // TUV-x boundary independently of the expected daytime rates above.
+        const double dry_air_number_density_cm3 =
+            1.2 / (catchem::constants::AIR_MW * 1.0e-3) * catchem::constants::AVO * 1.0e-6;
+        const double expected_ozone_number_density_cm3 = 0.04e-6 * dry_air_number_density_cm3;
+        assert(std::abs(catchem::photolysis_ozone_ppmv_to_number_density(0.04, dry_air_number_density_cm3) -
+                        expected_ozone_number_density_cm3) < 1.0);
+
+        // The same configured column must produce no photolysis in darkness.
+        state->clock().hour = 6;
+        state->clock().calculate_derived_fields();
+        core->run_timestep(3600.0);
+        jfoo_rates = static_cast<double*>(diag_mgr->get_host_pointer("photolysis_rate_jfoo"));
+        double nighttime_total_rate = 0.0;
+        for (int i = 0; i < n_levels; ++i) {
+            assert(std::isfinite(jfoo_rates[i]));
+            nighttime_total_rate += jfoo_rates[i];
+        }
+        assert(nighttime_total_rate <= 1.0e-30 && "Night-time photolysis rates must be zero.");
 
         // Clean up temp file
         std::remove(temp_main_config.c_str());

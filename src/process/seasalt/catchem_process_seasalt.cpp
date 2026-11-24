@@ -1,3 +1,13 @@
+/**
+ * @file catchem_process_seasalt.cpp
+ * @brief Implements the Gong/GEOS sea-salt emission adapter and its Fortran bridge call.
+ *
+ * @details The canonical SEAS1..SEAS5 bins are resolved by name through the
+ * shared anonymous-namespace helper so init()'s diagnostic ids and run()'s
+ * physics arrays use one ordering. The bridge operates on the full unified
+ * concentration array and resolves bins by name, so no slice buffers or
+ * copy-back are needed; all borrowed host pointers must outlive the call.
+ */
 #include "catchem_process_seasalt.hpp"
 #include "catchem_diagnostic_manager.hpp"
 #include "catchem_error.hpp"
@@ -5,9 +15,28 @@
 #include "catchem_process_registry.hpp"
 #include <array>
 #include <cctype>
-#include <iostream>
+#include <iomanip>
+#include <sstream>
 
 extern "C" {
+/**
+ * @brief Flat C entry point into the Fortran sea-salt emission science bridge.
+ *
+ * @details Implemented in src/process/seasalt/SeaSaltScienceBridge.F90, which
+ * reconstitutes the flat buffers and dispatches to the gong97/gong03/geos12
+ * emission kernel. Every pointer argument is a borrowed host buffer that must
+ * stay alive and un-reallocated for the whole call. The per-bin metadata
+ * arrays (density [kg/m3], radius/lower_radius/upper_radius [µm], mw_g [g/mol],
+ * is_gas) span only the resolved SEAS1..SEAS5 bins in canonical order — the
+ * scheme's local species_idx space (1..n_seasalt) is defined by that sequence
+ * — while `species_names` and `conc`/`tendency` span the full catalog, with
+ * bins resolved into concentration slots by name via `bin_species_names`
+ * (blank-padded, upper-cased, 32 chars per name).
+ *
+ * @note The bridge returns no status code: a scheme failure aborts inside
+ *       Fortran. `diagnostic_species_id` carries 1-based LOCAL bin positions
+ *       and is always a valid array (a size-1 zero dummy when disabled).
+ */
 void run_seasalt_science_bridge(int n_cols, int n_levels, int n_species, int n_total_species, double dt,
                                 const char* active_scheme, int diagnostics, double gong97_scale_factor,
                                 int gong97_weibull_flag, double gong03_scale_factor, int gong03_weibull_flag,
@@ -30,6 +59,7 @@ namespace catchem {
         /// schemes' local species_idx space (1..n_seasalt) is defined by THIS
         /// sequence.  Every bin must exist by canonical name and carry valid
         /// physical properties (same throws run() has always enforced).
+        /// @return 0-based global catalog positions of SEAS1..SEAS5, in bin order.
         std::vector<int> resolved_seasalt_bins(const std::shared_ptr<StateManager>& state) {
             // Route legacy size bins by canonical name rather than declaration
             // position.  Their ordering is part of the GEOS/Gong scheme contract.
@@ -68,12 +98,12 @@ namespace catchem {
                                                 host_field_2d("U10M", "m/s"),
                                                 host_field_2d("V10M", "m/s"),
                                                 host_concentration()};
-        if (active_scheme_ == "geos12")
+        if (active_scheme == "geos12")
             fields.push_back(host_field_2d("USTAR", "m/s"));
         return make_contract(get_name(), std::move(fields));
     }
 
-    SeaSaltProcess::SeaSaltProcess() : active_scheme_("geos12"), diagnostics_enabled_(true) {}
+    SeaSaltProcess::SeaSaltProcess() : active_scheme("geos12"), diagnostics_enabled(true) {}
 
     void SeaSaltProcess::prepare_inputs(std::shared_ptr<StateManager> state) {
         state->derive_delp();
@@ -86,31 +116,31 @@ namespace catchem {
         const auto configured = config->data.processes.find("seasalt");
         if (configured == config->data.processes.end() || configured->second.scheme.empty())
             throw std::invalid_argument("SeaSalt requires processes.seasalt.scheme in the runtime YAML");
-        active_scheme_ = configured->second.scheme;
-        diagnostics_enabled_ = configured->second.diagnostics;
-        if (active_scheme_ != "gong97" && active_scheme_ != "gong03" && active_scheme_ != "geos12")
-            throw std::invalid_argument("SeaSalt runtime YAML selected unsupported scheme: " + active_scheme_);
+        active_scheme = configured->second.scheme;
+        diagnostics_enabled = configured->second.diagnostics;
+        if (active_scheme != "gong97" && active_scheme != "gong03" && active_scheme != "geos12")
+            throw std::invalid_argument("SeaSalt runtime YAML selected unsupported scheme: " + active_scheme);
 
         // Read per-scheme tuning options before the diagnostics early-return:
         // they must reach the bridge even when diagnostics are off.
         const auto& settings = configured->second;
-        gong97_scale_factor_ = settings.get_double("gong97/scale_factor", gong97_scale_factor_);
-        gong97_weibull_flag_ = settings.get_bool("gong97/weibull_flag", gong97_weibull_flag_);
-        gong03_scale_factor_ = settings.get_double("gong03/scale_factor", gong03_scale_factor_);
-        gong03_weibull_flag_ = settings.get_bool("gong03/weibull_flag", gong03_weibull_flag_);
-        geos12_scale_factor_ = settings.get_double("geos12/scale_factor", geos12_scale_factor_);
-        geos12_weibull_flag_ = settings.get_bool("geos12/weibull_flag", geos12_weibull_flag_);
+        gong97_scale_factor = settings.get_double("gong97/scale_factor", gong97_scale_factor);
+        gong97_weibull_flag = settings.get_bool("gong97/weibull_flag", gong97_weibull_flag);
+        gong03_scale_factor = settings.get_double("gong03/scale_factor", gong03_scale_factor);
+        gong03_weibull_flag = settings.get_bool("gong03/weibull_flag", gong03_weibull_flag);
+        geos12_scale_factor = settings.get_double("geos12/scale_factor", geos12_scale_factor);
+        geos12_weibull_flag = settings.get_bool("geos12/weibull_flag", geos12_weibull_flag);
 
         // Surface the effective scheme options so the run log confirms what
         // was parsed from the runtime YAML and will be passed to the bridge.
-        Logger::debug(*state, "SeaSalt scheme options",
-                      {{"scheme", active_scheme_},
-                       {"gong97/scale_factor", std::to_string(gong97_scale_factor_)},
-                       {"gong97/weibull_flag", gong97_weibull_flag_ ? "true" : "false"},
-                       {"gong03/scale_factor", std::to_string(gong03_scale_factor_)},
-                       {"gong03/weibull_flag", gong03_weibull_flag_ ? "true" : "false"},
-                       {"geos12/scale_factor", std::to_string(geos12_scale_factor_)},
-                       {"geos12/weibull_flag", geos12_weibull_flag_ ? "true" : "false"}});
+        Logger::debug(state.get(), "SeaSalt scheme options",
+                      {{"scheme", active_scheme},
+                       {"gong97/scale_factor", std::to_string(gong97_scale_factor)},
+                       {"gong97/weibull_flag", gong97_weibull_flag ? "true" : "false"},
+                       {"gong03/scale_factor", std::to_string(gong03_scale_factor)},
+                       {"gong03/weibull_flag", gong03_weibull_flag ? "true" : "false"},
+                       {"geos12/scale_factor", std::to_string(geos12_scale_factor)},
+                       {"geos12/weibull_flag", geos12_weibull_flag ? "true" : "false"}});
 
         // 3. Per-process diagnostics (parity with legacy): the schemes match
         // diagnostic_species_id(diag_idx) == species_idx, where species_idx is
@@ -138,10 +168,10 @@ namespace catchem {
                 for (size_t bin = 0; bin < ss_global_indices.size(); ++bin)
                     selected_local.push_back(static_cast<int>(bin) + 1);
             }
-            diagnostic_species_id_ = selected_local;
+            diagnostic_species_id = selected_local;
         }
 
-        if (!diagnostics_enabled_)
+        if (!diagnostics_enabled)
             return;
         if (state->diagnostic_manager()) {
             std::vector<int> dims_1d = {state->column_count(), 1};
@@ -155,7 +185,7 @@ namespace catchem {
             // unpacks them into one named 2D variable per size bin (feature 013).
             // n_diag is the (possibly subsetted) diagnostic bin count;
             // column-major layout matches the bridge's [n_cols, n_diag_species].
-            const int n_diag = static_cast<int>(diagnostic_species_id_.size());
+            const int n_diag = static_cast<int>(diagnostic_species_id.size());
             if (n_diag > 0) {
                 std::vector<int> dims_bins = {state->column_count(), n_diag};
                 // diagnostic_species_id holds LOCAL bin positions (1-based) into
@@ -163,7 +193,7 @@ namespace catchem {
                 // bridge, so slot i's label is that bin's short_name (FR-006).
                 std::vector<std::string> ss_bin_labels;
                 ss_bin_labels.reserve(ss_global_indices.size());
-                for (const int local : diagnostic_species_id_)
+                for (const int local : diagnostic_species_id)
                     ss_bin_labels.push_back(
                         state->chemistry().species_list[ss_global_indices[static_cast<size_t>(local) - 1]].short_name);
                 const std::vector<SemanticAxis> axes_bin = {SemanticAxis::Column, SemanticAxis::Category};
@@ -195,7 +225,7 @@ namespace catchem {
         require_field_pointer("SeaSalt", "LAT", lat_ptr);
         require_field_pointer("SeaSalt", "LON", lon_ptr);
         require_field_pointer("SeaSalt", "SST", sst_ptr);
-        if (active_scheme_ == "geos12")
+        if (active_scheme == "geos12")
             require_field_pointer("SeaSalt", "USTAR", ustar_ptr);
         require_field_pointer("SeaSalt", "U10M", u10m_ptr);
         require_field_pointer("SeaSalt", "V10M", v10m_ptr);
@@ -255,11 +285,11 @@ namespace catchem {
 
         // 3. Extract diagnostics
         double* diag_mass_total_ptr =
-            diagnostics_enabled_ && state->diagnostic_manager()
+            diagnostics_enabled && state->diagnostic_manager()
                 ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_mass_emission_total")
                 : nullptr;
         double* diag_num_total_ptr =
-            diagnostics_enabled_ && state->diagnostic_manager()
+            diagnostics_enabled && state->diagnostic_manager()
                 ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_number_emission_total")
                 : nullptr;
 
@@ -268,11 +298,11 @@ namespace catchem {
         // is [n_cols, n_diag_species], so the memory layout matches with no
         // gather/scatter step.
         double* diag_mass_bin_ptr =
-            diagnostics_enabled_ && state->diagnostic_manager()
+            diagnostics_enabled && state->diagnostic_manager()
                 ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_mass_emission_bins")
                 : nullptr;
         double* diag_num_bin_ptr =
-            diagnostics_enabled_ && state->diagnostic_manager()
+            diagnostics_enabled && state->diagnostic_manager()
                 ? (double*)state->diagnostic_manager()->get_host_pointer("seasalt_number_emission_bins")
                 : nullptr;
 
@@ -285,10 +315,10 @@ namespace catchem {
         // scheme, so pass a valid size-1 dummy holding 0 — it matches no
         // 1-based species_idx and the scheme writes nothing (mirrors
         // settling/dust's no_diag_species guard).
-        const bool forward_diag = diagnostics_enabled_ && !diagnostic_species_id_.empty();
+        const bool forward_diag = diagnostics_enabled && !diagnostic_species_id.empty();
         static const int no_diag_species = 0;
-        const int* diag_ids = forward_diag ? diagnostic_species_id_.data() : &no_diag_species;
-        const int n_diag_species = forward_diag ? static_cast<int>(diagnostic_species_id_.size()) : 0;
+        const int* diag_ids = forward_diag ? diagnostic_species_id.data() : &no_diag_species;
+        const int n_diag_species = forward_diag ? static_cast<int>(diagnostic_species_id.size()) : 0;
         if (forward_diag) {
             const int registered_bins =
                 diag_mass_bin_ptr
@@ -305,12 +335,28 @@ namespace catchem {
         // resolves sea-salt bins by name internally).
         run_seasalt_science_bridge(
             state->column_count(), state->level_count(), n_seasalt, n_total_species, state->clock().timestep,
-            active_scheme_.c_str(), diagnostics_enabled_ ? 1 : 0, gong97_scale_factor_, gong97_weibull_flag_ ? 1 : 0,
-            gong03_scale_factor_, gong03_weibull_flag_ ? 1 : 0, geos12_scale_factor_, geos12_weibull_flag_ ? 1 : 0,
+            active_scheme.c_str(), diagnostics_enabled ? 1 : 0, gong97_scale_factor, gong97_weibull_flag ? 1 : 0,
+            gong03_scale_factor, gong03_weibull_flag ? 1 : 0, geos12_scale_factor, geos12_weibull_flag ? 1 : 0,
             frocean_ptr, frseaice_ptr, lat_ptr, lon_ptr, sst_ptr, u10m_ptr, v10m_ptr, ustar_ptr, delp_ptr,
             density.data(), radius.data(), lower_radius.data(), upper_radius.data(), (bool*)is_gas.data(), mw_g.data(),
             bin_species_names.data(), state->chemistry().species_names_c_arr.data(), conc_ptr, full_tendency.data(),
             diag_mass_total_ptr, diag_num_total_ptr, diag_mass_bin_ptr, diag_num_bin_ptr, diag_ids, n_diag_species);
+
+        /// Report the emitted-bin closure used by the CCPP-SCM acceptance case.
+        if (diag_mass_total_ptr && diag_mass_bin_ptr && n_diag_species > 0) {
+            double total_sum = 0.0;
+            double bin_sum = 0.0;
+            for (int column = 0; column < state->column_count(); ++column) {
+                total_sum += diag_mass_total_ptr[column];
+                for (int bin = 0; bin < n_diag_species; ++bin)
+                    bin_sum += diag_mass_bin_ptr[column + state->column_count() * bin];
+            }
+            std::ostringstream budget_record;
+            budget_record << std::setprecision(17)
+                          << "CATCHEM_BUDGET name=seasalt_bin_closure RESIDUAL=" << (total_sum - bin_sum)
+                          << " TOTAL=" << total_sum << " BIN_SUM=" << bin_sum;
+            Logger::info(state.get(), budget_record.str());
+        }
 
         if (state->chemistry().conc)
             state->chemistry().conc->mark_host_modified();
@@ -319,6 +365,14 @@ namespace catchem {
 } // namespace catchem
 
 extern "C" {
+/**
+ * @brief Register the "seasalt" process and its settings schema with the ProcessRegistry.
+ *
+ * @details Called once by the API layer's built-in registration pass. The
+ * validator accepts the six gong97/gong03/geos12 scale_factor and weibull_flag
+ * options under processes.seasalt, so an unknown nested option fails at
+ * initialization instead of silently keeping its compiled default.
+ */
 void catchem_register_seasalt_cpp() {
     catchem::ProcessRegistry::get_instance().register_process(
         "seasalt", []() { return std::make_shared<catchem::SeaSaltProcess>(); }, {},
