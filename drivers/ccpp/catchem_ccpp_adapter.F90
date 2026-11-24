@@ -208,7 +208,8 @@ contains
                                                       model%state_mgr_ptr, trim(name)//c_null_char, c_loc(values(1, 1)), &
                                                       int(size(values, 1), c_int), int(size(values, 2), c_int), 1_c_int)
       if (status /= 0_c_int) then
-         errmsg = 'CATChem failed to bind host field '//trim(name)//'.'
+         write(errmsg,'(a,a,a,i0,a,i0,a,i0,a)') 'CATChem failed to bind host field ', trim(name), &
+            ' (status=', status, ', extents=', size(values,1), 'x', size(values,2), ')'
          errflg = int(status)
       else
          call write_met_field_2d(name, values, 1)
@@ -688,7 +689,11 @@ contains
          end if
          do col = 1, size(host, 1)
             do lev = 1, size(host, 2)
-               host_value = real(host(col, lev, slot), c_double)
+               ! FV3 tracer transport can leave small negative mixing ratios in
+               ! the host state before the dycore filler. Mass/mole fractions are
+               ! physically nonnegative, so clamp numerical-noise negatives to
+               ! zero at the import boundary (consistent with the dycore filler).
+               host_value = max(0.0_c_double, real(host(col, lev, slot), c_double))
                if (btest(d%flags, 0)) then
                   if (amount_type == CATCHEM_AMOUNT_MASS_RATIO) then
                      call catchem_gas_mass_ratio_to_dry_ppmv(host_value, amount_type, air_basis, &
@@ -704,7 +709,9 @@ contains
                                real(host_density(col, lev), c_double), real(dry_density(col, lev), c_double), converted, cvt_status)
                end if
                if (cvt_status /= CATCHEM_CONVERSION_OK .or. .not. ieee_is_finite(converted)) then
-                  errmsg = 'CATChem physical conversion failed for constituent '//trim(name)
+                  write(errmsg, '(a,a,a,es14.6)') &
+                     'CATChem physical conversion failed for constituent ', trim(name), &
+                     ' host_value=', host_value
                   errflg = 1
                   return
                end if
@@ -1125,6 +1132,11 @@ contains
                   errflg = 1
                   return
                end if
+               ! Mixing ratios are physically nonnegative; a removal process can
+               ! drive a near-zero tracer slightly below zero through numerical
+               ! noise. Clamp to the physical floor so the updated host state
+               ! stays valid for the next process's before-state check.
+               if (added_value < 0.0_c_double) added_value = 0.0_c_double
                mapped_constituents(col, lev, i) = added_value
             end do
          end do

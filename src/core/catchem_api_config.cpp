@@ -634,6 +634,40 @@ void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int 
         copy_string_to_buffer("", val_out, max_len);
     }
 }
+
+int catchem_config_get_mie_file_count(void* core_ptr) {
+    if (core_ptr == nullptr)
+        return 0;
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    return static_cast<int>(core->get_config_manager()->data.mie.files.size());
+}
+
+void catchem_config_get_mie_directory(void* core_ptr, char* val_out, int max_len) {
+    if (core_ptr == nullptr) {
+        copy_string_to_buffer("", val_out, max_len);
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    copy_string_to_buffer(core->get_config_manager()->data.mie.directory, val_out, max_len);
+}
+
+void catchem_config_get_mie_file_at(void* core_ptr, int index, char* type_out, int type_max_len, char* file_out,
+                                    int file_max_len) {
+    if (core_ptr == nullptr || index < 0) {
+        copy_string_to_buffer("", type_out, type_max_len);
+        copy_string_to_buffer("", file_out, file_max_len);
+        return;
+    }
+    auto* core = static_cast<catchem::Core*>(core_ptr);
+    const auto& files = core->get_config_manager()->data.mie.files;
+    if (index < static_cast<int>(files.size())) {
+        copy_string_to_buffer(files[index].first, type_out, type_max_len);
+        copy_string_to_buffer(files[index].second, file_out, file_max_len);
+    } else {
+        copy_string_to_buffer("", type_out, type_max_len);
+        copy_string_to_buffer("", file_out, file_max_len);
+    }
+}
 // =========================================================================
 // Species Metadata and Property Query C-API
 // =========================================================================

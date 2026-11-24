@@ -69,6 +69,12 @@ module catchem_nuopc_emis_mod
    ! conservative regridding, which otherwise feeds DMSemission unguarded.
    real(fp), parameter :: DMS_OCEAN_NMOLL_MAX = 1.e+3_fp
 
+   !> Handle of the emission driver's own Mie optics-table context, created
+   !! from the top-level "mie:" config section in catchem_emis_init and
+   !! released in catchem_emis_finalize. 0 means "no tables loaded"; the
+   !! biomass-burning AOT limiter then degrades to factor=1 with a warning.
+   integer(c_int), save :: emis_mie_handle = 0_c_int
+
    interface
       integer(c_int) function catchem_config_has_emission_mapping(core_ptr) bind(C, name="catchem_config_has_emission_mapping")
          import :: c_ptr, c_int
@@ -194,6 +200,46 @@ module catchem_nuopc_emis_mod
          integer(c_int), value :: index
          character(kind=c_char), intent(out) :: val_out(*)
          integer(c_int), value :: max_len
+      end subroutine
+
+      integer(c_int) function catchem_config_get_mie_file_count(core_ptr) &
+         bind(C, name="catchem_config_get_mie_file_count")
+         import :: c_ptr, c_int
+         type(c_ptr), value :: core_ptr
+      end function
+
+      subroutine catchem_config_get_mie_directory(core_ptr, val_out, max_len) &
+         bind(C, name="catchem_config_get_mie_directory")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         character(kind=c_char), intent(out) :: val_out(*)
+         integer(c_int), value :: max_len
+      end subroutine
+
+      subroutine catchem_config_get_mie_file_at(core_ptr, index, type_out, type_max_len, file_out, file_max_len) &
+         bind(C, name="catchem_config_get_mie_file_at")
+         import :: c_ptr, c_char, c_int
+         type(c_ptr), value :: core_ptr
+         integer(c_int), value :: index
+         character(kind=c_char), intent(out) :: type_out(*)
+         integer(c_int), value :: type_max_len
+         character(kind=c_char), intent(out) :: file_out(*)
+         integer(c_int), value :: file_max_len
+      end subroutine
+
+      subroutine run_settling_mie_init(n_files, type_names, file_paths, mie_handle, init_rc) &
+         bind(C, name="run_settling_mie_init")
+         import :: c_int, c_char
+         integer(c_int), value :: n_files
+         character(kind=c_char), intent(in) :: type_names(32,n_files)
+         character(kind=c_char), intent(in) :: file_paths(512,n_files)
+         integer(c_int), intent(out) :: mie_handle
+         integer(c_int), intent(out) :: init_rc
+      end subroutine
+
+      subroutine run_settling_mie_release(mie_handle) bind(C, name="run_settling_mie_release")
+         import :: c_int
+         integer(c_int), value :: mie_handle
       end subroutine
 
       type(c_ptr) function catchem_state_get_pointer_2d(state_ptr, name) bind(C, name="catchem_state_get_pointer_2d")
@@ -341,10 +387,107 @@ contains
       call flush(6)
 #endif
 
+      ! Load the emission driver's own Mie optics-table context for the
+      ! biomass-burning AOT limiter (run_emission_mie_factor). Failure is
+      ! non-fatal: the limiter degrades to factor=1 with a runtime warning.
+      if (extemis_activate) then
+         call catchem_emis_init_mie(core_ptr, localrc)
+         if (localrc /= CC_SUCCESS) then
+            call ESMF_LogWrite(trim(pName)//': Mie optics tables unavailable; '// &
+               'biomass-burning AOT limiter disabled (factor=1)', ESMF_LOGMSG_WARNING, rc=localrc)
+         end if
+      end if
+
       call ESMF_LogWrite(trim(pName)//': Emission initialization completed', &
          ESMF_LOGMSG_INFO, rc=localrc)
 
    end subroutine catchem_emis_init
+
+   !> \brief Load the Mie optics tables declared in the top-level "mie:" YAML
+   !! section into a context owned by this emission driver.
+   !!
+   !! The settling process owns a separate context for its own science path;
+   !! the bridge registry supports multiple independent owners, so the
+   !! emission driver creates and releases its own handle. On any failure the
+   !! handle stays 0 and compute_bb_emission_factor degrades gracefully.
+   !!
+   !! \param[in]  core_ptr C pointer to the CATChem core (config manager)
+   !! \param[out] rc Return code (CC_SUCCESS when a context was created)
+   subroutine catchem_emis_init_mie(core_ptr, rc)
+      implicit none
+
+      type(c_ptr), intent(in) :: core_ptr
+      integer, intent(out) :: rc
+
+      integer :: n_files, idx, localrc
+      integer(c_int) :: init_rc
+      character(len=EMIS_MAXSTR) :: mie_dir, msg
+      character(kind=c_char), allocatable :: type_names(:,:), file_paths(:,:)
+      character(len=32) :: type_name
+      character(len=512) :: file_name, joined
+      character(len=*), parameter :: pName = 'catchem_emis_init_mie'
+
+      rc = CC_FAILURE
+      if (.not. c_associated(core_ptr)) return
+      if (emis_mie_handle /= 0_c_int) then
+         rc = CC_SUCCESS   ! already initialized
+         return
+      end if
+
+      n_files = catchem_config_get_mie_file_count(core_ptr)
+      if (n_files <= 0) return
+
+      call catchem_config_get_mie_directory(core_ptr, mie_dir, int(EMIS_MAXSTR,c_int))
+      call clean_c_string(mie_dir)
+      if (len_trim(mie_dir) == 0) mie_dir = './'
+
+      allocate(type_names(32,n_files), file_paths(512,n_files))
+      type_names = ' '
+      file_paths = ' '
+      do idx = 1, n_files
+         call catchem_config_get_mie_file_at(core_ptr, int(idx-1,c_int), type_name, 32_c_int, &
+            file_name, 512_c_int)
+         call clean_c_string(type_name)
+         call clean_c_string(file_name)
+         if (trim(mie_dir) == './') then
+            joined = trim(file_name)
+         else
+            joined = trim(mie_dir)//'/'//trim(file_name)
+         end if
+         call f_string_to_c(trim(type_name), type_names(:,idx), 32)
+         call f_string_to_c(trim(joined), file_paths(:,idx), 512)
+      end do
+
+      call run_settling_mie_init(int(n_files,c_int), type_names, file_paths, emis_mie_handle, init_rc)
+      deallocate(type_names, file_paths)
+      if (init_rc /= 0_c_int .or. emis_mie_handle <= 0_c_int) then
+         write(msg, '(A,I0)') trim(pName)//': optics table load failed, file #', init_rc
+         call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_WARNING, rc=localrc)
+         emis_mie_handle = 0_c_int
+         return
+      end if
+
+      write(msg, '(A,I0,A)') trim(pName)//': loaded ', n_files, ' Mie optics tables for the BB emission limiter'
+      call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=localrc)
+      rc = CC_SUCCESS
+   end subroutine catchem_emis_init_mie
+
+   !> \brief Copy a Fortran string into a blank-padded C character array.
+   !! \param[in]  fstr Fortran string
+   !! \param[out] carr C character array (blank padded, no NUL required by the bridge)
+   !! \param[in]  clen declared length of carr
+   subroutine f_string_to_c(fstr, carr, clen)
+      implicit none
+      character(len=*), intent(in) :: fstr
+      integer, intent(in) :: clen
+      character(kind=c_char), intent(out) :: carr(clen)
+      integer :: i, n
+      carr = ' '
+      n = min(len_trim(fstr), clen)
+      do i = 1, n
+         carr(i) = fstr(i:i)
+      end do
+   end subroutine f_string_to_c
 
    !> \brief Update emission data for current time
    !!
@@ -1407,9 +1550,10 @@ contains
       integer :: nx, ny, nz, i, j, k, column
 
       interface
-         subroutine run_emission_mie_factor(n_columns, n_levels, mie_name_c, flux, rh, &
+         subroutine run_emission_mie_factor(mie_handle, n_columns, n_levels, mie_name_c, flux, rh, &
             scale_factor, dt, factor, limiter_rc) bind(C, name='run_emission_mie_factor')
             import :: c_int, c_double, c_char
+            integer(c_int), value :: mie_handle
             integer(c_int), value :: n_columns, n_levels
             character(kind=c_char), intent(in) :: mie_name_c(64)
             real(c_double), intent(in) :: flux(n_columns,n_levels), rh(n_columns,n_levels)
@@ -1420,6 +1564,13 @@ contains
       end interface
 
       nx = size(emission_flux,1); ny = size(emission_flux,2); nz = size(emission_flux,3)
+      f_bb = 1.0_fp
+      if (emis_mie_handle == 0_c_int) then
+         ! No optics tables loaded (mie: section absent or init failed); the
+         ! caller retains the emissions with factor=1 and logs a warning.
+         rc = CC_FAILURE
+         return
+      end if
       allocate(flux_columns(nx*ny,nz), rh_columns(nx*ny,nz), factors(nx*ny))
       column = 0
       do j = 1, ny
@@ -1435,7 +1586,7 @@ contains
       do i = 1, min(len_trim(mie_name), 63)
          mie_name_c(i) = mie_name(i:i)
       end do
-      call run_emission_mie_factor(int(nx*ny,c_int), int(nz,c_int), mie_name_c, &
+      call run_emission_mie_factor(emis_mie_handle, int(nx*ny,c_int), int(nz,c_int), mie_name_c, &
          flux_columns, rh_columns, real(scale_factor,c_double), real(dt,c_double), factors, limiter_rc)
       f_bb = 1.0_fp
       if (limiter_rc == 0_c_int) then
@@ -2696,6 +2847,12 @@ contains
 
       ! Clean up regrid route-handle cache
       call catchem_regrid_cleanup(ext_emis_data%regrid_cache, rc=localrc)
+
+      ! Release the emission driver's Mie optics-table context
+      if (emis_mie_handle /= 0_c_int) then
+         call run_settling_mie_release(emis_mie_handle)
+         emis_mie_handle = 0_c_int
+      end if
 
       call ESMF_LogWrite(trim(pName)//': Emission data finalized', &
          ESMF_LOGMSG_INFO, rc=localrc)

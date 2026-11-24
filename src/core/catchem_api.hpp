@@ -1225,6 +1225,33 @@ int catchem_config_get_yaml_list_count(void* core_ptr, const char* yaml_path);
 void catchem_config_get_yaml_list_at(void* core_ptr, const char* yaml_path, int index, char* val_out, int max_len);
 
 /**
+ * @brief Returns the number of optics tables declared in the top-level "mie.files" map.
+ * @param core_ptr Pointer to catchem::Core instance.
+ * @return Number of (type, file) pairs in YAML declaration order, or 0.
+ */
+int catchem_config_get_mie_file_count(void* core_ptr);
+
+/**
+ * @brief Retrieves the optics-table directory from "mie.directory".
+ * @param core_ptr Pointer to catchem::Core instance.
+ * @param val_out Output buffer for null-terminated directory string.
+ * @param max_len Maximum length of output buffer.
+ */
+void catchem_config_get_mie_directory(void* core_ptr, char* val_out, int max_len);
+
+/**
+ * @brief Retrieves one (aerosol type, optics file) pair from "mie.files".
+ * @param core_ptr Pointer to catchem::Core instance.
+ * @param index 0-based pair index in YAML declaration order.
+ * @param type_out Output buffer for the null-terminated aerosol type code.
+ * @param type_max_len Maximum length of type_out.
+ * @param file_out Output buffer for the null-terminated optics file name.
+ * @param file_max_len Maximum length of file_out.
+ */
+void catchem_config_get_mie_file_at(void* core_ptr, int index, char* type_out, int type_max_len, char* file_out,
+                                    int file_max_len);
+
+/**
  * @brief Enable or disable echoing the parsed YAML to stdout on configuration load.
  * @param enabled Non-zero to echo (the default), zero to suppress.
  *
