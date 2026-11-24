@@ -475,15 +475,15 @@ contains
    !> \brief Copy a Fortran string into a blank-padded C character array.
    !! \param[in]  fstr Fortran string
    !! \param[out] carr C character array (blank padded, no NUL required by the bridge)
-   !! \param[in]  clen declared length of carr
-   subroutine f_string_to_c(fstr, carr, clen)
+   !! \param[in]  arr_len declared length of carr
+   subroutine f_string_to_c(fstr, carr, arr_len)
       implicit none
       character(len=*), intent(in) :: fstr
-      integer, intent(in) :: clen
-      character(kind=c_char), intent(out) :: carr(clen)
+      integer, intent(in) :: arr_len
+      character(kind=c_char), intent(out) :: carr(arr_len)
       integer :: i, n
       carr = ' '
-      n = min(len_trim(fstr), clen)
+      n = min(len_trim(fstr), arr_len)
       do i = 1, n
          carr(i) = fstr(i:i)
       end do

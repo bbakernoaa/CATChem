@@ -509,7 +509,10 @@ if(CATCHEM_BUILD_CCPP)
       PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
     )
     if(CATCHEM_CCPP_HOST_MODULE_DIR)
-      target_include_directories(cc_ccpp PRIVATE ${CATCHEM_CCPP_HOST_MODULE_DIR})
+      target_include_directories(
+        cc_ccpp
+        PRIVATE ${CATCHEM_CCPP_HOST_MODULE_DIR}
+      )
     endif()
     add_dependencies(cc_ccpp CCPP_CATChem_interface ${CATCHEM_CCPP_HOST_TARGET})
     target_link_libraries(
